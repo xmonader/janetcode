@@ -142,7 +142,14 @@ the columns that can resolve are context per solved task and cost; stage
 claim, plus a purpose-built probe: a two-session task where session 2
 needs a fact only session 1's ledger contains.
 
-The two-session probe ran live on master_mem (dashscope qwen3.7-plus, a
+The claim probe ran as a hidden-invariant matrix (docs/benchmarks/memory/
+REPORT.md): conditioned on the lesson being captured, 0/4 warm sessions
+repeated the mistake vs 4/4 cold; the capture step (4/9) is the
+bottleneck, and sleep wrote nothing on flash — a recorded negative
+result. The mechanism that carried the effect was the always-in-prompt
+index, not per-turn recall.
+
+The earlier two-session smoke (dashscope qwen3.7-plus, a
 scratch project whose tests need a build tag): session 1's stated rule
 became an entry with a watermark and concerns; session 2 recalled it and
 ran the right command as its only tool call; a session that changed the

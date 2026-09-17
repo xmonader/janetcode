@@ -1,0 +1,1406 @@
+[
+ {
+  "cond": "learn",
+  "quirk": "version-sync",
+  "rep": 0,
+  "name": "version-sync#0 learn",
+  "exit": 0,
+  "secs": 50.7,
+  "commands": [
+   {
+    "cmd": "go test ./... && grep -q 'const Version = \"$(cat VERSION)\"' version.go || { echo 'VERSION and version.go disagree'; exit 1; }"
+   },
+   {
+    "cmd": "grep \"const Version = \\\"$(cat VERSION)\\\"\" version.go || echo \"MISMATCH\""
+   },
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync-constraint (project, project): VERSION file must always match const Version in version.go",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u2717 check failed: 2 file(s) edited and a check came back red",
+  "cost": 0.00041211400000000005
+ },
+ {
+  "cond": "warm",
+  "quirk": "version-sync",
+  "rep": 0,
+  "name": "version-sync#0 warm",
+  "exit": 0,
+  "secs": 42.6,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 8,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000531137
+ },
+ {
+  "cond": "learn",
+  "quirk": "version-sync",
+  "rep": 0,
+  "name": "version-sync#0 learn",
+  "exit": 0,
+  "secs": 37.3,
+  "commands": [
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered sync-version-files (project, project): Version control uses version.go and VERSION in sync",
+   "[memory] sleep remembered sync-version-files: version.go and VERSION must always match for release"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000543994
+ },
+ {
+  "cond": "warm",
+  "quirk": "version-sync",
+  "rep": 0,
+  "name": "version-sync#0 warm",
+  "exit": 0,
+  "secs": 22.1,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 4,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.00039421
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "version-sync",
+  "rep": 0,
+  "name": "version-sync#0 coldprep",
+  "exit": 0,
+  "secs": 66.6,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/version-sync-0 && go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000392445
+ },
+ {
+  "cond": "cold",
+  "quirk": "version-sync",
+  "rep": 0,
+  "name": "version-sync#0 cold",
+  "exit": 0,
+  "secs": 45.4,
+  "commands": [
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/version-sync-0 && go test ./..."
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/version-sync-0 && go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000356647
+ },
+ {
+  "cond": "learn",
+  "quirk": "version-sync",
+  "rep": 1,
+  "name": "version-sync#1 learn",
+  "exit": 0,
+  "secs": 50.0,
+  "commands": [
+   {
+    "cmd": "go build ./... && go test ./..."
+   },
+   {
+    "cmd": "cat VERSION 2>/dev/null || echo \"NO VERSION FILE\""
+   },
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 9,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.0007126109999999999
+ },
+ {
+  "cond": "warm",
+  "quirk": "version-sync",
+  "rep": 1,
+  "name": "version-sync#1 warm",
+  "exit": 0,
+  "secs": 40.3,
+  "commands": [
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync-file-and-go (project, project): VERSION file and version.go must match on releases",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000305305
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "version-sync",
+  "rep": 1,
+  "name": "version-sync#1 coldprep",
+  "exit": 0,
+  "secs": 40.0,
+  "commands": [
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync-rule (feedback, project): VERSION file and version.go must match",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.00030482199999999995
+ },
+ {
+  "cond": "cold",
+  "quirk": "version-sync",
+  "rep": 1,
+  "name": "version-sync#1 cold",
+  "exit": 0,
+  "secs": 44.2,
+  "commands": [
+   {
+    "cmd": "go build ./... && go test ./..."
+   },
+   {
+    "cmd": "cat VERSION 2>/dev/null || echo \"no VERSION file\""
+   },
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep remembered version-sync-rule: Keep VERSION and version.go in sync when bumping versions"
+  ],
+  "tool_calls": 8,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000404513
+ },
+ {
+  "cond": "learn",
+  "quirk": "version-sync",
+  "rep": 2,
+  "name": "version-sync#2 learn",
+  "exit": 0,
+  "secs": 51.6,
+  "commands": [
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/version-sync-2 && go test ./..."
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/version-sync-2 && go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 8,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.0006826479999999999
+ },
+ {
+  "cond": "warm",
+  "quirk": "version-sync",
+  "rep": 2,
+  "name": "version-sync#2 warm",
+  "exit": 0,
+  "secs": 31.3,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   },
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep remembered version-synchronization-rule: Bump both VERSION and version.go together to maintain synchronization"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.00030942700000000003
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "version-sync",
+  "rep": 2,
+  "name": "version-sync#2 coldprep",
+  "exit": 0,
+  "secs": 48.3,
+  "commands": [
+   {
+    "cmd": "cat go.mod 2>/dev/null; echo \"---\"; go version 2>&1"
+   },
+   {
+    "cmd": "go build ./... 2>&1; echo \"---EXIT: $?\""
+   },
+   {
+    "cmd": "go test ./... 2>&1; echo \"---EXIT: $?\""
+   },
+   {
+    "cmd": "go test ./... && grep -q \"const Version = \\\"$(cat VERSION)\\\"\" version.go || { echo 'VERSION and version.go disagree: they are released together and must always match'; exit 1; }"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep remembered version-sync-rule: VERSION and version.go must always contain identical version strings"
+  ],
+  "tool_calls": 11,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.00042830300000000005
+ },
+ {
+  "cond": "cold",
+  "quirk": "version-sync",
+  "rep": 2,
+  "name": "version-sync#2 cold",
+  "exit": 0,
+  "secs": 46.8,
+  "commands": [
+   {
+    "cmd": "pwd && ls"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] remembered version-sync-files (project, project): Version is stored in version.go and VERSION",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 10,
+  "verdict": "\u2713 verified: 2 file(s) edited and tests ran and passed afterwards",
+  "cost": 0.000307145
+ },
+ {
+  "cond": "learn",
+  "quirk": "changelog",
+  "rep": 0,
+  "name": "changelog#0 learn",
+  "exit": 0,
+  "secs": 42.9,
+  "commands": [
+   {
+    "cmd": "python -m pytest tests/test_core.py -v 2>&1"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u2717 check failed: 2 file(s) edited and a check came back red \u00b7 tests/test_core.py \u2014 an existing test's expectation was changed or removed (rewritten-test-expectation)",
+  "cost": 0.00043449
+ },
+ {
+  "cond": "warm",
+  "quirk": "changelog",
+  "rep": 0,
+  "name": "changelog#0 warm",
+  "exit": 0,
+  "secs": 20.9,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 4,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but tests/test_core.py changed in the same turn \u00b7 tests/test_core.py \u2014 an existing test's expectation was changed or removed (rewritten-test-expectation)",
+  "cost": 0.00012119100000000001
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "changelog",
+  "rep": 0,
+  "name": "changelog#0 coldprep",
+  "exit": 0,
+  "secs": 52.6,
+  "commands": [
+   {
+    "cmd": "python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "pip install -e . 2>&1 && python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "PYTHONPATH=src python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "PYTHONPATH=src python -m pytest tests/test_core.py -v 2>&1"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] extraction failed: Provider returned error (HTTP 429)",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 8,
+  "verdict": "\u2717 check failed: 2 file(s) edited and a check came back red",
+  "cost": 0.000410029
+ },
+ {
+  "cond": "cold",
+  "quirk": "changelog",
+  "rep": 0,
+  "name": "changelog#0 cold",
+  "exit": 0,
+  "secs": 45.5,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but tests/test_core.py changed in the same turn \u00b7 tests/test_core.py \u2014 an existing test's expectation was changed or removed (rewritten-test-expectation)",
+  "cost": 0.000197345
+ },
+ {
+  "cond": "learn",
+  "quirk": "changelog",
+  "rep": 1,
+  "name": "changelog#1 learn",
+  "exit": 0,
+  "secs": 41.9,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 4,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but tests/test_core.py changed in the same turn",
+  "cost": 0.00038916600000000003
+ },
+ {
+  "cond": "warm",
+  "quirk": "changelog",
+  "rep": 1,
+  "name": "changelog#1 warm",
+  "exit": 0,
+  "secs": 76.0,
+  "commands": [
+   {
+    "cmd": "python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "PYTHONPATH=src python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "ls /tmp/opencode/probe2/proj/changelog-1/pyproject.toml /tmp/opencode/probe2/proj/changelog-1/setup.py /tmp/opencode/probe2/proj/changelog-1/pytest.ini /tmp/opencode/probe2/proj/changelog-1/setup.cfg 2>&1"
+   },
+   {
+    "cmd": "ls /tmp/opencode/probe2/proj/changelog-1/ 2>&1"
+   },
+   {
+    "cmd": "ls -la /tmp/opencode/probe2/proj/changelog-1/tests/ 2>&1"
+   },
+   {
+    "cmd": "ls -la /tmp/opencode/probe2/proj/changelog-1/src/ /tmp/opencode/probe2/proj/changelog-1/src/probe/ 2>&1"
+   },
+   {
+    "cmd": "PYTHONPATH=src python3 -m pytest tests -q && grep -q \"^## $(cat VERSION)\" CHANGELOG.md || { echo 'every release needs a CHANGELOG section headed by its version'; exit 1; }"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 16,
+  "verdict": "\u2717 check failed: 3 file(s) edited and a check came back red \u00b7 tests/test_core.py \u2014 an existing test's expectation was changed or removed (rewritten-test-expectation)",
+  "cost": 0.000847988
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "changelog",
+  "rep": 1,
+  "name": "changelog#1 coldprep",
+  "exit": 0,
+  "secs": 61.6,
+  "commands": [
+   {
+    "cmd": "python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "PYTHONPATH=src python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "ls -la *.cfg pyproject.toml setup.py Makefile 2>/dev/null; cat pyproject.toml 2>/dev/null || cat setup.cfg 2>/dev/null || echo \"no config found\""
+   },
+   {
+    "cmd": "ls -la"
+   },
+   {
+    "cmd": "cat .janetcode/config 2>/dev/null; ls .janetcode/ 2>/dev/null"
+   },
+   {
+    "cmd": "PYTHONPATH=src python3 -m pytest tests -q && grep -q \"^## $(cat VERSION)\" CHANGELOG.md || { echo 'every release needs a CHANGELOG section headed by its version'; exit 1; }"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 15,
+  "verdict": "\u2717 check failed: 2 file(s) edited and a check came back red",
+  "cost": 0.0007695459999999999
+ },
+ {
+  "cond": "cold",
+  "quirk": "changelog",
+  "rep": 1,
+  "name": "changelog#1 cold",
+  "exit": 0,
+  "secs": 17.3,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 4,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but tests/test_core.py changed in the same turn",
+  "cost": 0.00011889099999999998
+ },
+ {
+  "cond": "learn",
+  "quirk": "changelog",
+  "rep": 2,
+  "name": "changelog#2 learn",
+  "exit": 0,
+  "secs": 43.4,
+  "commands": [
+   {
+    "cmd": "python -m pytest tests/test_core.py -v"
+   },
+   {
+    "cmd": "PYTHONPATH=src python -m pytest tests/test_core.py -v"
+   },
+   {
+    "cmd": "PYTHONPATH=src python -m pytest tests/test_core.py -v"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u2717 check failed: 2 file(s) edited and a check came back red \u00b7 tests/test_core.py \u2014 an existing test's expectation was changed or removed (rewritten-test-expectation)",
+  "cost": 0.0006117070000000001
+ },
+ {
+  "cond": "warm",
+  "quirk": "changelog",
+  "rep": 2,
+  "name": "changelog#2 warm",
+  "exit": 0,
+  "secs": 25.5,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but tests/test_core.py changed in the same turn",
+  "cost": 0.000181676
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "changelog",
+  "rep": 2,
+  "name": "changelog#2 coldprep",
+  "exit": 0,
+  "secs": 64.4,
+  "commands": [
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && python -m pytest tests/test_core.py -v"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && pip install -e . 2>&1 | tail -3"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && ls -la"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && PYTHONPATH=src python -m pytest tests/test_core.py -v"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && PYTHONPATH=src python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && python -m pytest tests/test_core.py -v 2>&1"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && cat pytest.ini pyproject.toml setup.cfg 2>/dev/null; ls *.toml *.cfg *.ini 2>/dev/null"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/changelog-2 && python -m pytest tests/test_core.py -v 2>&1"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 13,
+  "verdict": "\u2717 check failed: 3 file(s) edited and a check came back red \u00b7 tests/test_core.py \u2014 an existing test's expectation was changed or removed (rewritten-test-expectation)",
+  "cost": 0.000715213
+ },
+ {
+  "cond": "cold",
+  "quirk": "changelog",
+  "rep": 2,
+  "name": "changelog#2 cold",
+  "exit": 0,
+  "secs": 22.9,
+  "commands": [
+   {
+    "cmd": "python -m pytest tests/test_core.py -v 2>&1"
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but tests/test_core.py changed in the same turn",
+  "cost": 0.000176709
+ },
+ {
+  "cond": "learn",
+  "quirk": "manifest",
+  "rep": 0,
+  "name": "manifest#0 learn",
+  "exit": 0,
+  "secs": 43.2,
+  "commands": [
+   {
+    "cmd": "chmod +x /tmp/opencode/probe2/proj/manifest-0/deploy.sh && bash /tmp/opencode/probe2/proj/manifest-0/deploy.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-0/deploy.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-0/deploy.sh && for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: $f\"; exit 1; }; done && echo \"All OK\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.0005809549999999999
+ },
+ {
+  "cond": "warm",
+  "quirk": "manifest",
+  "rep": 0,
+  "name": "manifest#0 warm",
+  "exit": 0,
+  "secs": 29.3,
+  "commands": [
+   {
+    "cmd": "stat -c%s cleanup.sh"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered manifest-maintenance (project, project): Update MANIFEST when adding .sh files.",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00022109999999999998
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "manifest",
+  "rep": 0,
+  "name": "manifest#0 coldprep",
+  "exit": 0,
+  "secs": 33.3,
+  "commands": [
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-0/deploy.sh"
+   },
+   {
+    "cmd": "cat /tmp/opencode/probe2/proj/manifest-0/MANIFEST && echo \"---\" && for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done; echo \"OK\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered manifest-sh-byte-tracking (project, project): MANIFEST must contain byte sizes for all .sh files",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00029715000000000004
+ },
+ {
+  "cond": "cold",
+  "quirk": "manifest",
+  "rep": 0,
+  "name": "manifest#0 cold",
+  "exit": 0,
+  "secs": 54.6,
+  "commands": [
+   {
+    "cmd": "chmod +x /tmp/opencode/probe2/proj/manifest-0/cleanup.sh && cd /tmp/opencode/probe2/proj/manifest-0 && bash cleanup.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-0 && stat -c%s cleanup.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-0 && stat -c%s cleanup.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-0 && for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done && echo \"All good\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000441831
+ },
+ {
+  "cond": "learn",
+  "quirk": "manifest",
+  "rep": 1,
+  "name": "manifest#1 learn",
+  "exit": 1,
+  "secs": 9.2,
+  "commands": [
+   {
+    "cmd": "chmod +x deploy.sh && bash deploy.sh"
+   },
+   {
+    "cmd": "ls -la *.sh && wc -c deploy.sh"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [],
+  "tool_calls": 3,
+  "verdict": null,
+  "cost": 0.000395507
+ },
+ {
+  "cond": "warm",
+  "quirk": "manifest",
+  "rep": 1,
+  "name": "manifest#1 warm",
+  "exit": 0,
+  "secs": 72.4,
+  "commands": [
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-1/cleanup.sh"
+   },
+   {
+    "cmd": "for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done && echo \"All good\""
+   },
+   {
+    "cmd": "for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done && echo \"All good\""
+   },
+   {
+    "cmd": "stat -c%s build.sh cleanup.sh && echo \"---\" && cat -A MANIFEST"
+   },
+   {
+    "cmd": "f=cleanup.sh; echo \"Testing: ^$f $(stat -c%s cleanup.sh)\"; grep \"^$f $(stat -c%s cleanup.sh)$\" MANIFEST"
+   },
+   {
+    "cmd": "f=build.sh; echo \"Testing: ^$f $(stat -c%s build.sh)\"; grep \"^$f $(stat -c%s build.sh)$\" MANIFEST"
+   },
+   {
+    "cmd": "for f in *.sh; do echo \"Checking $f (size $(stat -c%s \"$f\"))\"; grep -q \"^$f $(stat -c%s \"$f\")$\" MANIFEST && echo \"OK\" || { echo \"FAIL\"; exit 1; }; done"
+   },
+   {
+    "cmd": "stat -c%s deploy.sh"
+   },
+   {
+    "cmd": "for f in *.sh; do echo \"Checking $f (size $(stat -c%s \"$f\"))\"; grep -q \"^$f $(stat -c%s \"$f\")$\" MANIFEST && echo \"OK\" || { echo \"FAIL\"; exit 1; }; done && echo \"All good\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 15,
+  "verdict": "\u2717 check failed: 2 file(s) edited and a check came back red",
+  "cost": 0.000763601
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "manifest",
+  "rep": 1,
+  "name": "manifest#1 coldprep",
+  "exit": 0,
+  "secs": 47.7,
+  "commands": [
+   {
+    "cmd": "chmod +x /tmp/opencode/probe2/proj/manifest-1/deploy.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-1/deploy.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-1 && for f in *.sh; do echo \"$f $(stat -c%s $f)\"; done"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-1 && for f in *.sh; do grep -q \"^$f $(stat -c%s $f)\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000373604
+ },
+ {
+  "cond": "cold",
+  "quirk": "manifest",
+  "rep": 1,
+  "name": "manifest#1 cold",
+  "exit": 0,
+  "secs": 42.9,
+  "commands": [
+   {
+    "cmd": "chmod +x cleanup.sh"
+   },
+   {
+    "cmd": "stat -c%s cleanup.sh"
+   },
+   {
+    "cmd": "for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST && echo \"OK: $f\" || { echo \"FAIL: $f\"; exit 1; }; done"
+   },
+   {
+    "cmd": "for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done && echo \"All checks passed\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep remembered manifest-script-tracking: MANIFEST must track .sh files with name and size"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 2 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000372747
+ },
+ {
+  "cond": "learn",
+  "quirk": "manifest",
+  "rep": 2,
+  "name": "manifest#2 learn",
+  "exit": 0,
+  "secs": 41.7,
+  "commands": [
+   {
+    "cmd": "chmod +x /tmp/opencode/probe2/proj/manifest-2/deploy.sh && bash /tmp/opencode/probe2/proj/manifest-2/deploy.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-2/deploy.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-2 && for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done && echo \"All OK\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered manifest-sh-requirement (project, project): Every .sh file must be listed in MANIFEST with its size.",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000607034
+ },
+ {
+  "cond": "warm",
+  "quirk": "manifest",
+  "rep": 2,
+  "name": "manifest#2 warm",
+  "exit": 0,
+  "secs": 33.8,
+  "commands": [
+   {
+    "cmd": "wc -c /tmp/opencode/probe2/proj/manifest-2/cleanup.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-2 && cat MANIFEST | while read name size; do [ -z \"$name\" ] || [ \"$name\" = \"# every...\" ]; continue; actual=$(wc -c < \"$name\"); if [ \"$actual\" != \"$size\" ]; then echo \"MISMATCH: $name expected $size got $actual\"; fi; done && echo \"OK\""
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000532196
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "manifest",
+  "rep": 2,
+  "name": "manifest#2 coldprep",
+  "exit": 0,
+  "secs": 38.3,
+  "commands": [
+   {
+    "cmd": "chmod +x /tmp/opencode/probe2/proj/manifest-2/deploy.sh && bash /tmp/opencode/probe2/proj/manifest-2/deploy.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-2/deploy.sh"
+   },
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/manifest-2 && for f in *.sh; do grep -q \"^$f $(stat -c%s $f)$\" MANIFEST || { echo \"MANIFEST is stale: every .sh file needs a line '<name> <size>'\"; exit 1; }; done && echo \"OK\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered manifest-sh-sync-rule (project, project): MANIFEST must track all .sh files with name and size.",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000291654
+ },
+ {
+  "cond": "cold",
+  "quirk": "manifest",
+  "rep": 2,
+  "name": "manifest#2 cold",
+  "exit": 0,
+  "secs": 41.6,
+  "commands": [
+   {
+    "cmd": "chmod +x /tmp/opencode/probe2/proj/manifest-2/cleanup.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-2/cleanup.sh"
+   },
+   {
+    "cmd": "stat -c%s /tmp/opencode/probe2/proj/manifest-2/cleanup.sh"
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000325193
+ },
+ {
+  "cond": "learn",
+  "quirk": "doc-comment",
+  "rep": 0,
+  "name": "doc-comment#0 learn",
+  "exit": 0,
+  "secs": 28.7,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.00045052600000000003
+ },
+ {
+  "cond": "warm",
+  "quirk": "doc-comment",
+  "rep": 0,
+  "name": "doc-comment#0 warm",
+  "exit": 0,
+  "secs": 28.8,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but /tmp/opencode/probe2/proj/doc-comment-0/main_test.go changed in the same turn",
+  "cost": 0.00021669499999999998
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "doc-comment",
+  "rep": 0,
+  "name": "doc-comment#0 coldprep",
+  "exit": 0,
+  "secs": 44.0,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 10,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.000476787
+ },
+ {
+  "cond": "cold",
+  "quirk": "doc-comment",
+  "rep": 0,
+  "name": "doc-comment#0 cold",
+  "exit": 0,
+  "secs": 44.9,
+  "commands": [
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/doc-comment-0 && go test -v ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 8,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but /tmp/opencode/probe2/proj/doc-comment-0/main_test.go changed in the same turn",
+  "cost": 0.000383662
+ },
+ {
+  "cond": "learn",
+  "quirk": "doc-comment",
+  "rep": 1,
+  "name": "doc-comment#1 learn",
+  "exit": 0,
+  "secs": 39.3,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.0005097939999999999
+ },
+ {
+  "cond": "warm",
+  "quirk": "doc-comment",
+  "rep": 1,
+  "name": "doc-comment#1 warm",
+  "exit": 0,
+  "secs": 38.4,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.00041987
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "doc-comment",
+  "rep": 1,
+  "name": "doc-comment#1 coldprep",
+  "exit": 0,
+  "secs": 35.8,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.00024216899999999998
+ },
+ {
+  "cond": "cold",
+  "quirk": "doc-comment",
+  "rep": 1,
+  "name": "doc-comment#1 cold",
+  "exit": 0,
+  "secs": 35.6,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but /tmp/opencode/probe2/proj/doc-comment-1/main_test.go changed in the same turn",
+  "cost": 0.000279204
+ },
+ {
+  "cond": "learn",
+  "quirk": "doc-comment",
+  "rep": 2,
+  "name": "doc-comment#2 learn",
+  "exit": 0,
+  "secs": 32.5,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.000496556
+ },
+ {
+  "cond": "warm",
+  "quirk": "doc-comment",
+  "rep": 2,
+  "name": "doc-comment#2 warm",
+  "exit": 0,
+  "secs": 37.7,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 7,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.000359592
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "doc-comment",
+  "rep": 2,
+  "name": "doc-comment#2 coldprep",
+  "exit": 0,
+  "secs": 32.2,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but /tmp/opencode/probe2/proj/doc-comment-2/main_test.go changed in the same turn",
+  "cost": 0.000198237
+ },
+ {
+  "cond": "cold",
+  "quirk": "doc-comment",
+  "rep": 2,
+  "name": "doc-comment#2 cold",
+  "exit": 0,
+  "secs": 35.7,
+  "commands": [
+   {
+    "cmd": "go test ./..."
+   }
+  ],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 self-checked: 2 file(s) edited and tests passed, but main_test.go changed in the same turn",
+  "cost": 0.00025160199999999997
+ },
+ {
+  "cond": "learn",
+  "quirk": "lockstep",
+  "rep": 0,
+  "name": "lockstep#0 learn",
+  "exit": 0,
+  "secs": 39.7,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.0005503269999999999
+ },
+ {
+  "cond": "warm",
+  "quirk": "lockstep",
+  "rep": 0,
+  "name": "lockstep#0 warm",
+  "exit": 0,
+  "secs": 33.5,
+  "commands": [],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync (project, project): core.js VERSION and package.json version must match.",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 4,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00023441199999999998
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "lockstep",
+  "rep": 0,
+  "name": "lockstep#0 coldprep",
+  "exit": 0,
+  "secs": 38.0,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync (project, project): package.json and core.js versions must match",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00026724699999999997
+ },
+ {
+  "cond": "cold",
+  "quirk": "lockstep",
+  "rep": 0,
+  "name": "lockstep#0 cold",
+  "exit": 0,
+  "secs": 32.8,
+  "commands": [
+   {
+    "cmd": "cd /tmp/opencode/probe2/proj/lockstep-0 && node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync-rule (project, project): package.json and core.js versions must match",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00028224799999999997
+ },
+ {
+  "cond": "learn",
+  "quirk": "lockstep",
+  "rep": 1,
+  "name": "lockstep#1 learn",
+  "exit": 0,
+  "secs": 37.3,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-sync (project, project): package.json and core.js versions must always match.",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.0005351679999999999
+ },
+ {
+  "cond": "warm",
+  "quirk": "lockstep",
+  "rep": 1,
+  "name": "lockstep#1 warm",
+  "exit": 0,
+  "secs": 28.5,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 4,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000390575
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "lockstep",
+  "rep": 1,
+  "name": "lockstep#1 coldprep",
+  "exit": 0,
+  "secs": 39.4,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] remembered version-synchronization (project, project): package.json and core.js VERSION must match",
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00029026299999999997
+ },
+ {
+  "cond": "cold",
+  "quirk": "lockstep",
+  "rep": 1,
+  "name": "lockstep#1 cold",
+  "exit": 0,
+  "secs": 39.8,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000283518
+ },
+ {
+  "cond": "learn",
+  "quirk": "lockstep",
+  "rep": 2,
+  "name": "lockstep#2 learn",
+  "exit": 0,
+  "secs": 38.2,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep remembered version-alignment: package.json and core.js must always maintain matching version strings"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000538177
+ },
+ {
+  "cond": "warm",
+  "quirk": "lockstep",
+  "rep": 2,
+  "name": "lockstep#2 warm",
+  "exit": 0,
+  "secs": 41.0,
+  "commands": [],
+  "gate_red": 0,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 5,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.000440806
+ },
+ {
+  "cond": "coldprep",
+  "quirk": "lockstep",
+  "rep": 2,
+  "name": "lockstep#2 coldprep",
+  "exit": 0,
+  "secs": 42.1,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00032863200000000003
+ },
+ {
+  "cond": "cold",
+  "quirk": "lockstep",
+  "rep": 2,
+  "name": "lockstep#2 cold",
+  "exit": 0,
+  "secs": 39.7,
+  "commands": [
+   {
+    "cmd": "node check.js && node -e \"const p=require('./package.json'),c=require('./core.js'); if(p.version!==c.VERSION){console.error('package.json and core.js versions disagree: they are released together and must always match');process.exit(1)}\""
+   }
+  ],
+  "gate_red": 1,
+  "memory": [
+   "[memory] sleep: nothing kept (the record held nothing new)"
+  ],
+  "tool_calls": 6,
+  "verdict": "\u26a0 not demonstrated: 2 file(s) edited and 1 check(s) passed, but no test was exercised \u2014 it compiles, which is not the same as working",
+  "cost": 0.00031453599999999997
+ }
+]
