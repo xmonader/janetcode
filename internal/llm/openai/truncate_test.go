@@ -109,3 +109,73 @@ func atomicAdd(n *int32) int32 {
 	*n++
 	return *n
 }
+
+// TestLifetimeCapEndsTheCall: the lifetime cap is the bound on one
+// streamed call — the thing that ends a stream dribbling a token a minute
+// forever. Building the watchdog inside the retry loop restarted it per
+// attempt and treated its kill as a dead connection, so a 900s cap became
+// three attempts of 900s and three generations billed for one answer.
+func TestLifetimeCapEndsTheCall(t *testing.T) {
+	var calls int32
+	p := newTestProviderWith(t, Config{
+		MaxRetries: 2,
+		Limits:     llm.StreamLimits{Idle: -1, Max: 150 * time.Millisecond},
+	}, func(w http.ResponseWriter, r *http.Request) {
+		atomicAdd(&calls)
+		w.Header().Set("Content-Type", "text/event-stream")
+		// Keeps talking, so the idle bound would never fire: exactly the
+		// stream the lifetime cap is for.
+		for {
+			if _, err := io.WriteString(w, "data: "+`{"choices":[{"delta":{"content":"x"}}]}`+"\n\n"); err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	})
+	start := time.Now()
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	elapsed := time.Since(start)
+	if err == nil || !strings.Contains(err.Error(), "stream_max_duration") {
+		t.Fatalf("err = %v, want the lifetime cap", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1: a lifetime cap is not a dead connection to retry", calls)
+	}
+	// The whole call, retries included, stays inside the one budget.
+	if elapsed > time.Second {
+		t.Fatalf("the call took %s against a 150ms cap", elapsed)
+	}
+}
+
+// TestLifetimeBudgetSpansRetries: even where a retry is right — a stream
+// that died without a terminal frame — the attempts share one lifetime
+// budget, because it bounds the call and not the attempt.
+func TestLifetimeBudgetSpansRetries(t *testing.T) {
+	var calls int32
+	p := newTestProviderWith(t, Config{
+		MaxRetries: 5,
+		Limits:     llm.StreamLimits{Idle: -1, Max: 200 * time.Millisecond},
+	}, func(w http.ResponseWriter, r *http.Request) {
+		atomicAdd(&calls)
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: "+`{"choices":[{"delta":{"content":"half"}}]}`+"\n\n")
+		w.(http.Flusher).Flush()
+		time.Sleep(120 * time.Millisecond)
+		panic(http.ErrAbortHandler) // dies with no terminal frame, every time
+	})
+	start := time.Now()
+	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err == nil {
+		t.Fatal("expected an error")
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("the retries took %s: the budget restarted per attempt", elapsed)
+	}
+	if calls > 3 {
+		t.Fatalf("calls = %d: each attempt got a fresh lifetime budget", calls)
+	}
+}

@@ -340,8 +340,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	// all happen where the watchdog and the UI can see them.
 	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, nil)
 	rotations := 0
+	// One lifetime budget for the whole call, not one per attempt: the
+	// cap exists to end a stream that never stops dribbling, and a
+	// per-attempt one multiplied it by the retry count.
+	callStart := time.Now()
 	for {
-		ctx, wd = llm.Watch(parent, p.cfg.Limits)
+		ctx, wd = llm.WatchSince(parent, p.cfg.Limits, callStart)
 		rt.ResetWatchdog(wd)
 		cfg := p.config()
 		// The tier is read per request, not per provider: /effort changes
@@ -368,6 +372,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			err = wd.Wrap(err) // the watchdog's reason, not bare ctx cancel
 		}
 		if parent.Err() != nil {
+			return nil, wd.Wrap(err)
+		}
+		// The lifetime cap is the bound on this call. It has not died —
+		// it is out of time, and every retry spends the same exhausted
+		// budget, so it ends here.
+		if llm.LifetimeStalled(wd.Err()) {
 			return nil, wd.Wrap(err)
 		}
 		if produced && !llm.Truncated(err) && !stalled {

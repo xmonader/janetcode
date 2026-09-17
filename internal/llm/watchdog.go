@@ -73,6 +73,7 @@ type Watchdog struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	once   sync.Once
+	wg     sync.WaitGroup
 
 	mu    sync.Mutex
 	last  time.Time
@@ -83,18 +84,53 @@ type Watchdog struct {
 // Tick for every increment received and Stop when the call is over; Wrap
 // turns the cancellation into the watchdog's own error.
 func Watch(ctx context.Context, lim StreamLimits) (context.Context, *Watchdog) {
+	return WatchSince(ctx, lim, time.Now())
+}
+
+// WatchSince is Watch with the lifetime cap measured from an earlier
+// moment. A provider that retries a stream which died without a terminal
+// frame builds a watchdog per attempt, because the idle bound has to
+// start again — a fresh attempt really is producing. The lifetime cap
+// must not: it bounds the call, it is the thing that stops a stream
+// dribbling one token a minute forever, and restarting it per attempt
+// multiplied it by the retry count.
+func WatchSince(ctx context.Context, lim StreamLimits, start time.Time) (context.Context, *Watchdog) {
 	lim = lim.Resolve()
 	ctx, cancel := context.WithCancel(ctx)
 	w := &Watchdog{cancel: cancel, done: make(chan struct{}), last: time.Now()}
 	if lim.Idle <= 0 && lim.Max <= 0 {
 		return ctx, w
 	}
-	start := time.Now()
-	go w.watch(start, lim)
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.watch(start, lim)
+	}()
 	return ctx, w
 }
 
+// expired evaluates both bounds against now, recording the first that
+// fired, and reports whether one has.
+func (w *Watchdog) expired(start, now time.Time, lim StreamLimits) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	switch {
+	case w.fired != nil:
+	case lim.Max > 0 && now.Sub(start) >= lim.Max:
+		w.fired = &StreamStalled{Limit: lim.Max, Lifetime: true}
+	case lim.Idle > 0 && now.Sub(w.last) >= lim.Idle:
+		w.fired = &StreamStalled{Limit: lim.Idle}
+	}
+	return w.fired != nil
+}
+
 func (w *Watchdog) watch(start time.Time, lim StreamLimits) {
+	// An attempt that begins with the call's lifetime budget already
+	// spent is over before its first tick.
+	if w.expired(start, time.Now(), lim) {
+		w.cancel()
+		return
+	}
 	every := lim.Idle
 	if lim.Max > 0 && (every <= 0 || lim.Max < every) {
 		every = lim.Max
@@ -113,16 +149,7 @@ func (w *Watchdog) watch(start time.Time, lim StreamLimits) {
 		case <-w.done:
 			return
 		case now := <-t.C:
-			w.mu.Lock()
-			switch {
-			case lim.Max > 0 && now.Sub(start) >= lim.Max:
-				w.fired = &StreamStalled{Limit: lim.Max, Lifetime: true}
-			case lim.Idle > 0 && now.Sub(w.last) >= lim.Idle:
-				w.fired = &StreamStalled{Limit: lim.Idle}
-			}
-			fired := w.fired
-			w.mu.Unlock()
-			if fired != nil {
+			if w.expired(start, now, lim) {
 				w.cancel()
 				return
 			}
@@ -158,13 +185,25 @@ func (w *Watchdog) Expect(d time.Duration) {
 	w.mu.Unlock()
 }
 
-// Stop releases the watchdog and its context.
+// Stop releases the watchdog and its context, and waits for the watching
+// goroutine to be done with it — so Err, read after Stop, cannot race a
+// bound firing at the same moment and report a stall that did not cause
+// the failure.
 func (w *Watchdog) Stop() {
 	if w == nil {
 		return
 	}
 	w.once.Do(func() { close(w.done) })
+	w.wg.Wait()
 	w.cancel()
+}
+
+// LifetimeStalled reports whether err is the non-resettable lifetime cap
+// rather than the idle timeout. The lifetime cap is the bound on the
+// whole call: a caller that retries a dead stream must not retry this.
+func LifetimeStalled(err error) bool {
+	var ss *StreamStalled
+	return errors.As(err, &ss) && ss.Lifetime
 }
 
 // Err is the watchdog's error when a bound fired, else nil.

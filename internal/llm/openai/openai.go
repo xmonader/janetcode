@@ -248,8 +248,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	// reports both the countdown and, once the call lands, what it had to
 	// survive.
 	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, nil)
+	// One lifetime budget for the whole call, not one per attempt: the
+	// cap exists to end a stream that never stops dribbling, and a
+	// per-attempt one multiplied it by the retry count.
+	callStart := time.Now()
 	for {
-		ctx, wd = llm.Watch(parent, p.cfg.Limits)
+		ctx, wd = llm.WatchSince(parent, p.cfg.Limits, callStart)
 		rt.ResetWatchdog(wd)
 		wd.Expect(pendingGap)
 		if err := p.pace.Wait(ctx); err != nil {
@@ -329,6 +333,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		}
 		wd.Stop()
 		if parent.Err() != nil {
+			return nil, wd.Wrap(err)
+		}
+		// The lifetime cap is the bound on this call. It has not died —
+		// it is out of time, and every retry spends the same exhausted
+		// budget, so it ends here.
+		if llm.LifetimeStalled(wd.Err()) {
 			return nil, wd.Wrap(err)
 		}
 		if llm.Truncated(err) || stalled {
