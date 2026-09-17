@@ -19,7 +19,7 @@
     "audit/errs.go": "package audit\n\nimport \"errors\"\n\nvar errEmpty = errors.New(\"empty input\")\n",
     "go.mod": "module example.com/audit\n\ngo 1.22\n"
   },
-  "check": "! grep -rlE 'if s == \"\\\"\\\"\" \\{' audit/ >/dev/null; ! grep -A2 'if s == \"\"' audit/c03.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c06.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c09.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c12.go | grep -q 'return nil' && grep -A2 'if s == \"\"' audit/c01.go | grep -q 'errEmpty' && go build ./...",
+  "check": "! grep -rlE 'if s == \"\\\"\\\"\" \\{' audit/ >/dev/null && ! grep -A2 'if s == \"\"' audit/c03.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c06.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c09.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c12.go | grep -q 'return nil' && grep -A2 'if s == \"\"' audit/c01.go | grep -q 'errEmpty' && go build ./...",
   "timeout": 300,
   "tags": [
     "fanout",

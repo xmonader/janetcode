@@ -322,11 +322,13 @@ Numbers live in `docs/benchmarks/`, with the runs that produced them.
   this model loses it. `docs/benchmarks/harnesses/claude-qwen/`.
 - **Compaction** is safe on this set: forcing it on tasks that would not
   otherwise reach the threshold lost no task, 11/11 either way.
-- **Recall after compaction**: 0/16 exact facts with no archive, 9/20 with
-  it, every correct answer grounded in what was fetched.
-- **What turns demonstrate**, replayed over 97 real turns: 42% verified,
-  32% self-checked, 10% not demonstrated, 10% unverified, no false
-  accusations.
+- **Recall after compaction**: 0/16 exact facts with no `expand_output`
+  (the compacted context alone), 9/20 with it, every correct answer
+  grounded in what was fetched.
+- **What turns demonstrate**, replayed over 97 real turns (calibration
+  run `3ee2021`): 42% verified, and the false-accusation count went
+  from 13 to 0. The commit has the replay and what the first version
+  got wrong.
 
 One caution the benchmark makes plain: running the session set three times
 gives 940k, 774k and 843k — a **21% spread between identical runs**, and
