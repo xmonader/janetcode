@@ -231,6 +231,11 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 		// that uses both is applying the loose one first.
 		edits = append([]oneEdit{{Old: in.Old, New: in.New, ReplaceAll: in.ReplaceAll, From: in.From, To: in.To, FromAnchor: in.FromAnchor, ToAnchor: in.ToAnchor}}, edits...)
 	}
+	for i, e := range edits {
+		if err := checkWriteSize(fmt.Sprintf("new_string of edit %d", i+1), len(e.New), "make the replacement smaller or split it across edits"); err != nil {
+			return nil, err
+		}
+	}
 	if len(edits) == 0 {
 		return nil, fmt.Errorf("no edits: give old_string and new_string, or from_line and to_line, or a list in edits")
 	}
@@ -280,6 +285,9 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 		if err != nil {
 			return nil, err
 		}
+		if err := checkWriteSize(fmt.Sprintf("the edited %s", displayPath(rootOf(t.Root, t.WS), in.Path)), len(after), "a file this large has to be edited with a bash command instead"); err != nil {
+			return nil, err
+		}
 		return &editPlan{path: p, display: displayPath(rootOf(t.Root, t.WS), in.Path), before: before, after: after, replacements: n, removed: removed, shape: shape}, nil
 	}
 	content, total := before, 0
@@ -293,6 +301,9 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 			notes = append(notes, note)
 		}
 		content, total = updated, total+n
+	}
+	if err := checkWriteSize(fmt.Sprintf("the edited %s", displayPath(rootOf(t.Root, t.WS), in.Path)), len(content), "a file this large has to be edited with a bash command instead"); err != nil {
+		return nil, err
 	}
 	return &editPlan{path: p, display: displayPath(rootOf(t.Root, t.WS), in.Path), before: before, after: content, replacements: total, notes: notes, shape: shape}, nil
 }

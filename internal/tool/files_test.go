@@ -522,3 +522,40 @@ func TestWriteThroughSymlinkedDirRejected(t *testing.T) {
 		t.Fatalf("ordinary new file: %v", err)
 	}
 }
+
+// A runaway model can emit a write far larger than any file in the
+// workspace before a token or cost budget notices — the write executes
+// first — so the size itself is the tripwire.
+func TestWriteAndEditRefuseOverTheCeiling(t *testing.T) {
+	root := t.TempDir()
+	ctx := context.Background()
+
+	w := WriteFile{Root: root}
+	in := `{"path":"big.txt","content":` + mustJSON(strings.Repeat("x", MaxWriteBytes+1)) + `}`
+	_, err := w.Run(ctx, raw(in))
+	if err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("write over the ceiling: err = %v", err)
+	}
+	if _, serr := os.Stat(filepath.Join(root, "big.txt")); serr == nil {
+		t.Fatal("the oversized write landed anyway")
+	}
+
+	e := EditFile{Root: root}
+	// A new_string over the cap is refused before anything is read.
+	in = `{"path":"f.txt","old_string":"a","new_string":` + mustJSON(strings.Repeat("y", MaxWriteBytes+1)) + `}`
+	if _, err := e.Run(ctx, raw(in)); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("edit over the ceiling: err = %v", err)
+	}
+	// A replacement under the cap multiplied by replace_all past it is
+	// refused too, and the file is left exactly as it was.
+	os.WriteFile(filepath.Join(root, "f.txt"), []byte("x\nx\nx\n"), 0o644)
+	mid := strings.Repeat("y", MaxWriteBytes/2+1) // under the cap alone
+	in = `{"path":"f.txt","old_string":"x","new_string":` + mustJSON(mid) + `,"replace_all":true}`
+	_, err = e.Run(ctx, raw(in))
+	if err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("multiplied edit over the ceiling: err = %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != "x\nx\nx\n" {
+		t.Fatalf("refused edit changed the file: %q", got)
+	}
+}

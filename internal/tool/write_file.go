@@ -41,6 +41,9 @@ func (t WriteFile) Run(ctx context.Context, input json.RawMessage) (string, erro
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
+	if err := checkWriteSize("content", len(in.Content), "write the head with write_file and append the rest with edit_file"); err != nil {
+		return "", err
+	}
 	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
