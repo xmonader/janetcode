@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/pipewrite"
 	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
@@ -38,6 +39,10 @@ type client struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	writeM sync.Mutex
+	// broken is set once a frame reached the server in part. Nothing can
+	// be written after that: the server is waiting inside a header it
+	// will never be given the rest of.
+	broken error
 	log    func(string)
 	nextID int64
 	pendM  sync.Mutex
@@ -323,48 +328,59 @@ func (c *client) reply(id json.RawMessage, result any) {
 	_ = c.send(map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 }
 
+// replyTimeout bounds a write made from the read loop. The loop is the
+// only thing draining the server's stdout, so a reply that blocks on a
+// full stdin pipe deadlocks the pair: the server has stopped reading
+// because it is blocked writing to a stdout nobody is draining, and we
+// have stopped draining because we are blocked writing to its stdin.
+// Both sides then wait forever, and close()'s shutdown never reaches the
+// supervisor that would kill the process.
+const replyTimeout = 10 * time.Second
+
+// send writes a message the caller has no context for — a reply to a
+// server-initiated request, from the read loop. It is bounded anyway.
 func (c *client) send(msg any) error {
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	c.writeM.Lock()
-	defer c.writeM.Unlock()
-	if _, err := fmt.Fprintf(c.stdin, "Content-Length: %d\r\n\r\n", len(body)); err != nil {
-		return err
-	}
-	_, err = c.stdin.Write(body)
-	return err
+	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
+	defer cancel()
+	return c.sendCtx(ctx, msg)
 }
 
-// sendCtx is send with the write bounded by ctx. A pipe write has no
-// deadline, so the write runs in a goroutine and a caller that abandons
-// the context leaves it parked; it finishes — with an error — when the
-// server next drains its stdin or dies. Without the bound, a wedged
-// server hangs the caller past cancellation, and close()'s shutdown would
-// never reach the supervise that actually kills the process.
+// sendCtx writes one LSP frame, bounded by ctx.
+//
+// The write used to run on a goroutine so the caller could give up on it.
+// Giving up did not stop it: a pipe write has no deadline, so the write
+// stayed parked with the lock held and completed later, when the server
+// next drained its stdin — delivering a message whose sender had already
+// been told it failed, behind whatever was written next. pipewrite pushes
+// the pipe's write deadline into the past instead, so the write really
+// ends and the byte count is the truth about what the server received.
+//
+// A frame that went out in part cannot be followed by another: the server
+// is mid-header, and the next frame's bytes would be read as the rest of
+// the one before. There is no recovery from that, so the stream is marked
+// broken and stdin closed, which is what makes the server exit and the
+// reaper report it.
 func (c *client) sendCtx(ctx context.Context, msg any) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	done := make(chan error, 1)
-	go func() {
-		c.writeM.Lock()
-		defer c.writeM.Unlock()
-		if _, err := fmt.Fprintf(c.stdin, "Content-Length: %d\r\n\r\n", len(body)); err != nil {
-			done <- err
-			return
-		}
-		_, err := c.stdin.Write(body)
-		done <- err
-	}()
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
+	frame := append([]byte(fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))), body...)
+	c.writeM.Lock()
+	defer c.writeM.Unlock()
+	if c.broken != nil {
+		return c.broken
 	}
+	if _, err := pipewrite.Write(ctx, c.stdin, frame); err != nil {
+		var pe *pipewrite.PartialError
+		if errors.As(err, &pe) {
+			c.broken = fmt.Errorf("lsp stdin is out of frame and cannot be reused: %w", err)
+			c.stdin.Close()
+			return c.broken
+		}
+		return err
+	}
+	return nil
 }
 
 // read dispatches server messages until stdout closes.
