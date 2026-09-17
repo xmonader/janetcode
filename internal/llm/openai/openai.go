@@ -112,6 +112,11 @@ func New(cfg Config) (*Provider, error) {
 			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
 		}
 	}
+	// Both request paths — the stream and ListModels — share this client,
+	// and both send the key. Without a policy Go forwards Authorization
+	// to any subdomain of the endpoint's host, never checks the scheme,
+	// and copies extraHeaders anywhere at all.
+	hc = llm.SafeRedirectClient(hc)
 	return &Provider{cfg: cfg, ring: ring, http: hc, pace: &llm.Pacer{}, dialect: &dialect{}}, nil
 }
 

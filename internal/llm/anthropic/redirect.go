@@ -1,36 +1,15 @@
 package anthropic
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
-// newRedirectSafeClient gives c a redirect policy that drops x-api-key
-// on a hop to another scheme or host. Go's default policy strips
-// Authorization, Cookie and WWW-Authenticate cross-host but not custom
-// auth headers — and x-api-key is the one this API authenticates with,
-// so a mischievous redirect (an open redirector on the endpoint's host,
-// a proxy that answers 302) would otherwise forward the key to
-// whoever the Location names. A caller that chose its own policy keeps
-// it.
+// newRedirectSafeClient gives c the shared provider redirect policy: a
+// hop off the endpoint's own origin is refused rather than followed with
+// the key stripped, because the request body carries the conversation
+// even when the header no longer carries the key. See llm.SafeRedirectClient.
 func newRedirectSafeClient(c *http.Client) *http.Client {
-	if c == nil {
-		c = &http.Client{}
-	}
-	if c.CheckRedirect != nil {
-		return c
-	}
-	clone := *c
-	clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
-			return fmt.Errorf("stopped after 10 redirects")
-		}
-		first := via[0].URL
-		if !strings.EqualFold(req.URL.Scheme, first.Scheme) || !strings.EqualFold(req.URL.Host, first.Host) {
-			req.Header.Del("X-Api-Key")
-		}
-		return nil
-	}
-	return &clone
+	return llm.SafeRedirectClient(c)
 }

@@ -1208,3 +1208,33 @@ func TestParsePricingRejectsUnusableNumbers(t *testing.T) {
 		t.Fatalf("sane pricing rejected or mangled: %+v ok=%v", p, ok)
 	}
 }
+
+// TestProviderRefusesACrossOriginRedirect: the redirect policy was added
+// to the Anthropic client only, and this one uses Go's default — which
+// forwards Authorization to any subdomain of the endpoint's host, never
+// looks at the scheme, and copies extraHeaders to anywhere at all. Both
+// request paths share this client, so both leaked.
+func TestProviderRefusesACrossOriginRedirect(t *testing.T) {
+	var gotAuth string
+	dst := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(200)
+	}))
+	defer dst.Close()
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, dst.URL+"/steal", http.StatusTemporaryRedirect)
+	})
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err == nil {
+		t.Fatal("the call followed a redirect off the endpoint's origin")
+	}
+	if gotAuth != "" {
+		t.Fatalf("the key reached the redirect target: %q", gotAuth)
+	}
+	if _, err := p.ListModels(context.Background()); err == nil {
+		t.Fatal("ListModels followed the redirect")
+	}
+	if gotAuth != "" {
+		t.Fatalf("ListModels leaked the key: %q", gotAuth)
+	}
+}
