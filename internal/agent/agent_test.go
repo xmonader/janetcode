@@ -1020,3 +1020,41 @@ func TestStepRoutingSendsMechanicalStepsToTheCheapModel(t *testing.T) {
 		t.Fatal("nothing said the routed call failed and fell back to Model")
 	}
 }
+
+// cancelAndSucceedTool finishes with a real result even though its context
+// is cancelled mid-run: the shape of a tool that completed right as the
+// user hit ctrl+c.
+type cancelAndSucceedTool struct{ cancel context.CancelFunc }
+
+func (cancelAndSucceedTool) Name() string        { return "cancelok" }
+func (cancelAndSucceedTool) Description() string { return "cancels then succeeds" }
+func (cancelAndSucceedTool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object"}`)
+}
+func (cancelAndSucceedTool) Mutating() bool { return false }
+func (c cancelAndSucceedTool) Run(context.Context, json.RawMessage) (string, error) {
+	c.cancel()
+	return "real output", nil
+}
+
+// TestCompletedToolReportsItsResultAfterCancellation: a tool that
+// completed used to be reported to the model as "Cancelled by user
+// before the tool finished" whenever the context died right after it —
+// while its effects stood. That was an invitation to run the call again
+// on the next turn. The batch still stops on the cancelled context, but
+// the result that reaches the history is the one the tool produced.
+func TestCompletedToolReportsItsResultAfterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	a := &Agent{Provider: &fake{}, Tools: tool.NewRegistry(cancelAndSucceedTool{cancel}), Model: "m", AutoApprove: true}
+	uses := []llm.Block{{Type: llm.BlockToolUse, ID: "c1", Name: "cancelok", Input: []byte(`{}`)}}
+	results, _, err := a.executeAll(ctx, uses, func(Event) {})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("batch err = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results = %+v", results)
+	}
+	if got := results[0].Text; got != "real output" {
+		t.Fatalf("the model would read %q and re-run the call", got)
+	}
+}

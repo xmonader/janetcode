@@ -123,6 +123,13 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		if filled[i] {
 			continue
 		}
+		// A completed call reports its real result even when the turn
+		// was cancelled right after it, so a stop has to be checked
+		// for here too — otherwise the next mutating call would start
+		// (and could prompt) after the user already cancelled.
+		if err := ctx.Err(); err != nil {
+			return stop(err)
+		}
 		out, imgs, isErr, err := a.execute(ctx, u, emit)
 		if err != nil {
 			return stop(err)
@@ -478,9 +485,15 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
 	}
-	if ctx.Err() != nil {
+	if ctx.Err() != nil && err != nil {
+		// The call was interrupted before it produced a result.
 		return "", nil, true, ctx.Err()
 	}
+	// When the tool completed (or ignored the context) but the turn was
+	// cancelled right after, its effects stand: reporting "cancelled"
+	// here told the model the call never happened — an invitation to run
+	// it again on the next turn. Fall through with the real output; the
+	// loop ends the turn on the cancelled context one step later.
 	isErr := false
 	if err != nil {
 		out = "Error: " + err.Error()
