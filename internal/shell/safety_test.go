@@ -63,6 +63,105 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// TestClassifyCdTracking is the review finding that `cd` segments broke
+// the guard: the ^rm catastrophic patterns and the escape check both
+// assumed every relative path resolves against root, so `cd / && rm -rf
+// home` graded as deleting nothing in particular. Each segment is now
+// judged from the directory the shell would actually be standing in, and
+// a cd to something unresolvable makes the rest of the line unjudgeable
+// rather than ordinary.
+func TestClassifyCdTracking(t *testing.T) {
+	root := t.TempDir()
+	cases := []struct {
+		cmd  string
+		want Risk
+		why  string
+	}{
+		{"cd / && rm -rf home", RiskCatastrophic, "targets /home"},
+		{"cd / && rm -rf home user", RiskCatastrophic, "targets /home"},
+		{"cd / && sh -c 'rm home'", RiskCatastrophic, "targets /home"},
+		{"cd ~ && rm -rf wspace", RiskEscapes, "outside"},
+		// t.TempDir() lives under the temp dir, so a step up from it
+		// lands in scratch space: exempt, exactly like writing /tmp/x.
+		{"cd .. && rm -rf sibling", RiskOrdinary, ""},
+		{"cd sub && rm -rf x", RiskOrdinary, ""},
+		{"cd sub && go test ./...", RiskOrdinary, ""},
+		{"cd /tmp && rm -rf scratch-jc-x", RiskOrdinary, ""},
+		{"cd $BUILD_DIR/x && rm -rf y", RiskUnknown, "unclear"},
+		{"cd - && rm -rf y", RiskUnknown, "unclear"},
+		{"cd $BUILD_DIR/x && rm -rf /etc/y", RiskEscapes, "outside"},
+		{"cd", RiskOrdinary, ""},
+		{"cd " + root + " && rm -rf build", RiskOrdinary, ""},
+	}
+	for _, c := range cases {
+		got, why := Classify(c.cmd, root)
+		if got != c.want || !strings.Contains(why, c.why) {
+			t.Errorf("%q: got %v %q, want %v containing %q", c.cmd, got, why, c.want, c.why)
+		}
+	}
+}
+
+// TestClassifyTempAndVarBypasses is the other half of the finding: the
+// temp-dir exemption tested the raw token (so /tmp/../home/... passed),
+// and any token containing a variable was declined entirely (so
+// ${HOME}/.bashrc never reached the escape check or the protected-path
+// write-target list). The exemption now judges the resolved path, and
+// $HOME/${HOME}/$TMPDIR/${TMPDIR} expand.
+func TestClassifyTempAndVarBypasses(t *testing.T) {
+	root := t.TempDir()
+	home, _ := os.UserHomeDir()
+	cases := []struct {
+		cmd  string
+		want Risk
+		why  string
+	}{
+		{"echo x > /tmp/../etc/hosts", RiskEscapes, "outside"},
+		{"tee /tmp/../" + strings.TrimPrefix(home, "/") + "/.bashrc", RiskEscapes, "outside"},
+		{"cat x > ${HOME}/.jc-wt", RiskEscapes, "outside"},
+		{"cat x > $HOME/.jc-wt", RiskEscapes, "outside"},
+		{"cat x > $TMPDIR/jc-scratch", RiskOrdinary, ""},
+		{"cp f " + os.TempDir() + "/sub/../x", RiskOrdinary, ""},
+		{"echo x > /tmp/../" + strings.TrimPrefix(root, "/") + "/in-ws", RiskOrdinary, ""},
+	}
+	for _, c := range cases {
+		got, why := Classify(c.cmd, root)
+		if got != c.want || !strings.Contains(why, c.why) {
+			t.Errorf("%q: got %v %q, want %v containing %q", c.cmd, got, why, c.want, c.why)
+		}
+	}
+}
+
+// TestWriteTargetsTracksCdAndVars: the locked-file and protected-path
+// checks build on WriteTargets, so it must resolve paths from the same
+// effective directory and with the same variable expansion as Classify —
+// `cd sub && sed -i ... f.txt` touches sub/f.txt, and a redirect at
+// ${HOME}/... is a target even though the token carries a variable.
+func TestWriteTargetsTracksCdAndVars(t *testing.T) {
+	root := t.TempDir()
+	home, _ := os.UserHomeDir()
+	cases := []struct {
+		cmd  string
+		want []string
+	}{
+		{"cd sub && echo x > f.txt", []string{filepath.Join(root, "sub", "f.txt")}},
+		{"cd .. && echo x > f.txt", []string{filepath.Join(filepath.Dir(root), "f.txt")}},
+		{"echo x > ${HOME}/.jc-wt", []string{filepath.Join(home, ".jc-wt")}}, // braced form
+		{"echo x > $HOME/.jc-wt", []string{filepath.Join(home, ".jc-wt")}},   // bare form agrees
+	}
+	for _, c := range cases {
+		got := WriteTargets(c.cmd, root)
+		if len(got) != len(c.want) {
+			t.Errorf("%q: targets = %v, want %v", c.cmd, got, c.want)
+			continue
+		}
+		for i := range c.want {
+			if got[i] != c.want[i] {
+				t.Errorf("%q: targets = %v, want %v", c.cmd, got, c.want)
+			}
+		}
+	}
+}
+
 // TestWriteTargets covers the write-target extraction the accept-tests
 // lock uses to catch a bash command that would touch a locked file (see
 // internal/agent's acceptDenial): a bare relative name, a redirect, a
