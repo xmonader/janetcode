@@ -539,7 +539,10 @@ func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if err != nil {
 		return "", err
 	}
-	data := encodeText(pl.after, pl.shape)
+	data, err := encodeChecked(pl.after, pl.shape, "the edited "+pl.display, "a file this large has to be edited with a bash command instead")
+	if err != nil {
+		return "", err
+	}
 	if err := writeFileOf(ctx, t.WS, pl.path, data); err != nil {
 		return "", err
 	}

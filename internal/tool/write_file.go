@@ -66,7 +66,10 @@ func (t WriteFile) Run(ctx context.Context, input json.RawMessage) (string, erro
 	if existed {
 		oldText, shape = decodeText(old)
 	}
-	data := encodeText(in.Content, shape)
+	data, err := encodeChecked(in.Content, shape, "content", "write the head with write_file and append the rest with edit_file")
+	if err != nil {
+		return "", err
+	}
 	if err := writeFileOf(ctx, t.WS, p, data); err != nil {
 		return "", err
 	}

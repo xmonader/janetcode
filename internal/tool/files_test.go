@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -597,5 +598,70 @@ func TestListDirCapsEntries(t *testing.T) {
 	}
 	if strings.Contains(out, "capped") {
 		t.Fatalf("spurious cap note: %q", strings.Split(out, "\n")[0])
+	}
+}
+
+// The write ceiling is what stands between a runaway model and the disk,
+// and it was measured on the text rather than on the bytes. A UTF-16
+// file keeps its charset through a write, so content that passed the
+// 8 MiB check landed as 16 MiB.
+func TestWriteCeilingMeasuresTheEncodedBytes(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	p := filepath.Join(root, "u16.txt")
+	// A UTF-16LE file with a BOM: the shape a write has to preserve.
+	orig := append([]byte{0xff, 0xfe}, encodeUTF16("hello\n", false)...)
+	if err := os.WriteFile(p, orig, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Under the ceiling as UTF-8, over it once every rune costs two bytes.
+	body := strings.Repeat("a", MaxWriteBytes/2+1)
+
+	w := WriteFile{Root: root}
+	if _, err := w.Run(ctx, raw(`{"path":"u16.txt","content":`+mustJSON(body)+`}`)); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("write over the encoded ceiling: err = %v", err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != string(orig) {
+		t.Fatalf("the refused write changed the file: %d bytes", len(got))
+	}
+
+	e := EditFile{Root: root}
+	in := `{"path":"u16.txt","old_string":"hello","new_string":` + mustJSON(body) + `}`
+	if _, err := e.Run(ctx, raw(in)); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("edit over the encoded ceiling: err = %v", err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != string(orig) {
+		t.Fatalf("the refused edit changed the file: %d bytes", len(got))
+	}
+}
+
+// A listing is capped at an entry count, which says nothing about bytes:
+// 2000 names at the length a filesystem allows is half a megabyte, twice
+// what a tool result may be. And the cap used to cut before the sort, so
+// which names survived came from the directory stream's order — the same
+// call on the same unchanged directory could answer differently.
+func TestListDirCapIsBoundedAndOrdered(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("n", 200)
+	for i := 0; i < maxDirEntries+50; i++ {
+		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("%s%04d.txt", long, i)), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l := ListDir{Root: root}
+	out, err := l.Run(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) > textfmt.MaxOutput {
+		t.Errorf("listing is %d bytes, over the %d-byte tool output cap", len(out), textfmt.MaxOutput)
+	}
+	first := strings.SplitN(out, "\n", 2)[0]
+	if want := long + "0000.txt"; first != want {
+		t.Errorf("first line = %q, want %q — the cap cut before the sort", first, want)
+	}
+	again, err := l.Run(context.Background(), nil)
+	if err != nil || again != out {
+		t.Errorf("two listings of an unchanged directory differ")
 	}
 }

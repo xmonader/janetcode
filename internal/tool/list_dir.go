@@ -9,6 +9,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // ListDir lists a directory.
@@ -34,6 +36,16 @@ func (ListDir) Schema() json.RawMessage {
 // model is told the listing is partial and glob can take over.
 const maxDirEntries = 2000
 
+// maxDirScan bounds how many entries are read to fill that listing. The
+// cap used to stop the read at maxDirEntries and keep whatever the
+// directory stream handed over first, which is not sorted and not stable
+// between calls: the same list_dir on the same unchanged directory
+// returned a different 2000 names, and which name was dropped depended
+// on the filesystem. Reading a wider window and sorting before the cut
+// makes the answer the first 2000 names in order, deterministic for any
+// directory under the window and still a bounded read above it.
+const maxDirScan = 20 * maxDirEntries
+
 func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path string `json:"path"`
@@ -50,7 +62,7 @@ func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
-	entries, over, err := readDirCapped(ctx, t.WS, p, maxDirEntries)
+	entries, over, err := readDirCapped(ctx, t.WS, p, maxDirScan)
 	if err != nil {
 		return "", err
 	}
@@ -63,13 +75,19 @@ func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error)
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	if len(names) > maxDirEntries {
+		names, over = names[:maxDirEntries], true
+	}
 	if over {
 		names = append(names, fmt.Sprintf("(listing capped at %d entries — narrow the path or use glob)", maxDirEntries))
 	}
 	if len(names) == 0 {
 		return "(empty directory)", nil
 	}
-	return strings.Join(names, "\n"), nil
+	// The entry cap is not a byte cap: 2000 names at the 255 bytes a
+	// filesystem allows each is 500 KB, twice what a tool result is
+	// allowed to be. Measured at 418 KB before this.
+	return textfmt.Truncate(strings.Join(names, "\n")), nil
 }
 
 // readDirCapped returns at most max entries of a directory, plus whether
