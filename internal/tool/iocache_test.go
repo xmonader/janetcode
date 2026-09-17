@@ -107,11 +107,18 @@ func TestIOCacheMissesWhenFileChangesOnDisk(t *testing.T) {
 	os.WriteFile(p, []byte("one\n"), 0o644)
 	cache := &IOCache{}
 	r := ReadFile{Root: root, Cache: cache}
-	r.Run(context.Background(), raw(`{"path":"a.txt"}`))
+	if _, err := r.Run(context.Background(), raw(`{"path":"a.txt"}`)); err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(10 * time.Millisecond)
-	os.WriteFile(p, []byte("two\n"), 0o644)
-	out, _ := r.Run(context.Background(), raw(`{"path":"a.txt"}`))
-	if strings.Contains(out, "one") && !strings.Contains(out, "two") {
+	// A different length, so a same-size shortcut could not mask a stale
+	// hit either.
+	os.WriteFile(p, []byte("two is longer\n"), 0o644)
+	out, err := r.Run(context.Background(), raw(`{"path":"a.txt"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "two is longer") || strings.Contains(out, "one") {
 		t.Fatalf("served stale bytes: %q", out)
 	}
 }
