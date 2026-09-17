@@ -84,9 +84,12 @@ func (t WebSearch) Run(ctx context.Context, input json.RawMessage) (string, erro
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%d result(s) for %q (%s):\n", len(results), in.Query, t.providerName())
 	for i, r := range results {
-		fmt.Fprintf(&sb, "\n%d. %s\n   %s\n", i+1, r.Title, r.URL)
+		// Titles, URLs and snippets are page content: a result can carry
+		// harness-shaped tags (a page written to inject agents), and
+		// they must not parse as the harness speaking.
+		fmt.Fprintf(&sb, "\n%d. %s\n   %s\n", i+1, EscapeDelimiters(r.Title), EscapeDelimiters(r.URL))
 		if r.Snippet != "" {
-			fmt.Fprintf(&sb, "   %s\n", r.Snippet)
+			fmt.Fprintf(&sb, "   %s\n", EscapeDelimiters(r.Snippet))
 		}
 	}
 	return sb.String(), nil

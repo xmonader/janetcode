@@ -204,7 +204,10 @@ func (t *Tool) RunRich(ctx context.Context, input json.RawMessage) (tool.Result,
 	if res.IsError {
 		return tool.Result{}, fmt.Errorf("%s", firstNonEmpty(res.Text, "tool reported an error"))
 	}
-	out := tool.Result{Text: textfmt.Truncate(res.Text)}
+	// Server output is untrusted content: it can carry harness-shaped
+	// tags (a server written to inject agents), which must not parse as
+	// the harness speaking.
+	out := tool.Result{Text: tool.EscapeDelimiters(textfmt.Truncate(res.Text))}
 	for _, img := range res.Images {
 		if img.Data == "" {
 			continue
