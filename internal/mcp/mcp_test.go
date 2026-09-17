@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,6 +38,10 @@ func TestMain(m *testing.M) {
 	}
 	if os.Getenv("MCP_FAKE_SERVER") == "sticky" {
 		mcptest.StickyServer()
+		os.Exit(0)
+	}
+	if os.Getenv("MCP_FAKE_SERVER") == "reluctant" {
+		mcptest.ReluctantServer()
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
@@ -147,6 +152,46 @@ func TestCallToolWriteRespectsContext(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("call took %s to abandon; the write ignored the context", elapsed)
+	}
+}
+
+// TestAbandonedCallIsNotExecutedLater: bounding the write by returning on
+// ctx.Done was not enough. The write stayed parked and completed when the
+// server next drained stdin, so a tools/call the model had already been
+// told had failed was delivered and run — at-most-once broken on the one
+// operation where it matters. The write is now ended, not abandoned: the
+// server either never sees the request or sees part of a frame, which
+// cannot parse, and the connection is reported as unusable.
+func TestAbandonedCallIsNotExecutedLater(t *testing.T) {
+	root := t.TempDir()
+	ran := t.TempDir()
+	c, err := Start(context.Background(), "reluctant", ServerConfig{
+		Command: os.Args[0],
+		Env:     map[string]string{"MCP_FAKE_SERVER": "reluctant", "MCP_RAN_DIR": ran},
+	}, Options{Root: root, Version: "test", HandshakeTimeout: 20 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	args, err := json.Marshal(map[string]any{"text": strings.Repeat("x", 256<<10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if _, err := c.CallTool(ctx, "ship", args); err == nil {
+		t.Fatal("the call reported success against a server that was not reading")
+	}
+	// Long enough for the server to resume and drain everything the pipe
+	// still holds.
+	time.Sleep(3 * time.Second)
+	if _, err := os.Stat(filepath.Join(ran, "ran")); err == nil {
+		t.Fatal("the cancelled call ran on the server after the caller was told it had failed")
+	}
+	// And the connection says it is finished rather than accepting a
+	// request that would be read as the tail of the abandoned frame.
+	if _, err := c.CallTool(context.Background(), "ship", []byte(`{"text":"small"}`)); err == nil {
+		t.Fatal("a later call succeeded over a desynced connection")
 	}
 }
 

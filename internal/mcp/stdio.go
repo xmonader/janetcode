@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/pipewrite"
 	"github.com/xmonader/janetcode/internal/procgroup"
 	"github.com/xmonader/janetcode/internal/shell"
 )
@@ -23,8 +25,12 @@ type stdioTransport struct {
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
 	writeMu sync.Mutex
-	stderr  *ringBuffer
-	done    chan struct{}
+	// broken is set when an abandoned write left part of a frame on the
+	// wire. The server would read the next frame as the rest of that one,
+	// so the connection is over and every later call says so.
+	broken error
+	stderr *ringBuffer
+	done   chan struct{}
 }
 
 func newStdioTransport(c *Client, cfg ServerConfig, root string) (*stdioTransport, error) {
@@ -63,31 +69,42 @@ func newStdioTransport(c *Client, cfg ServerConfig, root string) (*stdioTranspor
 	return t, nil
 }
 
-// send writes one frame, bounded by ctx. A pipe write has no deadline,
-// so the write runs in a goroutine and a caller that abandons the context
-// leaves it parked — it finishes, with an error, when the server next
-// drains stdin or dies. Without the bound, one server that stopped
-// reading (a full 64 KB pipe) hangs every caller past cancellation, and
-// because such a call rides the parallel read-only batch, the whole turn
-// with it.
+// send writes one frame, bounded by ctx. A pipe write has no deadline of
+// its own, and without a bound one server that stopped reading (a full
+// 64 KB pipe) hangs every caller past cancellation — and because such a
+// call rides the parallel read-only batch, the whole turn with it.
+//
+// The bound must not merely stop waiting. Writing on a goroutine and
+// returning on ctx.Done left the frame parked: it completed when the
+// server next drained stdin, so a tools/call the model had already been
+// told had failed was delivered and run — a deploy that happened two
+// seconds after the harness reported it had not. pipewrite pushes the
+// pipe's write deadline instead, so an abandoned frame either never
+// reached the server at all (the call did not happen, and the connection
+// is still good) or reached it in part, which desyncs the protocol and
+// ends the connection.
 func (t *stdioTransport) send(ctx context.Context, msg rpcMessage) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	done := make(chan error, 1)
-	go func() {
-		t.writeMu.Lock()
-		defer t.writeMu.Unlock()
-		_, err := t.stdin.Write(append(data, '\n'))
-		done <- err
-	}()
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
+	data = append(data, '\n')
+	t.writeMu.Lock()
+	defer t.writeMu.Unlock()
+	if t.broken != nil {
+		return t.broken
 	}
+	_, err = pipewrite.Write(ctx, t.stdin, data)
+	var partial *pipewrite.PartialError
+	if errors.As(err, &partial) {
+		// The server holds the front of a frame and would read the next
+		// one as its tail. Close stdin so it sees EOF and stops, rather
+		// than acting on a spliced request.
+		t.broken = fmt.Errorf("mcp: connection unusable: %w", partial)
+		_ = t.stdin.Close()
+		return t.broken
+	}
+	return err
 }
 
 // readLoop reads frames until the stream ends. A scanner error — a read

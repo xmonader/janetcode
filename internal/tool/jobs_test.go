@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/pipewrite"
 )
 
 func TestJobsStartWaitOutputAndFinished(t *testing.T) {
@@ -187,5 +189,36 @@ func TestJobsOutputReadsOnlyTheTail(t *testing.T) {
 	}
 	if !strings.HasSuffix(all, "the last line") {
 		t.Fatal("the end of the log was not what came back")
+	}
+}
+
+// TestAnAbandonedJobWriteEndsStdin: the context bound stopped the caller
+// waiting, but the write stayed parked and completed when the job next
+// drained its stdin. So the caller was told the write had failed, retried,
+// and the job received both payloads — interleaved, because two writers
+// were queued on one pipe. An abandoned write now ends, and if part of it
+// reached the pipe the job's stdin is closed rather than spliced.
+func TestAnAbandonedJobWriteEndsStdin(t *testing.T) {
+	jobs := &Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `sh -c 'sleep 30'`) // never reads stdin
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = jobs.Kill(job.ID) })
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	err = jobs.Write(ctx, job.ID, strings.Repeat("a", 256<<10))
+	if !errors.Is(err, pipewrite.ErrAbandoned) {
+		t.Fatalf("err = %v, want an abandoned write", err)
+	}
+	var partial *pipewrite.PartialError
+	if !errors.As(err, &partial) {
+		t.Fatalf("err = %v, want it reported as partial: the pipe took some of it", err)
+	}
+	// The retry the caller would now make must be refused, not queued
+	// behind the dead writer.
+	err = jobs.Write(context.Background(), job.ID, "b\n")
+	if err == nil || !strings.Contains(err.Error(), "no longer accepts stdin") {
+		t.Fatalf("second write: err = %v, want a refusal", err)
 	}
 }
