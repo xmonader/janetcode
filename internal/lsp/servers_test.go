@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The query surface is defined against the protocol, but servers differ
@@ -43,6 +44,17 @@ type langCase struct {
 	compileDB []string
 }
 
+func pollDefinition(ctx context.Context, m *Manager, c langCase) ([]Location, error) {
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		defs, err := m.Definition(ctx, c.file, Point{Symbol: c.symbol})
+		if err != nil || len(defs) > 0 || time.Now().After(deadline) {
+			return defs, err
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func run(t *testing.T, c langCase) {
 	t.Helper()
 	if _, err := exec.LookPath(c.bin); err != nil {
@@ -74,7 +86,12 @@ func run(t *testing.T, c langCase) {
 	}
 	ctx := context.Background()
 
-	defs, err := m.Definition(ctx, c.file, Point{Symbol: c.symbol})
+	// rust-analyzer answers definition queries with an empty list for the
+	// first seconds of its life: cargo metadata and the crate graph come
+	// up asynchronously, and a query that lands before indexing finishes
+	// is a wrong answer, not an error. Poll until the server has had a
+	// real chance; fast servers answer on the first attempt.
+	defs, err := pollDefinition(ctx, m, c)
 	if err != nil {
 		t.Fatalf("definition: %v", err)
 	}
