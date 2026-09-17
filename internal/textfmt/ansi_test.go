@@ -78,3 +78,93 @@ func TestStripUnsafeANSIPlainTextUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// TestStripUnsafeANSIC1Forms: a terminal accepts three spellings of the
+// same sequence, and only ESC-prefixed ones were recognised. The fast
+// path returned early on any text with no ESC in it at all, so an OSC 52
+// clipboard write spelled with U+009D went through untouched.
+func TestStripUnsafeANSIC1Forms(t *testing.T) {
+	for _, tc := range []struct{ name, in, want string }{
+		{"utf-8 CSI erase display", "a\u009b2Jb", "ab"},
+		{"utf-8 OSC 52 clipboard", "a\u009d52;c;aGk=\x07b", "ab"},
+		{"utf-8 OSC ended by C1 ST", "a\u009d0;title\u009cb", "ab"},
+		{"utf-8 DCS", "a\u00901$y\u009cb", "ab"},
+		{"raw 8-bit CSI", "a\x9b2Jb", "ab"},
+		{"raw 8-bit OSC", "a\x9d52;c;aGk=\x07b", "ab"},
+		{"lone C1 control", "a\u0085b", "ab"},
+	} {
+		got := StripUnsafeANSI(tc.in)
+		if got != tc.want {
+			t.Errorf("%s: StripUnsafeANSI(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
+		}
+		if strings.ContainsAny(got, "\u009b\u009d\u0090") {
+			t.Errorf("%s: a C1 introducer survived", tc.name)
+		}
+	}
+}
+
+// TestStripUnsafeANSIPrivateCSIIsNotColour: the keep test was "the final
+// byte is m". CSI > 4 ; 2 m ends in m and is xterm's modifyOtherKeys —
+// it changes how the terminal encodes keys, which is state, not colour.
+func TestStripUnsafeANSIPrivateCSIIsNotColour(t *testing.T) {
+	for _, in := range []string{"\x1b[>4;2m", "\x1b[?1049m", "\x1b[<1m", "\x1b[=3m"} {
+		if got := StripUnsafeANSI("a" + in + "b"); got != "ab" {
+			t.Errorf("StripUnsafeANSI(%q) kept a private-parameter sequence: %q", in, got)
+		}
+	}
+	// Ordinary SGR still survives, which is the point of keeping any of it.
+	for _, in := range []string{"\x1b[0m", "\x1b[1;31m", "\x1b[38;2;10;20;30m"} {
+		if got := StripUnsafeANSI("a" + in + "b"); got != "a"+in+"b" {
+			t.Errorf("StripUnsafeANSI(%q) dropped plain colour: %q", in, got)
+		}
+	}
+}
+
+// TestStripUnsafeANSIAbortsOnAControl: swallowing an OSC payload to the
+// next terminator ate the rest of the line, so a model writing prose
+// about escape sequences lost text it never meant as one. A real
+// terminal aborts the sequence on a C0 control.
+func TestStripUnsafeANSIAbortsOnAControl(t *testing.T) {
+	got := StripUnsafeANSI("a\x1b]0;ti\ntle\x07b")
+	if !strings.Contains(got, "\n") || !strings.Contains(got, "tle") {
+		t.Fatalf("the newline and the text after it were swallowed: %q", got)
+	}
+	if strings.ContainsRune(got, 0x1b) {
+		t.Fatalf("an ESC survived: %q", got)
+	}
+}
+
+// TestStripUnsafeANSISurvivesEveryChunkBoundary: the stripper is
+// stateless, so the guarantee is that no split can reassemble a live
+// sequence out of two inert halves.
+func TestStripUnsafeANSISurvivesEveryChunkBoundary(t *testing.T) {
+	for _, payload := range []string{
+		"x\x1b]52;c;aGk=\x07y",
+		"x\u009d52;c;aGk=\x07y",
+		"x\x1b[>4;2my",
+		"x\u009b2Jy",
+	} {
+		for i := 0; i <= len(payload); i++ {
+			out := StripUnsafeANSI(payload[:i]) + StripUnsafeANSI(payload[i:])
+			for _, bad := range []rune{0x1b, 0x9b, 0x9d, 0x90, 0x9e, 0x9f, 0x98} {
+				if strings.ContainsRune(out, bad) {
+					t.Fatalf("split %q at %d left %q, which carries an introducer", payload, i, out)
+				}
+			}
+		}
+	}
+}
+
+// TestStripUnsafeANSILeavesRealTextAlone: over-stripping is its own bug.
+func TestStripUnsafeANSILeavesRealTextAlone(t *testing.T) {
+	for _, s := range []string{
+		"a € b",          // 0x82 is the second byte of the euro sign
+		"café ©2026 ±3°", // 0xc2 leads many Latin-1 supplement runes
+		"日本語のテキスト",
+		"a\u00a0b", // no-break space: 0xc2 0xa0, not a C1
+	} {
+		if out := StripUnsafeANSI(s); out != s {
+			t.Errorf("StripUnsafeANSI(%q) = %q", s, out)
+		}
+	}
+}
