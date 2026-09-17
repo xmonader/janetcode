@@ -101,7 +101,9 @@ func New(cfg Config) (*Provider, error) {
 			opts = append(opts, option.WithBaseURL(cfg.BaseURL))
 		}
 		if cfg.HTTPClient != nil {
-			opts = append(opts, option.WithHTTPClient(cfg.HTTPClient))
+			opts = append(opts, option.WithHTTPClient(newRedirectSafeClient(cfg.HTTPClient)))
+		} else {
+			opts = append(opts, option.WithHTTPClient(newRedirectSafeClient(nil)))
 		}
 		p.clients = append(p.clients, sdk.NewClient(opts...))
 	}
