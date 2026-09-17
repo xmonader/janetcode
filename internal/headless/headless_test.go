@@ -311,3 +311,21 @@ func TestCheckBoundsAPipeHeldByALeakedGrandchild(t *testing.T) {
 		t.Fatalf("check took %s; the leaked grandchild held the pipes past the command", elapsed)
 	}
 }
+
+// TestWatchStopsOnBudget is the --watch half of the budget contract:
+// a watched command that keeps failing used to swallow the agent's
+// ErrBudget as "model turn failed" and start another priced fix round —
+// burning a full call per round, forever, never exiting 55.
+func TestWatchStopsOnBudget(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "fixing"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 10, CostUSD: 1}},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var out, errOut bytes.Buffer
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "x", Stdout: &out, Stderr: &errOut,
+		Watch: "false", WatchRounds: 100, WatchInterval: 50 * time.Millisecond, MaxCostUSD: 0.5, Cwd: root})
+	if !errors.Is(err, ErrBudget) {
+		t.Fatalf("err = %v\n%s", err, errOut.String())
+	}
+}

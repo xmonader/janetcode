@@ -182,7 +182,19 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 			if ctx.Err() != nil {
 				return nil
 			}
+			if errors.Is(err, ErrBudget) {
+				// Reaching the ceiling is not a fix-round failure to
+				// retry: every new round burns a full priced call
+				// before the in-turn stop, so the loop would never
+				// end — the run must exit on the budget instead.
+				return err
+			}
 			fmt.Fprintf(opts.Stderr, "[watch] model turn failed: %v\n", err)
+		}
+		if opts.MaxCostUSD > 0 {
+			if spent, ok := rec.spentUSD(); ok && spent >= opts.MaxCostUSD {
+				return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSDPrecise(spent), llm.FormatUSDPrecise(opts.MaxCostUSD))
+			}
 		}
 		last = "" // re-check right away: the fix changed the tree
 	}
