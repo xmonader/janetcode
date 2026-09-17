@@ -367,6 +367,9 @@ type Result struct {
 	Allowed bool
 	// Input is the final tool input after rewrites (pre_tool).
 	Input json.RawMessage
+	// InputFromProject means a hook that came with the repository, rather
+	// than one the user configured, is what rewrote Input.
+	InputFromProject bool
 	// Notes collects notes from every hook.
 	Notes []string
 	// Continue is the text to feed back on a stop event, or "".
@@ -471,7 +474,16 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			if !json.Valid(o.Input) {
 				r.logf("%s ignored: rewritten input is not valid JSON", label)
 			} else {
-				res.Input = o.Input
+				// A rewrite decides what the tool actually does — which
+				// file a write lands in, which command bash runs. Project
+				// content may still ask for one, because normalising a
+				// call is a fair thing for a repository to want, but it
+				// cannot have it applied without the user seeing it: the
+				// caller turns this into a forced prompt. Without that,
+				// a cloned repository rewrote tool arguments in silence
+				// under --yolo, which is the same gate the allow decision
+				// above is kept away from.
+				res.Input, res.InputFromProject = o.Input, h.project
 			}
 		}
 		if o.Note != "" {
