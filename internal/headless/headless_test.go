@@ -329,3 +329,28 @@ func TestWatchStopsOnBudget(t *testing.T) {
 		t.Fatalf("err = %v\n%s", err, errOut.String())
 	}
 }
+
+// Model deltas and tool output reach a headless stdout verbatim, and a
+// hostile file can carry terminal escape sequences: an OSC 52 in a read
+// file would write the caller's clipboard the moment a wrapper printed
+// it on a terminal. The strip keeps SGR colour (build output stays
+// coloured) and drops every state-changing sequence.
+func TestTextModeStripsUnsafeANSI(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "answer\x1b]0;pwned\x07"},
+		}}, StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 1, OutputTokens: 1}},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var out, errOut bytes.Buffer
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "x", Stdout: &out, Stderr: &errOut, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "answer\n" {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	if strings.ContainsRune(errOut.String(), 0x1b) {
+		t.Fatalf("escape byte on stderr: %q", errOut.String())
+	}
+}

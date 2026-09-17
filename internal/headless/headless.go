@@ -298,28 +298,28 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 		}
 		switch e.Kind {
 		case agent.EvText:
-			fmt.Fprint(opts.Stdout, e.Text)
+			fmt.Fprint(opts.Stdout, textfmt.StripUnsafeANSI(e.Text))
 		case agent.EvToolRun:
 			// The model's own reason for the call, when it gave one, reads
 			// better than its arguments.
 			if e.Call.Intent != "" {
-				fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", e.Call.Name, e.Call.Intent, textfmt.Clip(textfmt.OneLine(string(e.Call.Input)), 160))
+				fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", e.Call.Name, textfmt.StripUnsafeANSI(e.Call.Intent), textfmt.Clip(textfmt.OneLine(textfmt.StripUnsafeANSI(string(e.Call.Input))), 160))
 			} else {
-				fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, textfmt.Clip(textfmt.OneLine(string(e.Call.Input)), 200))
+				fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, textfmt.Clip(textfmt.OneLine(textfmt.StripUnsafeANSI(string(e.Call.Input))), 200))
 			}
 		case agent.EvToolResult:
 			tag := "ok"
 			if e.IsError {
 				tag = "error"
 			}
-			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, textfmt.Clip(textfmt.OneLine(e.Output), 300))
+			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, textfmt.Clip(textfmt.OneLine(textfmt.StripUnsafeANSI(e.Output)), 300))
 		case agent.EvCompacted:
 			fmt.Fprintf(opts.Stderr, "[compacted] %s\n", e.Text)
 		case agent.EvVerdict:
 			// What the turn demonstrated. It is the point of watching a
 			// run at all, so it goes to stderr beside the tool activity
 			// rather than being dropped as the TUI-only line it was.
-			fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", e.Text)
+			fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", textfmt.StripUnsafeANSI(e.Text))
 		case agent.EvRetry:
 			fmt.Fprintf(opts.Stderr, "[retry] %s\n", e.Text)
 		case agent.EvNotice:
