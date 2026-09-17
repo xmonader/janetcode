@@ -66,8 +66,11 @@ Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
 `lean_tools` (default on) defers the search tools behind `tool_search` —
-23% less context on fan-out work, one extra call when the model needs a
+19% less context on fan-out work, one extra call when the model needs a
 search. `"lean_tools": false` exposes them all in every request.
+(The measurement is the other way round: exposing the five extra tools
+costs x1.23 [1.10, 1.44] context, which is a 19% saving from deferring
+them, not 23%. See `docs/benchmarks/toolsurface/REPORT.md`.)
 
 `show_thinking` (default on) renders the model's reasoning in the
 terminal. Turning it off asks for reasoning without showing it, so the

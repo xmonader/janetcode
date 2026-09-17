@@ -325,10 +325,11 @@ Numbers live in `docs/benchmarks/`, with the runs that produced them.
 - **Recall after compaction**: 0/16 exact facts with no `expand_output`
   (the compacted context alone), 9/20 with it, every correct answer
   grounded in what was fetched.
-- **What turns demonstrate**, replayed over 97 real turns (calibration
-  run `3ee2021`): 42% verified, and the false-accusation count went
-  from 13 to 0. The commit has the replay and what the first version
-  got wrong.
+- **What turns demonstrate**, replayed over 97 real turns: 42% verified,
+  and the false-accusation count went from 13 to 0. Commit `3ee2021` is
+  the rewrite those numbers led to, with the cases distilled into
+  `internal/agent/verdict_test.go`; the replay itself was a one-off
+  against live sessions and is not in the repository.
 
 One caution the benchmark makes plain: running the session set three times
 gives 940k, 774k and 843k — a **21% spread between identical runs**, and
