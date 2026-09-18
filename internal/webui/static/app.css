@@ -2321,3 +2321,17 @@ html, body { overflow-x: hidden; }
   cursor: pointer;
 }
 .to-latest:hover { color: var(--ink); border-color: var(--faint); }
+
+/* Per-message meta: time, tokens, duration — a whisper under the reply. */
+.msg-meta {
+  margin-top: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+
+/* Message actions behave like the copy button: invisible until the
+   message is hovered. */
+.msg-act { margin-left: 0; }
+.turn .lbl .msg-act { opacity: 0; }
+.turn:hover .lbl .msg-act { opacity: 1; }

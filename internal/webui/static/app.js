@@ -40,6 +40,7 @@
   let palIdx = 0;
   let palItems = [];
   let lastReply = "";
+  let lastUserText = "";
   let lastFlavor = "";
 
   function esc(s) {
@@ -232,6 +233,7 @@
 
   function render(e) {
     latest.set(e.id, e);
+    if (e.at) n.title = new Date(e.at).toLocaleString();
     empty.hidden = true;
     let n = nodes.get(e.id);
     const was = stick();
@@ -244,11 +246,18 @@
     }
     if (e.kind === "user") {
       n.className = "turn you";
-      n.innerHTML = `<span class="lbl">You</span><div class="bubble">${esc(e.text || "")}</div>`;
+      lastUserText = e.text || "";
+      n.innerHTML = `<span class="lbl">You<button type="button" class="copy-btn msg-act" data-edit="${e.id}" title="Edit & resend">Edit</button></span><div class="bubble">${esc(e.text || "")}</div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
       const copyBtn = e.done ? `<button type="button" class="copy-btn" data-copy="${e.id}" title="Copy reply">Copy</button>` : "";
-      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}</span><div class="md">${md(e.text || "")}${e.done ? "" : "▍"}</div>${e.done ? linkCards(e.text) : ""}`;
+      const regenBtn = e.done && lastUserText ? `<button type="button" class="copy-btn" data-regen="1" title="Ask again">↻</button>` : "";
+      const meta = [];
+      if (e.at) meta.push(new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (e.tok_in || e.tok_out) meta.push("↑" + fmtTok(e.tok_in) + " ↓" + fmtTok(e.tok_out));
+      if (e.ms) meta.push(fmtDur(e.ms));
+      const metaRow = meta.length && e.done ? `<div class="msg-meta">${esc(meta.join(" · "))}</div>` : "";
+      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md">${md(e.text || "")}${e.done ? "" : "▍"}</div>${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) lastReply = (e.text || "").slice(0, 200);
     } else if (e.kind === "thinking") {
       n.className = "turn thought";
@@ -1743,6 +1752,20 @@
           setTimeout(() => { codecopy.textContent = "Copy"; }, 1500);
         } catch (_) {}
       }
+      return;
+    }
+    const editBtn = ev.target.closest("[data-edit]");
+    if (editBtn) {
+      const src = latest.get(editBtn.dataset.edit);
+      if (src) {
+        input.value = src.text || "";
+        resize();
+        input.focus();
+      }
+      return;
+    }
+    if (ev.target.closest("[data-regen]")) {
+      if (lastUserText) await post("/api/prompt", { text: lastUserText });
       return;
     }
     const copy = ev.target.closest(".copy-btn");

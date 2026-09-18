@@ -1257,3 +1257,32 @@ type liveProvider struct {
 func (p liveProvider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	return p.lister()
 }
+
+// The answer a turn streams into wears the turn's bill when the turn
+// finishes: tokens from the agent's usage report, wall time from begin().
+func TestAssistantEntryIsStampedWithTheTurnsBill(t *testing.T) {
+	s := newServer(context.Background(), Options{Agent: &agent.Agent{Tools: tool.NewRegistry()}})
+	s.started = time.Now().Add(-1500 * time.Millisecond)
+	s.apply(agent.Event{Kind: agent.EvText, Text: "hello there"})
+	s.apply(agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{
+		InputTokens: 100, CacheReadTokens: 40, CacheWriteTokens: 10, OutputTokens: 25,
+	}})
+	var got *entry
+	for i := range s.entries {
+		if s.entries[i].Kind == "assistant" {
+			got = s.entries[i]
+		}
+	}
+	if got == nil {
+		t.Fatal("no assistant entry")
+	}
+	if got.TokIn != 150 || got.TokOut != 25 {
+		t.Fatalf("usage stamp = in %d out %d, want 150/25", got.TokIn, got.TokOut)
+	}
+	if got.Ms == 0 {
+		t.Fatal("duration stamp missing")
+	}
+	if got.At.IsZero() {
+		t.Fatal("timestamp missing")
+	}
+}

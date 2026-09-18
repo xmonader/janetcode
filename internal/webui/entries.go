@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
@@ -25,6 +26,14 @@ type entry struct {
 	Done    bool   `json:"done,omitempty"`
 	Running bool   `json:"running,omitempty"`
 	CallID  string `json:"call_id,omitempty"`
+	// At is when the entry was created, for the hover timestamp.
+	At time.Time `json:"at,omitempty"`
+	// TokIn, TokOut and Ms are the turn's bill and wall time, stamped on
+	// the assistant entry when the turn finishes: cost and duration live
+	// where they happened, not only in the aggregate panel.
+	TokIn  int   `json:"tok_in,omitempty"`
+	TokOut int   `json:"tok_out,omitempty"`
+	Ms     int64 `json:"ms,omitempty"`
 	// Data is a structured payload for kinds the front-end renders as
 	// views of their own (perf, usage): the same numbers Text would
 	// carry, but drawable.
@@ -118,6 +127,23 @@ func (s *server) apply(ev agent.Event) {
 		s.closeOpen()
 	case agent.EvTurnDone:
 		s.closeOpen()
+		// Stamp the answer with what the turn cost: the usage the agent
+		// reports and the wall clock from begin(), so the bill shows
+		// where it happened.
+		if s.lastAssistant != "" {
+			id := s.lastAssistant
+			s.lastAssistant = ""
+			u := ev.Usage
+			ms := int64(time.Since(s.started) / time.Millisecond)
+			if ms < 0 {
+				ms = 0
+			}
+			s.update(id, func(en *entry) {
+				en.TokIn = u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+				en.TokOut = u.OutputTokens
+				en.Ms = ms
+			})
+		}
 	case agent.EvDiscard:
 		s.dropOpen()
 	case agent.EvVerdict:
@@ -163,6 +189,12 @@ func (s *server) add(e entry) string {
 func (s *server) addLocked(e entry) *entry {
 	s.nextID++
 	e.ID = "e" + strconv.Itoa(s.nextID)
+	if e.At.IsZero() {
+		e.At = time.Now()
+	}
+	if e.Kind == "assistant" {
+		s.lastAssistant = e.ID
+	}
 	p := &e
 	s.entries = append(s.entries, p)
 	return p

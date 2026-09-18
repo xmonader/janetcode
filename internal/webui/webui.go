@@ -215,6 +215,9 @@ type server struct {
 	modelsAt       time.Time
 	modelsCache    []modelGroup
 	modelsFetching bool
+	// lastAssistant is the entry the current turn's answer streams into,
+	// stamped with the turn's bill when the turn finishes.
+	lastAssistant string
 
 	// dirMu guards dir, the directory this session is rooted at. It is
 	// separate from mu because the hello payload reads it while mu is
