@@ -79,7 +79,7 @@ func FormatUsageByModel(rows []ModelUsage) string {
 	var sb strings.Builder
 	sb.WriteString("per model")
 	for _, r := range rows {
-		fmt.Fprintf(&sb, "\n  %-*s  %s · %s", width, r.Model, textfmt.Plural(r.Calls, "call"), r.Usage.TokenLine())
+		fmt.Fprintf(&sb, "\n  %-*s  %s · %s", width, r.Model, textfmt.Plural(r.Calls, "call"), r.Usage.CacheLine())
 	}
 	return sb.String()
 }

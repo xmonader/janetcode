@@ -223,7 +223,7 @@ func (s *server) usageText() string {
 	ag := s.opts.Agent
 	u := ag.UsageSnapshot()
 	var sb strings.Builder
-	sb.WriteString(u.TokenLine() + "\n" + u.CostNote(ag.Settings().Price))
+	sb.WriteString(u.CacheLine() + "\n" + u.CostNote(ag.Settings().Price))
 	if ceiling := ag.MaxCost(); ceiling > 0 {
 		sb.WriteString(" · ceiling " + llm.FormatUSD(ceiling))
 	}

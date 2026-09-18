@@ -1418,4 +1418,9 @@ func TestUsageCommandSplitsBySessionModel(t *testing.T) {
 	if !strings.Contains(v, h.m.opts.Agent.Settings().Model) {
 		t.Fatalf("the session's model is not named:\n%s", v)
 	}
+	// 900 of the 2100 prompt tokens came from the cache. The four counts
+	// were there before; the division the reader had to do was not.
+	if !strings.Contains(v, "cache hit 42%") {
+		t.Fatalf("no cache hit rate:\n%s", v)
+	}
 }

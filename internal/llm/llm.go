@@ -242,6 +242,30 @@ func (u Usage) TokenLine() string {
 		textfmt.Tokens(u.InputTokens), textfmt.Tokens(u.OutputTokens), textfmt.Tokens(u.CacheReadTokens), textfmt.Tokens(u.CacheWriteTokens))
 }
 
+// CacheHit is the share of the prompt tokens that were served from the
+// provider's cache, and whether there is one to report: a model or
+// endpoint that caches nothing has no rate, which is not the same as a
+// rate of zero.
+func (u Usage) CacheHit() (pct int, ok bool) {
+	total := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+	if total == 0 || u.CacheReadTokens+u.CacheWriteTokens == 0 {
+		return 0, false
+	}
+	return u.CacheReadTokens * 100 / total, true
+}
+
+// CacheLine is TokenLine with the hit rate, for the views that have room
+// for it. The rate is what the four counts are read for — whether the
+// history is being paid for again — and it was left to the reader to
+// divide.
+func (u Usage) CacheLine() string {
+	line := u.TokenLine()
+	if pct, ok := u.CacheHit(); ok {
+		line += fmt.Sprintf(" · cache hit %d%%", pct)
+	}
+	return line
+}
+
 // CostNote is the session cost with where it comes from, and when nothing
 // prices the model, what to do about it.
 func (u Usage) CostNote(p *Price) string {

@@ -33,12 +33,7 @@ func (a *Agent) systemPrompt() string {
 // CacheRate is the share of session input tokens served from the
 // provider's prompt cache, and whether the provider reported any.
 func (a *Agent) CacheRate() (pct int, ok bool) {
-	u := a.UsageSnapshot()
-	total := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
-	if total == 0 || u.CacheReadTokens+u.CacheWriteTokens == 0 {
-		return 0, false
-	}
-	return u.CacheReadTokens * 100 / total, true
+	return a.UsageSnapshot().CacheHit()
 }
 
 // ContextReport breaks the context window down by what fills it.

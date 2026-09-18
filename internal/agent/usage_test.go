@@ -50,4 +50,13 @@ func TestUsageIsSplitByTheModelThatServedTheCall(t *testing.T) {
 	if !strings.Contains(out, "per model") || !strings.Contains(out, "big ") || !strings.Contains(out, "3 calls") {
 		t.Fatalf("rendered:\n%s", out)
 	}
+	// Each row says how much of its input the cache served — 900 of the
+	// 1051 prompt tokens on "big" — and a model that cached nothing says
+	// nothing rather than "0%".
+	if !strings.Contains(out, "cache hit 85%") {
+		t.Fatalf("no cache rate on the busiest row:\n%s", out)
+	}
+	if strings.Contains(out, "cache hit 0%") {
+		t.Fatalf("a model with no cache was given a rate:\n%s", out)
+	}
 }
