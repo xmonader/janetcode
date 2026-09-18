@@ -2,10 +2,13 @@ package agent
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 func TestFoldGoalsAndStatus(t *testing.T) {
@@ -284,5 +287,104 @@ func TestGoalRoundBudgetIsSettableAndSaysWhenItIsSpent(t *testing.T) {
 	}
 	if got := a.GoalContinuation(ctx); got == "" {
 		t.Fatal("no round after the budget was raised")
+	}
+}
+
+// A recorded session called goal_status complete at step 19 and the turn
+// came back "check failed" at step 20: the suite it had just written was
+// red, the two facts were reported side by side, and the goal closed
+// anyway.
+func TestAGoalCompletedOnARedCheckIsReopenedOnce(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	id, _ := a.CreateGoal("make a lightweight testing library in python", 8)
+	a.turnN = 1
+	a.SetGoalPhase(id, GoalComplete, "")
+
+	red := TurnOutcome{Verdict: VerdictCheckFailed, Why: "2 file(s) edited and a check came back red"}
+	var notes []string
+	emit := func(e Event) { notes = append(notes, e.Text) }
+	a.ReopenCompletedGoal(red, emit)
+
+	g := ActiveGoal(a.Log.Events())
+	if g == nil || g.ID != id {
+		t.Fatalf("the goal was not reopened: %+v", FoldGoals(a.Log.Events()))
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "reopened") {
+		t.Fatalf("notes = %v", notes)
+	}
+	// The next round says what happened and what to do about it.
+	round := goalPrompt(*g)
+	for _, want := range []string{"put it back", "came back red", "goal_status blocked"} {
+		if !strings.Contains(round, want) {
+			t.Fatalf("the round prompt lacks %q:\n%s", want, round)
+		}
+	}
+
+	// Once. The model may have a reason the harness cannot see, and a
+	// harness that argued every round would spend the whole budget on it.
+	a.turnN = 2
+	a.SetGoalPhase(id, GoalComplete, "")
+	notes = nil
+	a.ReopenCompletedGoal(red, emit)
+	if g := ActiveGoal(a.Log.Events()); g != nil {
+		t.Fatalf("reopened twice: %+v", g)
+	}
+	if len(notes) != 0 {
+		t.Fatalf("notes = %v", notes)
+	}
+
+	// A green turn never reopens anything.
+	b := &Agent{Log: &session.Memory{}}
+	bid, _ := b.CreateGoal("ship it", 8)
+	b.turnN = 1
+	b.SetGoalPhase(bid, GoalComplete, "")
+	b.ReopenCompletedGoal(TurnOutcome{Verdict: VerdictVerified, Why: "tests ran and passed"}, nil)
+	if ActiveGoal(b.Log.Events()) != nil {
+		t.Fatal("a goal completed on a green turn was reopened")
+	}
+}
+
+// The whole path, through a real turn: the model edits a file, runs a
+// check that comes back red, and calls goal_status complete. The goal is
+// active again when the turn ends, and the next round is told why.
+func TestATurnThatClosesAGoalOnARedCheckIsPutBack(t *testing.T) {
+	root := t.TempDir()
+	a := &Agent{Model: "m", Log: &session.Memory{}, AutoApprove: true, Root: root}
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.Bash{Root: root}, &GoalStatus{Parent: a})
+	a.Provider = &fake{responses: []*llm.Response{
+		toolCall("w1", "write_file", `{"path":"`+filepath.Join(root, "a.py")+`","content":"x = 1\n"}`),
+		toolCall("b1", "bash", `{"command":"exit 1 # run the tests"}`),
+		toolCall("g1", "goal_status", `{"status":"complete"}`),
+		{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+	}}
+	id, _ := a.CreateGoal("make the tests green", 3)
+
+	var notes []string
+	if err := a.Run(context.Background(), a.GoalContinuation(context.Background()), func(e Event) {
+		if e.Kind == EvNotice {
+			notes = append(notes, e.Text)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	g := ActiveGoal(a.Log.Events())
+	if g == nil || g.ID != id {
+		t.Fatalf("the goal closed on a red check: %+v", FoldGoals(a.Log.Events()))
+	}
+	if !strings.HasPrefix(g.Reason, GoalReopened) {
+		t.Fatalf("goal = %+v", g)
+	}
+	found := false
+	for _, n := range notes {
+		if strings.Contains(n, "reopened") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the reopen was not announced: %v", notes)
+	}
+	if next := a.GoalContinuation(context.Background()); !strings.Contains(next, "put it back") {
+		t.Fatalf("the next round does not say why:\n%s", next)
 	}
 }

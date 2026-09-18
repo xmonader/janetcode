@@ -225,6 +225,76 @@ func SpentNote(g Goal) string {
 	return fmt.Sprintf("goal %s stopped: %d of %d rounds used and it is not complete · /goal rounds %d continues it · /goal done closes it", g.ID, g.Rounds, g.MaxRounds, g.MaxRounds*2)
 }
 
+// GoalReopened prefixes the reason on a goal the harness put back to
+// active: the round that called it complete ended on a red check.
+const GoalReopened = "reopened: "
+
+// goalCompletedThisTurn is the goal, if any, that was marked complete
+// during the turn now ending.
+func (a *Agent) goalCompletedThisTurn() *Goal {
+	if a.Log == nil {
+		return nil
+	}
+	ev := a.Log.Events()
+	id := ""
+	for _, e := range ev {
+		if e.Type == session.TypeGoalPhase && e.Turn == a.turnN && e.Reason == GoalComplete {
+			id = e.Name
+		}
+	}
+	if id == "" {
+		return nil
+	}
+	for _, g := range FoldGoals(ev) {
+		if g.ID == id && g.Phase == GoalComplete {
+			return &g
+		}
+	}
+	return nil
+}
+
+// goalWasReopened reports whether this goal has been put back once
+// already. The log is what remembers it: the goal's current reason is
+// whatever the last phase change wrote, and completing it again clears
+// it.
+func (a *Agent) goalWasReopened(id string) bool {
+	if a.Log == nil {
+		return false
+	}
+	for _, e := range a.Log.Events() {
+		if e.Type == session.TypeGoalPhase && e.Name == id && strings.HasPrefix(e.Output, GoalReopened) {
+			return true
+		}
+	}
+	return false
+}
+
+// ReopenCompletedGoal puts back a goal the model called complete in a
+// turn whose own checks came back red. The two never spoke: goal_status
+// is a tool call made partway through the turn and the verdict is folded
+// at the end of it, so a session closed its goal on a suite that was
+// failing and stopped, with the red check reported beside the completion
+// and nothing drawing the conclusion.
+//
+// Once per goal. The model may have a reason the harness cannot see —
+// the red check is someone else's, the failure is the point — and a
+// harness that reopens a goal every time it is closed would argue until
+// the round budget ran out.
+func (a *Agent) ReopenCompletedGoal(outcome TurnOutcome, emit func(Event)) {
+	if a.Off["verdict"] || outcome.Verdict != VerdictCheckFailed {
+		return
+	}
+	g := a.goalCompletedThisTurn()
+	if g == nil || a.goalWasReopened(g.ID) {
+		return
+	}
+	why := "the round that called it complete ended red — " + outcome.Why
+	a.SetGoalPhase(g.ID, GoalActive, GoalReopened+why)
+	if emit != nil {
+		emit(Event{Kind: EvNotice, Text: "goal " + g.ID + " reopened: " + why})
+	}
+}
+
 // PausedNote is the one line a UI shows when starting a goal paused
 // others, so a goal that stops making rounds says why rather than going
 // quiet.
@@ -268,7 +338,12 @@ func goalPrompt(g Goal) string {
 	if g.Rounds == 0 {
 		lead = "Work on this goal until it is complete or you are blocked: "
 	}
-	return lead + g.Objective + "\n(This is round " + fmt.Sprint(g.Rounds+1) + " of at most " + fmt.Sprint(g.MaxRounds) + ". Rounds are a budget, not a plan: finish in one if you can. Call goal_status complete only when the objective is fully met, or blocked with the reason; the user sees that call, so do not announce rounds in your reply.)"
+	body := lead + g.Objective + "\n(This is round " + fmt.Sprint(g.Rounds+1) + " of at most " + fmt.Sprint(g.MaxRounds) + ". Rounds are a budget, not a plan: finish in one if you can. Call goal_status complete only when the objective is fully met, or blocked with the reason; the user sees that call, so do not announce rounds in your reply.)"
+	if reason, ok := strings.CutPrefix(g.Reason, GoalReopened); ok {
+		body += "\nYou called this goal complete last round and the harness has put it back: " + reason +
+			". Make the check pass, or call goal_status blocked saying why the red check is not yours to fix. Calling it complete again without either will not be questioned a second time."
+	}
+	return body
 }
 
 // GoalStatus is the model-facing tool to finish or block the active goal.

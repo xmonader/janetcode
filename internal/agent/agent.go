@@ -602,6 +602,10 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	a.logOutcome(outcome)
+	// A goal closed in a turn whose checks came back red is put back to
+	// active, once, so the loop answers for the red rather than stopping
+	// beside it.
+	a.ReopenCompletedGoal(outcome, emit)
 	if a.keepOrRevert(ctx, outcome, emit) {
 		a.stepRoute.taint("a goal round was reverted because it made things worse")
 		return false
