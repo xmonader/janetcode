@@ -171,6 +171,26 @@ func runFailed(e session.Event) bool {
 	return true
 }
 
+// notFoundRe matches a shell saying the command itself is missing. Such
+// a run produced no verdict on the code: `python -m pytest ...` on a box
+// where the binary is python3 is a typo, and counting it red kept a turn
+// that went on to run the very same suite green reported as a failure.
+var notFoundRe = regexp.MustCompile(`(?im)^.*(command not found|: not found|No such file or directory)\s*$`)
+
+// neverRan reports whether a bash result is a command that never started:
+// exit 127 with the shell saying so. It is not a check that came back red.
+func neverRan(e session.Event) bool {
+	if e.IsError {
+		return false
+	}
+	m := reExitCode.FindAllStringSubmatchIndex(e.Output, -1)
+	if len(m) == 0 {
+		return false
+	}
+	last := m[len(m)-1]
+	return e.Output[last[2]:last[3]] == "127" && notFoundRe.MatchString(e.Output)
+}
+
 // refused reports whether a tool result is a refusal rather than a run.
 func refused(e session.Event) bool {
 	if e.Denied {
@@ -237,6 +257,39 @@ var claimRe = regexp.MustCompile(`(?i)\b(tests? (now )?(pass|passes|passing|are 
 // only what the harness observed: which files were written, which
 // commands ran, and how they exited. It is FoldOutcomeIn without a
 // workspace root, for a caller that has none to give.
+// checkTarget is what a check command is aimed at: its last argument that
+// is not a flag, a redirection or a shell operator — the test file, the
+// package pattern, the directory. Two commands with the same target are
+// two ways of running the same check.
+func checkTarget(cmd string) string {
+	target := ""
+	for _, w := range shell.Words(cmd) {
+		switch {
+		case w == "", strings.HasPrefix(w, "-"),
+			strings.ContainsAny(w, "<>"), w == "&&", w == "||", w == "|", w == ";":
+			continue
+		}
+		target = w
+	}
+	return target
+}
+
+// supersededBy reports whether a green run of later retires an earlier red
+// run of cmd: the same target, exercised the same way (both run tests or
+// neither does), written differently. `python -m pytest t.py` fixed to
+// `python3 -m pytest t.py`, or `pip install -e . && python -m mutest
+// tests/` fixed to `.venv/bin/mutest tests/`, is one check that ended
+// green, not one red check and one green one. A different kind of check
+// over the same target — `go build ./...` then `go test ./...` — is not,
+// because the build failure is its own answer.
+func supersededBy(cmd, later string) bool {
+	if cmd == later {
+		return false
+	}
+	t := checkTarget(cmd)
+	return t != "" && t == checkTarget(later) && shell.IsTestRun(cmd) == shell.IsTestRun(later)
+}
+
 func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	return FoldOutcomeIn(events, turn, "")
 }
@@ -339,11 +392,26 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				cmd   string
 				isErr bool
 			}{cmd, runFailed(e)})
-			if check {
+			if check && !neverRan(e) {
 				see(cmd, checkRun{isErr: runFailed(e), output: e.Output})
 			}
 		}
 	}
+	// A red check that a later green check re-ran another way never
+	// reached the code: the model fixed the command, not the code.
+	retired := map[string]bool{}
+	for i, cmd := range order {
+		if !latest[cmd].isErr {
+			continue
+		}
+		for _, later := range order[i+1:] {
+			if !latest[later].isErr && supersededBy(cmd, later) {
+				retired[cmd] = true
+				break
+			}
+		}
+	}
+	order = slices.DeleteFunc(order, func(cmd string) bool { return retired[cmd] })
 	ranTests, foundNothing, ranTheCode, selfAsserted := false, false, false, false
 	for _, cmd := range order {
 		run := latest[cmd]

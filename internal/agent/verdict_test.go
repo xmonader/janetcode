@@ -552,3 +552,59 @@ func TestExitCodeLineMakesACheckRed(t *testing.T) {
 		t.Fatalf("grep finding nothing counted as a failed check: %+v", got)
 	}
 }
+
+// A recorded session wrote a tcp proxy, ran `python -m pytest` on a box
+// whose binary is python3, fixed the command, and saw four tests pass.
+// The turn was reported as "check failed": the dead command kept its own
+// entry in the check table forever, because the retry was not written
+// character for character the same way.
+func TestATypoedInterpreterIsNotARedCheck(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"tcp_proxy.py"}`, "Created tcp_proxy.py", false),
+		result(1, "write_file", `{"path":"test_tcp_proxy.py"}`, "Created test_tcp_proxy.py", false),
+		result(1, "bash", `{"command":"python -m pytest test_tcp_proxy.py -v"}`,
+			"/usr/bin/bash: line 1: python: command not found\n\n[exit code 127]", false),
+		result(1, "bash", `{"command":"python3 -m pytest test_tcp_proxy.py -v"}`,
+			"============================== 4 passed in 0.10s ===============================\n", false),
+	}
+	got := FoldOutcomeIn(ev, 1, "")
+	if got.Failed != 0 || got.Ran != 1 {
+		t.Fatalf("ran %d passed %d failed %d, checks %v", got.Ran, got.Passed, got.Failed, got.Checks)
+	}
+	if !got.Tested || !got.OK() {
+		t.Fatalf("verdict = %q (%s), tested=%v", got.Verdict, got.Why, got.Tested)
+	}
+}
+
+// The same session's sibling: `pip install -e . && python -m mutest
+// tests/` died on an externally-managed environment, and the model ran
+// the suite from a venv instead. One check, ending green.
+func TestACheckReRunAnotherWayRetiresTheRedOne(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"mutest/core.py"}`, "Created core.py", false),
+		result(1, "bash", `{"command":"pip install -e . -q && python -m mutest tests/"}`,
+			"error: externally-managed-environment\n\n[exit code 1]", false),
+		result(1, "bash", `{"command":".venv/bin/mutest tests/"}`, "12 passed\n\n[exit code 0]", false),
+	}
+	got := FoldOutcomeIn(ev, 1, "")
+	if got.Failed != 0 || got.Ran != 1 {
+		t.Fatalf("ran %d passed %d failed %d, checks %v", got.Ran, got.Passed, got.Failed, got.Checks)
+	}
+	if !got.OK() {
+		t.Fatalf("verdict = %q (%s)", got.Verdict, got.Why)
+	}
+}
+
+// A build failure is not retired by a test run over the same target: the
+// two ask different questions, and the red one still has its answer.
+func TestADifferentKindOfCheckDoesNotRetireARedOne(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"a.go"}`, "Created a.go", false),
+		result(1, "bash", `{"command":"go build ./..."}`, "a.go:3: undefined: x\n[exit code 1]", false),
+		result(1, "bash", `{"command":"go test ./..."}`, "ok  pkg\n[exit code 0]", false),
+	}
+	got := FoldOutcomeIn(ev, 1, "")
+	if got.Failed != 1 || got.Verdict != VerdictCheckFailed {
+		t.Fatalf("verdict = %q, failed %d, checks %v", got.Verdict, got.Failed, got.Checks)
+	}
+}
