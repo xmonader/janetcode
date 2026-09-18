@@ -17,7 +17,7 @@ import (
 
 const readOnlySystem = "\n\n# Read-only\nThis session is read-only: you can read, search and run read-only tools, but nothing that changes files or runs commands is available, and asking for it will fail. Do not pretend a change was made."
 
-const planSystem = "\n\n# Plan mode\nThe user wants a plan before any change. Explore the code as needed, then write a concrete, numbered plan: which files change and how, in what order, how each step is verified, and what could go wrong. Put it under a heading `## Plan`. The user will approve it, edit it, or ask questions; changes start only after approval."
+const planSystem = "\n\n# Plan mode\nThe user wants a plan before any change. Explore the code as needed, then write a concrete, numbered plan: which files change and how, in what order, how each step is verified, and what could go wrong. Put it under a heading `## Plan`. Then stop: approval is the user typing `/plan approve`, which is the only thing that leaves plan mode. Do not use the ask tool to ask whether to start — no answer to it can start anything, and offering \"go ahead\" as a choice promises something you cannot do. Use ask only for a real choice inside the plan, one that changes what the plan says."
 
 // readOnly reports whether mutating tools are hidden and refused: in
 // read-only mode and in plan mode.
