@@ -23,7 +23,6 @@
       <span class="new-plus" aria-hidden="true">+</span>
       <span class="new-session-label">New session</span>
     </button>
-    <p id="cwd" class="nav-cwd"></p>
     <p class="nav-label">Sessions</p>
     <input id="session-filter" class="session-filter" type="search" placeholder="Filter sessions…" aria-label="Filter sessions">
     <ul id="sessions"></ul>
@@ -40,9 +39,7 @@
       </nav>
       <span id="title" class="session-title"></span>
       <span class="top-right">
-        <button type="button" id="model" class="model-btn" title="Switch model"></button>
         <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
-        <span id="mode-chip" class="mode-chip">ask</span>
         <span id="conn" class="conn" title="Live connection">Live</span>
         <button type="button" id="help-btn" class="icon-btn" title="Help & shortcuts (?)" aria-label="Help and shortcuts">?</button>
         <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
@@ -133,12 +130,14 @@
         <textarea id="input" rows="1" placeholder="What should we do next?"></textarea>
         <div class="composer-bar">
           <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands">⌘</button>
+          <span id="mode-chip" class="mode-chip">ask</span>
           <span class="spacer"></span>
-          <span class="hint">Enter sends · Esc stops</span>
+          <button type="button" id="model" class="model-btn" title="Switch model"></button>
           <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop">■</button>
           <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send">↑</button>
         </div>
       </form>
+      <p id="cwd" class="cwd-chip" title="Working directory"></p>
     </div>
   </div>
 

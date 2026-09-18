@@ -19,82 +19,82 @@
 
 :root {
   --bg: #ffffff;
-  --sidebar: #f9fafb;
+  --sidebar: #f9fbfc;
   --surface: #ffffff;
-  --surface-2: #f5f6f7;
-  --ink: #0f1115;
-  --mute: #61666b;
-  --faint: #81858c;
-  --line: rgba(15, 17, 21, 0.1);
-  --line-strong: rgba(15, 17, 21, 0.16);
-  --blue: #4176e6;
-  --blue-deep: #5686fe;
-  --blue-soft: #edf3fe;
-  --blue-soft-border: #b7c8fe;
+  --surface-2: #f5f5f5;
+  --ink: rgba(0, 0, 0, 0.9);
+  --mute: rgba(0, 0, 0, 0.6);
+  --faint: rgba(0, 0, 0, 0.45);
+  --line: rgba(0, 0, 0, 0.13);
+  --line-strong: rgba(0, 0, 0, 0.15);
+  --blue: #1783ff;
+  --blue-deep: #167ff7;
+  --blue-soft: #e8f3ff;
+  --blue-soft-border: rgba(23, 131, 255, 0.25);
   --on-accent: #ffffff;
-  --ok: #22c55e;
-  --ok-soft: #e6faed;
-  --bad: #ec1313;
-  --bad-soft: #fee2e2;
-  --bad-border: #fca5a5;
-  --warn: #f59e0b;
-  --warn-soft: #fef5e7;
-  --warn-border: #f7ad31;
-  --code-bg: #fafafa;
-  --pre-bg: #0f0f0f;
-  --pre-ink: #e8edf2;
-  --bubble-bg: #f5f6f7;
-  --diff-add-bg: rgba(34, 197, 94, 0.08);
-  --diff-del-bg: rgba(236, 19, 19, 0.07);
-  --overlay: rgba(0, 0, 0, 0.24);
+  --ok: #0e7a38;
+  --ok-soft: #e7f6ee;
+  --bad: #c0392b;
+  --bad-soft: #fbeaea;
+  --bad-border: #f0cccc;
+  --warn: #a9610a;
+  --warn-soft: #fbf1e0;
+  --warn-border: #f0d9b8;
+  --code-bg: rgba(0, 0, 0, 0.03);
+  --pre-bg: #f5f5f5;
+  --pre-ink: #1f2328;
+  --bubble-bg: #f5f5f5;
+  --diff-add-bg: rgba(22, 196, 86, 0.25);
+  --diff-del-bg: rgba(255, 56, 73, 0.25);
+  --overlay: rgba(0, 0, 0, 0.4);
   --radius-s: 6px;
   --radius: 12px;
-  --radius-l: 22px;
-  --shadow-pop: 0 12px 32px rgba(15, 17, 21, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
-  --pulse: rgba(65, 118, 230, 0.35);
-  --shadow-card: 0 0 0 0.5px rgba(0, 0, 0, 0.1);
-  --shadow-composer: 0 8px 28px rgba(15, 17, 21, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  --radius-l: 16px;
+  --shadow-pop: 0 1px 3px rgba(28, 40, 66, 0.05), 0 6px 18px rgba(28, 40, 66, 0.06);
+  --pulse: rgba(23, 131, 255, 0.3);
+  --shadow-card: 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  --shadow-composer: 0 1px 3px rgba(28, 40, 66, 0.05), 0 6px 18px rgba(28, 40, 66, 0.06);
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "SF Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --nav-w: 260px;
   --work-w: 300px;
   --rail-w: 52px;
-  --chat-w: 46rem;
+  --chat-w: 44rem;
 }
 html[data-theme="dark"] {
-  --bg: #0a0b0d;
-  --sidebar: #0a0b0d;
-  --surface: #141519;
-  --surface-2: #1c1e23;
-  --ink: #e9eaec;
-  --mute: #9b9fa7;
-  --faint: #666b73;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
-  --blue: #6b9bff;
-  --blue-deep: #5686fe;
-  --blue-soft: rgba(107, 155, 255, 0.13);
-  --blue-soft-border: rgba(107, 155, 255, 0.32);
+  --bg: #121212;
+  --sidebar: #0d0d0d;
+  --surface: #1f1f1f;
+  --surface-2: #292929;
+  --ink: rgba(255, 255, 255, 0.84);
+  --mute: rgba(255, 255, 255, 0.56);
+  --faint: rgba(255, 255, 255, 0.42);
+  --line: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --blue: #1a88ff;
+  --blue-deep: #258eff;
+  --blue-soft: rgba(26, 136, 255, 0.1);
+  --blue-soft-border: rgba(26, 136, 255, 0.28);
   --on-accent: #ffffff;
-  --ok: #4ed17e;
-  --ok-soft: rgba(34, 197, 94, 0.14);
-  --bad: #f25a5a;
-  --bad-soft: rgba(239, 68, 68, 0.14);
-  --bad-border: rgba(242, 90, 90, 0.35);
-  --warn: #f7ad31;
-  --warn-soft: rgba(245, 158, 11, 0.12);
-  --warn-border: rgba(247, 173, 49, 0.35);
-  --code-bg: #1c1e23;
-  --pre-bg: #0d0e11;
-  --pre-ink: #e4e4e4;
-  --bubble-bg: #1c1e23;
-  --diff-add-bg: rgba(78, 209, 126, 0.12);
-  --diff-del-bg: rgba(242, 90, 90, 0.12);
+  --ok: #2ea043;
+  --ok-soft: rgba(46, 160, 67, 0.15);
+  --bad: #f85149;
+  --bad-soft: rgba(248, 81, 73, 0.15);
+  --bad-border: rgba(248, 81, 73, 0.35);
+  --warn: #d29922;
+  --warn-soft: rgba(210, 153, 34, 0.15);
+  --warn-border: rgba(210, 153, 34, 0.35);
+  --code-bg: rgba(255, 255, 255, 0.1);
+  --pre-bg: #1f1f1f;
+  --pre-ink: rgba(255, 255, 255, 0.84);
+  --bubble-bg: #292929;
+  --diff-add-bg: rgba(22, 196, 86, 0.25);
+  --diff-del-bg: rgba(255, 56, 73, 0.25);
   --overlay: rgba(0, 0, 0, 0.6);
-  --shadow-pop: 0 16px 44px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.07);
-  --shadow-card: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
-  --shadow-composer: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.09);
-  --pulse: rgba(107, 155, 255, 0.35);
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  --shadow-card: 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  --shadow-composer: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.09);
+  --pulse: rgba(26, 136, 255, 0.35);
 }
 * { box-sizing: border-box; }
 html { color-scheme: light; }
@@ -2050,3 +2050,115 @@ pre.sheetbody { background: var(--pre-bg); }
   justify-content: center;
 }
 #search-btn:hover { background: var(--surface-2); color: var(--ink); }
+
+/* ---- lifted from Kimi Code's webui ----------------------------------
+   Tokens transcribed from apps/kimi-code/dist-web (their --color-* and
+   --radius-* systems): the composer is a soft-shadowed rounded card with
+   mode and model inside its bar, the cwd sits under it, the topbar is
+   frosted, and chrome text is 14px over a 15px reading column. */
+
+body { font-size: 14px; }
+.md { font-size: 15px; }
+
+/* Frosted topbar, no heavy border. */
+.top {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border-bottom: 0.5px solid var(--line);
+}
+
+/* New session: a quiet full-width row, not a button ad. */
+.new-session {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink);
+  justify-content: flex-start;
+  font-weight: 500;
+}
+.new-session:hover { background: var(--surface-2); color: var(--ink); }
+.new-session:hover .new-plus { color: var(--blue); }
+.new-plus { color: var(--faint); }
+
+/* Composer: 28px corners (their 32px superellipse, circular approx),
+   soft two-stop shadow, hairline border that only darkens on focus. */
+#composer {
+  border-radius: 28px;
+  border: 0.5px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-composer);
+  padding: 16px 18px 12px;
+}
+#composer:focus-within {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-composer);
+}
+.composer-bar { padding-top: 10px; }
+
+/* The model is quiet text in the bar; the menu keeps its popover. */
+.composer-bar .model-btn {
+  background: transparent;
+  border: 0;
+  color: var(--mute);
+  padding: 0.2rem 0.4rem;
+  max-width: 200px;
+}
+.composer-bar .model-btn:hover { color: var(--ink); background: var(--surface-2); }
+
+/* The mode chip reads as a state label, neutral until it means something. */
+#mode-chip {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--mute);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+#mode-chip[data-mode="YOLO"] { background: var(--bad-soft); color: var(--bad); }
+#mode-chip[data-mode="AUTO"],
+#mode-chip[data-mode="EDITS"] { background: var(--ok-soft); color: var(--ok); }
+#mode-chip[data-mode="PLAN"] { background: var(--warn-soft); color: var(--warn); }
+
+/* Send: neutral raised circle that turns accent on hover, the way their
+   arrow sits quiet until you reach for it. */
+#send {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+#send:hover { background: var(--blue); color: var(--on-accent); }
+
+/* The working directory under the composer: folder, path, nothing else. */
+.cwd-chip {
+  margin: 8px 6px 0;
+  font-size: 0.78rem;
+  color: var(--faint);
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cwd-chip::before {
+  content: "📁 ";
+  font-family: var(--sans);
+}
+.cwd-chip:empty { display: none; }
+
+/* Suggestion chips: their row of round starters — white, hairline,
+   lifting on hover. */
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--mute);
+}
+.chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* User bubble: their 18px neutral pill. */
+.you .bubble { border-radius: 20px; }
+
+/* Collapsed rail keeps its quiet new-session. */
+.nav-collapsed .new-session { color: var(--blue); }
