@@ -132,11 +132,11 @@
         <div id="ac" class="ac" hidden></div>
         <textarea id="input" rows="1" placeholder="What should we do next?"></textarea>
         <div class="composer-bar">
-          <button type="button" id="search-btn" title="Commands (Ctrl+K)">Commands</button>
+          <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands">⌘</button>
           <span class="spacer"></span>
-          <span class="hint">Enter to send · Shift+Enter newline · Esc stops</span>
-          <button type="button" id="stop" hidden>Stop</button>
-          <button type="submit" id="send" aria-label="Send">Send</button>
+          <span class="hint">Enter sends · Esc stops</span>
+          <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop">■</button>
+          <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send">↑</button>
         </div>
       </form>
     </div>

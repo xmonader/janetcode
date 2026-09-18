@@ -1956,3 +1956,97 @@ pre.sheetbody { background: var(--pre-bg); }
 }
 .nav-collapsed .new-session:hover { background: var(--surface-2); }
 .nav-collapsed .session-filter { display: none; }
+
+/* ---- composer, Kimi-style --------------------------------------------
+   No text buttons in the bar: a ⌘ chip for the palette, a square stop
+   while a turn runs, and a round send. The box itself is flat — a thin
+   border, no heavy shadow — and only glows when it holds the focus. */
+
+#composer {
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: none;
+  padding: 12px 14px 10px;
+}
+#composer:focus-within {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+}
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+}
+.composer-bar .spacer { flex: 1; }
+.composer-bar .hint {
+  font-size: 0.68rem;
+  color: var(--faint);
+  padding-right: 2px;
+}
+.cmd-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cmd-btn:hover { background: var(--surface-2); color: var(--ink); }
+.send-btn,
+#send {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  background: var(--blue);
+  color: var(--on-accent);
+  font-size: 17px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#send:hover { background: var(--blue-deep); }
+#send:active { transform: translateY(1px); }
+.stop-btn,
+#stop {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--bad-border);
+  color: var(--bad);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#stop:hover { background: var(--bad-soft); }
+
+/* id beats class: the old #search-btn text-button rules lose here. */
+#search-btn {
+  border: 0;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#search-btn:hover { background: var(--surface-2); color: var(--ink); }

@@ -296,7 +296,7 @@
     const prev = running;
     running = !!st.running;
     maybeNotify(prev, st);
-    document.getElementById("send").textContent = running ? "Queue" : "Send";
+    document.getElementById("send").title = running ? "Queue behind the running turn" : "Send";
     document.getElementById("stop").hidden = !running;
     const bits = [];
     if (st.running) bits.push((st.phase || "Working") + (st.elapsed ? " · " + st.elapsed : ""));
