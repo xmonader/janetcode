@@ -92,8 +92,8 @@ func TestStatusLineShowsEffort(t *testing.T) {
 		if got := lipgloss.Width(line); got > w {
 			t.Errorf("width %d: status line is %d columns:\n%s", w, got, plain(line))
 		}
-		if gauge := plain(h.m.contextGauge()); !strings.Contains(plain(line), gauge) {
-			t.Errorf("width %d: the gauge %q was cut:\n%s", w, gauge, plain(line))
+		if !gaugeWhole(h.m, line) {
+			t.Errorf("width %d: no gauge wording survived whole:\n%s", w, plain(line))
 		}
 	}
 }

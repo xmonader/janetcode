@@ -251,8 +251,10 @@ func TestStatusBarFitsWidth(t *testing.T) {
 			}
 			// The gauge is the one thing that never yields — not even its
 			// last characters: a figure cut to "45…" reads as a number.
-			if gauge := plain(h.m.contextGauge()); !strings.Contains(plain(line), gauge) {
-				t.Errorf("width %d, %s: the gauge %q was cut:\n%s", w, st.name, gauge, plain(line))
+			// Which of its wordings is drawn depends on the room left,
+			// but one of them is always there whole.
+			if !gaugeWhole(h.m, line) {
+				t.Errorf("width %d, %s: no gauge wording survived whole:\n%s", w, st.name, plain(line))
 			}
 		}
 		h.m.pinned = true
@@ -967,4 +969,15 @@ func TestCodeLinesEndInOneEllipsis(t *testing.T) {
 	if !strings.HasSuffix(strings.TrimRight(out, " "), "…") {
 		t.Fatalf("no cut mark: %q", out)
 	}
+}
+
+// gaugeWhole reports whether one of the context gauge's wordings appears
+// in the status line uncut.
+func gaugeWhole(m *model, line string) bool {
+	for _, g := range m.contextGauges() {
+		if strings.Contains(plain(line), plain(g)) {
+			return true
+		}
+	}
+	return false
 }

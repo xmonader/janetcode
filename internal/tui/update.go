@@ -417,6 +417,7 @@ func (m *model) applyEvent(ev agent.Event) {
 	if !namesItsCall(ev) {
 		return
 	}
+	m.turn.lastEventAt = time.Now()
 	m.transcript.apply(ev)
 	m.observeEvent(ev)
 	switch ev.Kind {

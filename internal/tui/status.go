@@ -229,6 +229,36 @@ func (m *model) statusState() string {
 	return s + m.styles.faint.Render(" · ")
 }
 
+// quietSince is how long a turn may produce nothing before the status
+// line says so. Under it, silence is ordinary: a model call that answers
+// in a few seconds has not stalled. Past it the gap is the whole story —
+// on a slow endpoint a single call went two and a half minutes without a
+// byte, and the spinner said exactly what it says on a fast one.
+const quietSince = 10 * time.Second
+
+// quietNote is the status line's " · quiet 47s", or "" while the turn is
+// still producing.
+func quietNote(d time.Duration) string {
+	if d < quietSince {
+		return ""
+	}
+	return " · quiet " + textfmt.Duration(d.Round(time.Second))
+}
+
+// usagePart is the session's token counts for the status line: what was
+// sent, what came back, and how much of the input was served from the
+// provider's cache. /stats and /usage have always been able to say this;
+// the status line could not, so the one number a long turn changes
+// fastest was the one thing you had to stop and ask for.
+func (m *model) usagePart() string {
+	u := m.opts.Agent.UsageSnapshot()
+	if u.InputTokens+u.OutputTokens+u.CacheReadTokens == 0 {
+		return ""
+	}
+	return m.styles.faint.Render(fmt.Sprintf("↑%s ↓%s ⧉%s",
+		textfmt.Tokens(u.InputTokens), textfmt.Tokens(u.OutputTokens), textfmt.Tokens(u.CacheReadTokens)))
+}
+
 func (m *model) statusView() string {
 	var left string
 	switch {
@@ -238,7 +268,7 @@ func (m *model) statusView() string {
 		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText())
 	case m.turn.running:
 		el := textfmt.Duration(time.Since(m.turn.startedAt))
-		hint := " · esc to cancel"
+		hint := quietNote(m.turn.quietFor()) + " · esc to cancel"
 		// Only while there is something to promote: a key that does
 		// nothing is worse than no key.
 		if len(m.opts.Running.List()) > 0 {
@@ -266,18 +296,50 @@ func (m *model) statusView() string {
 	if pct, ok := m.opts.Agent.CacheRate(); ok && !m.tight() {
 		parts = append(parts, m.styles.faint.Render(fmt.Sprintf("cache %d%%", pct)))
 	}
-	parts = append(parts, m.contextGauge())
-	const leastStatus = 12
-	for len(parts) > 1 && lipgloss.Width(strings.Join(parts, "  ")) > m.width-leastStatus {
-		parts = append(parts[:len(parts)-2], parts[len(parts)-1])
-	}
-	right := strings.Join(parts, "  ")
 	// The status line shares the gutter: its left margin is the gutter, or
 	// the single space it has always had when the gutter has collapsed.
 	lead := m.gutter()
 	if lead < 1 {
 		lead = 1
 	}
+	// The token counts and the gauge's figures are worth room, but never
+	// the status text's room: a number can be asked for with /usage, and
+	// the message on the left cannot. Both are tried from richest to
+	// plainest, and the first combination that leaves the text uncut
+	// wins; if nothing does, the plainest is drawn and the text yields as
+	// it always has.
+	usage := ""
+	if !m.tight() {
+		usage = m.usagePart()
+	}
+	gauges := m.contextGauges()
+	build := func(u, g string) []string {
+		p := append([]string{}, parts...)
+		if u != "" {
+			p = append(p, u)
+		}
+		return append(p, g)
+	}
+	chosen := build("", gauges[len(gauges)-1])
+	for _, u := range []string{usage, ""} {
+		fit := false
+		for _, g := range gauges {
+			cand := build(u, g)
+			if m.width-lipgloss.Width(strings.Join(cand, "  "))-lead-2 >= lipgloss.Width(left) {
+				chosen, fit = cand, true
+				break
+			}
+		}
+		if fit {
+			break
+		}
+	}
+	parts = chosen
+	const leastStatus = 12
+	for len(parts) > 1 && lipgloss.Width(strings.Join(parts, "  ")) > m.width-leastStatus {
+		parts = append(parts[:len(parts)-2], parts[len(parts)-1])
+	}
+	right := strings.Join(parts, "  ")
 	// The status text yields to the gauge, however little is left of it.
 	// Its room counts the margin, the gap and the trailing space: leaving
 	// the margin out let the line overflow by the gutter, and the final
@@ -292,10 +354,13 @@ func (m *model) statusView() string {
 	return fitLine(strings.Repeat(" ", lead)+left+strings.Repeat(" ", gap)+right+" ", m.width)
 }
 
-// contextGauge shows how full the context window is relative to the
-// compaction threshold. It is the one thing on the status line that never
-// gives way; below 50 columns it drops the bar and keeps the number.
-func (m *model) contextGauge() string {
+// contextGauges are the gauge's wordings, richest first: the bar with the
+// figures and the percentage, the figures and the percentage, then the
+// percentage alone. It shows how full the context is relative to the
+// compaction threshold — which is not the model's window, it is where
+// compaction runs. It is the one thing on the status line that never
+// gives way, so the last wording is always drawable.
+func (m *model) contextGauges() []string {
 	// While a turn runs the history belongs to the turn goroutine; the
 	// gauge reads the estimate the agent published instead.
 	est := m.opts.Agent.TokenEstimate()
@@ -304,7 +369,7 @@ func (m *model) contextGauge() string {
 	}
 	limit := m.opts.Agent.CompactThreshold()
 	if limit <= 0 {
-		return m.styles.faint.Render("ctx " + textfmt.Tokens(est))
+		return []string{m.styles.faint.Render("ctx " + textfmt.Tokens(est))}
 	}
 	pct := est * 100 / limit
 	if pct > 100 {
@@ -317,13 +382,18 @@ func (m *model) contextGauge() string {
 	case pct >= 60:
 		style = m.styles.warn
 	}
+	bare := style.Render(fmt.Sprintf("ctx %d%%", pct))
 	if m.width < 50 {
-		return style.Render(fmt.Sprintf("ctx %d%%", pct))
+		return []string{bare}
 	}
+	// The figures the percentage is of: a bare "12%" says nothing about
+	// whether the next file read is affordable.
+	sized := style.Render(fmt.Sprintf("ctx %s/%s %d%%", textfmt.Tokens(est), textfmt.Tokens(limit), pct))
 	const cells = 10
 	filled := pct * cells / 100
 	bar := strings.Repeat("▰", filled) + strings.Repeat("▱", cells-filled)
-	return style.Render(fmt.Sprintf("ctx %s %d%%", bar, pct))
+	full := style.Render(fmt.Sprintf("ctx %s %s/%s %d%%", bar, textfmt.Tokens(est), textfmt.Tokens(limit), pct))
+	return []string{full, sized, bare}
 }
 
 // inputBox is the border the input box wears in the current state; the

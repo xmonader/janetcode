@@ -33,7 +33,13 @@ type turnState struct {
 	compacting bool
 	cancel     context.CancelFunc
 	startedAt  time.Time // when the running turn began
-	phase      string    // what the agent is doing right now
+	// lastEventAt is when the turn last produced anything at all — a
+	// token, a tool boundary, a phase change. The gap since says how long
+	// the turn has been waiting on the provider, which on a slow endpoint
+	// is most of the wall clock and was indistinguishable from a wedged
+	// session: the spinner turns either way.
+	lastEventAt time.Time
+	phase       string // what the agent is doing right now
 	// phaseUntil is when the thing the phase names is due, so a wait the
 	// provider announced once counts down instead of standing still.
 	phaseUntil time.Time
@@ -48,6 +54,7 @@ func (t *turnState) start() {
 	t.running = true
 	t.cancelling = false
 	t.startedAt = time.Now()
+	t.lastEventAt = t.startedAt
 }
 
 // stop cancels the running turn's context, if it has one.
@@ -94,6 +101,15 @@ func (t *turnState) setPhase(text string) {
 		return
 	}
 	t.phase, t.phaseUntil = g[1], time.Now().Add(d)
+}
+
+// quietFor is how long the turn has produced nothing. Zero when the turn
+// is not running or has never been stamped.
+func (t *turnState) quietFor() time.Duration {
+	if !t.running || t.lastEventAt.IsZero() {
+		return 0
+	}
+	return time.Since(t.lastEventAt)
 }
 
 // phaseText is the phase with its countdown resolved to now.
