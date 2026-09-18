@@ -56,8 +56,11 @@ func (s *server) goal(arg string) {
 			s.goalRound()
 		}
 	default:
-		id := ag.CreateGoal(arg, 0)
+		id, paused := ag.CreateGoal(arg, 0)
 		s.notice("goal " + id + " active: " + arg)
+		if len(paused) > 0 {
+			s.notice(agent.PausedNote(paused))
+		}
 		if s.sess().Meta.Title == "" {
 			_ = s.sess().SetTitle(textfmt.Clip(arg, 60))
 		}

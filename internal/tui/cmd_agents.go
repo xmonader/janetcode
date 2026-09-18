@@ -44,8 +44,11 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 		}
 		return nil
 	default:
-		id := ag.CreateGoal(arg, 0)
+		id, paused := ag.CreateGoal(arg, 0)
 		m.note("goal " + id + " active: " + arg)
+		if len(paused) > 0 {
+			m.note(agent.PausedNote(paused))
+		}
 		// The objective is what this session is about. Without this the
 		// title was generated from the first message the model saw, which
 		// for a goal is the continuation prompt: sessions came back from

@@ -122,9 +122,25 @@ func FormatGoals(gs []Goal) string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-func (a *Agent) CreateGoal(objective string, maxRounds int) string {
+// CreateGoal starts a goal and returns its id along with the ids of any
+// goals it paused. A second active goal used to shadow the first: the
+// model's goal_status acts on the newest active one, so on a recorded
+// session a goal set by accident took the "complete" the model meant for
+// the real one, and the real one then spent a whole round being told to
+// continue work that was already done. Only one goal is active at a time
+// now; a paused one comes back with /goal resume.
+func (a *Agent) CreateGoal(objective string, maxRounds int) (string, []string) {
 	if maxRounds <= 0 {
 		maxRounds = defaultGoalRounds
+	}
+	var paused []string
+	if a.Log != nil {
+		for _, g := range FoldGoals(a.Log.Events()) {
+			if g.Phase == GoalActive {
+				a.SetGoalPhase(g.ID, GoalPaused, "paused by a new goal")
+				paused = append(paused, g.ID)
+			}
+		}
 	}
 	// Numbered by how many goals the log already holds, so two goals made
 	// inside one turn do not share an id (and fold into one).
@@ -134,7 +150,14 @@ func (a *Agent) CreateGoal(objective string, maxRounds int) string {
 	}
 	a.logEvent(session.Event{Type: session.TypeGoalCreate, Name: id, Output: strings.TrimSpace(objective), Tokens: maxRounds})
 	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: GoalActive})
-	return id
+	return id, paused
+}
+
+// PausedNote is the one line a UI shows when starting a goal paused
+// others, so a goal that stops making rounds says why rather than going
+// quiet.
+func PausedNote(paused []string) string {
+	return strings.Join(paused, ", ") + " paused; /goal resume brings the last one back"
 }
 
 func (a *Agent) SetGoalPhase(id, phase, reason string) {

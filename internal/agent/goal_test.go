@@ -11,7 +11,7 @@ import (
 func TestFoldGoalsAndStatus(t *testing.T) {
 	mem := &session.Memory{}
 	a := &Agent{Log: mem}
-	id := a.CreateGoal("ship the cache", 3)
+	id, _ := a.CreateGoal("ship the cache", 3)
 	if g := ActiveGoal(mem.Events()); g == nil || g.ID != id || g.Phase != GoalActive {
 		t.Fatalf("active = %+v", g)
 	}
@@ -62,8 +62,8 @@ func TestFoldGoalsIgnoresNonGoalEvents(t *testing.T) {
 
 func TestGoalIDsAreUniqueWithinATurn(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
-	first := a.CreateGoal("one", 0)
-	second := a.CreateGoal("two", 0)
+	first, _ := a.CreateGoal("one", 0)
+	second, _ := a.CreateGoal("two", 0)
 	if first == second {
 		t.Fatalf("both goals got id %q", first)
 	}
@@ -74,7 +74,7 @@ func TestGoalIDsAreUniqueWithinATurn(t *testing.T) {
 
 func TestPausedGoalIsResumable(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
-	id := a.CreateGoal("one", 0)
+	id, _ := a.CreateGoal("one", 0)
 	a.SetGoalPhase(id, GoalPaused, "")
 	if ActiveGoal(a.Log.Events()) != nil {
 		t.Fatal("paused goal is still active")
@@ -91,7 +91,7 @@ func TestPausedGoalIsResumable(t *testing.T) {
 
 func TestGoalStatusTwiceIsNotAnError(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
-	id := a.CreateGoal("ship the cache", 0)
+	id, _ := a.CreateGoal("ship the cache", 0)
 	tl := &GoalStatus{Parent: a}
 	if _, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`)); err != nil {
 		t.Fatalf("first call: %v", err)
@@ -110,7 +110,7 @@ func TestGoalStatusTwiceIsNotAnError(t *testing.T) {
 
 func TestGoalStatusOnABlockedGoalReportsTheReason(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
-	id := a.CreateGoal("ship the cache", 0)
+	id, _ := a.CreateGoal("ship the cache", 0)
 	tl := &GoalStatus{Parent: a}
 	if _, err := tl.Run(context.Background(), []byte(`{"status":"blocked","reason":"no credentials"}`)); err != nil {
 		t.Fatalf("first call: %v", err)
@@ -126,7 +126,7 @@ func TestGoalStatusOnABlockedGoalReportsTheReason(t *testing.T) {
 
 func TestTargetGoalPauseAndResume(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
-	id := a.CreateGoal("ship the cache", 0)
+	id, _ := a.CreateGoal("ship the cache", 0)
 	g, phase, err := TargetGoal(a.Log.Events(), "pause")
 	if err != nil || g.ID != id || phase != GoalPaused {
 		t.Fatalf("g=%+v phase=%q err=%v", g, phase, err)
@@ -140,7 +140,7 @@ func TestTargetGoalPauseAndResume(t *testing.T) {
 
 func TestTargetGoalDoneFallsBackToMostRecent(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
-	id := a.CreateGoal("ship the cache", 0)
+	id, _ := a.CreateGoal("ship the cache", 0)
 	a.SetGoalPhase(id, GoalPaused, "")
 	g, phase, err := TargetGoal(a.Log.Events(), "done")
 	if err != nil || g.ID != id || phase != GoalComplete {
@@ -191,5 +191,38 @@ func TestGoalRoleNoteSkipsWhenContextIsDone(t *testing.T) {
 	//lint:ignore SA1012 the nil context is the case being asserted
 	if note := a.goalRoleNote(nil, Goal{Objective: "ship it"}); note != "" {
 		t.Fatalf("nil ctx invented a Background query: %q", note)
+	}
+}
+
+// On a recorded session a second goal was started while the first was
+// still active. The model's goal_status complete acts on the newest
+// active goal, so it completed the accident; the real goal then got a
+// round of its own, in which the model reported the work already done and
+// nothing happened. One goal is active at a time now.
+func TestANewGoalPausesTheActiveOne(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	first, paused := a.CreateGoal("create a small tcp proxy in python and test it", 0)
+	if len(paused) != 0 {
+		t.Fatalf("the first goal paused %v", paused)
+	}
+	second, paused := a.CreateGoal("objective", 0)
+	if len(paused) != 1 || paused[0] != first {
+		t.Fatalf("paused = %v, want [%s]", paused, first)
+	}
+	if g := ActiveGoal(a.Log.Events()); g == nil || g.ID != second {
+		t.Fatalf("active = %+v, want %s", g, second)
+	}
+	// Completing the new goal leaves nothing running: the paused one does
+	// not quietly claim the next round.
+	a.SetGoalPhase(second, GoalComplete, "")
+	if g := ActiveGoal(a.Log.Events()); g != nil {
+		t.Fatalf("active after completing the goal = %+v", g)
+	}
+	if got := a.GoalContinuation(context.Background()); got != "" {
+		t.Fatalf("continuation = %q", got)
+	}
+	// It is still there to come back to.
+	if g := LastGoal(a.Log.Events(), GoalPaused); g == nil || g.ID != first {
+		t.Fatalf("paused goal = %+v", g)
 	}
 }
