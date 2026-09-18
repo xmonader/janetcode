@@ -194,3 +194,52 @@ func TestArgumentsAreSummarisedNotDumped(t *testing.T) {
 		t.Fatalf("nested args = %q", got)
 	}
 }
+
+// A refused or recovered call can reach the log as a result with no
+// call event and sometimes no id. It used to produce a record with no
+// name, no arguments and "→ (no output)": a line that says nothing.
+func TestFoldDoesNotInventEmptyRecords(t *testing.T) {
+	base := time.Now()
+	ev := []session.Event{
+		{Seq: 1, Time: at(base, 0), Type: session.TypeUserMessage, Turn: 1, Message: msg(llm.RoleUser, "go")},
+		{Seq: 2, Time: at(base, 1), Type: session.TypeStepStart, Turn: 1, Step: 1},
+		{Seq: 3, Time: at(base, 2), Type: session.TypeToolResult, Turn: 1, Step: 1,
+			Name: "read_file", Output: `Unknown tool "read_file"`, IsError: true},
+		{Seq: 4, Time: at(base, 3), Type: session.TypeToolResult, Turn: 1, Step: 1},
+	}
+	l := Fold(ev)
+	for _, r := range l.All {
+		if strings.TrimSpace(Content(r)) == "→ (no output)" {
+			t.Fatalf("a record of nothing: %+v", r)
+		}
+	}
+	tools := 0
+	for _, r := range l.All {
+		if r.Kind == KindTool {
+			tools++
+		}
+	}
+	if tools != 1 {
+		t.Fatalf("want one tool record for one result, got %d: %+v", tools, l.All)
+	}
+}
+
+// A result whose call event is in the log but whose id did not survive
+// still finds its call rather than becoming a second record.
+func TestFoldAttachesAnIdlessResultToTheWaitingCall(t *testing.T) {
+	base := time.Now()
+	ev := []session.Event{
+		{Seq: 1, Time: at(base, 0), Type: session.TypeStepStart, Turn: 1, Step: 1},
+		{Seq: 2, Time: at(base, 1), Type: session.TypeToolCall, Turn: 1, Step: 1,
+			CallID: "c1", Name: "bash", Arguments: `{"command":"ls"}`},
+		{Seq: 3, Time: at(base, 51), Type: session.TypeToolResult, Turn: 1, Step: 1,
+			Name: "bash", Output: "a.txt"},
+	}
+	l := Fold(ev)
+	if len(l.All) != 1 {
+		t.Fatalf("want one record, got %d: %+v", len(l.All), l.All)
+	}
+	if r := l.All[0]; r.Running || r.Result != "a.txt" || r.Duration != 50*time.Millisecond {
+		t.Fatalf("the result did not reach its call: %+v", r)
+	}
+}

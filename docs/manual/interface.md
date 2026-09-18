@@ -1484,8 +1484,75 @@ what kind of intervention it was, what the harness said at the time, and
 why it does that. `/why 2` is the one before, and so on back. There is no
 model call behind it — asking the model why the harness did something is
 asking the wrong party, and paying for the answer — so it costs nothing
-and can be asked as often as it is useful. `/trajectory` still has the raw
-records.
+and can be asked as often as it is useful. `/trajectory` has the records
+themselves.
+
+### /trajectory
+
+The session log is a list of events; `/trajectory` is the list of things
+that happened, which is not the same list. A tool call and its result are
+two events and one thing — bash ran, it took 23 seconds, it printed this
+— and a view that prints them as two lines makes you do the join every
+time you read it. A step is four or five events and one step.
+
+So the ledger folds first, then prints. Each line is a record: its
+number, what kind it is, what it did, what came back after an arrow, and
+its tokens and duration right-aligned in their own column. Records are
+grouped under the turn and step they belong to, and each step header
+carries its span and the tools it ran (`Step 2 · 3.6s · write_file,
+bash`), so the shape of a turn is legible before a word of it is read.
+
+```
+turn 1 · 3 steps · 3 tool calls · 31.2s · ↑690 ⧉57k ↓280
+#1    USER    make the tests pass and tidy the tree
+  Step 1 · 26.4s · bash
+#2    MODEL   (tool calls only)                          ↑420 ⧉18k ↓96 3.4s
+#3    TOOL    bash · go test ./... ✗ --- FAIL: TestParse…            23.0s
+```
+
+A tool call shows its arguments summarised, not dumped: raw JSON spends
+the line on punctuation, so every row began with the same `{"command":"`
+and the part that differed was what got clipped off the end. A file's
+contents are reported by size rather than spelled out, so a short file
+and a long one look like the same tool. A call that never got a result —
+a cancelled turn, a call still running — stays on the ledger marked `→
+…`, because a cancelled turn should look cancelled rather than simply
+shorter.
+
+| | |
+|---|---|
+| `/trajectory` | the most recent 60 records |
+| `/trajectory all` | every record, however long the session |
+| `/trajectory <n>` | one record in full |
+| `/trajectory turns` | one line per turn |
+| `/trajectory turn <n>` | one turn's records |
+| `/trajectory slow [n]` | what took longest, longest first |
+| `/trajectory grep <words>` | records matching every word |
+| `/trajectory raw` | the unfolded event log, as it is on disk |
+
+`/trajectory <n>` opens one record whole: its arguments, its full output,
+and for a model call the timing split that a single duration cannot give
+you — how long the first token took, how long the rest took, and the
+resulting tokens per second. A slow first token is the provider queueing;
+a slow decode is a long answer; the two want different responses and look
+identical in a transcript. It also shows the five token buckets with the
+cached share separated out, and the session's running total as of that
+record.
+
+`/trajectory grep` searches the whole record — arguments, output, the
+model's answer, the tool's name, the turn — and not the line that
+happened to be rendered. A ledger you can only search by what fitted on
+screen is a ledger you cannot search. Terms are ANDed.
+
+`/trajectory slow` answers the other question a trajectory is opened for:
+not what happened, but what took so long. Model calls and tool calls are
+ranked together, because they compete for the same wall clock. For the
+session-wide version of that question, see `/perf`.
+
+`/trajectory raw` is still there, unchanged: one line per event as it is
+on disk, with the surface classification that says whether the model can
+still see it. It is what to read when the ledger itself is what looks
+wrong.
 
 ### The first session in a new directory
 

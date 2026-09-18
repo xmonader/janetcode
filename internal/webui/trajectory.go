@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/trajectory"
 )
 
 type trajRow struct {
@@ -118,58 +119,44 @@ func (s *server) trajectory(arg string) {
 		return
 	}
 	ev := s.sess().Events()
-	if strings.HasPrefix(arg, "grep ") {
-		q := strings.TrimSpace(strings.TrimPrefix(arg, "grep "))
-		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})
-		if len(hits) == 0 {
-			s.notice("no events matching " + q)
-			return
-		}
-		var sb strings.Builder
-		for _, h := range hits {
-			fmt.Fprintf(&sb, "#%d %s %s %s\n  %s\n", h.Event.Seq, h.Kind, h.Event.Type, h.Event.Name, h.Snippet)
-		}
-		s.sheet("trajectory · "+q, strings.TrimRight(sb.String(), "\n"))
+	args := strings.Fields(arg)
+	if len(args) > 0 && args[0] == "raw" {
+		s.sheet("trajectory · raw", rawTrajectory(ev))
 		return
 	}
-	if n, err := strconv.Atoi(arg); err == nil && arg != "" {
-		for _, e := range ev {
-			if e.Seq != n {
-				continue
-			}
-			var sb strings.Builder
-			fmt.Fprintf(&sb, "seq %d  %s  turn %d step %d  %s\n", e.Seq, e.Type, e.Turn, e.Step, session.Classify(ev, e))
-			if e.DurationMs > 0 {
-				fmt.Fprintf(&sb, "duration %s\n", textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond))
-			}
-			if e.Usage != nil {
-				fmt.Fprintf(&sb, "usage in=%d cache=%d out=%d\n", e.Usage.InputTokens, e.Usage.CacheReadTokens, e.Usage.OutputTokens)
-			}
-			body := e.Output
-			if body == "" && e.Message != nil {
-				body = e.Message.Text()
-			}
-			sb.WriteString(textfmt.Clip(body, 4000))
-			s.sheet(fmt.Sprintf("event %d", n), sb.String())
-			return
-		}
-		s.errf("no event seq %d", n)
+	out, ok := trajectory.Command(ev, args, trajSheetWidth)
+	if !ok {
+		s.errf("%s", out)
 		return
 	}
+	title := "trajectory"
+	if arg != "" {
+		title += " · " + arg
+	}
+	s.sheet(title, out)
+}
+
+// trajSheetWidth is how wide a sheet in the web UI is assumed to be.
+// The browser reflows text, but the ledger's columns only line up at a
+// fixed width, so one is chosen rather than guessed at per client.
+const trajSheetWidth = 110
+
+// rawTrajectory is the unfolded log, one line per event as it is on
+// disk: what to read when the ledger itself is what looks wrong.
+func rawTrajectory(ev []session.Event) string {
 	if len(ev) == 0 {
-		s.notice("no trajectory events yet: no turn has run")
-		return
+		return "no trajectory events yet: no turn has run"
 	}
 	hidden := session.Shadowed(ev)
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
+	sb.WriteString("seq  turn/step  type                 name        dur    surface\n")
 	for _, e := range ev {
-		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type, textfmt.Clip(e.Name, 11),
-			textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), session.ClassifyWith(hidden, e))
+		k := session.ClassifyWith(hidden, e)
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type,
+			textfmt.Clip(e.Name, 11), textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), k)
 	}
-	s.sheet("trajectory", strings.TrimRight(sb.String(), "\n"))
+	return strings.TrimRight(sb.String(), "\n")
 }
-
 func trajKind(t string) string {
 	switch t {
 	case session.TypeUserMessage:

@@ -109,9 +109,20 @@ func Fold(events []session.Event) Ledger {
 		case session.TypeToolResult:
 			i, ok := byCall[e.CallID]
 			if !ok {
-				// A result with no call in the log: keep it rather than
-				// drop it, because a result nobody asked for is exactly
-				// the kind of thing a ledger is read to find.
+				// A refused or recovered call can be logged without its
+				// call event, or with no id at all. Attach it to the
+				// most recent call of this step that is still waiting,
+				// which is the one it belongs to.
+				i, ok = waitingIn(l.All, e.Turn, e.Step, e.Name)
+			}
+			if !ok {
+				if strings.TrimSpace(e.Name+e.Output) == "" {
+					// Nothing to show and nothing to attach it to: a
+					// blank line here is a record of nothing.
+					continue
+				}
+				// A result nobody asked for is exactly the kind of thing
+				// a ledger is read to find, so it is kept, not dropped.
 				add(Record{Seq: e.Seq, Turn: e.Turn, Step: e.Step, Kind: KindTool,
 					Text: e.Name, Tool: e.Name, CallID: e.CallID,
 					Result: preview(e.Output), Output: e.Output,
@@ -199,6 +210,26 @@ func group(all []Record) []Turn {
 		t.Groups[gi].Records = append(t.Groups[gi].Records, r)
 	}
 	return turns
+}
+
+// waitingIn finds the most recent tool record of this step that has not
+// been answered. name is matched when both sides have one; a result
+// event that carries no name matches any waiting call.
+func waitingIn(all []Record, turn, step int, name string) (int, bool) {
+	for i := len(all) - 1; i >= 0; i-- {
+		r := all[i]
+		if r.Turn != turn || r.Step != step {
+			continue
+		}
+		if r.Kind != KindTool || !r.Running {
+			continue
+		}
+		if name != "" && r.Tool != "" && r.Tool != name {
+			continue
+		}
+		return i, true
+	}
+	return 0, false
 }
 
 func lastOfKind(all []Record, k Kind) *Record {

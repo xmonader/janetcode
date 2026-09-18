@@ -43,7 +43,7 @@ var commandWhen = map[string]string{
 	"/unpin":        "a pin has served its purpose and is now costing tokens every request",
 	"/plan":         "a change big enough that you want to read the plan before any file is touched",
 	"/accept":       "you want acceptance tests written and approved before any implementation, then locked so the model cannot edit its way to green",
-	"/trajectory":   "you want the raw record of the session: every turn, step, tool call and compaction",
+	"/trajectory":   "you want the record of the session: every turn, step, tool call and compaction, with what each one took",
 	"/feedback":     "you want to mark an answer good or bad for later review; it is not sent to the model",
 	"/goal":         "a job that will take many turns and you would rather not press enter for each one",
 	"/agents":       "a subagent is running or has finished and you want to watch it live, you want to hand a brief to a new one now, or /agents cancel <id> stops a running child",

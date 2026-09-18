@@ -11,6 +11,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/trajectory"
 )
 
 // contextCommand shows what fills the context window.
@@ -99,70 +100,44 @@ func (m *model) inspectCommand(arg string) {
 	m.transcript.info(out)
 }
 
+// trajectoryCommand shows the session as a ledger of records rather
+// than a dump of events. The raw log is still one word away (`raw`),
+// because when the ledger itself is what looks wrong, the thing to read
+// is what is on disk.
 func (m *model) trajectoryCommand(args []string) {
 	if m.opts.Session == nil {
 		m.transcript.errorf("no session")
 		return
 	}
 	ev := m.sessionEvents()
-	if len(args) > 0 && args[0] == "grep" {
-		q := strings.Join(args[1:], " ")
-		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})
-		if len(hits) == 0 {
-			m.transcript.info("no events matching " + q)
-			return
-		}
-		var sb strings.Builder
-		for _, h := range hits {
-			fmt.Fprintf(&sb, "#%d %s %s %s\n  %s\n", h.Event.Seq, h.Kind, h.Event.Type, h.Event.Name, h.Snippet)
-		}
-		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	if len(args) > 0 && args[0] == "raw" {
+		m.transcript.info(rawTrajectory(ev))
 		return
 	}
-	if len(args) == 1 {
-		n, err := strconv.Atoi(args[0])
-		if err == nil {
-			for _, e := range ev {
-				if e.Seq != n {
-					continue
-				}
-				var sb strings.Builder
-				fmt.Fprintf(&sb, "seq %d  %s  turn %d step %d  %s\n", e.Seq, e.Type, e.Turn, e.Step, session.Classify(ev, e))
-				if e.DurationMs > 0 {
-					fmt.Fprintf(&sb, "duration %s\n", textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond))
-				}
-				if e.Usage != nil {
-					fmt.Fprintf(&sb, "usage in=%d cache=%d out=%d\n", e.Usage.InputTokens, e.Usage.CacheReadTokens, e.Usage.OutputTokens)
-				}
-				body := e.Output
-				if body == "" && e.Message != nil {
-					body = e.Message.Text()
-				}
-				if len(body) > 4000 {
-					body = body[:4000] + "…"
-				}
-				if body != "" {
-					sb.WriteString(body)
-				}
-				m.transcript.info(sb.String())
-				return
-			}
-			m.transcript.errorf("no event seq %d", n)
-			return
-		}
+	out, ok := trajectory.Command(ev, args, max(40, m.width-4-m.gutter()))
+	if !ok {
+		m.transcript.errorf("%s", out)
+		return
 	}
+	m.transcript.info(out)
+}
+
+// rawTrajectory is the unfolded log: one line per event, as it is on
+// disk, with the surface classification that says whether the model
+// still sees it.
+func rawTrajectory(ev []session.Event) string {
 	if len(ev) == 0 {
-		m.transcript.info("no trajectory events yet: no turn has run")
-		return
+		return "no trajectory events yet: no turn has run"
 	}
 	hidden := session.Shadowed(ev)
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
+	sb.WriteString("seq  turn/step  type                 name        dur    surface\n")
 	for _, e := range ev {
 		k := session.ClassifyWith(hidden, e)
-		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type, textfmt.Clip(e.Name, 11), textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), k)
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type,
+			textfmt.Clip(e.Name, 11), textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), k)
 	}
-	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 // whyCommand explains the last thing the harness did on its own. It

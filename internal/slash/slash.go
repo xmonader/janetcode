@@ -54,7 +54,7 @@ var Commands = withIdle([]Command{
 	{Name: "/unpin", Args: "<n>", Help: "remove a pin"},
 	{Name: "/plan", Args: "[request | review | comment <line> <text> | changes | approve | off]", Help: "plan mode: the model explores and writes a plan to .janetcode/plan.md; review reads it with line numbers, comment leaves a remark on a line, changes sends every comment back and stays in plan mode, approve executes it"},
 	{Name: "/accept", Args: "[<request> | approve | lock | unlock | command <cmd> | off]", Help: "acceptance tests you approve first: writes tests for a request and stops; approve locks them so no tool call can weaken them and their command gates the session; unlock/lock and off manage the mode; command replaces the verify command when the stated or inferred one is wrong"},
-	{Name: "/trajectory", Args: "[n|grep <words>]", Help: "event ledger of this session (turn/step/tool/compaction); n shows one record"},
+	{Name: "/trajectory", Args: "[n | all | turns | turn <n> | slow [n] | grep <words> | raw]", Help: "ledger of this session by turn and step; n opens one record whole"},
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{Name: "/feedback", Args: "up|down [note]", Help: "rate the last assistant message (not sent to the model)"},
 	{Name: "/goal", Args: "[objective|rounds=N objective|rounds N|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete, blocked, or out of rounds (8 by default; rounds=N sets the budget, rounds N gives a stopped goal more)"},
