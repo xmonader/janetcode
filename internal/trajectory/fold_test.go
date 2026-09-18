@@ -166,3 +166,31 @@ func TestFoldOfNothing(t *testing.T) {
 		t.Fatal("At found a record in an empty ledger")
 	}
 }
+
+// The raw JSON of a tool call spends the line on punctuation: every row
+// starts with the same `{"command":"` and the part that differs is what
+// gets clipped off the end.
+func TestArgumentsAreSummarisedNotDumped(t *testing.T) {
+	got := argSummary(`{"command":"go test ./...","timeout_ms":120000}`)
+	if got != "go test ./... timeout_ms=120000" {
+		t.Fatalf("bash args = %q", got)
+	}
+	// A file's contents are reported by size, so a short file and a long
+	// one look like the same tool.
+	got = argSummary(`{"path":"a.go","content":"package a\n"}`)
+	if !strings.HasPrefix(got, "a.go content=") || strings.Contains(got, "package a") {
+		t.Fatalf("write args = %q", got)
+	}
+	// A malformed call is exactly what a ledger is read to find, so it
+	// is previewed rather than dropped.
+	if got := argSummary(`not json at all`); got != "not json at all" {
+		t.Fatalf("malformed args = %q", got)
+	}
+	if got := argSummary(``); got != "" {
+		t.Fatalf("empty args = %q", got)
+	}
+	// A nested value has no useful one-line form, so only its name shows.
+	if got := argSummary(`{"todos":[{"text":"a"}]}`); !strings.HasPrefix(got, "todos=") {
+		t.Fatalf("nested args = %q", got)
+	}
+}

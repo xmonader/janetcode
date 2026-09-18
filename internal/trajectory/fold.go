@@ -1,11 +1,14 @@
 package trajectory
 
 import (
+	"encoding/json"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // previewSource is how much of a body is read to make its one-line
@@ -96,7 +99,7 @@ func Fold(events []session.Event) Ledger {
 		case session.TypeToolCall:
 			r := Record{Seq: e.Seq, Turn: e.Turn, Step: e.Step, Kind: KindTool,
 				Text: e.Name, Tool: e.Name, CallID: e.CallID, Intent: e.Intent,
-				Preview: preview(e.Arguments), Detail: e.Arguments,
+				Preview: argSummary(e.Arguments), Detail: e.Arguments,
 				Started: e.Time, Running: true}
 			rec := add(r)
 			if e.CallID != "" {
@@ -221,6 +224,90 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// argFields are a tool input's fields in the order they say most about
+// the call. A bash call is its command; an edit is its path. Printing
+// the raw JSON instead spends the line on punctuation: every row starts
+// with the same `{"command":"` and the part that differs is what gets
+// clipped off the end.
+var argFields = []string{"command", "cmd", "path", "file_path", "pattern", "query", "url", "description", "text"}
+
+// argSummary is the one-line form of a tool call's arguments: the field
+// that identifies the call, then whatever else is short enough to be
+// worth saying. Input that is not a JSON object (a tool with a bare
+// argument, or a malformed call) is previewed as it stands rather than
+// dropped — a malformed call is exactly what a ledger is read to find.
+func argSummary(args string) string {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(args), &m); err != nil || len(m) == 0 {
+		return preview(args)
+	}
+	var parts []string
+	used := map[string]bool{}
+	for _, k := range argFields {
+		raw, ok := m[k]
+		if !ok {
+			continue
+		}
+		used[k] = true
+		if v := scalar(raw); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	// Remaining fields are named, because out of order they mean
+	// nothing: "3" could be a line number or a count.
+	rest := make([]string, 0, len(m))
+	for k := range m {
+		if !used[k] {
+			rest = append(rest, k)
+		}
+	}
+	sort.Strings(rest)
+	for _, k := range rest {
+		v := scalar(m[k])
+		if bulkFields[k] || v == "" {
+			// A long value (a file's whole contents) is reported by size:
+			// the bytes themselves belong in the inspector.
+			parts = append(parts, k+"="+textfmt.Bytes(int64(len(m[k]))))
+			continue
+		}
+		parts = append(parts, k+"="+v)
+	}
+	return preview(strings.Join(parts, " "))
+}
+
+// bulkFields carry a file's contents rather than a description of the
+// call. They are always reported by size: a short file would otherwise
+// be spelled out on the line while a long one is not, so the same tool
+// would look like two different tools.
+var bulkFields = map[string]bool{
+	"content": true, "contents": true, "new_string": true, "old_string": true,
+	"new_str": true, "old_str": true, "body": true, "patch": true, "diff": true,
+}
+
+// scalarLimit is how long a value may be before it is reported by size
+// instead of by value.
+const scalarLimit = 120
+
+// scalar renders a short JSON scalar as text, and returns "" for
+// anything long, nested, or unprintable on one line.
+func scalar(raw json.RawMessage) string {
+	if len(raw) > scalarLimit {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		if len(s) > scalarLimit {
+			return ""
+		}
+		return s
+	}
+	t := strings.TrimSpace(string(raw))
+	if t == "" || t[0] == '{' || t[0] == '[' {
+		return ""
+	}
+	return t
 }
 
 // preview squeezes a body onto one line: at most previewSource bytes are
