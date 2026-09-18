@@ -2246,3 +2246,78 @@ html, body { overflow-x: hidden; }
   color: var(--faint);
   flex: none;
 }
+
+/* ---- find bar and jump-to-latest ------------------------------------- */
+
+.findbar {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 0.5px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  padding: 6px 8px;
+}
+.findbar input {
+  width: 16rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  padding: 3px 6px;
+  outline: none;
+}
+.find-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  min-width: 3.2rem;
+  text-align: center;
+}
+.findbar button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.findbar button:hover { background: var(--surface-2); color: var(--ink); }
+
+.find-hit {
+  background: var(--warn-soft);
+  outline: 1px solid var(--warn-border);
+  border-radius: 2px;
+}
+.find-hit.on {
+  background: var(--warn);
+  color: #fff;
+  outline-color: var(--warn);
+}
+
+.to-latest {
+  position: fixed;
+  right: 28px;
+  bottom: 150px;
+  z-index: 25;
+  border: 0.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--mute);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow-pop);
+  cursor: pointer;
+}
+.to-latest:hover { color: var(--ink); border-color: var(--faint); }
