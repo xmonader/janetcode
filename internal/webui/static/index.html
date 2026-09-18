@@ -60,17 +60,36 @@
         <div id="log"></div>
       </div>
       <div id="trajectory" class="trajectory" hidden>
-        <div id="traj-overview" class="traj-overview" hidden></div>
-        <div id="traj-ledger" class="traj-ledger">
-          <p class="quiet">No trajectory events yet</p>
+        <div class="traj-bar">
+          <div class="traj-modes" id="traj-modes" role="group" aria-label="Timeline projection">
+            <button type="button" data-mode="sequence" class="on">sequence</button>
+            <button type="button" data-mode="duration">duration</button>
+            <button type="button" data-mode="time">time</button>
+            <button type="button" data-mode="actual">actual</button>
+          </div>
+          <input id="traj-search" class="traj-search" type="search" placeholder="grep the ledger — arguments, results, answers" aria-label="Search the ledger">
+          <span id="traj-meta" class="traj-meta"></span>
         </div>
-        <aside id="traj-inspect" class="traj-inspect" hidden>
-          <header>
-            <strong id="traj-inspect-title"></strong>
-            <button type="button" id="traj-inspect-close">Close</button>
-          </header>
-          <pre id="traj-inspect-body"></pre>
-        </aside>
+        <div id="traj-chart" class="traj-chart" hidden>
+          <div class="traj-ruler" id="traj-ruler"></div>
+          <div class="traj-track" id="traj-track">
+            <div class="traj-lanes" id="traj-lanes"></div>
+            <div class="traj-sel" id="traj-sel" hidden><i class="shade l"></i><i class="shade r"></i><b class="edge l"></b><b class="edge r"></b></div>
+          </div>
+        </div>
+        <div class="traj-split">
+          <div id="traj-ledger" class="traj-ledger">
+            <p class="quiet">No trajectory events yet</p>
+          </div>
+          <aside id="traj-inspect" class="traj-inspect" hidden>
+            <header>
+              <strong id="traj-inspect-title"></strong>
+              <button type="button" id="traj-inspect-close">Close</button>
+            </header>
+            <div id="traj-inspect-facts" class="traj-facts"></div>
+            <pre id="traj-inspect-body"></pre>
+          </aside>
+        </div>
       </div>
     </section>
     <div class="bottom">
