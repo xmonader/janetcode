@@ -334,6 +334,14 @@ func newServer(life context.Context, opts Options) *server {
 		subs:     map[chan envelope]struct{}{},
 		openedAt: time.Now(),
 	}
+	// A server pointed at a session with history starts with that
+	// history on the thread — the way /resume rebuilds it — instead of a
+	// blank transcript until something new happens.
+	if opts.Session != nil {
+		if msgs := session.FoldSurface(opts.Session.Events()); len(msgs) > 0 {
+			s.replayHistory(msgs)
+		}
+	}
 	if opts.Agent != nil {
 		opts.Agent.Approver = s
 		opts.Agent.Asker = s

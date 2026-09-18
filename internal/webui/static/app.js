@@ -134,13 +134,19 @@
       return esc(l);
     }).join("\n");
   }
+  // scroller is what actually scrolls: the chat column. (.thread is
+  // overflow:hidden — it sized the column once and stick/follow used to
+  // set scrollTop on it, which scrolls nothing.)
+  function scroller() {
+    return document.getElementById("chat-view");
+  }
   function stick() {
-    const el = document.querySelector(".thread");
+    const el = scroller();
     return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }
   function follow(was) {
     if (!was) return;
-    const el = document.querySelector(".thread");
+    const el = scroller();
     el.scrollTop = el.scrollHeight;
   }
 
@@ -600,16 +606,16 @@
       if (palette.hidden) openPalette(); else closePalette();
     }
   });
-  // Vi-style scrolling when the keyboard is not in a field: j/k step the
-  // thread, g/G jump to its ends. Every key still belongs to whatever
-  // field is focused — this only answers for the bare keyboard.
+  // Vi-style scrolling when the keyboard is not in a field: j/k step,
+  // g/G jump. The trajectory view answers with its own ledger when that
+  // is what overflows. Every key still belongs to whatever field is
+  // focused — this only answers for the bare keyboard.
   document.addEventListener("keydown", (ev) => {
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const el = document.activeElement;
     if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable)) return;
     if (!palette.hidden) return;
-    const thread = document.querySelector(".thread");
-    if (!thread) return;
+    const thread = currentView === "trajectory" && trajLedger.scrollHeight > trajLedger.clientHeight ? trajLedger : scroller();
     if (ev.key === "j") thread.scrollBy({ top: 72 });
     else if (ev.key === "k") thread.scrollBy({ top: -72 });
     else if (ev.key === "g") thread.scrollTop = 0;

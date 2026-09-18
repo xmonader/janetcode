@@ -1099,3 +1099,36 @@ func TestPerfCardMeasuresAgainstOpenedAt(t *testing.T) {
 		t.Fatalf("idle = %d, open = %d, turn = %d", pc.IdleMs, pc.OpenMs, pc.TurnMs)
 	}
 }
+
+// A server started on a session with history starts with that history on
+// the thread — the web UI used to open blank until something new happened.
+func TestNewServerSeedsTheThreadFromSessionHistory(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendMsg := func(role llm.Role, text string) {
+		t.Helper()
+		m := llm.TextMessage(role, text)
+		if _, err := sess.Append(session.Event{Type: map[llm.Role]string{llm.RoleUser: session.TypeUserMessage, llm.RoleAssistant: session.TypeAssistant}[role], Turn: 1, Message: &m, Surface: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendMsg(llm.RoleUser, "build me a small library")
+	appendMsg(llm.RoleAssistant, "here is the plan:\n\n```py\n# doubles\nreturn x * 2\n```")
+	s := newServer(context.Background(), Options{Agent: &agent.Agent{Tools: tool.NewRegistry()}, Session: sess})
+	_, ents, _, _, _ := s.snapshot()
+	var sawUser, sawAssistant bool
+	for _, e := range ents {
+		if e.Kind == "user" && strings.Contains(e.Text, "small library") {
+			sawUser = true
+		}
+		if e.Kind == "assistant" && strings.Contains(e.Text, "doubles") {
+			sawAssistant = true
+		}
+	}
+	if !sawUser || !sawAssistant {
+		t.Fatalf("seeded entries = %+v", ents)
+	}
+}
