@@ -2162,3 +2162,50 @@ body { font-size: 14px; }
 
 /* Collapsed rail keeps its quiet new-session. */
 .nav-collapsed .new-session { color: var(--blue); }
+
+/* ---- scrollbars and breathing room ----------------------------------
+   The old selectors styled .thread, which never scrolls, so every real
+   scroller kept the platform's fat native bars. These are overlay-thin:
+   six pixels, invisible track, darkening on hover, and the window never
+   scrolls sideways. */
+
+html, body { overflow-x: hidden; }
+#chat-view { overflow-x: hidden; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+#chat-view, .traj-ledger, .nav, .work, .menu-list, .menu, .palette, textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* The column earns its keep on a big screen: it grows with the viewport
+   instead of capping at 44rem, topping out where lines would get too
+   long to read comfortably. */
+.column, .bottom {
+  width: min(clamp(46rem, 56vw, 64rem), 100%);
+}
+
+/* Looser vertical rhythm. */
+.thread { padding: 32px 24px 16px; }
+.turn { margin: 0 0 2.6rem; }
+.md { line-height: 1.8; }
+.md p { margin: 0.75em 0; }
+.md h1, .md h2, .md h3 { margin: 1.2em 0 0.4em; }
+.md ul, .md ol { margin: 0.6em 0; padding-left: 1.4em; }
+.md pre { padding: 1rem 1.25rem; margin: 0.8em 0; }
+.codeblock { margin: 0.8em 0; }
+.you .bubble { padding: 0.75rem 1.15rem; }
+.tool, .turn.card { padding: 0.5rem 0.7rem; margin-left: -0.7rem; margin-right: -0.7rem; }
+.turn.card { padding: 14px 18px 16px; margin-left: 0; margin-right: 0; }
+#composer textarea { min-height: 46px; }
+.cwd-chip { margin-top: 10px; }
+.chips { gap: 0.6rem; margin-top: 2rem; }
+.empty { margin-top: 20vh; }
