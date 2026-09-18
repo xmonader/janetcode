@@ -415,6 +415,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/trajectory", s.trajectoryAPI)
 	mux.HandleFunc("/api/trajectory/timeline", s.trajectoryTimelineAPI)
 	mux.HandleFunc("/api/trajectory/raw", s.trajectoryRawAPI)
+	mux.HandleFunc("/api/term", s.termAPI)
 	mux.HandleFunc("/api/change", s.changeAPI)
 	mux.HandleFunc("/api/new", s.newChat)
 	mux.HandleFunc("/api/load", s.loadSession)

@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/flavor"
@@ -1284,5 +1286,59 @@ func TestAssistantEntryIsStampedWithTheTurnsBill(t *testing.T) {
 	}
 	if got.At.IsZero() {
 		t.Fatal("timestamp missing")
+	}
+}
+
+// The terminal endpoint bridges a websocket to a shell on a pty: input
+// round-trips through a real process, and the shell runs in the session
+// directory.
+func TestTerminalBridgeRunsAShellInTheSessionDirectory(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newServer(context.Background(), Options{Agent: &agent.Agent{Tools: tool.NewRegistry()}, Session: sess, Cwd: root})
+	ts := httptest.NewServer(s.handler())
+	defer ts.Close()
+
+	ws, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(ts.URL, "http")+"/api/term", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close(websocket.StatusNormalClosure, "")
+
+	send := func(v map[string]any) {
+		data, _ := json.Marshal(v)
+		if err := ws.Write(context.Background(), websocket.MessageText, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send(map[string]any{"type": "resize", "rows": 24, "cols": 80})
+	// A marker only this test's directory can produce.
+	send(map[string]any{"type": "in", "data": "pwd; echo TERM-DONE-$((6*7))\n"})
+
+	deadline := time.After(10 * time.Second)
+	buf := ""
+	for !strings.Contains(buf, "TERM-DONE-42") {
+		select {
+		case <-deadline:
+			t.Fatalf("no shell output; got %q", buf)
+		default:
+		}
+		_, data, err := ws.Read(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m struct {
+			Type string `json:"type"`
+			Data string `json:"data"`
+		}
+		if json.Unmarshal(data, &m) == nil && m.Type == "out" {
+			buf += m.Data
+		}
+	}
+	if !strings.Contains(buf, root) {
+		t.Fatalf("the shell is not in the session directory; got %q", buf)
 	}
 }

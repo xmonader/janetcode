@@ -233,7 +233,6 @@
 
   function render(e) {
     latest.set(e.id, e);
-    if (e.at) n.title = new Date(e.at).toLocaleString();
     empty.hidden = true;
     let n = nodes.get(e.id);
     const was = stick();
@@ -244,6 +243,7 @@
       log.appendChild(n);
       nodes.set(e.id, n);
     }
+    if (e.at) n.title = new Date(e.at).toLocaleString();
     if (e.kind === "user") {
       n.className = "turn you";
       lastUserText = e.text || "";
@@ -1224,7 +1224,7 @@
     (st.entries || []).forEach(render);
     showAsk(st.permission);
     refreshWorkspace();
-  }).catch(() => {});
+  }).catch((err) => { console.error("BOOT FAILED", err); });
   const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");
   function drawTheme() { themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; }
@@ -1264,7 +1264,63 @@
     chatView.hidden = currentView !== "chat";
     trajView.hidden = currentView !== "trajectory";
     if (currentView === "trajectory") refreshTrajectory();
+    if (currentView === "terminal") {
+      termView.hidden = false;
+      ensureTerminal();
+    } else {
+      termView.hidden = true;
+    }
   });
+
+  // The terminal view: xterm.js over a websocket bridged to a pty in the
+  // session's directory. Built once, kept across view switches; the shell
+  // dies with the socket, so leaving the view and coming back starts
+  // clean only if the socket actually dropped.
+  const termView = document.getElementById("terminal");
+  let term = null;
+  let termWS = null;
+  function termTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    return {
+      background: cs.getPropertyValue("--bg").trim() || "#121212",
+      foreground: cs.getPropertyValue("--ink").trim() || "#eee",
+      cursor: cs.getPropertyValue("--blue").trim() || "#1a88ff",
+      selectionBackground: (cs.getPropertyValue("--blue-soft").trim() || "#333"),
+    };
+  }
+  function ensureTerminal() {
+    if (term) {
+      if (termWS && termWS.readyState === WebSocket.OPEN) return;
+    }
+    if (term) {
+      term.dispose();
+      term = null;
+    }
+    term = new Terminal({ fontFamily: "var(--mono)", fontSize: 13.5, cursorBlink: true, theme: termTheme() });
+    const fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.open(termView);
+    fit.fit();
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    termWS = new WebSocket(`${proto}://${location.host}/api/term`);
+    termWS.onmessage = (ev) => {
+      try {
+        const m = JSON.parse(ev.data);
+        if (m.type === "out") term.write(m.data);
+      } catch (_) {}
+    };
+    termWS.onopen = () => {
+      const sendSize = () => termWS.readyState === WebSocket.OPEN && termWS.send(JSON.stringify({ type: "resize", rows: term.rows, cols: term.cols }));
+      sendSize();
+      term.onData((d) => termWS.readyState === WebSocket.OPEN && termWS.send(JSON.stringify({ type: "in", data: d })));
+      new ResizeObserver(() => {
+        if (termView.clientHeight > 0) {
+          fit.fit();
+          sendSize();
+        }
+      }).observe(termView);
+    };
+  }
 
   // The trajectory panel: the folded ledger (a call and its result are
   // one record) with a span chart over it. The chart is plain DOM — one
