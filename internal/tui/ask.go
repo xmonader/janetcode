@@ -203,10 +203,15 @@ func (m *model) askView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(t string) { lines = append(lines, truncateLine(t, inner)) }
-	add(m.styles.key.Render("Question"))
-	add(m.askTabStrip(inner))
-	add("")
 	q := s.questions[s.tab]
+	// The strip is how you switch between questions, and with one there is
+	// nothing to switch to: it printed "1 Ready to implement?" directly
+	// above "Ready to implement?".
+	if len(s.questions) > 1 {
+		add(m.styles.key.Render("Question"))
+		add(m.askTabStrip(inner))
+		add("")
+	}
 	add(m.styles.key.Render(q.Prompt))
 	if q.Detail != "" {
 		add(m.styles.dim.Render(q.Detail))
@@ -237,7 +242,34 @@ func (m *model) askView(height int) string {
 		add(m.styles.faint.Render("tab / ←→ switch questions · ↑↓ choose · 1-9 or enter picks · esc skip remaining"))
 	}
 	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
-	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
+	return m.askPlace(box, height)
+}
+
+// askPlace puts the question box on screen with the transcript still
+// behind it. A question is about what was just said — "Ready to
+// implement?" under a plan — and the dialog used to be centred on a
+// cleared screen, so the plan being approved was not on it: there was
+// nothing left to judge. The bottom of the transcript stays, the box sits
+// under it, and a window too short for both falls back to the box alone.
+func (m *model) askPlace(box string, height int) string {
+	centred := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box)
+	room := height - lipgloss.Height(box) - 1
+	const leastContext = 3
+	if room < leastContext {
+		return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
+	}
+	return clipHeight(lipgloss.JoinVertical(lipgloss.Left, lastLines(m.viewport.View(), room), "", centred), height)
+}
+
+// lastLines is exactly the last n lines of s, which for the transcript
+// viewport is what is nearest the question. (tailLines in toolview.go
+// adds an elision note and some slack; here the box's room is exact.)
+func lastLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *model) askTabStrip(width int) string {
