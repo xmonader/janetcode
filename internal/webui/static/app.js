@@ -869,11 +869,21 @@
     return "Older";
   }
 
-  // renderSessions paints the rail grouped by day, filtered by the rail's
-  // search field. Forks keep their indentation under the session they
-  // branched from; the filter keeps a group header when any of its rows
-  // match.
+  // renderSessions paints the rail: the live conversation up top, then
+  // the directory's past conversations under History, grouped by day,
+  // filtered by the rail's search field.
   function renderSessions(rows, filter) {
+    const live = rows.find((r) => r.current);
+    const curEl = document.getElementById("current-session");
+    if (live) {
+      curEl.innerHTML =
+        `<div class="cur-row" title="The conversation open now">` +
+        `<span class="cur-dot"></span><span class="cur-label">${esc(live.prefix || "")}${esc(live.label)}</span>` +
+        `<span class="cur-live">live</span></div>`;
+      curEl.hidden = false;
+    } else {
+      curEl.hidden = true;
+    }
     const ul = document.getElementById("sessions");
     const q = (filter || "").trim().toLowerCase();
     const match = (r) =>
@@ -881,9 +891,9 @@
       (r.label || "").toLowerCase().includes(q) ||
       (r.id || "").toLowerCase().includes(q) ||
       (r.note || "").toLowerCase().includes(q);
-    const kept = rows.filter(match).slice(0, 40);
+    const kept = rows.filter((r) => !r.current).filter(match).slice(0, 40);
     if (!kept.length) {
-      ul.innerHTML = `<li class="quiet">${q ? "Nothing matches" : "No other sessions"}</li>`;
+      ul.innerHTML = `<li class="quiet">${q ? "Nothing matches" : "No past conversations"}</li>`;
       return;
     }
     const order = ["Today", "Yesterday", "2 days ago", "3 days ago", "4 days ago", "5 days ago", "6 days ago", "Older"];

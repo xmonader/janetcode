@@ -2209,3 +2209,40 @@ html, body { overflow-x: hidden; }
 .cwd-chip { margin-top: 10px; }
 .chips { gap: 0.6rem; margin-top: 2rem; }
 .empty { margin-top: 20vh; }
+
+/* The live conversation sits above History: a dot, the title, a quiet
+   live badge. It is not a link — clicking changes nothing. */
+.current-session { margin: 0 0 4px; }
+.cur-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+.cur-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+.cur-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.cur-live {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  flex: none;
+}
