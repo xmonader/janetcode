@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -935,5 +936,75 @@ func TestWebSessionListCarriesForkLineage(t *testing.T) {
 	}
 	if rows[si].Depth != 0 || !strings.Contains(rows[si].Note, "not listed here") {
 		t.Fatalf("stray row = %+v", rows[si])
+	}
+}
+
+// --web on a port that is already taken should not refuse to start: it
+// serves on a random port and reports the real URL, which is what the
+// user then opens.
+func TestRunFallsBackToARandomPortWhenTheAddressIsBusy(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+	_, port, err := net.SplitHostPort(busy.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	opened := make(chan string, 1)
+	go func() {
+		if err := Run(ctx, Options{Addr: "127.0.0.1:" + port, Opened: func(u string) { opened <- u }}); err != nil {
+			t.Errorf("Run: %v", err)
+		}
+	}()
+
+	var url string
+	select {
+	case url = <-opened:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run never reported its URL")
+	}
+	if strings.HasSuffix(url, ":"+port) {
+		t.Fatalf("fell back onto the busy port: %s", url)
+	}
+	res, err := http.Get(url + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("the fallback port does not serve: %d", res.StatusCode)
+	}
+}
+
+// A free explicit port is still used as asked — the fallback only
+// answers a busy one.
+func TestRunUsesAFreeExplicitPortAsAsked(t *testing.T) {
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := probe.Addr().String()
+	probe.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	opened := make(chan string, 1)
+	go func() {
+		if err := Run(ctx, Options{Addr: addr, Opened: func(u string) { opened <- u }}); err != nil {
+			t.Errorf("Run: %v", err)
+		}
+	}()
+	select {
+	case url := <-opened:
+		if !strings.HasSuffix(url, addr[strings.LastIndex(addr, ":"):]) {
+			t.Fatalf("served %s, asked for %s", url, addr)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run never reported its URL")
 	}
 }

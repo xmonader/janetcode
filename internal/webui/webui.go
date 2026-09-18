@@ -5,6 +5,7 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -107,10 +109,21 @@ func Loopback(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// Run listens on opts.Addr and serves until ctx ends.
+// Run listens on opts.Addr and serves until ctx ends. When the asked-for
+// port is already taken — a second --web on the same box — it serves on a
+// random port instead of refusing to start, and says so next to the URL.
 func Run(ctx context.Context, opts Options) error {
 	addr := ListenAddr(opts.Addr)
 	ln, err := net.Listen("tcp", addr)
+	if err != nil && errors.Is(err, syscall.EADDRINUSE) {
+		host, _, splitErr := net.SplitHostPort(addr)
+		if splitErr == nil {
+			ln, err = net.Listen("tcp", net.JoinHostPort(host, "0"))
+			if err == nil {
+				fmt.Fprintf(os.Stderr, "janetcode: %s is busy; serving on %s instead\n", addr, displayAddr(ln.Addr()))
+			}
+		}
+	}
 	if err != nil {
 		return err
 	}
