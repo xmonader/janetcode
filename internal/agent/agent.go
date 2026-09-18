@@ -272,6 +272,12 @@ type Agent struct {
 	// Forked is true when this agent is a fork of a parent conversation
 	// and must not spawn another fork.
 	Forked bool
+	// UndoOwner, when set, is the agent whose checkpoints this one's
+	// changes belong to. A fork edits the parent's own workspace while
+	// having no undo stack of its own: without this, files a background
+	// fork wrote were absent from the session's undo manifest and /undo
+	// could not put them back. Nil for an ordinary agent.
+	UndoOwner *Agent
 	// planComments are the remarks the user has left on the plan file and
 	// not yet sent (see plancmd.go). The plan itself is never held here:
 	// it lives in .janetcode/plan.md and is read back from there.
@@ -365,6 +371,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		a.checkIntegrity(emit)
 		a.reportJobs(emit)
+		a.reportForks(emit)
 		a.deliverSteering(emit)
 		a.stepN++
 		a.logEvent(session.Event{Type: session.TypeStepStart, Turn: a.turnN, Step: a.stepN})

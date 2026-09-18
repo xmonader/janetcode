@@ -243,6 +243,17 @@ func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, t tool.To
 	}
 }
 
+// snapshotBefore records the state before a mutating call on whichever
+// agent owns the undo stack for this workspace — the parent, when this
+// agent is a fork sharing it.
+func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte) {
+	owner := a
+	if a.UndoOwner != nil {
+		owner = a.UndoOwner
+	}
+	owner.cp.snapshot(ctx, owner.snaps(), t, input)
+}
+
 // openCheckpoint starts a checkpoint for the running turn. A new change
 // makes the redo states unreachable, so they are dropped.
 func (c *checkpointer) openCheckpoint(ctx context.Context, repo Snapshotter) {

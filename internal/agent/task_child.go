@@ -258,6 +258,10 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.Archive = p.Archive
 	child.Debug = p.Debug
 	child.Forked = true
+	// A fork writes into the session's own workspace, so its changes are
+	// the session's changes: they belong in the parent's checkpoint, or
+	// /undo cannot revert them.
+	child.UndoOwner = p
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
 	child.Impact = p.Impact

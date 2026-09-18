@@ -673,3 +673,80 @@ func (b *blockUntil) Stream(ctx context.Context, req llm.Request, emit func(llm.
 	}
 	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn}, nil
 }
+
+// forkWrites is a provider for a fork that writes one file and reports.
+type forkWrites struct {
+	mu   sync.Mutex
+	done int
+}
+
+func (f *forkWrites) Name() string { return "fake" }
+func (f *forkWrites) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	last := req.Messages[len(req.Messages)-1]
+	if len(last.Blocks) > 0 && last.Blocks[0].Type == llm.BlockToolResult {
+		f.mu.Lock()
+		f.done++
+		f.mu.Unlock()
+		return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "wrote the README"), StopReason: llm.StopEndTurn}, nil
+	}
+	return toolCall("w1", "write_file", `{"path":"README.md","content":"# docs\n"}`), nil
+}
+
+// A recorded session spawned two background forks to write a README and
+// docs/internals.md. Both files appeared on disk, neither appeared in the
+// session's undo manifest, and /undo could not put the tree back.
+func TestAForksWritesAreInTheParentsUndo(t *testing.T) {
+	root := t.TempDir()
+	parent := &Agent{Provider: &forkWrites{}, Model: "m", System: "sys", AutoApprove: true, Log: &session.Memory{}}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, task)
+	readme := filepath.Join(root, "README.md")
+
+	if _, err := task.Run(context.Background(), json.RawMessage(
+		`{"description":"Create README.md","prompt":"write it","fork":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	task.Wait(context.Background())
+
+	if _, err := os.Stat(readme); err != nil {
+		t.Fatalf("the fork wrote nothing: %v", err)
+	}
+	cps := parent.Checkpoints()
+	if len(cps) != 1 || len(cps[0].Files) != 1 || cps[0].Files[0].Path != readme {
+		t.Fatalf("the parent's checkpoints do not hold the fork's write: %+v", cps)
+	}
+	if cps[0].Files[0].Existed {
+		t.Fatalf("checkpoint says README.md existed before the fork: %+v", cps[0].Files[0])
+	}
+	if _, err := parent.Undo(context.Background()); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	if _, err := os.Stat(readme); !os.IsNotExist(err) {
+		t.Fatalf("undo left the fork's file behind: %v", err)
+	}
+}
+
+// The same session never learned the forks had finished: the parent
+// replied, went idle, and their reports reached nothing.
+func TestAFinishedForkReportsToTheParent(t *testing.T) {
+	root := t.TempDir()
+	parent := &Agent{Provider: &forkWrites{}, Model: "m", System: "sys", AutoApprove: true, Log: &session.Memory{}}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, task)
+	if notes := parent.FinishedForks(); len(notes) != 0 {
+		t.Fatalf("notes before any fork: %v", notes)
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(
+		`{"description":"Create README.md","prompt":"write it","fork":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	task.Wait(context.Background())
+	notes := parent.FinishedForks()
+	if len(notes) != 1 || !strings.Contains(notes[0], `fork "Create README.md" id=task-1 finished`) ||
+		!strings.Contains(notes[0], "wrote the README") {
+		t.Fatalf("notes = %q", notes)
+	}
+	if again := parent.FinishedForks(); len(again) != 0 {
+		t.Fatalf("the same fork reported twice: %v", again)
+	}
+}

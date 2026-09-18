@@ -121,6 +121,37 @@ func (a *Agent) logUserMessage(merged bool) {
 	a.logEvent(e)
 }
 
+// ForkReporter is the task tool's side of a background fork that has
+// finished: the note the parent turn should be told.
+type ForkReporter interface{ FinishedForks() []string }
+
+// FinishedForks is the notes for background forks that ended since the
+// last call, empty when this session has no task tool.
+func (a *Agent) FinishedForks() []string {
+	if a.Tools == nil {
+		return nil
+	}
+	t, ok := a.Tools.Get("task")
+	if !ok {
+		return nil
+	}
+	r, ok := t.(ForkReporter)
+	if !ok {
+		return nil
+	}
+	return r.FinishedForks()
+}
+
+// reportForks tells the model (and the user) about background forks that
+// ended since the last check. A fork edits the session's own workspace,
+// so its report belongs in the conversation, not only in /agents.
+func (a *Agent) reportForks(emit func(Event)) {
+	for _, n := range a.FinishedForks() {
+		emit(Event{Kind: EvNotice, Text: strings.SplitN(n, "\n", 2)[0]})
+		a.appendHarnessText("[background fork update]\n" + n)
+	}
+}
+
 // reportJobs tells the model (and the user) about background jobs that
 // ended since the last check.
 func (a *Agent) reportJobs(emit func(Event)) {

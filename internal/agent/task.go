@@ -3,7 +3,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -64,6 +67,9 @@ type subagent struct {
 	// UI can answer "what is it up to" without waiting for the report.
 	last string
 	fork bool
+	// report is what a finished background fork has to say, held until
+	// FinishedForks hands it to the parent turn. Empty once reported.
+	report string
 	// cancel stops this child's Run. Nil until the run has a context.
 	cancel context.CancelFunc
 }
@@ -583,12 +589,14 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// stops just this child.
 		runCtx := t.bindChildCtx(t.sessionCtx(), kid, minutes)
 		t.running.Add(1)
+		desc := in.Description
 		go func() {
 			defer t.running.Done()
 			defer t.releaseChild(kid)
-			_ = child.Run(runCtx, in.Prompt, emit)
+			err := child.Run(runCtx, in.Prompt, emit)
 			t.mu.Lock()
 			kid.done = true
+			kid.report = forkReport(childID, desc, time.Since(start), child, err)
 			t.bill(kid, child)
 			t.mu.Unlock()
 		}()
@@ -686,6 +694,43 @@ func usageSince(before, now llm.Usage) llm.Usage {
 		CacheWriteTokens: now.CacheWriteTokens - before.CacheWriteTokens,
 		CostUSD:          now.CostUSD - before.CostUSD,
 	}
+}
+
+// forkReport is what the parent is told when a background fork ends. A
+// fork edits the parent's own workspace and its work used to reach the
+// parent only if someone ran /agents: a recorded session spawned two
+// forks, replied, and the session log ended — the files they wrote
+// appear nowhere in the transcript.
+func forkReport(id, desc string, took time.Duration, child *Agent, err error) string {
+	head := fmt.Sprintf("fork %q id=%s finished after %s", desc, id, took.Round(time.Second))
+	switch {
+	case errors.Is(err, context.Canceled):
+		return head + " (cancelled)"
+	case err != nil:
+		return head + " with an error: " + err.Error()
+	}
+	body := strings.TrimSpace(lastAssistantText(child.Messages))
+	if body == "" {
+		body = "(it finished without a report)"
+	}
+	return head + "\n" + textfmt.Truncate(body)
+}
+
+// FinishedForks returns a note for every background fork that has ended
+// since the last call, and never returns the same one twice.
+func (t *Task) FinishedForks() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var out []string
+	for _, id := range slices.Sorted(maps.Keys(t.children)) {
+		kid := t.children[id]
+		if kid.report == "" {
+			continue
+		}
+		out = append(out, kid.report)
+		kid.report = ""
+	}
+	return out
 }
 
 func lastAssistantText(msgs []llm.Message) string {

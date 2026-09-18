@@ -148,6 +148,14 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
 			}
 			m.refresh(false)
+		} else if notes := m.opts.Agent.FinishedForks(); len(notes) > 0 {
+			// A fork that ended while the session sat idle: the user sees
+			// it now, and the model reads it when the next turn starts.
+			for _, n := range notes {
+				m.note(strings.SplitN(n, "\n", 2)[0])
+				m.opts.Agent.AddHarnessContext("[background fork update]\n" + n)
+			}
+			m.refresh(false)
 		} else if expired {
 			m.refresh(false)
 		}
