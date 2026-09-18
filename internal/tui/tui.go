@@ -101,6 +101,7 @@ type model struct {
 	connect     *connect                 // open provider/model dialog
 	wiz         *wizard                  // open step dialog (/mcp add)
 	ov          overlayState             // live panel over the transcript; empty kind is closed
+	traj        trajBrowse               // the trajectory overlay's own state: mode, filter, ordering
 	planH       int                      // last reserved plan-strip height, so a rewrite relayouts
 	connectGen  int
 	quitting    bool

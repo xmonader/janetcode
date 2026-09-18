@@ -99,19 +99,23 @@ func TestModeTransitions(t *testing.T) {
 }
 
 // TestModePriorityIsOneOrder: two modals up at once must be drawn by the
-// same one that is reading the keyboard. View used to rank overlay last
-// and handleKey ranked it second, so with an overlay and a picker up the
-// picker was on screen and the overlay was eating the keys.
+// same one that is reading the keyboard. The picker is always the
+// innermost modal — /trajectory's search opens one over the ledger — so
+// it outranks the overlay in mode(), and View reads the same mode().
 func TestModePriorityIsOneOrder(t *testing.T) {
 	h := newHarness(t)
 	m := h.m
 	m.ov.kind = overlayJobs
-	m.picker = &picker{title: "a picker nobody should see"}
-	if got := m.mode(); got != modeOverlay {
-		t.Fatalf("mode = %s, want overlay", got)
+	m.picker = &picker{title: "a picker over the overlay"}
+	if got := m.mode(); got != modePicker {
+		t.Fatalf("mode = %s, want picker", got)
 	}
-	if got := plain(m.View()); strings.Contains(got, "a picker nobody should see") {
-		t.Error("the picker was drawn while the overlay was taking the keys")
+	if got := plain(m.View()); !strings.Contains(got, "a picker over the overlay") {
+		t.Error("the overlay was drawn while the picker was taking the keys")
+	}
+	m.picker = nil
+	if got := m.mode(); got != modeOverlay {
+		t.Fatalf("closing the picker should hand the keys back to the overlay, got %s", got)
 	}
 }
 

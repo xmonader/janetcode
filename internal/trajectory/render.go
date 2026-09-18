@@ -122,6 +122,10 @@ func turnHeader(t Turn) string {
 	return name + " · " + strings.Join(parts, " · ")
 }
 
+// TurnHeading is the line Format puts over a turn, exported for views
+// that build the ledger row by row instead of rendering it whole.
+func TurnHeading(t Turn) string { return turnHeader(t) }
+
 func groupHeader(g Group) string {
 	if g.Step == 0 {
 		return ""
@@ -135,6 +139,10 @@ func groupHeader(g Group) string {
 	}
 	return note
 }
+
+// GroupHeading is the line Format puts over a step, exported for views
+// that build the ledger row by row.
+func GroupHeading(g Group) string { return groupHeader(g) }
 
 // Line renders one record to one line of the given width.
 func Line(r Record, width int) string {

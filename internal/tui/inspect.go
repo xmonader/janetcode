@@ -100,13 +100,18 @@ func (m *model) inspectCommand(arg string) {
 	m.transcript.info(out)
 }
 
-// trajectoryCommand shows the session as a ledger of records rather
-// than a dump of events. The raw log is still one word away (`raw`),
-// because when the ledger itself is what looks wrong, the thing to read
-// is what is on disk.
+// trajectoryCommand opens the ledger browser, or answers the arg'd
+// forms (all, turns, turn <n>, slow, grep, raw, <n>) as text when the
+// reader asked for one view in particular. The raw log is one word
+// away (`raw`), because when the ledger itself is what looks wrong, the
+// thing to read is what is on disk.
 func (m *model) trajectoryCommand(args []string) {
 	if m.opts.Session == nil {
 		m.transcript.errorf("no session")
+		return
+	}
+	if len(args) == 0 {
+		m.openTrajectory()
 		return
 	}
 	out, ok := trajectory.Command(m.sessionEvents(), args, max(40, m.width-4-m.gutter()))

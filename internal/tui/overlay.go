@@ -18,9 +18,10 @@ import (
 // overlayAgents / overlayJobs are live panels. Unlike the picker they
 // are not snapshots: each View re-reads Task.Children() / Jobs.List().
 const (
-	overlayAgents = "agents"
-	overlayJobs   = "jobs"
-	overlayTodos  = "todos"
+	overlayAgents     = "agents"
+	overlayJobs       = "jobs"
+	overlayTodos      = "todos"
+	overlayTrajectory = "trajectory"
 )
 
 // overlayState is the live panel over the transcript: which panel, the
@@ -128,6 +129,9 @@ func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if m.ov.kind == overlayTodos {
 		return m.handleTodosKey(msg), true
 	}
+	if m.ov.kind == overlayTrajectory {
+		return m.handleTrajKey(msg), true
+	}
 	if m.ov.child != "" {
 		return m.handleAgentDetailKey(msg), true
 	}
@@ -193,6 +197,11 @@ func (m *model) overlayView(height int) string {
 		return m.jobsListView(height)
 	case overlayTodos:
 		return m.todosOverlayView(height)
+	case overlayTrajectory:
+		if m.ov.child != "" {
+			return m.trajDetailView(height)
+		}
+		return m.trajListView(height)
 	}
 	return ""
 }

@@ -71,15 +71,17 @@ func (k uiMode) String() string {
 // on. The order matters where two can be up at once: a permission prompt
 // raised while a picker is open is answered by the picker's keys until
 // the picker closes, which is what the old switch did and what the
-// interface has always looked like.
+// interface has always looked like. The picker likewise outranks the
+// overlays: /trajectory's search is a picker over the ledger, and the
+// innermost modal takes the keys.
 func (m *model) mode() uiMode {
 	switch {
 	case m.asking != nil:
 		return modeAsk
-	case m.ov.kind != "":
-		return modeOverlay
 	case m.picker != nil:
 		return modePicker
+	case m.ov.kind != "":
+		return modeOverlay
 	case m.connect != nil:
 		return modeConnect
 	case m.wiz != nil:

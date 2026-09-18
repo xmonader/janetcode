@@ -12,7 +12,7 @@ import (
 
 // Help is what /trajectory accepts, worded once so both front-ends
 // answer a wrong argument with the same sentence.
-const Help = `/trajectory                 the ledger: turn, step, one line per record
+const Help = `/trajectory                 the ledger browser: records, a timing strip, search
 /trajectory all             every record, however long the session
 /trajectory <n>             one record in full: arguments, output, timing, tokens
 /trajectory turns           one line per turn
