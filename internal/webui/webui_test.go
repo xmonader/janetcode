@@ -520,7 +520,7 @@ func TestTrajectoryTimelineProjection(t *testing.T) {
 	appendEvent(session.Event{Type: session.TypeStepStart, Turn: 1, Step: 1})
 	appendEvent(session.Event{Type: session.TypeAssistant, Turn: 1, Step: 1,
 		Message: &llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockText, Text: "hello"}}},
-		TTFTMs: 300, DecodeMs: 700,
+		TTFTMs:  300, DecodeMs: 700,
 		Usage: &llm.Usage{InputTokens: 10, OutputTokens: 5}})
 
 	res, err := http.Get(ts.URL + "/api/trajectory/timeline?mode=sequence")

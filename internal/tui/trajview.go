@@ -474,7 +474,11 @@ func (m *model) trajDetailView(height int) string {
 		return m.trajListView(height)
 	}
 	w := max(m.width-2, 20)
-	head := fmt.Sprintf("#%d  %s", r.Index, m.styles.dim.Render(fmt.Sprintf("turn %d · step %d", r.Turn, r.Step)))
+	where := fmt.Sprintf("turn %d", r.Turn)
+	if r.Step > 0 {
+		where += fmt.Sprintf(" · step %d", r.Step)
+	}
+	head := fmt.Sprintf("#%d  %s", r.Index, m.styles.dim.Render(where))
 	help := m.styles.faint.Render("esc back to the ledger · ↑↓ / pgup pgdn scroll · ctrl+c close")
 	body := strings.Split(trajectory.Inspect(l, r.Index), "\n")
 	for i, line := range body {

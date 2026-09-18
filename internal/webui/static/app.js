@@ -1146,7 +1146,9 @@
       trajSearch.focus();
       return;
     }
-    if (ev.key !== "Escape") return;
+    // Escape in the search field is the field's own clear-and-blur; the
+    // view's Escape is for the brush, the zoom and the inspector.
+    if (ev.key !== "Escape" || document.activeElement === trajSearch) return;
     if (!trajInspect.hidden) {
       document.getElementById("traj-inspect-close").click();
     } else if (traj.range) {
