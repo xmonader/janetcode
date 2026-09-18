@@ -1492,8 +1492,10 @@
   }
   navToggle.addEventListener("click", () => setCollapsed("nav-collapsed", !shell.classList.contains("nav-collapsed")));
   workToggle.addEventListener("click", () => setCollapsed("work-collapsed", !shell.classList.contains("work-collapsed")));
-  if (localStorage.getItem("janetcode-nav-collapsed") === "1") shell.classList.add("nav-collapsed");
-  if (localStorage.getItem("janetcode-work-collapsed") === "1") shell.classList.add("work-collapsed");
+  // The rails are drawers: closed by default so the conversation owns
+  // the screen, and an explicit open/close persists across visits.
+  if (localStorage.getItem("janetcode-nav-collapsed") !== "") shell.classList.add("nav-collapsed");
+  if (localStorage.getItem("janetcode-work-collapsed") !== "") shell.classList.add("work-collapsed");
   document.querySelector(".work-tabs").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-pane]");
     if (!btn) return;
