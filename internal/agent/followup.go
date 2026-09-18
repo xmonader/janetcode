@@ -38,7 +38,7 @@ func (a *Agent) SuggestFollowup(ctx context.Context) (string, error) {
 	if resp == nil {
 		return "", nil
 	}
-	a.addUsage(resp.Usage)
+	a.addUsage(model, resp.Usage)
 	return clampFollowup(resp.Message.Text()), nil
 }
 

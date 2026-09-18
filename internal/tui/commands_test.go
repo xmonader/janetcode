@@ -1400,3 +1400,22 @@ func TestUndoTurnPreviewThenApply(t *testing.T) {
 		t.Fatalf("a turn with no snapshot was not refused:\n%s", v)
 	}
 }
+
+// /usage says which model spent the session's tokens, not only how many
+// there were.
+func TestUsageCommandSplitsBySessionModel(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn,
+		Usage: llm.Usage{InputTokens: 1200, OutputTokens: 340, CacheReadTokens: 900}})
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.keys("/usage")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "per model") {
+		t.Fatalf("no per-model split:\n%s", v)
+	}
+	if !strings.Contains(v, h.m.opts.Agent.Settings().Model) {
+		t.Fatalf("the session's model is not named:\n%s", v)
+	}
+}

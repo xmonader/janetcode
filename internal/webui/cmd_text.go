@@ -227,6 +227,9 @@ func (s *server) usageText() string {
 	if ceiling := ag.MaxCost(); ceiling > 0 {
 		sb.WriteString(" · ceiling " + llm.FormatUSD(ceiling))
 	}
+	if s := agent.FormatUsageByModel(ag.UsageByModel()); s != "" {
+		sb.WriteString("\n" + s)
+	}
 	return sb.String()
 }
 

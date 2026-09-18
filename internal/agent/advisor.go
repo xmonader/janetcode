@@ -105,7 +105,7 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 	if resp == nil {
 		return "", model, fmt.Errorf("empty reply")
 	}
-	a.addUsage(resp.Usage)
+	a.addUsage(model, resp.Usage)
 	// lastCallModel is which model answered the *turn's* call, for the
 	// assistant event logged next to it. A side query is not that call,
 	// and the advisor tool runs in the parallel half of the tool loop, so

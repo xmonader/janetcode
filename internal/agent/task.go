@@ -667,7 +667,7 @@ func (t *Task) bill(kid *subagent, child *Agent) {
 	delta := usageSince(kid.seen, child.Usage)
 	kid.seen = child.Usage
 	t.usage.Add(delta)
-	t.Parent.addSideUsage(delta)
+	t.Parent.addSideUsage(child.Settings().Model, delta)
 }
 
 // briefInput is the one-line summary of a child tool call for the live

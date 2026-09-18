@@ -626,6 +626,12 @@ func (m *model) cmdUsage(text string, fields []string) (tea.Cmd, bool) {
 	u := m.opts.Agent.UsageSnapshot()
 	line := "session tokens · " + u.TokenLine() + " · context now ~" + textfmt.Tokens(m.opts.Agent.EstimateTokens()) +
 		"\n" + u.CostNote(m.opts.Agent.Settings().Price)
+	// Which model spent it: a session routes, falls back, asks an advisor
+	// and delegates to subagents, and the total alone cannot say where it
+	// went.
+	if s := agent.FormatUsageByModel(m.opts.Agent.UsageByModel()); s != "" {
+		line += "\n" + s
+	}
 	m.transcript.info(line)
 	return nil, false
 }

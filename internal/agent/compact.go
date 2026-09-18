@@ -362,7 +362,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		usage = resp.Usage
 	}
 	a.summaryFailedAt = time.Time{}
-	a.addUsage(usage)
+	a.addUsage(a.Settings().Model, usage)
 
 	if a.Log != nil {
 		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})

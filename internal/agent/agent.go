@@ -502,7 +502,7 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.lastInputMsgs = len(a.Messages)
 	a.appendMessage(resp.Message)
 	a.integ.lastLen = len(a.Messages)
-	a.addUsage(resp.Usage)
+	a.addUsage(a.lastCallModel, resp.Usage)
 	msg := resp.Message
 	u := resp.Usage
 	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u, Model: a.lastCallModel})

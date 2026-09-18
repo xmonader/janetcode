@@ -32,6 +32,10 @@ type turnMonitor struct {
 	Usage llm.Usage
 	// turnUse is what the turn in progress has cost so far.
 	turnUse llm.Usage
+	// byModel splits Usage by the model that served each call, so a
+	// session that routed, fell back, asked an advisor or delegated can
+	// say which model spent what. Guarded by usageMu with the rest.
+	byModel map[string]*ModelUsage
 	usageMu sync.Mutex // the status bar reads Usage while a turn runs
 	// MaxCostUSD, when set, ends a run once Usage has cost this much. It
 	// is checked after every model call and after every batch of tool
