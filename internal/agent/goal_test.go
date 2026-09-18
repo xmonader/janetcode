@@ -226,3 +226,63 @@ func TestANewGoalPausesTheActiveOne(t *testing.T) {
 		t.Fatalf("paused goal = %+v", g)
 	}
 }
+
+// The round budget was 8 and nothing could change it: both front ends
+// passed 0 to CreateGoal, and when the eight were spent the loop simply
+// stopped — no round sent, nothing said, and the goal still reading
+// "active" in the status line and in /goal for the rest of the session.
+func TestGoalRoundBudgetIsSettableAndSaysWhenItIsSpent(t *testing.T) {
+	// A leading number is an objective, not a budget.
+	if n, rest, ok := ParseGoalRounds("3 bugs need fixing"); ok || rest != "3 bugs need fixing" || n != 0 {
+		t.Fatalf("ParseGoalRounds took a bare number: %d %q %v", n, rest, ok)
+	}
+	for _, arg := range []string{"rounds=3 ship the parser", "rounds 3 ship the parser"} {
+		n, rest, ok := ParseGoalRounds(arg)
+		if !ok || n != 3 || rest != "ship the parser" {
+			t.Fatalf("ParseGoalRounds(%q) = %d %q %v", arg, n, rest, ok)
+		}
+	}
+	if n, rest, ok := ParseGoalRounds("rounds 20"); !ok || n != 20 || rest != "" {
+		t.Fatalf("a bare re-budget = %d %q %v", n, rest, ok)
+	}
+	if n, _, _ := ParseGoalRounds("rounds 99999"); n != maxGoalRounds {
+		t.Fatalf("an unbounded budget = %d", n)
+	}
+
+	a := &Agent{Log: &session.Memory{}}
+	id, _ := a.CreateGoal("ship the parser", 2)
+	ctx := context.Background()
+	for i := 1; i <= 2; i++ {
+		if got := a.GoalContinuation(ctx); got == "" {
+			t.Fatalf("round %d was refused", i)
+		}
+	}
+	// The budget is spent: no round, and the goal is paused saying why
+	// rather than sitting there looking active.
+	if got := a.GoalContinuation(ctx); got != "" {
+		t.Fatalf("a third round on a budget of two: %q", got)
+	}
+	g, spent := a.SpentGoal()
+	if !spent || g.ID != id || g.Rounds != 2 {
+		t.Fatalf("spent = %+v %v", g, spent)
+	}
+	if ActiveGoal(a.Log.Events()) != nil {
+		t.Fatal("a spent goal is still active")
+	}
+	if note := SpentNote(g); !strings.Contains(note, "2 of 2 rounds") || !strings.Contains(note, "/goal rounds 4") {
+		t.Fatalf("note = %q", note)
+	}
+	if _, again := a.SpentGoal(); again {
+		t.Fatal("the same spent goal was announced twice")
+	}
+
+	// More rounds carry it on — /goal resume alone could not, because the
+	// loop refuses a round while the budget is spent.
+	a.SetGoalRounds(id, 4)
+	if g := ActiveGoal(a.Log.Events()); g == nil || g.MaxRounds != 4 || g.Rounds != 2 {
+		t.Fatalf("after a re-budget = %+v", g)
+	}
+	if got := a.GoalContinuation(ctx); got == "" {
+		t.Fatal("no round after the budget was raised")
+	}
+}

@@ -44,7 +44,26 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 		}
 		return nil
 	default:
-		id, paused := ag.CreateGoal(arg, 0)
+		// "rounds=20 <objective>" sets the budget for a new goal, and
+		// "rounds 20" on its own re-budgets the one already running —
+		// which is the only way to carry on a goal whose rounds are
+		// spent.
+		rounds, rest, budgeted := agent.ParseGoalRounds(arg)
+		if budgeted && rest == "" {
+			g, _, err := agent.TargetGoal(ag.Log.Events(), "resume")
+			if err != nil {
+				m.transcript.errorf("%v", err)
+				return nil
+			}
+			ag.SetGoalRounds(g.ID, rounds)
+			m.note(fmt.Sprintf("goal %s: %d rounds (%d used)", g.ID, rounds, g.Rounds))
+			m.refresh(false)
+			return m.startGoalRound()
+		}
+		if budgeted {
+			arg = rest
+		}
+		id, paused := ag.CreateGoal(arg, rounds)
 		m.note("goal " + id + " active: " + arg)
 		if len(paused) > 0 {
 			m.note(agent.PausedNote(paused))
@@ -87,6 +106,12 @@ func (m *model) goalRound() tea.Cmd {
 	}
 	cont := ag.GoalContinuation(m.life)
 	if cont == "" {
+		// No round to send: either there is no active goal, or the one
+		// there is has spent its budget and has to say so.
+		if g, spent := ag.SpentGoal(); spent {
+			m.note(agent.SpentNote(g))
+			m.refresh(false)
+		}
 		return nil
 	}
 	if note == "" {

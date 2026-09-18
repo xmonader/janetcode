@@ -1452,3 +1452,44 @@ func TestUsageCommandPricesEachModel(t *testing.T) {
 		t.Fatalf("a list-price figure is not marked as an estimate:\n%s", v)
 	}
 }
+
+// /goal rounds=N budgets a goal, and a goal that spends its budget says
+// so instead of going quiet with the status line still reading "active".
+func TestGoalRoundsBudgetAndExhaustionInTheUI(t *testing.T) {
+	var replies []*llm.Response
+	for i := 0; i < 10; i++ {
+		replies = append(replies, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "on it"), StopReason: llm.StopEndTurn})
+	}
+	h := newHarness(t, replies...)
+	h.keys("/goal rounds=2 make the tests green")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+
+	gs := agent.FoldGoals(h.m.opts.Agent.Log.Events())
+	if len(gs) != 1 || gs[0].MaxRounds != 2 || gs[0].Objective != "make the tests green" {
+		t.Fatalf("goals = %+v", gs)
+	}
+	// The objective carries the words, not the budget.
+	reqs := h.m.opts.Agent.Provider.(*scripted).reqs()
+	if len(reqs) == 0 || strings.Contains(reqs[0].Messages[len(reqs[0].Messages)-1].Text(), "rounds=2") {
+		t.Fatalf("the budget leaked into the objective: %+v", reqs)
+	}
+	// Two rounds run and then it stops, saying why.
+	h.pump(func() bool { return !h.m.turn.running && len(h.m.opts.Agent.Provider.(*scripted).reqs()) >= 2 })
+	h.runCmd(h.m.goalRound())
+	h.pump(func() bool { return !h.m.turn.running })
+	h.runCmd(h.m.goalRound())
+	v := plain(h.m.View())
+	if !strings.Contains(v, "rounds used") || !strings.Contains(v, "/goal rounds 4") {
+		t.Fatalf("nothing said the goal ran out:\n%s", v)
+	}
+	if g := agent.ActiveGoal(h.m.opts.Agent.Log.Events()); g != nil {
+		t.Fatalf("a spent goal is still active: %+v", g)
+	}
+	// More rounds carry it on.
+	h.keys("/goal rounds 4")
+	h.enter()
+	if g := agent.ActiveGoal(h.m.opts.Agent.Log.Events()); g == nil || g.MaxRounds != 4 {
+		t.Fatalf("after /goal rounds 4 = %+v", g)
+	}
+}

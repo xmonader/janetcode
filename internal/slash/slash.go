@@ -56,7 +56,7 @@ var Commands = withIdle([]Command{
 	{Name: "/trajectory", Args: "[n|grep <words>]", Help: "event ledger of this session (turn/step/tool/compaction); n shows one record"},
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{Name: "/feedback", Args: "up|down [note]", Help: "rate the last assistant message (not sent to the model)"},
-	{Name: "/goal", Args: "[objective|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
+	{Name: "/goal", Args: "[objective|rounds=N objective|rounds N|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete, blocked, or out of rounds (8 by default; rounds=N sets the budget, rounds N gives a stopped goal more)"},
 	{Name: "/agents", Args: "[id|new <brief>|fork <brief>|cancel <id>|steer <id> <note>]", Help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript; new starts a general subagent, fork inherits this conversation, cancel stops a running one, steer injects a note before its next model call"},
 	{Name: "/cd", Args: "[path]", Help: "move this session's working directory without restarting; no argument says where it is"},
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},

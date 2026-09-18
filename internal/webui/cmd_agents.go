@@ -56,7 +56,25 @@ func (s *server) goal(arg string) {
 			s.goalRound()
 		}
 	default:
-		id, paused := ag.CreateGoal(arg, 0)
+		// "rounds=20 <objective>" budgets a new goal; "rounds 20" alone
+		// re-budgets the running one, which is the only way to carry on
+		// a goal whose rounds are spent.
+		rounds, rest, budgeted := agent.ParseGoalRounds(arg)
+		if budgeted && rest == "" {
+			g, _, err := agent.TargetGoal(ev, "resume")
+			if err != nil {
+				s.errf("%v", err)
+				return
+			}
+			ag.SetGoalRounds(g.ID, rounds)
+			s.notice(fmt.Sprintf("goal %s: %d rounds (%d used)", g.ID, rounds, g.Rounds))
+			s.goalRound()
+			return
+		}
+		if budgeted {
+			arg = rest
+		}
+		id, paused := ag.CreateGoal(arg, rounds)
 		s.notice("goal " + id + " active: " + arg)
 		if len(paused) > 0 {
 			s.notice(agent.PausedNote(paused))
@@ -79,6 +97,9 @@ func (s *server) goalRound() {
 	}
 	cont := s.opts.Agent.GoalContinuation(s.life)
 	if cont == "" {
+		if g, spent := s.opts.Agent.SpentGoal(); spent {
+			s.notice(agent.SpentNote(g))
+		}
 		return
 	}
 	s.startTurn(cont)

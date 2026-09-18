@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/session"
@@ -57,6 +59,12 @@ func FoldGoals(events []session.Event) []Goal {
 		case session.TypeGoalPhase:
 			g.Phase = e.Reason
 			g.Reason = e.Output
+			// A phase event may also carry a new round budget: what
+			// /goal rounds sets, and the only way an exhausted goal can
+			// be resumed at all (see SetGoalRounds).
+			if e.Tokens > 0 {
+				g.MaxRounds = e.Tokens
+			}
 		case session.TypeGoalRound:
 			g.Rounds++
 		}
@@ -151,6 +159,70 @@ func (a *Agent) CreateGoal(objective string, maxRounds int) (string, []string) {
 	a.logEvent(session.Event{Type: session.TypeGoalCreate, Name: id, Output: strings.TrimSpace(objective), Tokens: maxRounds})
 	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: GoalActive})
 	return id, paused
+}
+
+// goalRoundsRe matches the "rounds=20" or "rounds 20" a /goal argument
+// may begin with. A bare leading number is deliberately not accepted:
+// "/goal 3 bugs need fixing" is an objective, not a budget of three.
+var goalRoundsRe = regexp.MustCompile(`^rounds[ =]+([0-9]{1,4})\s*`)
+
+// maxGoalRounds bounds what a goal's budget can be set to. The budget is
+// what stops a loop that is going nowhere from running all night.
+const maxGoalRounds = 100
+
+// ParseGoalRounds reads a leading round budget off a /goal argument and
+// returns it with what is left — the objective, or "" when the argument
+// only changes the budget. ok is false when there is no budget in it.
+func ParseGoalRounds(arg string) (rounds int, rest string, ok bool) {
+	m := goalRoundsRe.FindStringSubmatch(strings.TrimSpace(arg))
+	if m == nil {
+		return 0, arg, false
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil || n <= 0 {
+		return 0, arg, false
+	}
+	if n > maxGoalRounds {
+		n = maxGoalRounds
+	}
+	return n, strings.TrimSpace(strings.TrimSpace(arg)[len(m[0]):]), true
+}
+
+// SetGoalRounds gives a goal a new round budget and makes it active
+// again. It is how a goal that used up its rounds is carried on with:
+// resuming one on its own could not work, because the loop refuses a
+// round the moment the budget is spent, so /goal resume on a spent goal
+// did nothing at all and said nothing either.
+func (a *Agent) SetGoalRounds(id string, rounds int) {
+	if rounds <= 0 {
+		return
+	}
+	if rounds > maxGoalRounds {
+		rounds = maxGoalRounds
+	}
+	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: GoalActive, Tokens: rounds})
+}
+
+// SpentGoal is the active goal that has used up its round budget, paused
+// so that it says so. Without this the loop simply stopped: no round was
+// sent, nothing was said, and the goal stayed "active" in the status line
+// and in /goal for the rest of the session.
+func (a *Agent) SpentGoal() (Goal, bool) {
+	if a.Log == nil {
+		return Goal{}, false
+	}
+	g := ActiveGoal(a.Log.Events())
+	if g == nil || g.Rounds < g.MaxRounds {
+		return Goal{}, false
+	}
+	reason := fmt.Sprintf("its %d rounds are used up; /goal rounds %d gives it more", g.MaxRounds, g.MaxRounds*2)
+	a.SetGoalPhase(g.ID, GoalPaused, reason)
+	return *g, true
+}
+
+// SpentNote is the one line a UI shows for a goal that ran out of rounds.
+func SpentNote(g Goal) string {
+	return fmt.Sprintf("goal %s stopped: %d of %d rounds used and it is not complete · /goal rounds %d continues it · /goal done closes it", g.ID, g.Rounds, g.MaxRounds, g.MaxRounds*2)
 }
 
 // PausedNote is the one line a UI shows when starting a goal paused
