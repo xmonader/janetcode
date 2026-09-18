@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -391,9 +392,45 @@ func decode(input json.RawMessage, v any) error {
 	dec := json.NewDecoder(strings.NewReader(string(input)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
+		// A rejected field costs the model a whole round trip, and the
+		// message it read said only which name was wrong, never which
+		// names are right: a recorded session lost a step guessing
+		// "timeout" for "timeout_ms". The accepted names are in the
+		// struct; say them.
+		if fields := jsonFields(v); fields != "" && strings.Contains(err.Error(), "unknown field") {
+			return fmt.Errorf("invalid input: %w; this tool accepts: %s", err, fields)
+		}
 		return fmt.Errorf("invalid input: %w", err)
 	}
 	return nil
+}
+
+// jsonFields lists the JSON names a decode target accepts, in the order
+// they are declared, or "" when v is not a struct pointer.
+func jsonFields(v any) string {
+	t := reflect.TypeOf(v)
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t == nil || t.Kind() != reflect.Struct {
+		return ""
+	}
+	var names []string
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		switch name {
+		case "-":
+			continue
+		case "":
+			name = f.Name
+		}
+		names = append(names, name)
+	}
+	return strings.Join(names, ", ")
 }
 
 // Previewer is implemented by tools that can describe what Run would do

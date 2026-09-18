@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"strings"
 	"testing"
@@ -188,5 +189,35 @@ func TestCommandOutputIsBoundedInMemory(t *testing.T) {
 	}
 	if len(un.String()) != 100 {
 		t.Fatalf("unbounded buffer dropped output: %d", len(un.String()))
+	}
+}
+
+// A recorded session lost a step to `{"command": "...", "timeout":
+// "30000"}`: the schema field is timeout_ms, strict decoding rejected the
+// whole call, and the model had to write it again. The name it reached
+// for is accepted now, and the message a rejected call does return names
+// the fields that would have worked.
+func TestBashAcceptsATimeoutWrittenTheOtherWay(t *testing.T) {
+	for _, raw := range []string{`"30000"`, `30000`, `"30s"`} {
+		if got := timeoutAlias(json.RawMessage(raw)); got != 30000 {
+			t.Errorf("timeoutAlias(%s) = %d, want 30000", raw, got)
+		}
+	}
+	for _, raw := range []string{``, `null`, `"soon"`, `{}`} {
+		if got := timeoutAlias(json.RawMessage(raw)); got != 0 {
+			t.Errorf("timeoutAlias(%s) = %d, want 0", raw, got)
+		}
+	}
+	b := Bash{Root: t.TempDir()}
+	out, err := b.Run(context.Background(), json.RawMessage(`{"command":"echo hi","timeout":"30000"}`))
+	if err != nil {
+		t.Fatalf("a call with timeout: %v", err)
+	}
+	if !strings.Contains(out, "hi") {
+		t.Fatalf("output = %q", out)
+	}
+	_, err = b.Run(context.Background(), json.RawMessage(`{"command":"echo hi","nonsense":1}`))
+	if err == nil || !strings.Contains(err.Error(), "this tool accepts: command, timeout_ms, timeout, background") {
+		t.Fatalf("error = %v", err)
 	}
 }

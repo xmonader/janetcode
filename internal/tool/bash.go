@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ type Bash struct {
 
 func (Bash) Name() string { return "bash" }
 func (Bash) Description() string {
-	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
+	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
 }
 func (Bash) Mutating() bool { return true }
 func (Bash) Schema() json.RawMessage {
@@ -50,12 +51,20 @@ func (Bash) Schema() json.RawMessage {
 
 func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
-		Command    string `json:"command"`
-		TimeoutMS  int    `json:"timeout_ms"`
-		Background bool   `json:"background"`
+		Command   string `json:"command"`
+		TimeoutMS int    `json:"timeout_ms"`
+		// Timeout is the name models reach for when they mean timeout_ms,
+		// and a rejected call costs a whole round trip: a recorded
+		// session lost a step to `"timeout": "30000"`. Accepted as
+		// milliseconds, as a numeric string, or as a Go duration.
+		Timeout    json.RawMessage `json:"timeout"`
+		Background bool            `json:"background"`
 	}
 	if err := decode(input, &in); err != nil {
 		return "", err
+	}
+	if in.TimeoutMS == 0 {
+		in.TimeoutMS = timeoutAlias(in.Timeout)
 	}
 	if strings.TrimSpace(in.Command) == "" {
 		return "", fmt.Errorf("command is empty")
@@ -260,6 +269,33 @@ func (t Bash) Warn(input json.RawMessage) string {
 		}
 	}
 	return strings.Join(notes, "; ")
+}
+
+// timeoutAlias reads a `timeout` the model wrote instead of timeout_ms:
+// a number of milliseconds, the same number quoted, or a duration such as
+// "30s". Anything else is 0, which means the default.
+func timeoutAlias(raw json.RawMessage) int {
+	if len(raw) == 0 {
+		return 0
+	}
+	var ms float64
+	if json.Unmarshal(raw, &ms) == nil {
+		return int(ms)
+	}
+	var s string
+	if json.Unmarshal(raw, &s) != nil {
+		return 0
+	}
+	if s = strings.TrimSpace(s); s == "" {
+		return 0
+	}
+	if n, err := strconv.ParseFloat(s, 64); err == nil {
+		return int(n)
+	}
+	if d, err := time.ParseDuration(s); err == nil && d > 0 {
+		return int(d / time.Millisecond)
+	}
+	return 0
 }
 
 // clampTimeout turns a timeout_ms from the model into a duration between
