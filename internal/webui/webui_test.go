@@ -432,12 +432,148 @@ func TestTrajectoryLedgerFromSessionEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := ag.Log.Append(session.Event{
-		Type: session.TypeToolCall, Turn: 1, Step: 1, Name: "read_file",
-		Arguments: `{"path":"main.go"}`, DurationMs: 12,
+		Type: session.TypeToolCall, Turn: 1, Step: 1, Name: "read_file", CallID: "c1",
+		Arguments: `{"path":"main.go"}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ag.Log.Append(session.Event{
+		Type: session.TypeToolResult, Turn: 1, Step: 1, Name: "read_file", CallID: "c1",
+		Output: "package main", DurationMs: 12,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	res, err := http.Get(ts.URL + "/api/trajectory")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Records []trajRecord `json:"records"`
+		Turns   []trajTurn   `json:"turns"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	// The ledger folds the log: the call and its result are one record.
+	var user, tool *trajRecord
+	for i := range body.Records {
+		switch body.Records[i].Kind {
+		case "user":
+			user = &body.Records[i]
+		case "tool":
+			tool = &body.Records[i]
+		}
+	}
+	if user == nil || !strings.Contains(user.Preview, "main.go") {
+		t.Fatalf("ledger missing the user record: %+v", body.Records)
+	}
+	if tool == nil || tool.Tool != "read_file" || tool.Duration != 12 || tool.Result == "" {
+		t.Fatalf("the call never met its result: %+v", tool)
+	}
+	if len(body.Turns) != 1 || body.Turns[0].Tools != 1 || !strings.Contains(body.Turns[0].Heading, "turn 1") {
+		t.Fatalf("turns = %+v", body.Turns)
+	}
+	// The detail is keyed by the record's index and carries the body.
+	detail, err := http.Get(ts.URL + "/api/trajectory?n=" + strconv.Itoa(tool.Index))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer detail.Body.Close()
+	if detail.StatusCode != 200 {
+		t.Fatalf("detail %d", detail.StatusCode)
+	}
+	var one struct {
+		Record trajRecord `json:"record"`
+	}
+	if err := json.NewDecoder(detail.Body).Decode(&one); err != nil {
+		t.Fatal(err)
+	}
+	if one.Record.Input == "" || one.Record.Output != "package main" {
+		t.Fatalf("detail = %+v", one.Record)
+	}
+	if missing, err := http.Get(ts.URL + "/api/trajectory?n=999"); err != nil {
+		t.Fatal(err)
+	} else {
+		missing.Body.Close()
+		if missing.StatusCode != http.StatusNotFound {
+			t.Fatalf("a missing record should 404, got %d", missing.StatusCode)
+		}
+	}
+}
+
+// The timeline endpoint projects the same fold the ledger shows: spans
+// in the mode's domain, lanes fixed to input/model/tools, a boundary
+// per turn, and the waiting share on model spans.
+func TestTrajectoryTimelineProjection(t *testing.T) {
+	ts, ag := testApp(t)
+	defer ts.Close()
+	appendEvent := func(e session.Event) {
+		t.Helper()
+		if _, err := ag.Log.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendEvent(session.Event{Type: session.TypeTurnStart, Turn: 1})
+	appendEvent(session.Event{Type: session.TypeUserMessage, Turn: 1,
+		Message: &llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "hi"}}}})
+	appendEvent(session.Event{Type: session.TypeStepStart, Turn: 1, Step: 1})
+	appendEvent(session.Event{Type: session.TypeAssistant, Turn: 1, Step: 1,
+		Message: &llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockText, Text: "hello"}}},
+		TTFTMs: 300, DecodeMs: 700,
+		Usage: &llm.Usage{InputTokens: 10, OutputTokens: 5}})
+
+	res, err := http.Get(ts.URL + "/api/trajectory/timeline?mode=sequence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var tl struct {
+		Mode  string         `json:"mode"`
+		Spans []trajSpan     `json:"spans"`
+		Turns []trajBoundary `json:"turns"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&tl); err != nil {
+		t.Fatal(err)
+	}
+	if tl.Mode != "sequence" || len(tl.Spans) != 2 {
+		t.Fatalf("sequence = %+v", tl)
+	}
+	if len(tl.Turns) != 1 || tl.Turns[0].Turn != 1 || tl.Turns[0].Time != 0 {
+		t.Fatalf("boundaries = %+v", tl.Turns)
+	}
+	var model *trajSpan
+	for i := range tl.Spans {
+		if tl.Spans[i].Kind == "message" {
+			model = &tl.Spans[i]
+		}
+		if tl.Spans[i].Lane < 0 || tl.Spans[i].Lane > 2 {
+			t.Fatalf("lane out of range: %+v", tl.Spans[i])
+		}
+	}
+	if model == nil || model.Lane != 1 || model.TTFT != 0.3 {
+		t.Fatalf("the model span lost its lane or its waiting share: %+v", tl.Spans)
+	}
+	if bad, err := http.Get(ts.URL + "/api/trajectory/timeline?mode=sideways"); err != nil {
+		t.Fatal(err)
+	} else {
+		bad.Body.Close()
+		if bad.StatusCode != http.StatusBadRequest {
+			t.Fatalf("a bad mode should 400, got %d", bad.StatusCode)
+		}
+	}
+}
+
+// The raw endpoint keeps the per-event view for when the ledger itself
+// is what looks wrong.
+func TestTrajectoryRawKeepsTheEventLog(t *testing.T) {
+	ts, ag := testApp(t)
+	defer ts.Close()
+	if _, err := ag.Log.Append(session.Event{Type: session.TypeUserMessage, Turn: 1,
+		Message: &llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "hi"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := http.Get(ts.URL + "/api/trajectory/raw")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,35 +584,8 @@ func TestTrajectoryLedgerFromSessionEvents(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if len(body.Events) < 2 {
-		t.Fatalf("events = %+v", body.Events)
-	}
-	var sawUser, sawTool bool
-	for _, e := range body.Events {
-		if e.Kind == "user" && strings.Contains(e.Preview, "main.go") {
-			sawUser = true
-		}
-		if e.Kind == "tool" && e.Name == "read_file" && e.DurMs == 12 {
-			sawTool = true
-		}
-	}
-	if !sawUser || !sawTool {
-		t.Fatalf("ledger missing user or tool: %+v", body.Events)
-	}
-	detail, err := http.Get(ts.URL + "/api/trajectory?n=" + strconv.Itoa(body.Events[0].Seq))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer detail.Body.Close()
-	if detail.StatusCode != 200 {
-		t.Fatalf("detail %d", detail.StatusCode)
-	}
-	var one map[string]any
-	if err := json.NewDecoder(detail.Body).Decode(&one); err != nil {
-		t.Fatal(err)
-	}
-	if one["seq"] == nil || one["type"] == nil {
-		t.Fatalf("detail = %v", one)
+	if len(body.Events) != 1 || body.Events[0].Kind != "user" {
+		t.Fatalf("raw events = %+v", body.Events)
 	}
 }
 
