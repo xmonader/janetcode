@@ -20,7 +20,7 @@ import (
 var webCommands = []string{
 	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
-	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
+	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua",
@@ -144,6 +144,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/stats": func(s *server, arg string) (bool, error) {
 		s.sheet("stats", s.statsText())
+		return false, nil
+	},
+	"/perf": func(s *server, arg string) (bool, error) {
+		s.sheet("perf", s.perfText())
 		return false, nil
 	},
 	"/usage": func(s *server, arg string) (bool, error) {

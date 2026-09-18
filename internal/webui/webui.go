@@ -188,6 +188,10 @@ type server struct {
 	asking  *askReq
 	status  string
 	verbose bool
+	// openedAt is when this server came up, which is what /perf reports
+	// the in-turn time as a share of: the rest of it is the user
+	// reading and typing, and that is not the harness being slow.
+	openedAt time.Time
 
 	// dirMu guards dir, the directory this session is rooted at. It is
 	// separate from mu because the hello payload reads it while mu is
@@ -311,10 +315,11 @@ type permRung struct {
 
 func newServer(life context.Context, opts Options) *server {
 	s := &server{
-		opts: opts,
-		life: life,
-		dir:  opts.Cwd,
-		subs: map[chan envelope]struct{}{},
+		opts:     opts,
+		life:     life,
+		dir:      opts.Cwd,
+		subs:     map[chan envelope]struct{}{},
+		openedAt: time.Now(),
 	}
 	if opts.Agent != nil {
 		opts.Agent.Approver = s

@@ -84,6 +84,8 @@ func (s *server) panelAPI(w http.ResponseWriter, r *http.Request) {
 		title, body = "context", s.contextText()
 	case "stats":
 		title, body = "stats", s.statsText()
+	case "perf":
+		title, body = "perf", s.perfText()
 	case "usage":
 		title, body = "usage", s.usageText()
 	case "todos":

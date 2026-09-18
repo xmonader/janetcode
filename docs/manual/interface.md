@@ -267,6 +267,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /cua [on|off|doctor]  (start Cua Driver as an MCP desktop server)
 /effort [tier|up|down]  (how hard the model thinks: low, medium, high, xhigh, max)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
+/perf      (where the wall clock went: the model, the tools, waiting on you, the harness itself)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview | turn <n> | about <description> | apply]  /redo  /find X  /cost  /mcp [trust | auth <server> | logout <server>]
 /budget [usd | off] (stop the session once it has spent that much; alone reports it)
@@ -1549,6 +1550,34 @@ already use. `/hints off`, or `"hints": false` in the config file, silences
 the lot. The rules are evaluated on events — a turn ending, a tool result, a
 denial, a paste — never on a render and never on a keystroke, which is
 tested.
+
+`/perf` is the other half of `/stats`. `/stats` counts what happened;
+`/perf` divides the wall clock between the four things that can consume
+it, and a transcript cannot tell them apart — a provider that takes forty
+seconds a call and a harness that takes forty milliseconds look identical
+on screen. The report opens with how long the session has been up and how
+much of that was spent inside turns; the rest is you reading and typing,
+and it is not counted against the harness. Then one line each for:
+
+- **model** — waiting for the provider to answer. Averages hide the shape
+  of provider latency, so each slice also carries its slowest single
+  call: ten fast calls and one that took two minutes average out to
+  "fine", and the two-minute one is the thing you felt.
+- **tools** — running what the model asked for. The time you spent
+  deciding on a permission prompt is *not* in here: the prompt blocks
+  inside the tool call, so it is measured and deducted, and a minute
+  spent thinking about a write is not reported as the write taking a
+  minute.
+- **you** — permission prompts and `ask` questions, waiting on an answer.
+- **harness** — the remainder: the loop itself, context assembly, hooks,
+  checkpoints, logging. It is computed as what is left over rather than
+  measured, so anything nobody instrumented shows up here instead of
+  disappearing.
+
+Under that, the same division by model and by tool, slowest first. When
+tool calls ran in parallel their times can add up to more than the turn's
+wall clock; the harness row says "overlapped" rather than printing a
+negative.
 
 `/stats` ends with a "not yet tried" line naming up to five catalogue
 features you have never reached for. It comes from a count kept in the

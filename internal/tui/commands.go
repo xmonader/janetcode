@@ -251,6 +251,10 @@ var dispatch = map[string]cmdHandler{
 		m.statsCommand()
 		return nil, false
 	},
+	"/perf": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.perfCommand()
+		return nil, false
+	},
 	"/usage": (*model).cmdUsage, "/cost": (*model).cmdUsage,
 	"/effort": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.effortCommand(cmdArg(text, fields))

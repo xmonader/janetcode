@@ -189,6 +189,12 @@ func (s *server) contextText() string {
 	return sb.String()
 }
 
+// perfText is where the time went, the other half of statsText: what
+// happened is one question, how long each part of it took is another.
+func (s *server) perfText() string {
+	return agent.FormatPerf(s.opts.Agent.Stats(), time.Since(s.openedAt))
+}
+
 func (s *server) statsText() string {
 	ag := s.opts.Agent
 	st := ag.Stats()

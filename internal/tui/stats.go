@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -86,6 +87,15 @@ func (m *model) statsCommand() {
 		sb.WriteString("\n" + line)
 	}
 	m.transcript.info(sb.String())
+}
+
+// perfCommand is /stats' other half: not what happened but how long each
+// part of it took. "It felt slow" is a real report and this is what
+// answers it — a provider that takes 40s a call and a harness that takes
+// 40ms look identical in a transcript.
+func (m *model) perfCommand() {
+	ag := m.opts.Agent
+	m.transcript.info(agent.FormatPerf(ag.Stats(), time.Since(m.openedAt)))
 }
 
 func tokensOrUnknown(n int) string {
