@@ -419,6 +419,14 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		o.Checks = append(o.Checks, textfmt.FirstLine(cmd, maxCheckLen))
 		if run.isErr {
 			o.Failed++
+			// A suite that ran and came back red still ran. Reporting
+			// Tested=false there told the model it had not tested
+			// anything, when what it had was a failing test — and a
+			// project whose own example suite ships one deliberate
+			// failure (a testing library's demo) could never be tested.
+			if ran, _ := exercised(run.output); ran {
+				ranTests = true
+			}
 			continue
 		}
 		o.Passed++

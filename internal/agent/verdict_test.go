@@ -608,3 +608,22 @@ func TestADifferentKindOfCheckDoesNotRetireARedOne(t *testing.T) {
 		t.Fatalf("verdict = %q, failed %d, checks %v", got.Verdict, got.Failed, got.Checks)
 	}
 }
+
+// A test runner that comes back red has still run tests. The recorded
+// mutest session — a testing library whose example suite deliberately
+// contains one failing test to demonstrate failure reporting — was
+// folded as Tested=false on every turn.
+func TestARedSuiteStillCountsAsTested(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"mutest/core.py"}`, "Created core.py", false),
+		result(1, "bash", `{"command":".venv/bin/mutest tests/"}`,
+			"11 passed, 1 failed\n[exit code 1]", false),
+	}
+	got := FoldOutcomeIn(ev, 1, "")
+	if !got.Tested {
+		t.Fatalf("tested=false after a suite ran red: %q (%s)", got.Verdict, got.Why)
+	}
+	if got.Verdict != VerdictCheckFailed {
+		t.Fatalf("verdict = %q, want the red check to still fail the turn", got.Verdict)
+	}
+}
