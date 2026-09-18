@@ -40,8 +40,12 @@
         <button type="button" data-view="trajectory">Trajectory</button>
       </nav>
       <span id="mode-chip" class="mode-chip">ask</span>
-      <span id="effort-chip" class="mode-chip effort-chip" hidden></span>
-      <span id="model" class="path"></span>
+      <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
+      <button type="button" id="model" class="model-btn path" title="Switch model"></button>
+      <div id="switch-menu" class="menu" hidden>
+        <input id="switch-q" class="menu-q" type="search" placeholder="Switch model…" aria-label="Switch model">
+        <div id="switch-list" class="menu-list"></div>
+      </div>
       <span id="conn" class="conn" title="Live connection">Live</span>
       <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
       <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>
@@ -128,6 +132,7 @@
           <button type="button" id="search-btn" title="Commands (Ctrl+K)">Commands</button>
           <span class="spacer"></span>
           <span class="hint">Enter to send · Shift+Enter newline · Esc stops</span>
+          <button type="button" id="stop" hidden>Stop</button>
           <button type="submit" id="send" aria-label="Send">Send</button>
         </div>
       </form>

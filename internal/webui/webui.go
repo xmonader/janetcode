@@ -391,6 +391,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/question", s.questionAPI)
 	mux.HandleFunc("/api/command", s.command)
 	mux.HandleFunc("/api/commands", s.commandsAPI)
+	mux.HandleFunc("/api/models", s.modelsAPI)
 	mux.HandleFunc("/api/inspect", s.inspectAPI)
 	mux.HandleFunc("/api/sessions", s.sessionsAPI)
 	mux.HandleFunc("/api/panel", s.panelAPI)

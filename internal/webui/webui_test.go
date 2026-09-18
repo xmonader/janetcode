@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -1130,5 +1131,67 @@ func TestNewServerSeedsTheThreadFromSessionHistory(t *testing.T) {
 	}
 	if !sawUser || !sawAssistant {
 		t.Fatalf("seeded entries = %+v", ents)
+	}
+}
+
+// The header's model button reads /api/models: the providers and their
+// models from the config, the active provider first, the current model
+// marked, learned metas included even when no provider lists them.
+func TestModelsAPIListsWhatTheConfigKnows(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		Provider: "zhipu",
+		Model:    "glm-4",
+		Providers: map[string]config.Provider{
+			"zhipu":  {Models: []string{"glm-4", "glm-4-plus"}, Model: "glm-4"},
+			"openai": {Models: []string{"gpt-4o"}},
+		},
+		Models: map[string]config.ModelMeta{
+			"glm-4":       {ContextWindow: 128000},
+			"qwen3-coder": {ContextWindow: 262144},
+		},
+	}
+	ag := &agent.Agent{Tools: tool.NewRegistry(), Model: "glm-4"}
+	h := testHandler(Options{Agent: ag, Session: sess, Provider: "zhipu", Config: cfg, Cwd: root})
+	ts := httptest.NewServer(h)
+	defer ts.Close()
+	res, err := http.Get(ts.URL + "/api/models")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Current string       `json:"current"`
+		Groups  []modelGroup `json:"groups"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Current != "glm-4" {
+		t.Fatalf("current = %q", body.Current)
+	}
+	if len(body.Groups) == 0 || body.Groups[0].Provider != "zhipu" {
+		t.Fatalf("the active provider should lead: %+v", body.Groups)
+	}
+	var sawLearned, marked bool
+	for _, g := range body.Groups {
+		for _, m := range g.Models {
+			if m.Model == "qwen3-coder" {
+				sawLearned = true
+				if m.Context != 262144 {
+					t.Fatalf("learned context lost: %+v", m)
+				}
+			}
+			if m.Model == "glm-4" && m.Current {
+				marked = true
+			}
+		}
+	}
+	if !sawLearned || !marked {
+		t.Fatalf("learned=%v marked=%v groups=%+v", sawLearned, marked, body.Groups)
 	}
 }

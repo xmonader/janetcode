@@ -297,6 +297,7 @@
     running = !!st.running;
     maybeNotify(prev, st);
     document.getElementById("send").textContent = running ? "Queue" : "Send";
+    document.getElementById("stop").hidden = !running;
     const bits = [];
     if (st.running) bits.push((st.phase || "Working") + (st.elapsed ? " · " + st.elapsed : ""));
     else if (st.status) bits.push(st.status);
@@ -336,13 +337,14 @@
     chip.dataset.mode = m;
   }
 
-  // The reasoning tier is shown only when it is not the provider's own
-  // default, so a session at max says so without anyone asking.
+  // The reasoning tier chip is always up: it is the one control a user
+  // goes looking for when the model thinks too shallow or too long, and
+  // a hidden control might as well not exist.
   function setEffortChip(effort) {
     const chip = document.getElementById("effort-chip");
     if (!chip) return;
-    chip.hidden = !effort;
-    chip.textContent = effort ? "effort " + effort : "";
+    chip.hidden = false;
+    chip.textContent = effort ? "effort " + effort : "effort";
   }
 
   function showAsk(p) {
@@ -649,6 +651,125 @@
     closePalette();
     if (c.args) { input.value = c.name + " "; input.focus(); }
     else await post("/api/command", { text: c.name });
+  });
+
+  // The header's switch menu. The model button opens a searchable picker
+  // fed by /api/models; the effort chip opens the reasoning tiers. One
+  // menu serves both, the way the palette serves every command.
+  const modelBtn = document.getElementById("model");
+  const effortChip = document.getElementById("effort-chip");
+  const switchMenu = document.getElementById("switch-menu");
+  const switchQ = document.getElementById("switch-q");
+  const switchList = document.getElementById("switch-list");
+  const stopBtn = document.getElementById("stop");
+  const EFFORT_TIERS = ["low", "medium", "high", "xhigh", "max"];
+  let switchMode = "model";
+  let modelGroups = [];
+  let switchRows = [];
+  let switchIdx = 0;
+
+  function closeSwitchMenu() {
+    switchMenu.hidden = true;
+  }
+
+  async function openModelMenu() {
+    switchMode = "model";
+    try {
+      modelGroups = (await (await fetch("/api/models")).json()).groups || [];
+    } catch (_) {
+      modelGroups = [];
+    }
+    switchQ.value = "";
+    switchQ.placeholder = "Switch model…";
+    renderSwitchMenu("");
+    switchMenu.hidden = false;
+    switchQ.focus();
+  }
+
+  function openEffortMenu() {
+    switchMode = "effort";
+    switchQ.value = "";
+    switchQ.placeholder = "Set effort…";
+    renderSwitchMenu("");
+    switchMenu.hidden = false;
+    switchQ.focus();
+  }
+
+  function rowHTML(i, main, sub) {
+    return `<div class="menu-row" data-i="${i}"><span>${esc(main)}</span>` + (sub ? `<span class="menu-sub">${esc(sub)}</span>` : "") + `</div>`;
+  }
+
+  function paintSwitchRows() {
+    switchList.querySelectorAll(".menu-row").forEach((el) => el.classList.toggle("on", Number(el.dataset.i) === switchIdx));
+  }
+
+  function renderSwitchMenu(q) {
+    q = q.trim().toLowerCase();
+    switchRows = [];
+    let html = "";
+    if (switchMode === "model") {
+      for (const g of modelGroups) {
+        const rows = g.models.filter((m) => !q || m.model.toLowerCase().includes(q));
+        if (!rows.length) continue;
+        html += `<div class="menu-group">${esc(g.provider)}</div>`;
+        for (const m of rows) {
+          switchRows.push({ cmd: "/model " + m.model });
+          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""), m.context ? Math.round(m.context / 1000) + "k ctx" : "");
+        }
+      }
+      // A name nobody listed is still switchable: /model routes it by
+      // family or prefix, and remembers it.
+      if (q && !modelGroups.some((g) => g.models.some((m) => m.model.toLowerCase() === q))) {
+        switchRows.unshift({ cmd: "/model " + q });
+        html = rowHTML(0, `switch to “${q}”`, "routes by name or prefix") + html;
+      }
+    } else {
+      const cur = (effortChip.textContent || "").replace(/^effort /, "");
+      for (const t of EFFORT_TIERS) {
+        if (q && !t.includes(q)) continue;
+        switchRows.push({ cmd: "/effort " + t });
+        html += rowHTML(switchRows.length - 1, t + (cur === t ? " ✓" : ""), "");
+      }
+    }
+    switchList.innerHTML = html || `<div class="menu-empty">Nothing matches</div>`;
+    switchIdx = 0;
+    paintSwitchRows();
+  }
+
+  function chooseSwitch(i) {
+    const r = switchRows[i];
+    if (!r) return;
+    closeSwitchMenu();
+    post("/api/command", { text: r.cmd });
+  }
+
+  modelBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (switchMenu.hidden || switchMode !== "model") openModelMenu();
+    else closeSwitchMenu();
+  });
+  effortChip.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (switchMenu.hidden || switchMode !== "effort") openEffortMenu();
+    else closeSwitchMenu();
+  });
+  switchQ.addEventListener("input", () => renderSwitchMenu(switchQ.value));
+  switchQ.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { ev.preventDefault(); closeSwitchMenu(); return; }
+    if (ev.key === "ArrowDown") { ev.preventDefault(); switchIdx = Math.min(switchIdx + 1, switchRows.length - 1); paintSwitchRows(); return; }
+    if (ev.key === "ArrowUp") { ev.preventDefault(); switchIdx = Math.max(switchIdx - 1, 0); paintSwitchRows(); return; }
+    if (ev.key === "Enter") { ev.preventDefault(); chooseSwitch(switchIdx); }
+  });
+  switchList.addEventListener("click", (ev) => {
+    const row = ev.target.closest("[data-i]");
+    if (row) chooseSwitch(Number(row.dataset.i));
+  });
+  document.addEventListener("click", (ev) => {
+    if (switchMenu.hidden) return;
+    if (!ev.target.closest("#switch-menu") && !ev.target.closest("#model") && !ev.target.closest("#effort-chip")) closeSwitchMenu();
+  });
+  stopBtn.addEventListener("click", async () => {
+    await post("/api/cancel", {});
   });
 
   async function refreshWorkspace() {
