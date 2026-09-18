@@ -2,6 +2,7 @@ package agent
 
 import (
 	"sync"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -61,6 +62,14 @@ type modelRouter struct {
 	// the step router sent it there -- so the assistant event logged for
 	// it can say which (see session.Event.Model).
 	lastCallModel string
+	// lastTTFT and lastDecode split the most recent call into waiting
+	// for the provider to start and the provider generating. A single
+	// duration cannot tell a queued call from a long answer, and they
+	// want different responses: one is the provider, the other is the
+	// prompt. Both are recorded on the assistant event so a session read
+	// back weeks later still has them.
+	lastTTFT   time.Duration
+	lastDecode time.Duration
 }
 
 // SetRouteCheap changes RouteCheap mid-session, for /config route_cheap.

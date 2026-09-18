@@ -95,8 +95,16 @@ func (s Stats) Perf() []PerfSlice {
 			modelSlowest = m.Slowest
 		}
 	}
+	modelNote := "waiting for the provider to answer"
+	if s.ModelTTFT > 0 && s.ModelTime > 0 {
+		// The half of the diagnosis a total cannot give you: a provider
+		// that takes a minute to start and one that takes a minute to
+		// finish are different problems with the same number.
+		modelNote = fmt.Sprintf("%s of it (%d%%) before the first token, the rest generating",
+			textfmt.Duration(s.ModelTTFT), pct(s.ModelTTFT, s.ModelTime))
+	}
 	out := []PerfSlice{
-		{Name: "model", Time: s.ModelTime, Count: s.ModelCalls, Slowest: modelSlowest, Note: "waiting for the provider to answer"},
+		{Name: "model", Time: s.ModelTime, Count: s.ModelCalls, Slowest: modelSlowest, Note: modelNote},
 		{Name: "tools", Time: toolTime, Count: toolCalls, Slowest: toolSlowest, Note: "running what the model asked for"},
 		{Name: "you", Time: s.WaitTime, Count: s.WaitCount, Note: "prompts and questions waiting on an answer"},
 	}
@@ -155,6 +163,9 @@ func FormatPerf(s Stats, open time.Duration) string {
 			}
 			if m.Slowest > 0 {
 				fmt.Fprintf(&sb, " · slowest %s", textfmt.Duration(m.Slowest))
+			}
+			if m.TTFT > 0 {
+				fmt.Fprintf(&sb, " · %s waiting to start", textfmt.Duration(m.TTFT))
 			}
 			if m.Errors > 0 {
 				fmt.Fprintf(&sb, " · %d failed", m.Errors)

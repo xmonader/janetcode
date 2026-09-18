@@ -17,6 +17,9 @@ type Stats struct {
 	ModelCalls  int           // requests sent to the provider
 	ModelErrors int           // requests that failed (before any retry)
 	ModelTime   time.Duration // wall time spent waiting on the provider
+	// ModelTTFT is how much of ModelTime was spent before the provider
+	// produced anything at all.
+	ModelTTFT time.Duration
 	// TurnTime is wall time inside Run: everything between a turn
 	// starting and it ending. The session is open for longer than this,
 	// and the difference is the user reading and typing — a report that
@@ -75,7 +78,12 @@ type ModelStat struct {
 	// provider latency, which on some providers is the whole story: ten
 	// fast calls and one that took two minutes average out to "fine".
 	Slowest time.Duration
-	Usage   llm.Usage
+	// TTFT is the total time this model spent before producing its
+	// first token, across every call. Against Time it says whether a
+	// slow model is slow to start or slow to finish — the provider
+	// queueing, or the answers being long.
+	TTFT  time.Duration
+	Usage llm.Usage
 }
 
 // RouteLine is "routed N of M model calls to <cheap>", worded once so
@@ -162,6 +170,21 @@ func (c *statsCounter) model(name string, d time.Duration, u llm.Usage, failed b
 		m.Errors++
 	} else {
 		m.Usage.Add(u)
+	}
+	c.mu.Unlock()
+}
+
+// firstToken records how long one call waited before the provider
+// produced anything. Zero means the call never streamed a token, which
+// is not the same as an instant first token, so it is not counted.
+func (c *statsCounter) firstToken(name string, d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	c.mu.Lock()
+	c.s.ModelTTFT += d
+	if m := c.models[name]; m != nil {
+		m.TTFT += d
 	}
 	c.mu.Unlock()
 }

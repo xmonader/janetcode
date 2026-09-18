@@ -507,7 +507,9 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.addUsage(a.lastCallModel, resp.Usage)
 	msg := resp.Message
 	u := resp.Usage
-	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u, Model: a.lastCallModel})
+	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true,
+		Message: &msg, Usage: &u, Model: a.lastCallModel,
+		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds()})
 	emit(Event{Kind: EvTextBlockDone})
 	// The ceiling is asked about here, while the call just paid for
 	// is in the totals and before its tools are run.

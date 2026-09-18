@@ -1626,8 +1626,13 @@ on screen. The report opens with how long the session has been up and how
 much of that was spent inside turns; the rest is you reading and typing,
 and it is not counted against the harness. Then one line each for:
 
-- **model** — waiting for the provider to answer. Averages hide the shape
-  of provider latency, so each slice also carries its slowest single
+- **model** — waiting for the provider to answer, with how much of that
+  was spent before the first token arrived. A provider that takes a
+  minute to start and one that takes a minute to finish are different
+  problems with the same total: the first is the queue, the second is
+  the answer being long, and they want different responses. Averages
+  hide the shape
+  of provider latency too, so each slice also carries its slowest single
   call: ten fast calls and one that took two minutes average out to
   "fine", and the two-minute one is the thing you felt.
 - **tools** — running what the model asked for. The time you spent

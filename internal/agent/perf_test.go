@@ -8,6 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // The minute you spend deciding whether to allow a write is not the
@@ -101,5 +102,90 @@ func TestPerfSaysWhenToolsOverlapped(t *testing.T) {
 func TestPerfSaysNothingRanYet(t *testing.T) {
 	if out := FormatPerf(Stats{}, time.Minute); !strings.Contains(out, "no turn") {
 		t.Fatalf("empty report = %q", out)
+	}
+}
+
+// A provider that takes a minute to start and one that takes a minute
+// to finish are different problems with the same total. The split has
+// to reach the report.
+func TestPerfSeparatesWaitingToStartFromGenerating(t *testing.T) {
+	s := Stats{
+		Turns: 1, ModelCalls: 2, ModelTime: 10 * time.Second, ModelTTFT: 7 * time.Second,
+		TurnTime: 12 * time.Second,
+		Models:   []ModelStat{{Name: "slowpoke", Calls: 2, Time: 10 * time.Second, TTFT: 7 * time.Second}},
+	}
+	out := FormatPerf(s, time.Minute)
+	if !strings.Contains(out, "before the first token") || !strings.Contains(out, "70%") {
+		t.Fatalf("the first-token share is missing:\n%s", out)
+	}
+	if !strings.Contains(out, "waiting to start") {
+		t.Fatalf("the per-model split is missing:\n%s", out)
+	}
+}
+
+// slowStart is a provider that sits silent and then streams: the shape
+// that makes a total duration useless, because the whole of it was the
+// queue and none of it was the answer.
+type slowStart struct {
+	quiet time.Duration
+	reply string
+}
+
+func (slowStart) Name() string { return "slowstart" }
+
+func (s slowStart) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	select {
+	case <-time.After(s.quiet):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if emit != nil {
+		// A status event is the harness talking, not the model: it must
+		// not be mistaken for the first token.
+		emit(llm.Event{Type: llm.EventStatus, Text: "connected"})
+		emit(llm.Event{Type: llm.EventTextDelta, Text: s.reply})
+	}
+	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, s.reply),
+		StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 10, OutputTokens: 4}}, nil
+}
+
+// The session log has always had a field for the time-to-first-token
+// split and nothing ever wrote it, so a session read back had a total
+// and no way to tell a queued call from a long answer.
+func TestTheFirstTokenSplitIsMeasuredAndLogged(t *testing.T) {
+	const quiet = 60 * time.Millisecond
+	mem := &session.Memory{}
+	a := &Agent{Provider: slowStart{quiet: quiet, reply: "hello"}, Tools: tool.NewRegistry(), Model: "m", Log: mem}
+	if err := a.Run(context.Background(), "hi", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	var got session.Event
+	for _, e := range mem.Events() {
+		if e.Type == session.TypeAssistant {
+			got = e
+		}
+	}
+	if got.TTFTMs < quiet.Milliseconds() {
+		t.Fatalf("ttft = %dms, want at least %dms of silence", got.TTFTMs, quiet.Milliseconds())
+	}
+	if got.DecodeMs < 0 || got.TTFTMs+got.DecodeMs > 5000 {
+		t.Fatalf("the split is not a split: ttft=%d decode=%d", got.TTFTMs, got.DecodeMs)
+	}
+	if st := a.Stats(); st.ModelTTFT < quiet {
+		t.Fatalf("stats did not record the wait: %s", st.ModelTTFT)
+	}
+}
+
+// A status event is the harness, not the model. Counting it as the
+// first token would report every queued call as instant.
+func TestAStatusEventIsNotTheFirstToken(t *testing.T) {
+	if isTokenDelta(llm.Event{Type: llm.EventStatus, Text: "connected"}) {
+		t.Fatal("a status event counted as a token")
+	}
+	if isTokenDelta(llm.Event{Type: llm.EventTextDelta, Text: ""}) {
+		t.Fatal("an empty delta counted as a token")
+	}
+	if !isTokenDelta(llm.Event{Type: llm.EventToolUseStart}) {
+		t.Fatal("a tool call is output too")
 	}
 }

@@ -39,9 +39,28 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	return a.fallback(ctx, err, emit)
 }
 
+// isTokenDelta reports whether a stream event is the provider actually
+// producing output. A status or a retry notice is the harness talking,
+// not the model, and counting one as the first token would report a
+// queued call as instant.
+func isTokenDelta(e llm.Event) bool {
+	switch e.Type {
+	case llm.EventTextDelta, llm.EventThinkingDelta:
+		return e.Text != ""
+	case llm.EventToolUseStart, llm.EventToolUseDelta:
+		return true
+	}
+	return false
+}
+
 func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emit func(Event)) (*llm.Response, error) {
 	start := time.Now()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
+	// firstToken is when the provider produced anything at all. A call
+	// that never streams a token (a non-streaming provider, a failure)
+	// leaves it zero, and the split is reported as unknown rather than
+	// as instantaneous.
+	var firstToken time.Time
 	system := a.systemPrompt()
 	defs := a.turnTools()
 	a.usageMu.Lock()
@@ -58,13 +77,25 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 		if e.Type == llm.EventRetried && e.Retry != nil {
 			a.stats.retried(e.Retry.Attempts)
 		}
+		if firstToken.IsZero() && isTokenDelta(e) {
+			firstToken = time.Now()
+		}
 		forward(e, emit)
 	})
 	var u llm.Usage
 	if resp != nil {
 		u = resp.Usage
 	}
-	a.stats.model(model, time.Since(start), u, err != nil)
+	took := time.Since(start)
+	a.lastTTFT, a.lastDecode = 0, 0
+	if !firstToken.IsZero() {
+		a.lastTTFT = firstToken.Sub(start)
+		if d := took - a.lastTTFT; d > 0 {
+			a.lastDecode = d
+		}
+	}
+	a.stats.model(model, took, u, err != nil)
+	a.stats.firstToken(model, a.lastTTFT)
 	if err == nil {
 		a.lastCallModel = model
 	}
