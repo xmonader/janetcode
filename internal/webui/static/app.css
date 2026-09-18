@@ -806,7 +806,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   
 }
 .md pre code { background: none; border: 0; color: inherit; padding: 0; }
-.md ul { padding-left: 1.25em; margin: 0.4em 0; }
+.md ul, .md ol { padding-left: 1.25em; margin: 0.4em 0; }
 .md li { margin: 0.15em 0; }
 .md a { color: var(--blue); text-decoration: none; border-bottom: 1px solid var(--blue-soft-border); }
 .md a:hover { border-bottom-color: var(--blue); }
@@ -824,6 +824,73 @@ button:disabled { cursor: default; opacity: 0.55; }
   text-align: left;
 }
 .md th { background: var(--surface-2); font-weight: 600; }
+
+/* A fenced block is a panel with a header — language on the left, copy
+   on the right — not a bare pre. */
+.codeblock {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0.6em 0;
+  background: var(--pre-bg);
+}
+.codeblock pre {
+  margin: 0;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.82em;
+  line-height: 1.6;
+  color: var(--pre-ink);
+  background: none;
+}
+.codehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px 3px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.codecopy {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mute);
+  font-size: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.codeblock:hover .codecopy, .codecopy:focus-visible { opacity: 1; }
+.codecopy:hover { color: var(--blue); border-color: var(--blue-soft-border); background: var(--blue-soft); }
+.md .tk { color: var(--blue); font-weight: 500; }
+.md .ts { color: var(--ok); }
+.md .tc { color: var(--faint); font-style: italic; }
+.md .tn { color: var(--warn); }
+
+/* A sheet is preformatted output (the ledger's columns, a perf table):
+   it keeps its whitespace and scrolls rather than collapsing. */
+.turn.sheet .k { display: flex; align-items: center; gap: 8px; }
+.sheet-copy { opacity: 0; }
+.turn.sheet:hover .sheet-copy { opacity: 1; }
+pre.sheetbody {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  background: var(--pre-bg);
+  color: var(--pre-ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  margin: 6px 0 0;
+  overflow-x: auto;
+  white-space: pre;
+}
 .md tr:nth-child(even) td { background: var(--surface-2); }
 .copy-btn {
   margin-left: auto;

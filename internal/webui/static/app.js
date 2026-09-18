@@ -47,12 +47,58 @@
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     }[c]));
   }
+  // Code blocks keep their raw source here, keyed by a generated id on
+  // the Copy button — attribute-escaping megabytes of test output onto a
+  // DOM node is slower and leakier than a lookup.
+  const codeBlocks = new Map();
+  let codeSeq = 0;
+
+  // highlight is a deliberately small tokenizer: comments, strings,
+  // numbers and keywords, colored generically so one pass serves every
+  // language the model writes. Everything it emits is escaped first; the
+  // spans are markup, never source.
+  function highlight(src, lang) {
+    const comments = { js: "//", ts: "//", javascript: "//", typescript: "//", go: "//", rust: "//", java: "//", c: "//", cpp: "//", csharp: "//", swift: "//", kt: "//", kotlin: "//", scala: "//", php: "//", sh: "#", bash: "#", shell: "#", zsh: "#", py: "#", python: "#", ruby: "#", rb: "#", yaml: "#", yml: "#", tf: "#", hcl: "#", toml: "#" };
+    const c = (comments[(lang || "").toLowerCase()] || "#").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const kw = new Set(("break case catch class const continue default do else enum export extends finally for from function if import in instanceof interface let new of package private protected public return static super switch this throw try typeof var void while with yield async await def fn impl pub struct self mut ref match lambda pass raise global assert del elif except nonlocal as is and or not None True False print println int str bool float char double long short unsigned void null true false").split(" "));
+    const re = new RegExp(
+      "(" + c + "[^\\n]*)" +
+      "|('(?:[^'\\\\\\n]|\\\\.)*'|\"(?:[^\"\\\\\\n]|\\\\.)*\"|`(?:[^`\\\\]|\\\\.)*`)" +
+      "|\\b(0x[0-9a-fA-F]+|\\d+(?:\\.\\d+)?)\\b" +
+      "|\\b([A-Za-z_$][\\w$]*)\\b",
+      "g"
+    );
+    let out = "", last = 0;
+    for (let m; (m = re.exec(src));) {
+      out += esc(src.slice(last, m.index));
+      if (m[1]) out += `<span class="tc">${esc(m[1])}</span>`;
+      else if (m[2]) out += `<span class="ts">${esc(m[2])}</span>`;
+      else if (m[3]) out += `<span class="tn">${esc(m[3])}</span>`;
+      else out += kw.has(m[4]) ? `<span class="tk">${esc(m[4])}</span>` : esc(m[4]);
+      last = m.index + m[0].length;
+    }
+    return out + esc(src.slice(last));
+  }
+
+  function codeBlockHTML(lang, code) {
+    const bid = "cb" + ++codeSeq;
+    codeBlocks.set(bid, code);
+    return (
+      `<div class="codeblock"><div class="codehead"><span>${esc(lang || "code")}</span>` +
+      `<button type="button" class="codecopy" data-bid="${bid}" title="Copy code">Copy</button></div>` +
+      `<pre><code class="${lang ? "lang-" + esc(lang) : ""}">${highlight(code, lang)}</code></pre></div>`
+    );
+  }
+
   function md(src) {
     const fences = [];
-    let t = String(src ?? "").replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-      fences.push(`<pre><code>${esc(code.replace(/\n$/, ""))}</code></pre>`);
+    const park = (html) => {
+      fences.push(html);
       return `\u0000${fences.length - 1}\u0000`;
-    });
+    };
+    let t = String(src ?? "").replace(/```(\w*)[^\S\n]*\n([\s\S]*?)```/g, (_, lang, code) =>
+      park(codeBlockHTML(lang, code.replace(/\n$/, "")))
+    );
     t = t.replace(/((?:^\|.+\|\s*$\n?)+)/gm, (block) => {
       const rows = block.trim().split("\n").map((r) =>
         r.trim().replace(/^\||\|$/g, "").split("|").map((c) => esc(c.trim())));
@@ -63,8 +109,7 @@
       const body = rows.slice(2);
       let html = `<table><thead><tr>${head.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
       html += body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
-      fences.push(html + `</tbody></table>`);
-      return `\u0000${fences.length - 1}\u0000`;
+      return park(html + `</tbody></table>`);
     });
     t = esc(t);
     t = t.replace(/^### (.+)$/gm, "<h3>$1</h3>");
@@ -73,6 +118,8 @@
     t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+    t = t.replace(/^\d+\. (.+)$/gm, "<oli>$1</oli>");
+    t = t.replace(/(<oli>.*<\/oli>\n?)+/g, (m) => "<ol>" + m.replace(/<\/?oli>/g, (x) => (x === "<oli>" ? "<li>" : "</li>")) + "</ol>");
     t = t.replace(/^\- (.+)$/gm, "<li>$1</li>");
     t = t.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
     t = t.replace(/\n{2,}/g, "</p><p>");
@@ -155,7 +202,7 @@
       };
     } else if (e.kind === "sheet") {
       n.className = "turn sheet";
-      n.innerHTML = `<div class="k">${esc(e.name || "")}</div>${esc(e.text || "")}`;
+      n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="copy-btn sheet-copy" data-copy="${e.id}" title="Copy output">Copy</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;
     } else if (e.kind === "error") {
       n.className = "turn err";
       n.innerHTML = esc(e.text || "") + (lastPrompt ? ` <button type="button" class="retry-btn" data-retry="1">Retry</button>` : "");
@@ -1216,6 +1263,18 @@
     localStorage.setItem("janetcode-preview-narrow", narrow ? "1" : "");
   });
   log.addEventListener("click", async (ev) => {
+    const codecopy = ev.target.closest(".codecopy");
+    if (codecopy) {
+      const src = codeBlocks.get(codecopy.dataset.bid);
+      if (src != null) {
+        try {
+          await navigator.clipboard.writeText(src);
+          codecopy.textContent = "Copied";
+          setTimeout(() => { codecopy.textContent = "Copy"; }, 1500);
+        } catch (_) {}
+      }
+      return;
+    }
     const copy = ev.target.closest(".copy-btn");
     if (copy) {
       const src = latest.get(copy.dataset.copy);
