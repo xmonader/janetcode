@@ -711,10 +711,11 @@
       for (const g of modelGroups) {
         const rows = g.models.filter((m) => !q || m.model.toLowerCase().includes(q));
         if (!rows.length) continue;
-        html += `<div class="menu-group">${esc(g.provider)}</div>`;
+        html += `<div class="menu-group">${esc(g.provider)} · ${rows.length}</div>`;
         for (const m of rows) {
           switchRows.push({ cmd: "/model " + m.model });
-          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""), m.context ? Math.round(m.context / 1000) + "k ctx" : "");
+          const sub = [m.context ? Math.round(m.context / 1000) + "k ctx" : "", m.live ? "live" : ""].filter(Boolean).join(" · ");
+          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""), sub);
         }
       }
       // A name nobody listed is still switchable: /model routes it by

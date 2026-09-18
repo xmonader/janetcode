@@ -66,6 +66,10 @@ type Options struct {
 	ConfigPath string
 	// Models switches the session onto another model's provider.
 	Models func(string) (llm.Provider, string, error)
+	// BuildProvider constructs the client for a configured provider by
+	// name, so the model switcher can ask each provider what it serves.
+	// Nil leaves the switcher with the config's static lists.
+	BuildProvider func(name string) (llm.Provider, error)
 	// MCP describes the MCP servers, for /mcp.
 	MCP *MCPOptions
 	// Doctor is the same checkup janetcode --doctor prints. It makes a
@@ -205,6 +209,12 @@ type server struct {
 	// the in-turn time as a share of: the rest of it is the user
 	// reading and typing, and that is not the harness being slow.
 	openedAt time.Time
+	// The model switcher's live listing: what the providers served last,
+	// when they served it, and whether a sweep is running.
+	modelsMu       sync.Mutex
+	modelsAt       time.Time
+	modelsCache    []modelGroup
+	modelsFetching bool
 
 	// dirMu guards dir, the directory this session is rooted at. It is
 	// separate from mu because the hello payload reads it while mu is

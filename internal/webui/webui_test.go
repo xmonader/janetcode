@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1135,8 +1137,8 @@ func TestNewServerSeedsTheThreadFromSessionHistory(t *testing.T) {
 }
 
 // The header's model button reads /api/models: the providers and their
-// models from the config, the active provider first, the current model
-// marked, learned metas included even when no provider lists them.
+// models from the config merged with what each provider actually serves
+// right now, the active provider first, the current model marked.
 func TestModelsAPIListsWhatTheConfigKnows(t *testing.T) {
 	root := t.TempDir()
 	sess, err := session.New(t.TempDir(), root, "fake", "m")
@@ -1147,51 +1149,111 @@ func TestModelsAPIListsWhatTheConfigKnows(t *testing.T) {
 		Provider: "zhipu",
 		Model:    "glm-4",
 		Providers: map[string]config.Provider{
-			"zhipu":  {Models: []string{"glm-4", "glm-4-plus"}, Model: "glm-4"},
-			"openai": {Models: []string{"gpt-4o"}},
+			"zhipu":     {Models: []string{"glm-4", "glm-4-plus"}, Model: "glm-4"},
+			"openai":    {Models: []string{"gpt-4o"}},
+			"anthropic": {},
 		},
 		Models: map[string]config.ModelMeta{
 			"glm-4":       {ContextWindow: 128000},
+			"glm-4-plus":  {ContextWindow: 128000},
 			"qwen3-coder": {ContextWindow: 262144},
 		},
 	}
 	ag := &agent.Agent{Tools: tool.NewRegistry(), Model: "glm-4"}
-	h := testHandler(Options{Agent: ag, Session: sess, Provider: "zhipu", Config: cfg, Cwd: root})
-	ts := httptest.NewServer(h)
+	var calls atomic.Int32
+	srv := newServer(context.Background(), Options{
+		Agent: ag, Session: sess, Provider: "zhipu", Config: cfg, Cwd: root,
+		BuildProvider: func(name string) (llm.Provider, error) {
+			if name == "anthropic" {
+				return nil, errNoKeys
+			}
+			if name == "zhipu" {
+				return liveProvider{lister: func() ([]llm.ModelInfo, error) {
+					calls.Add(1)
+					return []llm.ModelInfo{
+						{ID: "glm-4", ContextWindow: 128000},
+						{ID: "glm-4-plus", ContextWindow: 200000}, // fresher than the config's
+					}, nil
+				}}, nil
+			}
+			return liveProvider{lister: func() ([]llm.ModelInfo, error) {
+				calls.Add(1)
+				return []llm.ModelInfo{
+					{ID: "gpt-4o", ContextWindow: 128000},
+					{ID: "gpt-5", ContextWindow: 400000},
+				}, nil
+			}}, nil
+		},
+	})
+	ts := httptest.NewServer(srv.handler())
 	defer ts.Close()
-	res, err := http.Get(ts.URL + "/api/models")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
+
 	var body struct {
 		Current string       `json:"current"`
 		Groups  []modelGroup `json:"groups"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
-		t.Fatal(err)
+	get := func() {
+		t.Helper()
+		res, err := http.Get(ts.URL + "/api/models")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
 	}
+	get()
 	if body.Current != "glm-4" {
 		t.Fatalf("current = %q", body.Current)
 	}
 	if len(body.Groups) == 0 || body.Groups[0].Provider != "zhipu" {
 		t.Fatalf("the active provider should lead: %+v", body.Groups)
 	}
-	var sawLearned, marked bool
+	rows := map[string]modelRow{}
 	for _, g := range body.Groups {
 		for _, m := range g.Models {
-			if m.Model == "qwen3-coder" {
-				sawLearned = true
-				if m.Context != 262144 {
-					t.Fatalf("learned context lost: %+v", m)
-				}
-			}
-			if m.Model == "glm-4" && m.Current {
-				marked = true
-			}
+			rows[m.Model] = m
 		}
 	}
-	if !sawLearned || !marked {
-		t.Fatalf("learned=%v marked=%v groups=%+v", sawLearned, marked, body.Groups)
+	if !rows["glm-4"].Current {
+		t.Fatalf("the current model wears the ✓: %+v", rows["glm-4"])
 	}
+	if rows["qwen3-coder"].Model != "qwen3-coder" {
+		t.Fatalf("learned metas stay listed: %+v", rows["qwen3-coder"])
+	}
+	// Live answers join their provider's group, and a fresher context
+	// window wins over the config's stale number.
+	if !rows["gpt-5"].Live {
+		t.Fatalf("gpt-5 came from the live sweep: %+v", rows["gpt-5"])
+	}
+	if rows["glm-4-plus"].Context != 200000 {
+		t.Fatalf("the live context should upgrade the stale one: %+v", rows["glm-4-plus"])
+	}
+	// The sweep runs once; the next read is cache. Two providers answer,
+	// so one sweep is two lister calls.
+	get()
+	if calls.Load() != 2 {
+		t.Fatalf("the live sweep ran %d lister calls for two reads", calls.Load())
+	}
+	// A provider that answers nothing and lists nothing has no group.
+	for _, g := range body.Groups {
+		if g.Provider == "anthropic" {
+			t.Fatalf("an empty provider should not get a group: %+v", g)
+		}
+	}
+}
+
+var errNoKeys = errors.New("no keys in the test")
+
+// liveProvider is a provider that only knows how to list: every other
+// method belongs to the embedded nil and would panic if called, which
+// the switcher never does.
+type liveProvider struct {
+	llm.Provider
+	lister func() ([]llm.ModelInfo, error)
+}
+
+func (p liveProvider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
+	return p.lister()
 }

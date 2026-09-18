@@ -17,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -256,6 +257,11 @@ func (r *root) webMode() error {
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
+		BuildProvider: func(name string) (llm.Provider, error) {
+			sub := *cfg
+			sub.Provider = name
+			return buildProvider(&sub)
+		},
 		Workspace: built.ws, CD: built.cd, MCP: mcpOpts, Skills: built.skillInjector,
 		Doctor: func(ctx context.Context, w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a

@@ -1,30 +1,40 @@
 package webui
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // The model switcher: what the header's model button opens. The list is
-// what the configuration already knows — the models each provider serves
-// plus the metas /connect learned — and the picker also accepts a name
-// nobody listed, which /model routes by family or prefix. Listing live
-// from every provider is the terminal wizard's job; the header answers
-// in a beat.
+// the union of everything the harness knows — the models each provider's
+// config lists, the metas /connect learned, and, freshly asked, what
+// every configured provider actually serves right now. A name nobody
+// listed is still switchable: /model routes it by family or prefix.
 
 type modelRow struct {
-	Model    string `json:"model"`
-	Context  int    `json:"context,omitempty"` // window in tokens, when known
-	Current  bool   `json:"current,omitempty"`
+	Model   string `json:"model"`
+	Context int    `json:"context,omitempty"` // window in tokens, when known
+	Current bool   `json:"current,omitempty"`
+	Live    bool   `json:"live,omitempty"` // listed from the provider just now
 }
 
 type modelGroup struct {
 	Provider string     `json:"provider"`
 	Models   []modelRow `json:"models"`
 }
+
+// modelsFresh is how long a live listing is served from cache: long
+// enough that opening the menu repeatedly never hammers the providers,
+// short enough that a model released this morning shows up before the
+// user thinks to ask.
+const modelsFresh = 5 * time.Minute
 
 func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
 	out := map[string]any{"provider": s.opts.Provider, "current": "", "groups": []modelGroup{}}
@@ -36,6 +46,155 @@ func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
 	}
 	current := ag.Settings().Model
 	out["current"] = current
+	if groups, ok := s.cachedOrLiveModels(current); ok {
+		out["groups"] = groups
+	} else {
+		out["groups"] = s.configKnownModels(cfg, current)
+	}
+	writeJSON(w, out)
+}
+
+// cachedOrLiveModels returns the merged list, fetching live ones when the
+// cache is stale. The bool is false when nothing could be fetched and
+// there is no cache to fall back on.
+func (s *server) cachedOrLiveModels(current string) ([]modelGroup, bool) {
+	s.modelsMu.Lock()
+	if time.Since(s.modelsAt) < modelsFresh && s.modelsCache != nil {
+		groups := s.modelsCache
+		s.modelsMu.Unlock()
+		return markCurrent(groups, current), true
+	}
+	if s.modelsFetching {
+		// A fetch is in flight (another menu opened a moment ago); stale
+		// beats two simultaneous provider sweeps.
+		groups := s.modelsCache
+		s.modelsMu.Unlock()
+		return markCurrent(groups, current), groups != nil
+	}
+	s.modelsFetching = true
+	s.modelsMu.Unlock()
+
+	groups := s.fetchLiveModels()
+
+	s.modelsMu.Lock()
+	s.modelsFetching = false
+	if groups != nil {
+		s.modelsCache = groups
+		s.modelsAt = time.Now()
+	}
+	s.modelsMu.Unlock()
+	if groups == nil {
+		return nil, false
+	}
+	return markCurrent(groups, current), true
+}
+
+// fetchLiveModels asks every configured provider what it serves, in
+// parallel, and merges the answers with the config's static knowledge.
+// Nil means nothing answered and there was nothing static to show.
+func (s *server) fetchLiveModels() []modelGroup {
+	cfg := s.opts.Config
+	names := make([]string, 0, len(cfg.Providers))
+	for name := range cfg.Providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	type answer struct {
+		rows []modelRow
+	}
+	ans := make([]answer, len(names))
+	if s.opts.BuildProvider != nil {
+		var wg sync.WaitGroup
+		for i, name := range names {
+			wg.Add(1)
+			go func(i int, name string) {
+				defer wg.Done()
+				prov, err := s.opts.BuildProvider(name)
+				if err != nil {
+					return
+				}
+				lister, ok := prov.(llm.ModelLister)
+				if !ok {
+					return
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+				defer cancel()
+				infos, err := lister.ListModels(ctx)
+				if err != nil {
+					return
+				}
+				for _, mi := range infos {
+					ans[i].rows = append(ans[i].rows, modelRow{Model: mi.ID, Context: mi.ContextWindow, Live: true})
+				}
+			}(i, name)
+		}
+		wg.Wait()
+	}
+	// Merge: start from the static lists, upgrade rows the live sweep
+	// confirmed (context, live mark), then add live rows that are new.
+	groups := s.configKnownModels(cfg, "")
+	byProvider := map[string]int{}
+	for i, g := range groups {
+		byProvider[g.Provider] = i
+	}
+	seen := map[string]bool{}
+	for _, g := range groups {
+		for _, m := range g.Models {
+			seen[m.Model] = true
+		}
+	}
+	for i, name := range names {
+		gi, ok := byProvider[name]
+		if !ok {
+			groups = append(groups, modelGroup{Provider: name})
+			gi = len(groups) - 1
+			byProvider[name] = gi
+		}
+		liveIDs := map[string]bool{}
+		for _, row := range ans[i].rows {
+			liveIDs[row.Model] = true
+		}
+		merged := groups[gi].Models[:0]
+		for _, m := range groups[gi].Models {
+			if liveIDs[m.Model] {
+				for _, live := range ans[i].rows {
+					if live.Model == m.Model {
+						live.Current = m.Current
+						m = live
+						break
+					}
+				}
+			}
+			merged = append(merged, m)
+		}
+		for _, live := range ans[i].rows {
+			if !seen[live.Model] {
+				merged = append(merged, live)
+				seen[live.Model] = true
+			}
+		}
+		groups[gi].Models = merged
+	}
+	for i := range groups {
+		sort.SliceStable(groups[i].Models, func(a, b int) bool { return groups[i].Models[a].Model < groups[i].Models[b].Model })
+	}
+	// A provider that listed nothing and configures nothing has no row
+	// to click; an empty group is a promise the menu cannot keep.
+	kept := groups[:0]
+	for _, g := range groups {
+		if len(g.Models) > 0 {
+			kept = append(kept, g)
+		}
+	}
+	groups = kept
+	sortGroups(groups, s.opts.Provider)
+	return groups
+}
+
+// configKnownModels is the list without any live asking: what providers
+// declare in the config plus the metas /connect learned. current may be
+// empty to leave every Current unset (merging marks it itself).
+func (s *server) configKnownModels(cfg *config.Config, current string) []modelGroup {
 	seen := map[string]bool{}
 	groups := []modelGroup{}
 	add := func(provider, model string) {
@@ -64,8 +223,6 @@ func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
 			add(name, m)
 		}
 	}
-	// Learned metas may name models no provider lists anymore; they are
-	// still switchable, under the provider the router would pick.
 	learned := make([]string, 0, len(cfg.Models))
 	for m := range cfg.Models {
 		learned = append(learned, m)
@@ -86,21 +243,39 @@ func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
 	}
 	for i := range groups {
 		sort.SliceStable(groups[i].Models, func(a, b int) bool { return groups[i].Models[a].Model < groups[i].Models[b].Model })
-		for j := range groups[i].Models {
-			groups[i].Models[j].Current = groups[i].Models[j].Model == current
-		}
 	}
+	sortGroups(groups, s.opts.Provider)
+	return groups
+}
+
+// sortGroups puts the active provider first; the rest are alphabetical.
+func sortGroups(groups []modelGroup, active string) {
 	sort.SliceStable(groups, func(i, j int) bool {
-		if groups[i].Provider == s.opts.Provider {
+		if groups[i].Provider == active {
 			return true
 		}
-		if groups[j].Provider == s.opts.Provider {
+		if groups[j].Provider == active {
 			return false
 		}
 		return groups[i].Provider < groups[j].Provider
 	})
-	out["groups"] = groups
-	writeJSON(w, out)
+}
+
+func markCurrent(groups []modelGroup, current string) []modelGroup {
+	if current == "" {
+		return groups
+	}
+	// A copy, not the cache in place: the ✓ moves with the model, and
+	// the cache must not remember who wore it last.
+	out := make([]modelGroup, len(groups))
+	for i, g := range groups {
+		out[i] = modelGroup{Provider: g.Provider, Models: make([]modelRow, len(g.Models))}
+		for j, m := range g.Models {
+			m.Current = m.Model == current
+			out[i].Models[j] = m
+		}
+	}
+	return out
 }
 
 // contextOf is the model's window in tokens when the config knows it.
