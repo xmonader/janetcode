@@ -144,8 +144,58 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function linkCards(text) {
-    const urls = [...new Set((String(text || "").match(/https?:\/\/[^\s)\]"'<>`]+/g) || []))]
+  // perfCardHTML and usageCardHTML draw the structured companions of
+  // /perf and /usage: the same numbers the text sheets print, as a
+  // stacked wall-clock bar and per-model rows.
+  function perfCardHTML(d) {
+    if (!d) return "";
+    const sliceCls = { model: "sl-model", tools: "sl-tools", you: "sl-you", harness: "sl-harness" };
+    const total = Math.max(d.open_ms, 1);
+    const bar = (d.slices || [])
+      .filter((s) => s.ms > 0)
+      .map((s) => `<span class="${sliceCls[s.name] || "sl-harness"}" style="flex:${Math.max(s.ms, 1)}" title="${esc(s.name)} ${esc(fmtDur(s.ms))}"></span>`)
+      .join("");
+    const rows = (d.slices || [])
+      .map((s) => {
+        const bits = [];
+        if (s.count) bits.push(`${s.count}×`);
+        bits.push(`${s.pct}% of the session`);
+        if (s.slowest_ms) bits.push(`slowest ${fmtDur(s.slowest_ms)}`);
+        return `<div class="crow"><span class="cbar ${sliceCls[s.name] || "sl-harness"}"></span>` +
+          `<b>${esc(s.name)}</b><span class="cms">${esc(fmtDur(s.ms))}</span>` +
+          `<span class="cnote">${esc(bits.join(" · "))}${s.note ? " — " + esc(s.note) : ""}</span></div>`;
+      })
+      .join("");
+    return (
+      `<div class="k">where the wall clock went</div>` +
+      `<div class="perfbar">${bar || `<span class="sl-harness" style="flex:1"></span>`}</div>` +
+      `<div class="perfmeta">open ${esc(fmtDur(d.open_ms))} · in turns ${esc(fmtDur(d.turn_ms))} (${Math.round((d.turn_ms / total) * 100)}%) · outside them ${esc(fmtDur(d.idle_ms))}</div>` +
+      rows
+    );
+  }
+
+  function usageCardHTML(d) {
+    if (!d) return "";
+    const maxTok = Math.max(1, ...(d.models || []).map((m) => m.in + m.cache_read + m.cache_write + m.out));
+    const rows = (d.models || [])
+      .map((m) => {
+        const all = m.in + m.cache_read + m.cache_write + m.out;
+        return `<div class="crow"><span class="cbar sl-model" style="width:${Math.max((all / maxTok) * 100, 2)}%"></span>` +
+          `<b>${esc(m.model)}</b><span class="cms">${m.calls} call${m.calls === 1 ? "" : "s"}</span>` +
+          `<span class="cnote">↑${fmtTok(m.in)} (⧉${fmtTok(m.cache_read + m.cache_write)}) ↓${fmtTok(m.out)}` +
+          (m.cost_usd ? ` · $${m.cost_usd.toFixed(4)}` : "") + `</span></div>`;
+      })
+      .join("");
+    const foot = [];
+    if (d.in + d.out) foot.push(`↑${fmtTok(d.in)} ↓${fmtTok(d.out)}${d.cache ? " · ⧉" + fmtTok(d.cache) : ""}`);
+    if (d.cache_pct) foot.push(`cache hit ${d.cache_pct}%`);
+    if (d.cost_usd) foot.push(`$${d.cost_usd.toFixed(4)} reported`);
+    else foot.push("unpriced");
+    if (d.ceiling) foot.push(`ceiling $${d.ceiling.toFixed(2)}`);
+    return `<div class="k">what the session spent</div>` + rows + `<div class="perfmeta">${esc(foot.join(" · "))}</div>`;
+  }
+
+  function linkCards(text) {    const urls = [...new Set((String(text || "").match(/https?:\/\/[^\s)\]"'<>`]+/g) || []))]
       .filter((u) => { try { new URL(u); return true; } catch (_) { return false; } })
       .slice(0, 4);
     if (!urls.length) return "";
@@ -200,6 +250,12 @@
         else openTools.add(e.id);
         render(latest.get(e.id));
       };
+    } else if (e.kind === "perf") {
+      n.className = "turn card";
+      n.innerHTML = perfCardHTML(e.data);
+    } else if (e.kind === "usage") {
+      n.className = "turn card";
+      n.innerHTML = usageCardHTML(e.data);
     } else if (e.kind === "sheet") {
       n.className = "turn sheet";
       n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="copy-btn sheet-copy" data-copy="${e.id}" title="Copy output">Copy</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;

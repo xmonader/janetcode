@@ -25,6 +25,10 @@ type entry struct {
 	Done    bool   `json:"done,omitempty"`
 	Running bool   `json:"running,omitempty"`
 	CallID  string `json:"call_id,omitempty"`
+	// Data is a structured payload for kinds the front-end renders as
+	// views of their own (perf, usage): the same numbers Text would
+	// carry, but drawable.
+	Data any `json:"data,omitempty"`
 }
 
 func (s *server) sheet(title, body string) {
@@ -33,6 +37,13 @@ func (s *server) sheet(title, body string) {
 		body = "(" + title + " is empty)"
 	}
 	s.add(entry{Kind: "sheet", Name: title, Text: body})
+}
+
+// card appends a structured entry: the payload rides as JSON and the
+// front-end draws it, the way the trajectory panel does, rather than as
+// a fixed-width text sheet.
+func (s *server) card(kind string, data any) {
+	s.add(entry{Kind: kind, Data: data})
 }
 
 func (s *server) notice(text string) {

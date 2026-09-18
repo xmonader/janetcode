@@ -147,11 +147,11 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/perf": func(s *server, arg string) (bool, error) {
-		s.sheet("perf", s.perfText())
+		s.card("perf", s.perfCard())
 		return false, nil
 	},
 	"/usage": func(s *server, arg string) (bool, error) {
-		s.sheet("usage", s.usageText())
+		s.card("usage", s.usageCard())
 		return false, nil
 	},
 	"/effort": func(s *server, arg string) (bool, error) {

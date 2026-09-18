@@ -1008,3 +1008,94 @@ func TestRunUsesAFreeExplicitPortAsAsked(t *testing.T) {
 		t.Fatal("Run never reported its URL")
 	}
 }
+
+// /perf and /usage answer as structured cards in the thread — the same
+// numbers the text sheets print, but a payload the front-end can draw.
+func TestPerfAndUsageAnswerAsCards(t *testing.T) {
+	ts, _ := testApp(t)
+	defer ts.Close()
+	post := func(text string) {
+		t.Helper()
+		body, _ := json.Marshal(map[string]string{"text": text})
+		res, err := http.Post(ts.URL+"/api/command", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != 200 {
+			t.Fatalf("%s: %d", text, res.StatusCode)
+		}
+	}
+	post("/perf")
+	post("/usage")
+	res, err := http.Get(ts.URL + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var st struct {
+		Entries []entry `json:"entries"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
+		t.Fatal(err)
+	}
+	var perf, usage *entry
+	for i := range st.Entries {
+		switch st.Entries[i].Kind {
+		case "perf":
+			perf = &st.Entries[i]
+		case "usage":
+			usage = &st.Entries[i]
+		}
+	}
+	if perf == nil || usage == nil {
+		t.Fatalf("entries = %+v", st.Entries)
+	}
+	data, err := json.Marshal(perf.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pc perfCard
+	if err := json.Unmarshal(data, &pc); err != nil {
+		t.Fatal(err)
+	}
+	if len(pc.Slices) != 4 {
+		t.Fatalf("perf slices = %+v", pc.Slices)
+	}
+	names := map[string]bool{}
+	for _, sl := range pc.Slices {
+		names[sl.Name] = true
+	}
+	for _, want := range []string{"model", "tools", "you", "harness"} {
+		if !names[want] {
+			t.Fatalf("perf slices miss %q: %+v", want, pc.Slices)
+		}
+	}
+	udata, err := json.Marshal(usage.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var uc usageCard
+	if err := json.Unmarshal(udata, &uc); err != nil {
+		t.Fatal(err)
+	}
+	if uc.Models == nil {
+		t.Fatalf("usage models should be an empty list, not nil: %+v", uc)
+	}
+}
+
+// The perf card's clock arithmetic, with the clock held still: the open
+// time is measured against openedAt, and the idle remainder cannot go
+// negative.
+func TestPerfCardMeasuresAgainstOpenedAt(t *testing.T) {
+	ag := &agent.Agent{Tools: tool.NewRegistry()}
+	s := newServer(context.Background(), Options{Agent: ag})
+	s.openedAt = time.Now().Add(-3 * time.Minute)
+	pc := s.perfCard()
+	if pc.OpenMs < 180_000 {
+		t.Fatalf("open = %dms, want ~3 minutes", pc.OpenMs)
+	}
+	if pc.IdleMs != pc.OpenMs-pc.TurnMs || pc.IdleMs < 0 {
+		t.Fatalf("idle = %d, open = %d, turn = %d", pc.IdleMs, pc.OpenMs, pc.TurnMs)
+	}
+}

@@ -891,6 +891,63 @@ pre.sheetbody {
   overflow-x: auto;
   white-space: pre;
 }
+
+/* Structured command cards: /perf's stacked wall-clock bar and /usage's
+   per-model rows. One row shape serves both — swatch, name, measure,
+   note. */
+.turn.card {
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 10px 14px 12px;
+}
+.turn.card .k {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.perfbar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.perfbar span { min-width: 3px; }
+.sl-model { background: var(--warn); }
+.sl-tools { background: var(--ok); }
+.sl-you { background: var(--blue); }
+.sl-harness { background: var(--line-strong); }
+.turn.card .cbar {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.turn.card .crow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.turn.card .crow b { min-width: 4.5rem; text-transform: none; }
+.turn.card .cms { font-family: var(--mono); font-size: 11px; color: var(--ink); white-space: nowrap; }
+.turn.card .cnote { color: var(--mute); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.perfmeta {
+  margin: 6px 0 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--faint);
+}
 .md tr:nth-child(even) td { background: var(--surface-2); }
 .copy-btn {
   margin-left: auto;
