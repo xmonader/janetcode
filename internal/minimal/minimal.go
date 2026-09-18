@@ -53,6 +53,7 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 	if err != nil {
 		return nil, err
 	}
+	ag.Prices = cfg.PriceFor
 	ag.Off = off
 	ag.Archive = archive
 	ag.System = prompt.SystemWith(root, override)

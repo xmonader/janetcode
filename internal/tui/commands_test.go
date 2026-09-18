@@ -1424,3 +1424,31 @@ func TestUsageCommandSplitsBySessionModel(t *testing.T) {
 		t.Fatalf("no cache hit rate:\n%s", v)
 	}
 }
+
+// The per-model rows carry what each model cost, and a session whose
+// models are priced differently is not billed at the session model's
+// rate. An unpriced model reads as unpriced, never as free.
+func TestUsageCommandPricesEachModel(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn,
+		Usage: llm.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000}})
+	ag := h.m.opts.Agent
+	ag.UpdateSettings(func(s *agent.Settings) { s.Price = &llm.Price{Input: 10, Output: 30} })
+	ag.Prices = func(model string) *llm.Price {
+		if model == ag.Settings().Model {
+			return &llm.Price{Input: 10, Output: 30}
+		}
+		return nil
+	}
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.keys("/usage")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "$40") {
+		t.Fatalf("no per-model cost:\n%s", v)
+	}
+	if !strings.Contains(v, "est.") {
+		t.Fatalf("a list-price figure is not marked as an estimate:\n%s", v)
+	}
+}

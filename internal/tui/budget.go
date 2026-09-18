@@ -41,7 +41,7 @@ func (m *model) budgetCommand(arg string) {
 		a.SetMaxCost(usd)
 		line := "cost budget " + m.budgetStatus() + " · the session stops when it crosses that, give or take the model call in flight"
 		snap := a.UsageSnapshot()
-		if _, known := snap.Cost(a.Settings().Price); !known && snap.InputTokens+snap.OutputTokens > 0 {
+		if _, _, _, known := a.SessionCost(); !known && snap.InputTokens+snap.OutputTokens > 0 {
 			// A ceiling measured against an unknown spend never fires,
 			// and silently doing nothing is the worst way to say so.
 			// Only once there has been a call, though: before the first
@@ -64,7 +64,7 @@ func (m *model) budgetCommand(arg string) {
 func (m *model) budgetStatus() string {
 	a := m.opts.Agent
 	s := llm.FormatUSDPrecise(a.MaxCost())
-	if spent, known := a.UsageSnapshot().Cost(a.Settings().Price); known {
+	if spent, _, _, known := a.SessionCost(); known {
 		s = llm.FormatUSDPrecise(spent) + " of " + s
 	}
 	return s

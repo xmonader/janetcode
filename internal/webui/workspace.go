@@ -182,7 +182,7 @@ func (s *server) workspace() workspace {
 			ws.Ptc = append(ws.Ptc, ptcSummary(run))
 		}
 	}
-	if usd, ok := ag.UsageSnapshot().Cost(ag.Settings().Price); ok {
+	if usd, _, _, ok := ag.SessionCost(); ok {
 		ws.Cost = llm.FormatUSD(usd)
 	}
 	est := ag.EstimateTokens()

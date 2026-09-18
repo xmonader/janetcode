@@ -32,6 +32,11 @@ type turnMonitor struct {
 	Usage llm.Usage
 	// turnUse is what the turn in progress has cost so far.
 	turnUse llm.Usage
+	// Prices, when set, is the rate for any model by name — the config's
+	// "prices" and the rate table behind it. Settings.Price covers only
+	// the model the session is set to, which is not the only one it pays
+	// for. Nil means only that model can be priced.
+	Prices func(model string) *llm.Price
 	// byModel splits Usage by the model that served each call, so a
 	// session that routed, fell back, asked an advisor or delegated can
 	// say which model spent what. Guarded by usageMu with the rest.

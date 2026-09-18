@@ -46,7 +46,7 @@ func TestUsageIsSplitByTheModelThatServedTheCall(t *testing.T) {
 	if sum != total {
 		t.Fatalf("the per-model split %+v does not add up to %+v", sum, total)
 	}
-	out := FormatUsageByModel(rows)
+	out := FormatUsageByModel(rows, a.PriceOf)
 	if !strings.Contains(out, "per model") || !strings.Contains(out, "big ") || !strings.Contains(out, "3 calls") {
 		t.Fatalf("rendered:\n%s", out)
 	}
@@ -58,5 +58,58 @@ func TestUsageIsSplitByTheModelThatServedTheCall(t *testing.T) {
 	}
 	if strings.Contains(out, "cache hit 0%") {
 		t.Fatalf("a model with no cache was given a rate:\n%s", out)
+	}
+}
+
+// A session pays several models at several rates: pricing all of its
+// tokens at the session model's rate — which every cost view used to do —
+// bills a cheap subagent's work at the expensive model's price, and an
+// expensive fallback at the cheap one's.
+func TestSessionCostIsPricedModelByModel(t *testing.T) {
+	a := &Agent{}
+	a.UpdateSettings(func(s *Settings) {
+		s.Model = "big"
+		s.Price = &llm.Price{Input: 10, Output: 30} // per million
+	})
+	a.Prices = func(model string) *llm.Price {
+		switch model {
+		case "big":
+			return &llm.Price{Input: 10, Output: 30}
+		case "small":
+			return &llm.Price{Input: 1, Output: 2}
+		}
+		return nil
+	}
+	a.addUsage("big", llm.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000})     // $40
+	a.addSideUsage("small", llm.Usage{InputTokens: 1_000_000, OutputTokens: 500_000}) // $2
+	usd, source, unpriced, known := a.SessionCost()
+	if !known || len(unpriced) != 0 || source != "list price" {
+		t.Fatalf("cost = %v %q unpriced=%v known=%v", usd, source, unpriced, known)
+	}
+	if usd != 42 {
+		t.Fatalf("cost = %v, want 42 (40 on big, 2 on small)", usd)
+	}
+	// The old whole-session figure, for comparison: every token at big's
+	// rate is $65, half as much again as was actually spent.
+	if flat, _ := a.UsageSnapshot().Cost(a.Settings().Price); flat != 65 {
+		t.Fatalf("flat figure = %v", flat)
+	}
+
+	// A model nothing prices is named, not counted as free.
+	a.addUsage("mystery", llm.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000})
+	usd, _, unpriced, known = a.SessionCost()
+	if !known || usd != 42 || len(unpriced) != 1 || unpriced[0] != "mystery" {
+		t.Fatalf("cost = %v unpriced = %v", usd, unpriced)
+	}
+	if note := a.CostNote(); !strings.Contains(note, "not counted: mystery") {
+		t.Fatalf("note = %q", note)
+	}
+
+	// A provider that reports its own cost is used as reported, per model.
+	b := &Agent{}
+	b.addUsage("reported-model", llm.Usage{InputTokens: 10, CostUSD: 0.25})
+	usd, source, _, known = b.SessionCost()
+	if !known || source != "reported" || usd != 0.25 {
+		t.Fatalf("reported cost = %v %q known=%v", usd, source, known)
 	}
 }

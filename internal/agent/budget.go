@@ -32,7 +32,10 @@ func (a *Agent) overBudget() (spent float64, over bool) {
 	if ceiling <= 0 {
 		return 0, false
 	}
-	usd, ok := a.UsageSnapshot().Cost(a.Settings().Price)
+	// Priced model by model: a ceiling measured at the session model's
+	// rate over tokens a cheap subagent spent is not the spend it is
+	// bounding.
+	usd, _, _, ok := a.SessionCost()
 	if !ok {
 		return 0, false
 	}

@@ -402,6 +402,10 @@ func (b *agentBuilder) stepCore() error {
 	ag.Root = d.cwd
 	ag.Files = b.files
 	ag.AdvisorModel = d.cfg.AdvisorModel
+	// Every model the session pays for, not only the one it is set to: a
+	// fallback, a routed cheap call, an advisor and a subagent each have
+	// their own rate, and the cost views add them up per model.
+	ag.Prices = d.cfg.PriceFor
 	ag.Off = b.off
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = b.sb
