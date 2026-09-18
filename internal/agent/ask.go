@@ -48,6 +48,12 @@ type AskFunc func(ctx context.Context, qs []Question) ([]Answer, error)
 
 func (f AskFunc) Ask(ctx context.Context, qs []Question) ([]Answer, error) { return f(ctx, qs) }
 
+// askShape is appended to every rejection: a tool error that says only
+// what is wrong gets the same call again, one that shows the right call
+// gets a fixed one.
+const askShape = `Every entry in "questions" is one question with its own choices nested inside it: ` +
+	`{"questions":[{"prompt":"Ready to implement?","options":[{"label":"Go ahead","description":"..."},{"label":"Tweak something","description":"..."}]}]}`
+
 // AskTool lets the model put a labeled question in front of the user.
 type AskTool struct{ Parent *Agent }
 
@@ -71,7 +77,11 @@ func (*AskTool) Schema() json.RawMessage {
 func (t *AskTool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Questions []struct {
-			Prompt  string      `json:"prompt"`
+			Prompt string `json:"prompt"`
+			// Label is not part of the schema; it is here to recognise the
+			// call that puts the options themselves in "questions", so the
+			// error can show the shape instead of only what is missing.
+			Label   string      `json:"label"`
 			Options []AskOption `json:"options"`
 		} `json:"questions"`
 	}
@@ -85,7 +95,11 @@ func (t *AskTool) Run(ctx context.Context, input json.RawMessage) (string, error
 	for i, q := range in.Questions {
 		prompt := strings.TrimSpace(q.Prompt)
 		if prompt == "" {
-			return "", fmt.Errorf("question %d has no prompt", i+1)
+			if strings.TrimSpace(q.Label) != "" {
+				return "", fmt.Errorf("question %d is an option, not a question: %q belongs in that question's \"options\". %s",
+					i+1, strings.TrimSpace(q.Label), askShape)
+			}
+			return "", fmt.Errorf("question %d has no prompt. %s", i+1, askShape)
 		}
 		var opts []AskOption
 		seen := map[string]bool{}
@@ -101,7 +115,7 @@ func (t *AskTool) Run(ctx context.Context, input json.RawMessage) (string, error
 			opts = append(opts, AskOption{Label: lab, Description: strings.TrimSpace(o.Description)})
 		}
 		if len(opts) < 2 {
-			return "", fmt.Errorf("question %d needs at least two options", i+1)
+			return "", fmt.Errorf("question %d needs at least two options. %s", i+1, askShape)
 		}
 		if len(opts) > 4 {
 			opts = opts[:4]

@@ -36,3 +36,22 @@ func TestAskToolNeedsSomeoneToAnswer(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// A recorded session: the model put the *options* in the questions array
+// and got back "question 1 has no prompt", which says what is missing but
+// not what the shape should be, so it tried the same thing again. The
+// error now shows the call it should have made.
+func TestAskExplainsTheShapeWhenOptionsArePassedAsQuestions(t *testing.T) {
+	tl := &AskTool{}
+	_, err := tl.Run(context.Background(), json.RawMessage(`{"questions":[
+		{"label":"Go ahead","description":"Create both files and run the tests"},
+		{"label":"Tweak something","description":"I want to adjust the design first"}]}`))
+	if err == nil {
+		t.Fatal("accepted options as questions")
+	}
+	for _, want := range []string{"prompt", "options", "label"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("the error does not show the shape (%q missing): %v", want, err)
+		}
+	}
+}
