@@ -211,3 +211,33 @@ func TestFoldTodosIgnoresOtherEvents(t *testing.T) {
 		t.Fatalf("fold = %+v", got)
 	}
 }
+
+// On a recorded session the model had six of seven steps done and then
+// wrote the whole plan again from scratch, reworded and all pending. The
+// tool took it, and the progress the user was watching disappeared.
+func TestAPlanIsNotResetMidTask(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	todo := &TodoTool{Parent: a}
+	first := `{"todos":[{"text":"write the package","status":"completed"},{"text":"write the CLI","status":"completed"},{"text":"run the example suite","status":"in_progress"}]}`
+	if _, err := todo.Run(context.Background(), json.RawMessage(first)); err != nil {
+		t.Fatal(err)
+	}
+	reset := `{"todos":[{"text":"create project structure","status":"pending"},{"text":"create the runner","status":"pending"},{"text":"verify it works","status":"pending"}]}`
+	_, err := todo.Run(context.Background(), json.RawMessage(reset))
+	if err == nil || !strings.Contains(err.Error(), "2 of 3 done") {
+		t.Fatalf("err = %v", err)
+	}
+	if got := len(a.Todos()); got != 3 || countDone(a.Todos()) != 2 {
+		t.Fatalf("the plan was overwritten anyway: %+v", a.Todos())
+	}
+	// The same rewrite, keeping what was finished, goes through.
+	kept := `{"todos":[{"text":"write the package","status":"completed"},{"text":"write the CLI","status":"completed"},{"text":"verify it works","status":"in_progress"}]}`
+	if _, err := todo.Run(context.Background(), json.RawMessage(kept)); err != nil {
+		t.Fatalf("a rewrite that keeps the finished steps: %v", err)
+	}
+	// A new turn starts a new task, and a fresh plan there is ordinary.
+	a.turnN = 2
+	if _, err := todo.Run(context.Background(), json.RawMessage(reset)); err != nil {
+		t.Fatalf("a fresh plan in a new turn: %v", err)
+	}
+}

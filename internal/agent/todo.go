@@ -63,6 +63,33 @@ func (a *Agent) Todos() []Todo {
 	return FoldTodos(a.Log.Events())
 }
 
+// todosWrittenThisTurn reports whether the plan now in force was written
+// during the turn that is running.
+func (a *Agent) todosWrittenThisTurn() bool {
+	if a.Log == nil {
+		return false
+	}
+	for _, e := range a.Log.Events() {
+		if e.Type == session.TypeTodoWrite {
+			if e.Turn == a.turnN {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// countDone is how many steps of a plan are finished.
+func countDone(todos []Todo) int {
+	n := 0
+	for _, t := range todos {
+		if t.Done() {
+			n++
+		}
+	}
+	return n
+}
+
 // noPlan is what a read of an empty plan says, and what PlanDelta takes
 // as "there was nothing here before".
 const noPlan = "no plan has been written"
@@ -134,6 +161,20 @@ func (t *TodoTool) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
+	// A plan rewritten from scratch in the middle of the turn that filled
+	// it in loses what was finished. On a recorded session the model
+	// replaced a plan with six of seven steps done with seven fresh
+	// pending ones, under new wording, and the work it had already done
+	// vanished from the plan the user was watching. Between turns this is
+	// ordinary — a new request gets a new plan — so only the same turn is
+	// refused, and only a list no shorter than the one it replaces:
+	// cutting a plan down to fewer steps is narrowing it, which is the
+	// model's to do.
+	current := t.Parent.Todos()
+	if done := countDone(current); done > 0 && len(todos) >= len(current) && countDone(todos) == 0 && t.Parent.todosWrittenThisTurn() {
+		return "", fmt.Errorf("this rewrite marks none of its steps completed, but the plan you are working from has %d of %d done; rewriting it from scratch mid-task loses that. Keep the finished steps (call todo with no todos to read the plan back), or mark the new list's finished work completed", done, len(current))
+	}
+
 	// The model rewrites the whole plan on every status change, and
 	// answering with the whole plan every time puts the same seven lines
 	// in the context seven times over. It already knows what it wrote;
@@ -141,7 +182,7 @@ func (t *TodoTool) Run(_ context.Context, input json.RawMessage) (string, error)
 	// leaves the work. The plan whole on creation, the changed steps and
 	// the tally after that, and the whole plan whenever it is asked for
 	// by calling with no todos.
-	prev := RenderTodos(t.Parent.Todos())
+	prev := RenderTodos(current)
 	t.Parent.WriteTodos(todos)
 	return PlanDelta(prev, RenderTodos(todos)), nil
 }
