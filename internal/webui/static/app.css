@@ -966,6 +966,38 @@ pre.sheetbody {
 .turn:hover .copy-btn { opacity: 1; }
 .copy-btn:hover { color: var(--blue); border-color: var(--blue-soft-border); background: var(--blue-soft); }
 #sessions li[data-id] { cursor: pointer; }
+.session-filter {
+  width: 100%;
+  margin: 0 0 4px;
+  border: 0.5px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  padding: 4px 8px;
+}
+#sessions .sess-group {
+  margin: 8px 0 2px;
+  padding-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  cursor: default;
+}
+#sessions .sess-group:hover { background: transparent; }
+
+/* One focus ring and one hover language, so every control answers the
+   keyboard and the pointer the same way. Reduced-motion users get the
+   global override at the foot of the sheet. */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+button, .chip, .icon-btn, .traj-row, #sessions li[data-id], .link-card {
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
 .ac {
   position: absolute;
   bottom: 100%;

@@ -600,6 +600,23 @@
       if (palette.hidden) openPalette(); else closePalette();
     }
   });
+  // Vi-style scrolling when the keyboard is not in a field: j/k step the
+  // thread, g/G jump to its ends. Every key still belongs to whatever
+  // field is focused — this only answers for the bare keyboard.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable)) return;
+    if (!palette.hidden) return;
+    const thread = document.querySelector(".thread");
+    if (!thread) return;
+    if (ev.key === "j") thread.scrollBy({ top: 72 });
+    else if (ev.key === "k") thread.scrollBy({ top: -72 });
+    else if (ev.key === "g") thread.scrollTop = 0;
+    else if (ev.key === "G") thread.scrollTop = thread.scrollHeight;
+    else return;
+    ev.preventDefault();
+  });
   paletteQ.addEventListener("input", () => { palIdx = 0; drawPalette(paletteQ.value); });
   paletteQ.addEventListener("keydown", async (ev) => {
     if (ev.key === "Escape") { ev.preventDefault(); closePalette(); }
@@ -682,16 +699,60 @@
     if (s < 86400) return Math.floor(s / 3600) + "h ago";
     return Math.floor(s / 86400) + "d ago";
   }
+
+  function dayBucket(iso) {
+    const t = Date.parse((iso || "").replace(" ", "T"));
+    if (!t) return "Older";
+    const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diff = Math.round((day(new Date()) - day(new Date(t))) / 86400000);
+    if (diff <= 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    if (diff < 7) return diff + " days ago";
+    return "Older";
+  }
+
+  // renderSessions paints the rail grouped by day, filtered by the rail's
+  // search field. Forks keep their indentation under the session they
+  // branched from; the filter keeps a group header when any of its rows
+  // match.
+  function renderSessions(rows, filter) {
+    const ul = document.getElementById("sessions");
+    const q = (filter || "").trim().toLowerCase();
+    const match = (r) =>
+      !q ||
+      (r.label || "").toLowerCase().includes(q) ||
+      (r.id || "").toLowerCase().includes(q) ||
+      (r.note || "").toLowerCase().includes(q);
+    const kept = rows.filter(match).slice(0, 40);
+    if (!kept.length) {
+      ul.innerHTML = `<li class="quiet">${q ? "Nothing matches" : "No other sessions"}</li>`;
+      return;
+    }
+    const order = ["Today", "Yesterday", "2 days ago", "3 days ago", "4 days ago", "5 days ago", "6 days ago", "Older"];
+    const seen = new Set();
+    const parts = [];
+    for (const r of kept) {
+      const b = dayBucket(r.updated);
+      if (!seen.has(b)) {
+        seen.add(b);
+        parts.push(`<li class="sess-group">${esc(b)}</li>`);
+      }
+      parts.push(
+        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span></li>`
+      );
+    }
+    ul.innerHTML = parts.join("");
+  }
+
   async function loadSessions() {
     try {
       const rows = await (await fetch("/api/sessions")).json();
-      const ul = document.getElementById("sessions");
-      if (!rows.length) { ul.innerHTML = `<li class="quiet">No other sessions</li>`; return; }
-      ul.innerHTML = rows.slice(0, 40).map((r) =>
-        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span></li>`
-      ).join("");
+      renderSessions(rows, sessionFilter.value);
     } catch (_) {}
   }
+
+  const sessionFilter = document.getElementById("session-filter");
+  sessionFilter.addEventListener("input", loadSessions);
 
   document.getElementById("sessions").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-id]");
