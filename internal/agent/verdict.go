@@ -320,6 +320,9 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	failedBefore := map[string]bool{}
 	var lastText string
 	testsEdited := map[string]bool{}
+	// Files written for the first time in this turn: what they hold is
+	// this turn's work, not something that was already there.
+	createdHere := map[string]bool{}
 	acceptWriting := false
 	// The latest run of each check command in this turn, in the order
 	// each command last ran.
@@ -385,6 +388,10 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
 			if d := gamingDelta(e.Name, e.Arguments); d.Path != "" {
+				if e.Name == "write_file" && strings.HasPrefix(e.Output, "Created ") {
+					createdHere[d.Path] = true
+				}
+				d.Created = createdHere[d.Path]
 				deltas = append(deltas, d)
 			}
 		case e.Name == "bash":

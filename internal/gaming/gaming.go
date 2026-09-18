@@ -26,6 +26,9 @@ type Delta struct {
 	Path    string
 	Added   []string
 	Removed []string
+	// Created reports that this file was written for the first time in
+	// the same turn, so nothing in it predates the turn.
+	Created bool
 }
 
 // Scan reports at most one signal per (file, kind).
@@ -102,7 +105,11 @@ func scanCallCount(d Delta, add func(Signal)) {
 }
 
 func scanRewrittenExpect(d Delta, add func(Signal)) {
-	if !isTestPath(d.Path) {
+	// A file written for the first time in this turn has no existing
+	// expectation to rewrite. A recorded session was accused of gaming
+	// for correcting TypeError to ValueError in an example suite it had
+	// written four minutes earlier — the assertion was simply wrong.
+	if !isTestPath(d.Path) || d.Created {
 		return
 	}
 	for _, line := range d.Removed {

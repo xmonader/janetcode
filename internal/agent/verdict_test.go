@@ -627,3 +627,25 @@ func TestARedSuiteStillCountsAsTested(t *testing.T) {
 		t.Fatalf("verdict = %q, want the red check to still fail the turn", got.Verdict)
 	}
 }
+
+// The recorded mutest session wrote an example suite, ran it, and found
+// one of its own assertions wrong: int("x") raises ValueError, not
+// TypeError. Correcting it was reported as gaming — "an existing test's
+// expectation was changed" — for a test four minutes old.
+func TestFixingATestWrittenThisTurnIsNotGaming(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"tests/test_examples.py","content":"assert_raises(TypeError, int, \"x\")"}`,
+			"Created tests/test_examples.py (104 lines)", false),
+		result(1, "edit_file", `{"path":"tests/test_examples.py","old_string":"assert_raises(TypeError, int, \"x\")","new_string":"assert_raises(ValueError, int, \"x\")"}`,
+			"Edited tests/test_examples.py", false),
+		result(1, "bash", `{"command":".venv/bin/mutest tests/"}`, "12 passed\n[exit code 0]", false),
+	}
+	if got := FoldOutcomeIn(ev, 1, ""); len(got.Gaming) != 0 {
+		t.Fatalf("gaming = %v", got.Gaming)
+	}
+	// An expectation in a file that predates the turn is still reported.
+	ev[0] = result(1, "bash", `{"command":"ls"}`, "", false)
+	if got := FoldOutcomeIn(ev, 1, ""); len(got.Gaming) != 1 {
+		t.Fatalf("gaming = %v, want the untouched detector to still fire", got.Gaming)
+	}
+}
