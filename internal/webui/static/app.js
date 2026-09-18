@@ -201,6 +201,24 @@
     return `<div class="k">what the session spent</div>` + rows + `<div class="perfmeta">${esc(foot.join(" · "))}</div>`;
   }
 
+  // outputHTML renders a tool result's body: highlighted when the tool
+  // was reading a file whose language we know, plain otherwise. A long
+  // output stays plain — the tokenizer is fast, but not on a megabyte.
+  function outputHTML(e) {
+    const lang = langOf(e.name || "", e.summary || "");
+    if (lang && e.output.length < 200_000) return highlight(e.output, lang);
+    return esc(e.output);
+  }
+
+  const CODE_EXT = /\.(py|go|js|mjs|ts|tsx|jsx|rs|java|c|h|cpp|hpp|cs|rb|php|sh|bash|sql|yaml|yml|json|toml|html|css|scss|lua|swift|kt|kts|scala)(\W|$)/;
+
+  function langOf(name, summary) {
+    const m = CODE_EXT.exec(summary || "");
+    if (m) return m[1] === "mjs" ? "js" : m[1];
+    if (name === "bash" || name === "shell" || name === "run") return "sh";
+    return "";
+  }
+
   function linkCards(text) {    const urls = [...new Set((String(text || "").match(/https?:\/\/[^\s)\]"'<>`]+/g) || []))]
       .filter((u) => { try { new URL(u); return true; } catch (_) { return false; } })
       .slice(0, 4);
@@ -248,7 +266,7 @@
       const open = openTools.has(e.id);
       let html = `<div class="tool ${stCls}"><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
       if (open && e.preview) html += `<pre class="diff">${diffHTML(e.preview)}</pre>`;
-      if (open && e.output) html += `<pre class="out">${esc(e.output)}</pre>`;
+      if (open && e.output) html += `<pre class="out">${outputHTML(e)}</pre>`;
       html += `</div>`;
       n.innerHTML = html;
       n.querySelector(".head").onclick = () => {
