@@ -109,35 +109,12 @@ func (m *model) trajectoryCommand(args []string) {
 		m.transcript.errorf("no session")
 		return
 	}
-	ev := m.sessionEvents()
-	if len(args) > 0 && args[0] == "raw" {
-		m.transcript.info(rawTrajectory(ev))
-		return
-	}
-	out, ok := trajectory.Command(ev, args, max(40, m.width-4-m.gutter()))
+	out, ok := trajectory.Command(m.sessionEvents(), args, max(40, m.width-4-m.gutter()))
 	if !ok {
 		m.transcript.errorf("%s", out)
 		return
 	}
 	m.transcript.info(out)
-}
-
-// rawTrajectory is the unfolded log: one line per event, as it is on
-// disk, with the surface classification that says whether the model
-// still sees it.
-func rawTrajectory(ev []session.Event) string {
-	if len(ev) == 0 {
-		return "no trajectory events yet: no turn has run"
-	}
-	hidden := session.Shadowed(ev)
-	var sb strings.Builder
-	sb.WriteString("seq  turn/step  type                 name        dur    surface\n")
-	for _, e := range ev {
-		k := session.ClassifyWith(hidden, e)
-		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type,
-			textfmt.Clip(e.Name, 11), textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), k)
-	}
-	return strings.TrimRight(sb.String(), "\n")
 }
 
 // whyCommand explains the last thing the harness did on its own. It

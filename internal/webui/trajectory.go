@@ -1,7 +1,6 @@
 package webui
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -120,10 +119,6 @@ func (s *server) trajectory(arg string) {
 	}
 	ev := s.sess().Events()
 	args := strings.Fields(arg)
-	if len(args) > 0 && args[0] == "raw" {
-		s.sheet("trajectory · raw", rawTrajectory(ev))
-		return
-	}
 	out, ok := trajectory.Command(ev, args, trajSheetWidth)
 	if !ok {
 		s.errf("%s", out)
@@ -141,22 +136,8 @@ func (s *server) trajectory(arg string) {
 // fixed width, so one is chosen rather than guessed at per client.
 const trajSheetWidth = 110
 
-// rawTrajectory is the unfolded log, one line per event as it is on
-// disk: what to read when the ledger itself is what looks wrong.
-func rawTrajectory(ev []session.Event) string {
-	if len(ev) == 0 {
-		return "no trajectory events yet: no turn has run"
-	}
-	hidden := session.Shadowed(ev)
-	var sb strings.Builder
-	sb.WriteString("seq  turn/step  type                 name        dur    surface\n")
-	for _, e := range ev {
-		k := session.ClassifyWith(hidden, e)
-		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type,
-			textfmt.Clip(e.Name, 11), textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), k)
-	}
-	return strings.TrimRight(sb.String(), "\n")
-}
+// trajKind maps an event type to the short kind name the trajectory
+// view colors by.
 func trajKind(t string) string {
 	switch t {
 	case session.TypeUserMessage:

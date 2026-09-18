@@ -1,10 +1,13 @@
 package trajectory
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Help is what /trajectory accepts, worded once so both front-ends
@@ -66,6 +69,8 @@ func Command(events []session.Event, args []string, width int) (string, bool) {
 			return "usage: /trajectory grep <words>", false
 		}
 		return FormatSearch(Search(l, q), q, width), true
+	case "raw":
+		return Raw(events), true
 	case "help", "?":
 		return Help, true
 	}
@@ -73,4 +78,22 @@ func Command(events []session.Event, args []string, width int) (string, bool) {
 		return Inspect(l, n), true
 	}
 	return "unknown: /trajectory " + strings.Join(args, " ") + "\n\n" + Help, false
+}
+
+// Raw is the unfolded log, one line per event as it is on disk, with
+// the surface classification that says whether the model still sees it:
+// what to read when the ledger itself is what looks wrong.
+func Raw(events []session.Event) string {
+	if len(events) == 0 {
+		return "no trajectory events yet: no turn has run"
+	}
+	hidden := session.Shadowed(events)
+	var sb strings.Builder
+	sb.WriteString("seq  turn/step  type                 name        dur    surface\n")
+	for _, e := range events {
+		k := session.ClassifyWith(hidden, e)
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type,
+			textfmt.Clip(e.Name, 11), textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), k)
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }

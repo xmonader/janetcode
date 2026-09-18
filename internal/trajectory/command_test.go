@@ -25,6 +25,7 @@ func TestCommandDispatch(t *testing.T) {
 		{[]string{"slow", "x"}, "takes a count", false},
 		{[]string{"grep", "gofmt"}, "1 record matching", true},
 		{[]string{"grep"}, "usage:", false},
+		{[]string{"raw"}, "turn/step", true},
 		{[]string{"2"}, "#2", true},
 		{[]string{"999"}, "no record #999", true},
 		{[]string{"help"}, "/trajectory slow", true},
