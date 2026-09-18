@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -125,7 +126,9 @@ func (t *AskTool) Run(ctx context.Context, input json.RawMessage) (string, error
 	if t.Parent == nil || t.Parent.Asker == nil {
 		return "", fmt.Errorf("nobody is there to answer: the session is not interactive")
 	}
+	asked := time.Now()
 	ans, err := t.Parent.Asker.Ask(ctx, qs)
+	t.Parent.waited(ctx, time.Since(asked))
 	if err != nil {
 		return "", err
 	}

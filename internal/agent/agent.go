@@ -345,6 +345,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		return errors.New("no provider")
 	}
 	maxIter := a.openTurn(ctx, blocks, emit)
+	turnBegan := time.Now()
+	defer func() { a.stats.turnTook(time.Since(turnBegan)) }()
 	defer a.endTurn(ctx)
 	// A note typed with ctrl+s reaches the model before the turn's next
 	// call. A turn that ends with its final answer has no next call, so

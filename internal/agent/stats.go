@@ -17,6 +17,17 @@ type Stats struct {
 	ModelCalls  int           // requests sent to the provider
 	ModelErrors int           // requests that failed (before any retry)
 	ModelTime   time.Duration // wall time spent waiting on the provider
+	// TurnTime is wall time inside Run: everything between a turn
+	// starting and it ending. The session is open for longer than this,
+	// and the difference is the user reading and typing — a report that
+	// does not separate the two blames the harness for both.
+	TurnTime time.Duration
+	// WaitTime is the part of TurnTime spent blocked on the user (a
+	// permission prompt, a question from the ask tool), and WaitCount
+	// how many such blocks there were. It is deducted from the tool
+	// call it happened inside, so tool time means work done.
+	WaitTime    time.Duration
+	WaitCount   int
 	Compactions int
 	// Recoveries counts tool calls parsed back out of assistant text
 	// (see Agent.recoverToolCalls) — turns a model would otherwise have
@@ -60,7 +71,11 @@ type ModelStat struct {
 	Calls  int
 	Errors int
 	Time   time.Duration
-	Usage  llm.Usage
+	// Slowest is the longest single call. An average hides the shape of
+	// provider latency, which on some providers is the whole story: ten
+	// fast calls and one that took two minutes average out to "fine".
+	Slowest time.Duration
+	Usage   llm.Usage
 }
 
 // RouteLine is "routed N of M model calls to <cheap>", worded once so
@@ -90,10 +105,11 @@ func (s Stats) PromptLine() string {
 
 // ToolStat is the tally for one tool.
 type ToolStat struct {
-	Name   string
-	Calls  int
-	Errors int
-	Time   time.Duration
+	Name    string
+	Calls   int
+	Errors  int
+	Time    time.Duration
+	Slowest time.Duration // the longest single call, for the same reason as ModelStat.Slowest
 }
 
 // ToolCalls is the total across tools.
@@ -139,6 +155,9 @@ func (c *statsCounter) model(name string, d time.Duration, u llm.Usage, failed b
 	}
 	m.Calls++
 	m.Time += d
+	if d > m.Slowest {
+		m.Slowest = d
+	}
 	if failed {
 		m.Errors++
 	} else {
@@ -152,6 +171,27 @@ func (c *statsCounter) model(name string, d time.Duration, u llm.Usage, failed b
 func (c *statsCounter) routed() {
 	c.mu.Lock()
 	c.s.RoutedCalls++
+	c.mu.Unlock()
+}
+
+// turnTook records one finished turn's wall time.
+func (c *statsCounter) turnTook(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	c.mu.Lock()
+	c.s.TurnTime += d
+	c.mu.Unlock()
+}
+
+// waited records time the harness spent blocked on the user.
+func (c *statsCounter) waited(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	c.mu.Lock()
+	c.s.WaitTime += d
+	c.s.WaitCount++
 	c.mu.Unlock()
 }
 
@@ -214,7 +254,13 @@ func (c *statsCounter) tool(name string, d time.Duration, failed bool) {
 		c.tools[name] = t
 	}
 	t.Calls++
+	if d < 0 {
+		d = 0 // a call that was nothing but a prompt: the wait was all of it
+	}
 	t.Time += d
+	if d > t.Slowest {
+		t.Slowest = d
+	}
 	if failed {
 		t.Errors++
 	}

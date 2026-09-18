@@ -145,8 +145,12 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 // context cancellation; tool failures come back as (message, true, nil).
 func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (string, []llm.Block, bool, error) {
 	start := time.Now()
+	// A permission prompt blocks inside the call, so the time the user
+	// took to answer would otherwise be charged to the tool. The meter
+	// rides on the context because tool calls can run concurrently.
+	ctx, wait := meterWaits(ctx)
 	out, images, isErr, err := a.executeTool(ctx, u, emit)
-	a.stats.tool(u.Name, time.Since(start), isErr || err != nil)
+	a.stats.tool(u.Name, time.Since(start)-wait.total(), isErr || err != nil)
 	return out, images, isErr, err
 }
 
@@ -351,6 +355,7 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 		chosen string
 		err    error
 	)
+	asked := time.Now()
 	switch ap := a.Approver.(type) {
 	case RuleApprover:
 		d, reason, chosen, err = ap.ApproveWithRule(ctx, *call)
@@ -359,6 +364,7 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	default:
 		d, err = a.Approver.Approve(ctx, *call)
 	}
+	a.waited(ctx, time.Since(asked))
 	if err != nil {
 		return 0, "", perm.Rule{}, err
 	}
