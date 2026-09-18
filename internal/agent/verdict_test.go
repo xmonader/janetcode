@@ -649,3 +649,29 @@ func TestFixingATestWrittenThisTurnIsNotGaming(t *testing.T) {
 		t.Fatalf("gaming = %v, want the untouched detector to still fire", got.Gaming)
 	}
 }
+
+// A recorded turn ran five different `python3 -c` scripts and the
+// outcome recorded each of them as `python3 -c "` — everything before the
+// first newline — so the proof said five checks ran and nothing about
+// what any of them was.
+func TestAMultiLineCheckIsRecordedWhole(t *testing.T) {
+	script := "python3 -c \"\nimport mutest\nimport test_examples\ncases = mutest._discover_test_cases(test_examples)\nprint(cases)\""
+	got := checkLabel(script)
+	if strings.Contains(got, "\n") {
+		t.Fatalf("label spans lines: %q", got)
+	}
+	for _, want := range []string{"import mutest", "_discover_test_cases"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("label %q lost %q", got, want)
+		}
+	}
+	// Two scripts that differ only past the first line are told apart.
+	other := strings.Replace(script, "print(cases)", "print(len(cases))", 1)
+	if checkLabel(other) == got {
+		t.Fatalf("two different scripts share the label %q", got)
+	}
+	// A single-line command is untouched.
+	if got := checkLabel("go test ./..."); got != "go test ./..." {
+		t.Fatalf("single line = %q", got)
+	}
+}

@@ -298,6 +298,20 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 // show a `go test -run 'A|B|C'` whole, short enough for a proof note.
 const maxCheckLen = 240
 
+// checkLabel is how a check command is recorded on the outcome. The first
+// line is not enough: five different `python3 -c "` scripts, each a
+// separate check on a real session, were all recorded as the four
+// characters before their first newline, and the record said nothing
+// about what had run. A multi-line command is folded onto one line
+// instead, so what is kept is the beginning of the script rather than the
+// beginning of its first line.
+func checkLabel(cmd string) string {
+	if strings.ContainsAny(cmd, "\n\r\t") {
+		cmd = strings.Join(strings.Fields(cmd), " ")
+	}
+	return textfmt.FirstLine(cmd, maxCheckLen)
+}
+
 // checkRun is one run of a check command within the turn being folded.
 type checkRun struct {
 	isErr  bool
@@ -423,7 +437,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	for _, cmd := range order {
 		run := latest[cmd]
 		o.Ran++
-		o.Checks = append(o.Checks, textfmt.FirstLine(cmd, maxCheckLen))
+		o.Checks = append(o.Checks, checkLabel(cmd))
 		if run.isErr {
 			o.Failed++
 			// A suite that ran and came back red still ran. Reporting
