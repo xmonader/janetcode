@@ -34,21 +34,24 @@
 
   <div class="col">
     <header class="top">
-      <span id="title" class="session-title"></span>
-      <nav class="view-ring" id="view-ring" role="tablist">
+      <nav class="view-ring" id="view-ring" role="tablist" aria-label="View">
         <button type="button" data-view="chat" class="on">Chat</button>
         <button type="button" data-view="trajectory">Trajectory</button>
       </nav>
-      <span id="mode-chip" class="mode-chip">ask</span>
-      <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
-      <button type="button" id="model" class="model-btn path" title="Switch model"></button>
+      <span id="title" class="session-title"></span>
+      <span class="top-right">
+        <button type="button" id="model" class="model-btn" title="Switch model"></button>
+        <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
+        <span id="mode-chip" class="mode-chip">ask</span>
+        <span id="conn" class="conn" title="Live connection">Live</span>
+        <button type="button" id="help-btn" class="icon-btn" title="Help & shortcuts (?)" aria-label="Help and shortcuts">?</button>
+        <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
+        <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>
+      </span>
       <div id="switch-menu" class="menu" hidden>
         <input id="switch-q" class="menu-q" type="search" placeholder="Switch model…" aria-label="Switch model">
         <div id="switch-list" class="menu-list"></div>
       </div>
-      <span id="conn" class="conn" title="Live connection">Live</span>
-      <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
-      <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>
     </header>
     <section class="thread" id="thread">
       <div class="column" id="chat-view">
@@ -210,6 +213,42 @@
         <button type="button" id="viewer-close">Close</button>
       </header>
       <pre id="viewer-diff" class="diff"></pre>
+    </div>
+  </div>
+
+  <div id="help" class="help" hidden>
+    <div class="help-card">
+      <header>
+        <strong>janetcode</strong>
+        <button type="button" id="help-close" class="icon-btn" title="Close (Esc)">×</button>
+      </header>
+      <div class="help-cols">
+        <section>
+          <h3>Keyboard</h3>
+          <dl>
+            <dt><kbd>Enter</kbd> / <kbd>⇧ Enter</kbd></dt><dd>send / new line</dd>
+            <dt><kbd>Ctrl K</kbd></dt><dd>command palette</dd>
+            <dt><kbd>?</kbd></dt><dd>this sheet</dd>
+            <dt><kbd>/</kbd></dt><dd>search the trajectory ledger</dd>
+            <dt><kbd>j</kbd> <kbd>k</kbd> · <kbd>g</kbd> <kbd>G</kbd></dt><dd>scroll · jump to ends</dd>
+            <dt><kbd>Esc</kbd></dt><dd>stop the turn · close what is open</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>The header</h3>
+          <dl>
+            <dt>Model</dt><dd>switch model or provider — every model your providers serve</dd>
+            <dt>Effort</dt><dd>reasoning tier, low to max</dd>
+            <dt>Trajectory</dt><dd>the session as a ledger: a timeline you can brush, grep and inspect</dd>
+            <dt>Session panel</dt><dd>plan, changed files, jobs, subagents, usage</dd>
+          </dl>
+          <h3>Worth knowing</h3>
+          <dl>
+            <dt><code>/</code> commands</dt><dd>the palette lists them; the model knows the rest</dd>
+            <dt>Permissions</dt><dd>ask → auto → plan → allow-all, under the composer and in the panel</dd>
+          </dl>
+        </section>
+      </div>
     </div>
   </div>
 

@@ -578,6 +578,36 @@
     await post("/api/command", { text: b.dataset.cmd });
   });
 
+  // The help sheet: what the keys do and what the header controls mean.
+  // "?" opens it from anywhere; Esc closes it and, because this listener
+  // is registered first, nothing else answers that Esc.
+  const helpEl = document.getElementById("help");
+  function openHelp() {
+    helpEl.hidden = false;
+  }
+  function closeHelp() {
+    helpEl.hidden = true;
+  }
+  document.getElementById("help-btn").addEventListener("click", openHelp);
+  document.getElementById("help-close").addEventListener("click", closeHelp);
+  document.addEventListener("keydown", (ev) => {
+    if (!helpEl.hidden) {
+      if (ev.key === "Escape" || (ev.shiftKey && ev.key === "?")) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        closeHelp();
+      }
+      return;
+    }
+    if (ev.shiftKey && ev.key === "?") {
+      const el = document.activeElement;
+      if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable)) return;
+      if (!palette.hidden) return;
+      ev.preventDefault();
+      openHelp();
+    }
+  });
+
   function openPalette() {
     palette.hidden = false;
     paletteQ.value = "";
