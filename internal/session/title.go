@@ -11,12 +11,18 @@ import (
 const titleSystem = "Name this coding conversation. Reply with a title of at most six words, plain text, no quotes or trailing punctuation."
 
 // GenerateTitle asks the model for a short title from the first exchange.
+// Synthetic messages — the repository map, goal rounds, "!" output — are
+// context the harness wrote, not anything the person said; feeding them
+// produced sessions named "[repository map: 2 source files, ranked…".
 func GenerateTitle(ctx context.Context, p llm.Provider, model string, msgs []llm.Message) (string, error) {
 	var sb strings.Builder
 	n := 0
 	for _, m := range msgs {
 		t := strings.TrimSpace(m.Text())
 		if t == "" {
+			continue
+		}
+		if m.Role == llm.RoleUser && Synthetic(t) {
 			continue
 		}
 		sb.WriteString(string(m.Role) + ": " + textfmt.TruncateTo(t, 800) + "\n\n")

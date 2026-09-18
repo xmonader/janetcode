@@ -35,14 +35,17 @@
 
   <div class="col">
     <header class="top">
+      <button type="button" id="nav-open" class="icon-btn nav-open" title="Conversations" aria-label="Conversations">☰</button>
       <nav class="view-ring" id="view-ring" role="tablist" aria-label="View">
         <button type="button" data-view="chat" class="on">Chat</button>
         <button type="button" data-view="trajectory">Trajectory</button>
       </nav>
       <span id="title" class="session-title"></span>
       <span class="top-right">
+        <span id="ctx-chip" class="ctx-chip" title="Context window used" hidden></span>
         <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
         <span id="conn" class="conn" title="Live connection">Live</span>
+        <button type="button" id="export-btn" class="icon-btn" title="Save conversation (.md)" aria-label="Save conversation">⤓</button>
         <button type="button" id="help-btn" class="icon-btn" title="Help & shortcuts (?)" aria-label="Help and shortcuts">?</button>
         <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
         <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>

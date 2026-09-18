@@ -2335,3 +2335,53 @@ html, body { overflow-x: hidden; }
 .msg-act { margin-left: 0; }
 .turn .lbl .msg-act { opacity: 0; }
 .turn:hover .lbl .msg-act { opacity: 1; }
+
+/* ---- chrome: context chip, skeletons, narrow screens ----------------- */
+
+.ctx-chip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.ctx-chip.hot { color: var(--warn); }
+
+.skel {
+  height: 72px;
+  border-radius: 12px;
+  margin-bottom: 2.4rem;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+}
+.skel-short { width: 60%; }
+@keyframes skel { to { background-position: -200% 0; } }
+
+.nav-open { display: none; }
+
+/* Narrow screens: one column, the rail becomes a slide-over drawer, the
+   work panel waits for a bigger screen. */
+@media (max-width: 960px) {
+  .shell, .shell.nav-collapsed, .shell.work-collapsed, .shell.nav-collapsed.work-collapsed,
+  .shell.pv-open, .shell.pv-open.nav-collapsed {
+    grid-template-columns: 0 minmax(0, 1fr) 0;
+  }
+  .nav {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(var(--nav-w), 84vw);
+    z-index: 50;
+    transform: translateX(-102%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow-pop);
+    background: var(--bg);
+  }
+  .shell:not(.nav-collapsed) .nav { transform: none; }
+  .nav-open { display: inline-flex; }
+  .work, .preview { display: none; }
+  .findbar { width: 94vw; }
+  .to-latest { right: 16px; }
+  .thread { padding: 20px 14px 12px; }
+}

@@ -1030,6 +1030,14 @@
         } else ptcEl.innerHTML = `<li class="quiet">No scripts this session</li>`;
       }
       document.getElementById("ctx-line").textContent = ws.ctx_label ? "Context " + ws.ctx_label + " (" + ws.ctx_pct + "%)" : "Context —";
+      const chip = document.getElementById("ctx-chip");
+      if (ws.ctx_pct) {
+        chip.hidden = false;
+        chip.textContent = ws.ctx_pct + "% ctx";
+        chip.classList.toggle("hot", ws.ctx_pct >= 80);
+      } else {
+        chip.hidden = true;
+      }
       document.getElementById("cost-line").textContent = ws.cost ? "Spend " + ws.cost : "";
       document.getElementById("mode-yolo").classList.toggle("on", !!ws.yolo);
       document.getElementById("mode-auto").classList.toggle("on", !!ws.auto);
@@ -1122,6 +1130,9 @@
       nodes.clear();
       latest.clear();
       openTools.clear();
+      if (window.matchMedia("(max-width: 960px)").matches && !shell.classList.contains("nav-collapsed")) {
+        setCollapsed("nav-collapsed", true);
+      }
       empty.hidden = false;
       refreshWorkspace();
       loadSessions();
@@ -1175,7 +1186,39 @@
   });
 
   fetch("/api/commands").then((r) => r.json()).then((c) => { commands = c || []; }).catch(() => {});
+  // Save the conversation as markdown, built client-side from the
+  // entries on screen — no server round trip, and it saves what you see.
+  document.getElementById("export-btn").addEventListener("click", () => {
+    const parts = [];
+    for (const art of log.querySelectorAll("article.turn")) {
+      const e = latest.get(art.dataset.id);
+      if (!e) continue;
+      if (e.kind === "user") parts.push("## you\n\n" + (e.text || ""));
+      else if (e.kind === "assistant") parts.push("## janetcode\n\n" + (e.text || ""));
+      else if (e.kind === "tool" && e.output) {
+        parts.push("### " + (e.name || "tool") + " " + (e.summary || "") + "\n\n```\n" + e.output + "\n```");
+      }
+    }
+    if (!parts.length) return;
+    const blob = new Blob([parts.join("\n\n")], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (curTitle || "janetcode") + ".md";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // The hamburger in the header opens the rail as a drawer on narrow
+  // screens, where the rail's own toggle is hidden inside the drawer.
+  document.getElementById("nav-open").addEventListener("click", () => {
+    setCollapsed("nav-collapsed", !shell.classList.contains("nav-collapsed"));
+  });
+
+  // A skeleton stands in while the history loads, so resume does not
+  // flash an empty page.
+  log.innerHTML = `<div class="skel"></div><div class="skel skel-short"></div><div class="skel"></div>`;
   fetch("/api/state").then((r) => r.json()).then((st) => {
+    log.querySelectorAll(".skel").forEach((n) => n.remove());
     applyHello(st.hello);
     applyStatus(st.status);
     (st.entries || []).forEach(render);
