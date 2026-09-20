@@ -136,6 +136,7 @@ var configWhen = map[string][2]string{
 	"followup":            {"cheap next-prompt ghost text after a turn; tab accepts", "you want a suggested next prompt in the input box without another full turn"},
 	"computer_use":        {"start Cua Driver as an MCP server when cua-driver is on PATH", "you want the model to operate the desktop through accessibility, not pixel clicks"},
 	"advisor_model":       {"model the deferred advisor tool consults when the executor is stuck; empty is the session model", "you want a stronger model to advise a cheap executor without putting advisor on every request"},
+	"decisions":           {"optional TypeSafe Jev decision client for advisory triage of verification failures; states are sent to its API, scrubbed of credential-shaped text", "a failing verify gate sends the model back for environmental or flaky failures it cannot fix; off unless configured"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.

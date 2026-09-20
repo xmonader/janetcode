@@ -17,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/cua"
 	"github.com/xmonader/janetcode/internal/doctorfix"
 	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
@@ -112,6 +113,26 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 		}
 		if err == nil {
 			row(true, "selected", fmt.Sprintf("%s / %s", cfg.Provider, cfg.Model))
+			if cfg.Decisions != nil {
+				d := cfg.Decisions
+				key := os.Getenv(d.KeyEnv())
+				switch {
+				case key == "":
+					warn("decisions", "configured ("+d.Model+") but "+d.KeyEnv()+" is empty; advisory triage is off")
+				default:
+					cl := &jev.Client{BaseURL: d.BaseURL, Key: key, Model: d.Model, Timeout: jev.MaxTimeout}
+					start := time.Now()
+					_, perr := cl.Evaluate(ctx, "probe", []jev.Question{
+						{ID: "ok", Kind: jev.Noul, Instructions: "Does this state contain a question at all?"},
+					})
+					detail := d.Model + " @ " + orDefault(d.BaseURL, jev.DefaultBaseURL)
+					if perr != nil {
+						row(false, "decisions", detail+" · probe failed: "+perr.Error())
+					} else {
+						row(true, "decisions", detail+" · probe answered in "+time.Since(start).Round(time.Millisecond).String())
+					}
+				}
+			}
 			theme := cfg.Theme
 			if theme == "" {
 				theme = "auto"

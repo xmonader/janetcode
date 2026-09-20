@@ -12,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/impact"
+	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -302,6 +303,7 @@ func (b *agentBuilder) buildSteps() []struct {
 		{"diagnostics", b.stepDiagnostics},
 		{"search tools", b.stepSearchTools},
 		{"turn hooks", b.stepTurnHooks},
+		{"decisions", b.stepDecisions},
 		{"undo", b.stepUndo},
 	}
 }
@@ -560,6 +562,38 @@ func (b *agentBuilder) stepTurnHooks() error {
 	}
 	ag.Predictor = predictor
 	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem), repomap.TurnPrep(b.repo, 0))
+	return nil
+}
+
+// stepDecisions wires the optional TypeSafe Jev decision client
+// (internal/jev) when the config's "decisions" block asks for it. The
+// client is advisory by contract and nothing here can fail the build: a
+// missing key is a note on stderr and a session without the feature.
+func (b *agentBuilder) stepDecisions() error {
+	d := b.d.cfg.Decisions
+	if d == nil || b.off["decisions"] {
+		return nil
+	}
+	key := os.Getenv(d.KeyEnv())
+	if key == "" {
+		fmt.Fprintf(os.Stderr, "decisions: configured but %s is empty; off for this session\n", d.KeyEnv())
+		return nil
+	}
+	b.ag.Decisions = &jev.Client{
+		BaseURL: d.BaseURL,
+		Key:     key,
+		Model:   d.Model,
+		Timeout: time.Duration(d.TimeoutMs) * time.Millisecond,
+	}
+	// One scrubber for every consumer: a state field that scans as a
+	// credential goes out as "[redacted]", never as the value itself.
+	b.ag.ScrubState = func(s string) string {
+		if s != "" && memory.ScanSecret(s) != "" {
+			return "[redacted]"
+		}
+		return s
+	}
+	b.ag.DecisionsTriage = d.Triage
 	return nil
 }
 

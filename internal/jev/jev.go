@@ -170,14 +170,9 @@ type Client struct {
 	// "[redacted]" for a flagged field is the convention.
 	Scrub func(string) string
 
-	// OnNotice is called at most once per session, when the circuit
-	// opens. Nil is fine; the agent wires it to EvNotice.
-	OnNotice func(string)
-
 	mu         sync.Mutex
 	consecErrs int
 	open       bool
-	noticed    bool
 	calls      int
 	errs       int
 	totalTime  time.Duration
@@ -235,12 +230,8 @@ func (c *Client) record(d time.Duration, err error) {
 	}
 	c.errs++
 	c.consecErrs++
-	if c.consecErrs >= maxConsecErrors && !c.open {
+	if c.consecErrs >= maxConsecErrors {
 		c.open = true
-		if !c.noticed && c.OnNotice != nil {
-			c.noticed = true
-			c.OnNotice(fmt.Sprintf("decisions: %d consecutive errors, off for the rest of this session (last: %v)", maxConsecErrors, err))
-		}
 	}
 }
 

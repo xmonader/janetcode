@@ -225,6 +225,14 @@ type Agent struct {
 	// memory store's secret scan into it: a field that looks like a
 	// credential goes out as "[redacted]".
 	ScrubState func(string) string
+	// decisionCircuitSeen keeps the circuit-open notice to one per
+	// session. Written and read only from the turn goroutine, which is
+	// the only place triageFailure runs.
+	decisionCircuitSeen bool
+	// DecisionsTriage enables the verify-failure triage consumer. The
+	// Decisions field being set only means a client is configured; each
+	// consumer is opted into separately (config decisions.triage).
+	DecisionsTriage bool
 	// Root is the directory the session works in. Paths shown to the user
 	// and the model by /undo about are relative to it; empty means the
 	// process working directory, which is only right for a front-end

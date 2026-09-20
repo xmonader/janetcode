@@ -90,6 +90,7 @@ func TestTriageSkipEndsTheTurnWithoutARepairCall(t *testing.T) {
 	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"grep -q ok a.txt"}}}
 	fd := &fakeDecisions{res: triageResult(0.1, "environmental", 0.8), avail: true}
 	a.Decisions = fd
+	a.DecisionsTriage = true
 	var notices []string
 	if err := a.Run(context.Background(), "make the file say ok", func(e Event) {
 		if e.Kind == EvNotice {
@@ -142,6 +143,7 @@ func TestTriagePatchCausedFeedsBackAsAlways(t *testing.T) {
 	a.AutoApprove = true
 	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"grep -q ok a.txt"}}}
 	a.Decisions = &fakeDecisions{res: triageResult(0.9, "patch_caused", 0.8), avail: true}
+	a.DecisionsTriage = true
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -169,6 +171,7 @@ func TestTriageFailsOpen(t *testing.T) {
 		a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"grep -q ok a.txt"}}}
 		if fd != nil {
 			a.Decisions = fd
+			a.DecisionsTriage = true
 		}
 		a.Off = off
 		if err := a.Run(context.Background(), "go", nil); err != nil {

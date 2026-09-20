@@ -57,6 +57,9 @@ func (m *model) statsCommand() {
 	if line := st.RouteLine(ag.RouteCheapName()); line != "" {
 		sb.WriteString("\n" + line)
 	}
+	if line := st.DecisionLine(); line != "" {
+		sb.WriteString("\n" + line)
+	}
 	if m.opts.Jobs != nil {
 		if jobs := m.opts.Jobs.List(); len(jobs) > 0 {
 			running := 0

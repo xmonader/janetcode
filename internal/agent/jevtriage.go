@@ -172,8 +172,10 @@ func triageAction(res *jev.Result) triageVerdict {
 // triageFailure asks the decision provider about a failed gate and
 // reports whether the repair round should be skipped. Every soft
 // failure returns false, which is "send the failure back as always".
+// The one session-level notice — the circuit opening — is emitted here,
+// on the turn goroutine that made the failing call, exactly once.
 func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(Event)) bool {
-	if a.Decisions == nil || a.Off["decisions"] {
+	if a.Decisions == nil || !a.DecisionsTriage || a.Off["decisions"] {
 		return false
 	}
 	if !a.Decisions.Available() {
@@ -182,6 +184,10 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	ans, err := a.Decisions.Evaluate(ctx, a.triageState(res), triageQuestions())
 	a.stats.decision(err != nil)
 	if err != nil {
+		if !a.Decisions.Available() && !a.decisionCircuitSeen {
+			a.decisionCircuitSeen = true
+			emit(Event{Kind: EvNotice, Text: "decisions: repeated errors, off for the rest of this session (" + err.Error() + ")"})
+		}
 		return false
 	}
 	v := triageAction(ans)

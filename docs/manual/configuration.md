@@ -258,6 +258,54 @@ would justify leaving it on. `/stats` reports "routed N of M model calls
 to `<cheap>`" once anything has actually routed, and `/config
 route_cheap=` (empty) turns it back off for the running session.
 
+### Decisions (experimental, optional)
+
+The `decisions` block configures an optional second AI service —
+TypeSafe's Jev, a structured-decision model that answers typed questions
+with probabilities instead of writing text. janetcode uses it only for
+narrow advisory judgments around the loop; the first is **verification
+triage**: after a verify-gate failure, the failure (command, bounded
+output, the turn's changed files, your request) is sent to the service
+and classified as patch-caused, environmental, flaky, unrelated or
+inconclusive. A confident environmental/flaky/unrelated verdict ends the
+turn without spending a repair round the model would almost certainly
+lose; anything else behaves exactly as before. The exit code stays
+authoritative — the service never reinterprets a check's result, cannot
+permit, refuse or edit anything, and is never consulted by the
+permission system or the shell-safety classifier.
+
+```json
+{
+  "decisions": {
+    "model": "jev-1.13.0",
+    "api_key_env": "TYPESAFE_API_KEY",
+    "timeout_ms": 800,
+    "triage": true
+  }
+}
+```
+
+`model` must be a pinned version (`jev-X.Y.Z`); aliases like
+`jev-latest` are refused at load so a threshold cannot silently retune
+itself when the alias moves. The key is read from the environment named
+by `api_key_env` and never lives in the file. Each consumer is off
+until its own key is set (`triage` is the only one today); the block
+being present alone enables nothing.
+
+What leaves the machine when triage fires: your request, the failing
+command and its captured output, the changed files with line counts, no
+diffs. Every field is scanned for credential-shaped text first and a
+hit is sent as `[redacted]`. Calls are bounded by `timeout_ms`
+(default 800, at most 2000), never retried, and three consecutive
+errors turn the feature off for the session with one notice — a dead
+decision service costs a session nothing but the timeouts it already
+spent. `JANETCODE_OFF=decisions` (or `--eval-off decisions`) disables
+the calls regardless of the config, and `/stats` gains a
+"decisions: N calls · M errors" line once anything has been asked.
+`janetcode --doctor` probes the endpoint when a key is present. The
+design and the measurement gates are in
+`docs/notes/jev-integration-spec.md`.
+
 ### Stream watchdog
 
 A streamed model call can stop producing without ever failing: the socket

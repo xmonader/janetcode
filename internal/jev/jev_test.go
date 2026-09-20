@@ -116,9 +116,7 @@ func TestEvaluateSoftErrors(t *testing.T) {
 
 func TestCircuitOpensAfterThreeErrors(t *testing.T) {
 	srv, hits := fakeServer(t, 503, `{}`)
-	var notice atomic.Int32
-	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0",
-		OnNotice: func(string) { notice.Add(1) }}
+	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0"}
 	for i := 0; i < 3; i++ {
 		if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err == nil {
 			t.Fatal("expected error")
@@ -133,9 +131,6 @@ func TestCircuitOpensAfterThreeErrors(t *testing.T) {
 	}
 	if hits.Load() != 3 {
 		t.Fatalf("hits = %d, want 3 (the open circuit must not call out)", hits.Load())
-	}
-	if notice.Load() != 1 {
-		t.Fatalf("notices = %d, want exactly 1", notice.Load())
 	}
 	calls, errs, _ := c.Stats()
 	if calls != 3 || errs != 3 {

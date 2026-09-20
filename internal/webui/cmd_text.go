@@ -214,6 +214,9 @@ func (s *server) statsText() string {
 	if line := st.RouteLine(ag.RouteCheapName()); line != "" {
 		sb.WriteString(line + "\n")
 	}
+	if line := st.DecisionLine(); line != "" {
+		sb.WriteString(line + "\n")
+	}
 	for _, t := range st.Tools {
 		fmt.Fprintf(&sb, "  %-16s %d calls", t.Name, t.Calls)
 		if t.Errors > 0 {
