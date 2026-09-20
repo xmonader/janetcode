@@ -1,6 +1,5 @@
 package headless
 
-
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
 // cliresult.go) by importing this package.
