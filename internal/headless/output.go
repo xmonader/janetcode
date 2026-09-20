@@ -388,13 +388,6 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 				Total:       st.DecisionTime.Milliseconds(),
 			}
 		}
-		if st.ReceiptCalls > 0 {
-			res.Receipts = &CLIReceipts{
-				Generated: st.ReceiptCalls - st.ReceiptRejected,
-				Rejected:  st.ReceiptRejected,
-				SavedB:    st.ReceiptSavedB,
-			}
-		}
 	}
 	if res.CostSource == "" {
 		if usd, ok := r.usage.Cost(r.price); ok {

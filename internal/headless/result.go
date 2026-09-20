@@ -59,10 +59,6 @@ type CLIResult struct {
 	// jev): null until its first call, so a session that never consulted
 	// it is indistinguishable from one without the feature configured.
 	Decisions *CLIDecisions `json:"decisions,omitempty"`
-	// Receipts is the evidence-receipt consumer's footprint; null until
-	// its first receipt, so an unconfigured session at baseline reads as
-	// one that never had the feature.
-	Receipts *CLIReceipts `json:"receipts,omitempty"`
 }
 
 // CLIDecisions is what the envelope says about the decision provider:

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"bufio"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -274,7 +273,7 @@ func (ar *Archive) List() []Entry {
 // a verified evidence-preserving receipt stands in the preview's place
 // instead (same archive note, the quotes in it are byte-exact); any
 // failure of that path leaves the preview exactly as it was.
-func (a *Agent) stash(ctx context.Context, toolUse, name, subject, out string) string {
+func (a *Agent) stash(toolUse, name, subject, out string) string {
 	budget := inlineBudget(name)
 	if len(out) <= budget || name == (&ExpandOutput{}).Name() {
 		return out
@@ -287,18 +286,6 @@ func (a *Agent) stash(ctx context.Context, toolUse, name, subject, out string) s
 		return textfmt.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
 	}
 	a.logEvent(session.Event{Type: session.TypeSpillSave, Name: name, CallID: toolUse, Output: id, Tokens: len(out)})
-	// The receipts consumer is opt-in: a verified evidence-preserving
-	// receipt replaces the head+tail preview wholesale. Any failure of
-	// that path falls through to today's preview, escaped exactly as it
-	// has always been.
-	if a.receiptsEnabled() {
-		if receipt, ok := a.receiptify(ctx, name, out); ok {
-			a.stats.receipt(false, budget-len(receipt))
-			return archiveNote(id, len(out), len(receipt), outputDigest(out)) +
-				tool.EscapeDelimiters(receipt) +
-				fmt.Sprintf("\n[receipt: every Q: line above is byte-exact in archived output %s; expand_output {\"id\":%q,\"grep\":\"<regexp>\"} finds more]\n", id, id)
-		}
-	}
 	// The preview is untrusted text standing where a whole result was, so
 	// it cannot be allowed to close or open one of the harness's own tags.
 	return archiveNote(id, len(out), budget, outputDigest(out)) + tool.EscapeDelimiters(textfmt.TruncateTo(out, budget))

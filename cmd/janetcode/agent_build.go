@@ -594,7 +594,6 @@ func (b *agentBuilder) stepDecisions() error {
 		return s
 	}
 	b.ag.DecisionsTriage = d.Triage
-	b.ag.DecisionsReceipts = d.Receipts
 	return nil
 }
 
