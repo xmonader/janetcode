@@ -219,3 +219,42 @@ corpus has no gate events to score until gate-using projects accrue
 sessions. This satisfies the spirit of the gate (calibrate before
 thresholds) on labeled data of our own shape; it is not the same data
 queue as recorded sessions, and the note says so.
+
+## Evidence-Preserving Reducer (SoL-Pi's EPR): verified, integrated, reverted (2026-09-20)
+
+The offline prototype verified the mechanism end to end: a 72KB test
+failure log reduced to a 912-byte receipt (12s, ~21k cheap tokens), 5/5
+quoted lines byte-exact; a perturbed source rejected the same receipt
+(all-or-nothing gate fires at line granularity); a passing run
+compressed to 58 bytes with zero quotes (correct). So the mechanism is
+real and the gate is mechanically sound.
+
+The integration (decisions.receipts, one cheap side call in the
+long-output path) then ran the ms3 A/B — a task whose gate emits a
+~23.5KB log per failure — n=3 per side on deepseek-v4-flash:
+
+| metric | baseline | with receipts |
+|---|---|---|
+| model calls (median) | 5 | 5 |
+| wall (mean) | 46.6s | **66.5s** |
+| input tokens (mean) | 12,363 | **24,027** |
+| cost (mean) | $0.00076 | **$0.00123** |
+| receipts generated per run | 0 | 2 (2, 2, 0 — one rejected) |
+
+Receipts worked — 2–4 per run, the evidence gate rejecting one — but
+the cost side dominates in janetcode's regime: the side call's input
+(the whole oversized output) is paid every time it fires, while the
+receipt's saving (a 12KB preview down to ~1KB) only pays back on later
+turns, which short sessions never reach. ms2 runs never fired at all
+(python assertion output stays under the 12KB budget). The paper's 45%
+number is measured against Pi replaying full logs; janetcode already
+captures most of that with head+tail stubbing and archive+expand_output
+— measured years (of prompt) earlier in its own leanness rounds.
+
+Kept: nothing in the shipped tree (reverted per the keep-only-if-it-
+improves rule), the prototype's numbers, and the method: receipts are a
+good idea whose correct regime is *long* sessions whose receipts
+actually recur — exactly the EdgeBench long-horizon setting the paper
+measures, not the short-turn regime the A/Bs run in. The offline
+prototype (reduce.py approach + quote gate) is the reference we would
+start from if that regime arrives.
