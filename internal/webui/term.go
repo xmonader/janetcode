@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/coder/websocket"
+	"github.com/creack/pty"
 )
 
 // termAPI bridges a websocket to a shell on a pseudo-terminal in the

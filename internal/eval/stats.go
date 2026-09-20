@@ -373,10 +373,6 @@ func (c Comparison) CostSignificant() bool {
 	return c.CostTested && c.CostP <= c.level() && (!c.CostInterval || c.CostRatioLo > 1 || c.CostRatioHi < 1)
 }
 
-// hasInterval reports whether a bootstrap actually produced bounds. Too
-// few tasks leaves them at zero, and zero must never read as "below one".
-func hasInterval(lo, hi float64) bool { return lo > 0 && hi > 0 }
-
 // ContextSignificant reports whether the context ratio's interval
 // excludes 1.
 func (c Comparison) ContextSignificant() bool {
