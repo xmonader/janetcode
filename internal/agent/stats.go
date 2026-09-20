@@ -135,7 +135,6 @@ func (s Stats) DecisionLine() string {
 	return line
 }
 
-
 // ToolStat is the tally for one tool.
 type ToolStat struct {
 	Name    string
