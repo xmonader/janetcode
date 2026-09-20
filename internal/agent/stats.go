@@ -67,12 +67,12 @@ type Stats struct {
 	// feature has to earn its keep against, not a guess.
 	RoutedCalls int
 	// DecisionCalls counts calls to the optional decision provider
-	// (internal/jev) and DecisionErrors how many failed. A consumer
-	// that fails open still counted its call, so these two are how a
-	// session that talked to a dead decision service is told apart from
-	// one that never had it configured.
+	// (internal/jev) and DecisionErrors how many failed. DecisionTime is
+	// the wall time they cost, so /stats can price the feature in its
+	// own currency — the latency the turn paid for its opinions.
 	DecisionCalls  int
 	DecisionErrors int
+	DecisionTime   time.Duration
 }
 
 // ModelStat is the tally for one model actually used in this session.
@@ -118,8 +118,8 @@ func (s Stats) PromptLine() string {
 	return fmt.Sprintf("asked %s · %d refused", textfmt.Plural(s.Approvals, "time"), s.Refusals)
 }
 
-// DecisionLine is "decisions: N calls · M errors" for /stats. Empty
-// until the first decision call, so a session with the feature
+// DecisionLine is "decisions: N calls · M errors · avg Xms" for /stats.
+// Empty until the first decision call, so a session with the feature
 // configured but never triggered says nothing.
 func (s Stats) DecisionLine() string {
 	if s.DecisionCalls == 0 {
@@ -128,6 +128,9 @@ func (s Stats) DecisionLine() string {
 	line := fmt.Sprintf("decisions: %s", textfmt.Plural(s.DecisionCalls, "call"))
 	if s.DecisionErrors > 0 {
 		line += fmt.Sprintf(" · %d errored", s.DecisionErrors)
+	}
+	if s.DecisionTime > 0 {
+		line += fmt.Sprintf(" · avg %s", textfmt.Duration(s.DecisionTime/time.Duration(max(1, s.DecisionCalls))))
 	}
 	return line
 }
@@ -221,9 +224,12 @@ func (c *statsCounter) routed() {
 // decision records one call to the decision provider, and whether it
 // errored. The call counts even when it failed: the point is to show
 // how much of the feature's promise the session actually used.
-func (c *statsCounter) decision(failed bool) {
+func (c *statsCounter) decision(failed bool, d time.Duration) {
 	c.mu.Lock()
 	c.s.DecisionCalls++
+	if d > 0 {
+		c.s.DecisionTime += d
+	}
 	if failed {
 		c.s.DecisionErrors++
 	}

@@ -223,6 +223,37 @@ func TestPinnedModel(t *testing.T) {
 // The endpoint is per host: OpenRouter's decisions API, TypeSafe's
 // native one. Wrong paths 404 in the wild, so this is pinned on both
 // sides.
+// The latency breaker is the other half of rung 4: ten successful
+// calls with a median past a second are the service, not noise. Driven
+// through record() directly, which is exactly what Evaluate feeds it.
+func TestLatencyBreakerOpensOnSlowMedians(t *testing.T) {
+	c := &Client{}
+	for i := 0; i < LatencyWindow-1; i++ {
+		c.record(1100*time.Millisecond, nil)
+	}
+	if !c.Available() {
+		t.Fatal("the window is not full yet; it must not open early")
+	}
+	c.record(1200*time.Millisecond, nil)
+	if c.Available() {
+		t.Fatal("ten successful calls at >1s median left the circuit closed")
+	}
+	// Nine fast calls and one slow one stay open: the median a full
+	// window of mostly-fast calls produces is fast.
+	c2 := &Client{}
+	for i := 0; i < LatencyWindow-1; i++ {
+		c2.record(3*time.Millisecond, nil)
+	}
+	c2.record(1200*time.Millisecond, nil)
+	if !c2.Available() {
+		t.Fatal("nine fast calls and one slow one opened the circuit")
+	}
+	calls, errs, total := c2.Stats()
+	if calls != LatencyWindow || errs != 0 || total != 9*3*time.Millisecond+1200*time.Millisecond {
+		t.Fatalf("stats = %d calls, %d errs, %v", calls, errs, total)
+	}
+}
+
 func TestEndpointPerHost(t *testing.T) {
 	cases := map[string]string{
 		"":                             "https://openrouter.ai/api/alpha/decisions",

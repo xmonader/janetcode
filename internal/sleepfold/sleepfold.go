@@ -46,6 +46,24 @@ func Fold(events []session.Event) memory.SleepInput {
 			}
 		case session.TypeCritic:
 			in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "critic", Text: textfmt.Clip(e.Output, 300)})
+		case session.TypeDecision:
+			// The action line the consumer built its verdict from, so the
+			// consolidation sees the typed opinion beside the gate event it
+			// acted on. The probabilities stay in the event's Extra; the
+			// fact is the decision, not the distribution.
+			v := struct {
+				Consumer string  `json:"consumer"`
+				Class    string  `json:"class"`
+				Skip     bool    `json:"skip"`
+				Caused   float64 `json:"caused_by_change"`
+			}{}
+			_ = json.Unmarshal(e.Extra, &v)
+			verb := "sent the model back"
+			if v.Skip {
+				verb = "skipped the repair round"
+			}
+			in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "decision",
+				Name: v.Consumer, Text: textfmt.Clip(fmt.Sprintf("%s → %s (caused=%.2f, %s)", v.Consumer, v.Class, v.Caused, verb), 300)})
 		case session.TypeVerdict:
 			in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "verdict", Text: textfmt.Clip(strings.TrimSpace(e.Name+" "+e.Output), 300)})
 		case session.TypeGate:
@@ -122,7 +140,7 @@ func capSleepFacts(facts []memory.SleepFact) []memory.SleepFact {
 	var kept, rest []memory.SleepFact
 	for _, f := range facts {
 		switch f.Kind {
-		case "goal", "verdict", "critic", "refused", "verify", "verify-pass", "failure", "compaction":
+		case "goal", "verdict", "critic", "refused", "verify", "verify-pass", "failure", "compaction", "decision":
 			kept = append(kept, f)
 		default:
 			rest = append(rest, f)

@@ -1,5 +1,7 @@
 package headless
 
+import "time"
+
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
 // cliresult.go) by importing this package.
@@ -55,6 +57,21 @@ type CLIResult struct {
 	// a later attempt. The wait is already in duration_ms; this says how
 	// much of it was the provider refusing rather than thinking.
 	Retries int `json:"retries"`
+	// Decisions is the optional decision provider's footprint (internal/
+	// jev): null until its first call, so a session that never consulted
+	// it is indistinguishable from one without the feature configured.
+	Decisions *CLIDecisions `json:"decisions,omitempty"`
+}
+
+// CLIDecisions is what the envelope says about the decision provider:
+// how many questions it was asked, how many failed, whether its circuit
+// ended the session closed, and the latency it cost — which a run
+// comparing against the feature costs must see alongside the pass rate.
+type CLIDecisions struct {
+	Calls       int           `json:"calls"`
+	Errors      int           `json:"errors"`
+	CircuitOpen bool          `json:"circuit_open"`
+	Total       time.Duration `json:"total_latency_ms"`
 }
 
 // CLIRecoveries counts the ways a run was saved rather than smooth.

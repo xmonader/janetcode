@@ -4,8 +4,23 @@ Companion to `docs/notes/jev.md` (why Jev, what survives revision). This
 is the integration contract: the package boundary, the availability
 model, the consumers in order, and the measurement gates between them.
 
-Status: proposed. Nothing in this file ships until Phase 0's offline
-calibration replay passes.
+Status: Phase 1 implemented and default-off (2026-09-20, commits
+45c425d..). Shipped: `internal/jev` (leaf client), the `decisions`
+config block, the `decisions` switch, verify-failure triage, doctor row,
+/stats line, `decision` session events, the headless `decisions`
+envelope, the sleepfold fact line, offline tests and a live smoke on
+`~typesafe/jev-latest` over OpenRouter's decisions endpoint (the
+verified route; TypeSafe's native host answers identically on
+`/v1/systemone`). Deviations from this document, deliberate:
+`DecisionProvider` lives in `agent` against `jev`'s types (so `jev`
+stays a leaf, "deps: llm" relaxed to "no internal deps"); the startup
+probe became lazy with the circuit breaker instead (a probe on the boot
+path taxes every session, `--doctor` does the explicit probe); the
+envelope omits per-timeout counts (the provider interface returns one
+error); the config-template comment point is covered by this manual
+paragraph instead, the example being pure JSON. Not shipped, gated by
+the table below: Phase 0 replay (needs recorded-gate-failure evidence),
+Phase 2 and Phase 3 consumers, and defaulting the consumer on.
 
 ## Design rules (the whole spec in five lines)
 

@@ -366,6 +366,18 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 			ModelFallbacks: st.Fallbacks,
 			Total:          st.Saves(),
 		}
+		if st.DecisionCalls > 0 {
+			open := false
+			if ag.Decisions != nil {
+				open = !ag.Decisions.Available()
+			}
+			res.Decisions = &CLIDecisions{
+				Calls:       st.DecisionCalls,
+				Errors:      st.DecisionErrors,
+				CircuitOpen: open,
+				Total:       st.DecisionTime,
+			}
+		}
 	}
 	if res.CostSource == "" {
 		if usd, ok := r.usage.Cost(r.price); ok {

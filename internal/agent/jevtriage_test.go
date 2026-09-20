@@ -119,8 +119,14 @@ func TestTriageSkipEndsTheTurnWithoutARepairCall(t *testing.T) {
 	if found == nil {
 		t.Fatal("no decision event on the log")
 	}
-	if found.Name != "verify_triage" || !strings.Contains(string(found.Extra), `"skip":true`) {
-		t.Fatalf("decision event = %+v extra=%s", found, found.Extra)
+	// The event is the audit record: questions asked, answers with their
+	// distributions, tokens and latency — an offline replay needs the
+	// whole payload, not a summary.
+	extra := string(found.Extra)
+	for _, want := range []string{`"questions"`, `"answers"`, `"tokens_in"`, `worth_repair`, `failure_class`} {
+		if !strings.Contains(extra, want) {
+			t.Fatalf("decision Extra missing %s: %s", want, extra)
+		}
 	}
 	// The failed check is still on the record: skipping the repair must
 	// not tidy the verdict away.

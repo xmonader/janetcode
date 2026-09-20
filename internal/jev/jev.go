@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -175,6 +176,9 @@ type Client struct {
 
 	mu         sync.Mutex
 	consecErrs int
+	latencies  [LatencyWindow]time.Duration
+	latN       int
+	latIdx     int
 	open       bool
 	calls      int
 	errs       int
@@ -185,6 +189,17 @@ type Client struct {
 // the session. A decision service that is down must not tax every later
 // gate with its timeout.
 const maxConsecErrors = 3
+
+// LatencyWindow is how many recent successful calls the latency
+// breaker looks at, and the ring above its size.
+const (
+	LatencyWindow = 10
+	// The spec's rung 4: a service answering ten calls in a row with a
+	// median past 1s is not a service worth the turn's latency budget,
+	// however available it is. The median is median: one slow call is
+	// noise, ten slow ones are the service.
+	LatencyOpenP50 = time.Second
+)
 
 // endpoint is the one path per host: OpenRouter serves the Decisions
 // API at /api/alpha/decisions, TypeSafe's native host at
@@ -238,6 +253,16 @@ func (c *Client) record(d time.Duration, err error) {
 	c.totalTime += d
 	if err == nil {
 		c.consecErrs = 0
+		c.latencies[c.latIdx] = d
+		c.latIdx = (c.latIdx + 1) % LatencyWindow
+		if c.latN < LatencyWindow {
+			c.latN++
+		}
+		// Checked on the call that fills the window too: ten slow calls
+		// in a row are the service, whatever order they arrived in.
+		if c.latN == LatencyWindow && p50(&c.latencies, LatencyWindow) > LatencyOpenP50 {
+			c.open = true
+		}
 		return
 	}
 	c.errs++
@@ -245,6 +270,13 @@ func (c *Client) record(d time.Duration, err error) {
 	if c.consecErrs >= maxConsecErrors {
 		c.open = true
 	}
+}
+
+// p50 is the lower median of the first n elements, in place.
+func p50(vs *[LatencyWindow]time.Duration, n int) time.Duration {
+	s := append([]time.Duration(nil), vs[:n]...)
+	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+	return s[n/2]
 }
 
 // Evaluate answers every question against state in one request. The

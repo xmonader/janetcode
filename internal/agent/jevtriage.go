@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/session"
@@ -181,8 +182,9 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	if !a.Decisions.Available() {
 		return false
 	}
+	start := time.Now()
 	ans, err := a.Decisions.Evaluate(ctx, a.triageState(res), triageQuestions())
-	a.stats.decision(err != nil)
+	a.stats.decision(err != nil, time.Since(start))
 	if err != nil {
 		if !a.Decisions.Available() && !a.decisionCircuitSeen {
 			a.decisionCircuitSeen = true
@@ -190,12 +192,20 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 		}
 		return false
 	}
+	// The circuit can also open on latency, after a call that succeeded:
+	// ten medians past a second is the service, not this session.
+	if !a.Decisions.Available() && !a.decisionCircuitSeen {
+		a.decisionCircuitSeen = true
+		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: median latency past %v over %d calls, off for the rest of this session", jev.LatencyOpenP50, jev.LatencyWindow)})
+	}
 	v := triageAction(ans)
 	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,
 		Name: "verify_triage", Extra: mustJSON(map[string]any{
-			"model": ans.Model, "class": v.class,
-			"caused_by_change": v.p, "confidence": v.conf, "skip": v.skip,
-			"latency_ms": ans.Latency.Milliseconds(),
+			"consumer": "verify_triage",
+			"model":    ans.Model, "tokens_in": ans.TokensIn, "latency_ms": ans.Latency.Milliseconds(),
+			"questions": triageQuestions(),
+			"answers":   ans.Answers,
+			"class":     v.class, "caused_by_change": v.p, "confidence": v.conf, "skip": v.skip,
 		})})
 	what := fmt.Sprintf("decisions: failure looks %s (p(caused)=%.2f, confidence=%.2f)", v.class, v.p, v.conf)
 	if v.skip {
