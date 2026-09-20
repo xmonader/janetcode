@@ -78,6 +78,7 @@ var flagWhen = map[string]string{
 	"mcp-auth":             "a remote MCP server needs an OAuth login once",
 	"append-system-prompt": "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":               "something is not working and you want to know which part",
+	"decisions-replay":     "measuring whether the optional verify-triage decisions model is calibrated before trusting it live",
 	"init-project":         "a repository janetcode has never seen: it writes the instruction file every session here will read",
 	"fix":                  "the doctor listed repairs you want carried out: the safe, obvious ones only",
 	"proof":                "code review, or months later: which session and turn wrote a committed file and what actually demonstrated it worked",

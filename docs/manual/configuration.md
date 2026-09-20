@@ -313,6 +313,16 @@ asked.
 design and the measurement gates are in
 `docs/notes/jev-integration-spec.md`.
 
+Calibration is explicit:
+`janetcode --decisions-replay <corpus.jsonl>` scores a labeled state
+corpus (one JSON line each: `name`, `truth`, `state`) through the same
+question set and action mapping a live turn takes, writes
+`<corpus>.answers.jsonl` beside it, and prints the per-class table —
+skip rate, mean caused probability, correct vs costly-wrong-skips.
+`docs/benchmarks/decisions/triage.jsonl` holds the shipped corpus.
+The spec's gate: ≥70% correct overall and no wrong skip where the truth
+says the patch caused the failure.
+
 ### Stream watchdog
 
 A streamed model call can stop producing without ever failing: the socket

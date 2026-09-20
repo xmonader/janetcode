@@ -184,3 +184,38 @@ the calibration replay the spec gates consumer-on-default on. Verdict
 wording on the simple tasks is "not demonstrated"/"self-checked" on
 both sides regardless of Jev — the pre-existing verdict semantics treat
 grep gates as checks, not tests; nothing here changed them.
+
+## Phase 0: calibration replay, first live run (2026-09-20)
+
+The recorded-session gate corpus is structurally empty (no project ran
+gates before 2026-09-20), so the calibration ran over a hand-labeled
+state corpus — `docs/benchmarks/decisions/triage.jsonl`, 35 states
+whose truth comes from the task's construction (a check the change
+cannot touch is environmental, a check naming the edited file's symbol
+is patch_caused, and so on), drawn from the shapes the trap A/B and
+eval fixtures actually produced. `janetcode --decisions-replay`
+shipped with this round asks the same questions and applies the same
+action mapping a live turn takes.
+
+| truth | n | skip% | mean p(caused) | mean conf | correct | costly |
+|---|---|---|---|---|---|---|
+| environmental | 8 | 75% | 0.18 | 0.81 | 6 | 0 |
+| flaky | 5 | 40% | 0.30 | 0.75 | 2 | 0 |
+| inconclusive | 6 | 0% | 0.58 | 0.54 | 6 | 0 |
+| patch_caused | 10 | **0%** | **0.73** | 0.79 | **10** | 0 |
+| unrelated | 6 | 83% | 0.14 | 0.89 | 5 | 0 |
+| overall | 35 | | monotone | | 29 (82%) | **0** |
+
+Against the spec's gates: ≥70% correct ✓ (82%); patch_caused ordering
+the highest ✓ and skipped **never** ✓ (zero costly wrong skips);
+monotone ✓. The weak cell is flaky (2/5 correct): its mean confidence
+(0.75) sits right at the mapping's 0.7 skip threshold, so the borderline
+rows flip to the conservative send-back. Honest and safe: a missed
+flaky skip costs a repair round, never correctness.
+
+Provenance caveat, kept deliberately loud: the labels are by
+construction, not by recorded-session post-hoc truth — the recorded
+corpus has no gate events to score until gate-using projects accrue
+sessions. This satisfies the spirit of the gate (calibrate before
+thresholds) on labeled data of our own shape; it is not the same data
+queue as recorded sessions, and the note says so.

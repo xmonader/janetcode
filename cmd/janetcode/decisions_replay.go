@@ -1,0 +1,196 @@
+package main
+
+// decisions_replay.go is Phase 0 of the Jev integration
+// (docs/notes/jev-integration-spec.md): the offline calibration
+// driver. `--decisions-replay <corpus.jsonl>` scores a labeled state
+// corpus live — each line is {"name","truth","state"} — using the same
+// question set and action mapping a real turn would take
+// (agent.TriageQuestions / agent.TriageAction), writes
+// <corpus>.answers.jsonl beside it, and prints the calibration table.
+//
+// The gate from the spec, restated: on a corpus whose truth is known by
+// construction, the mapping must skip almost never on patch_caused
+// rows, skip mostly on environmental/flaky/unrelated rows, and order
+// the classes monotonically: mean caused probability of patch_caused
+// above the others'. ≥70% overall correct is the spec's threshold; a
+// wrong skip on patch_caused is the only costly mistake.
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/jev"
+)
+
+type labeledState struct {
+	Name  string `json:"name"`
+	Truth string `json:"truth"`
+	State string `json:"state"`
+	File  string `json:"file,omitempty"`
+	Seq   int    `json:"seq,omitempty"`
+}
+
+// decisionsReplayMode wires the flag: a decisions client built the same
+// way a session builds one (config's decisions block, else the
+// OpenRouter defaults), then the calibration.
+func decisionsReplayMode(ctx context.Context, path string) error {
+	cfg, err := config.Load(config.Overrides{})
+	if err != nil {
+		return fmt.Errorf("decisions-replay: %w", err)
+	}
+	var client *jev.Client
+	if cfg.Decisions != nil {
+		key := os.Getenv(cfg.Decisions.KeyEnv())
+		if key == "" {
+			return fmt.Errorf("decisions-replay: %s is empty", cfg.Decisions.KeyEnv())
+		}
+		client = &jev.Client{BaseURL: cfg.Decisions.BaseURL, Key: key,
+			Model: cfg.Decisions.Model, Timeout: time.Duration(cfg.Decisions.TimeoutMs) * time.Millisecond}
+	} else {
+		// No block configured: default to the verified route rather than
+		// refusing, because --decisions-replay is itself the thing being
+		// tried out.
+		key := os.Getenv("OPENROUTER_API_KEY")
+		if key == "" {
+			return fmt.Errorf("decisions-replay: no OPENROUTER_API_KEY and no decisions block in the config")
+		}
+		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout}
+	}
+	return runDecisionsReplay(ctx, path, client)
+}
+
+type replayRow struct {
+	Name        string  `json:"name"`
+	Truth       string  `json:"truth"`
+	Class       string  `json:"class"`
+	Caused      float64 `json:"caused"`
+	Confidence  float64 `json:"confidence"`
+	WorthRepair float64 `json:"worth_repair"`
+	Model       string  `json:"model,omitempty"`
+	LatencyMs   int64   `json:"latency_ms"`
+	Skipped     bool    `json:"skipped"`
+	Correct     bool    `json:"correct"`
+}
+
+type classTally struct {
+	n, skipped, correct, costly int
+	causedSum, confSum          float64
+}
+
+// truthWantsSkip: a wrong skip is consequential only where the truth
+// would have been repaired — patch_caused, inconclusive.
+func truthWantsSkip(truth string) bool {
+	return truth != "patch_caused" && truth != "inconclusive"
+}
+
+func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var cases []labeledState
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var c labeledState
+		if err := json.Unmarshal([]byte(line), &c); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		cases = append(cases, c)
+	}
+	if len(cases) == 0 {
+		return fmt.Errorf("%s: no labeled states", path)
+	}
+	questions := agent.TriageQuestions()
+	tallies := map[string]*classTally{}
+	var rows []string
+	for _, c := range cases {
+		ctx2, cancel := context.WithTimeout(ctx, 20*time.Second)
+		res, err := j.Evaluate(ctx2, c.State, questions)
+		cancel()
+		t := tallies[c.Truth]
+		if t == nil {
+			t = &classTally{}
+			tallies[c.Truth] = t
+		}
+		t.n++
+		row := replayRow{Name: c.Name, Truth: c.Truth}
+		if err != nil {
+			row.Model = "error: " + err.Error()
+			rows = append(rows, mustJSONForReplay(row))
+			fmt.Printf("%-38s %.40s  ERROR: %v\n", c.Name, c.Truth, err)
+			continue
+		}
+		row.Class, row.Skipped = agent.TriageAction(res)
+		row.Caused, _ = res.NoulAt("caused_by_change")
+		row.WorthRepair, _ = res.NoulAt("worth_repair")
+		_, conf, _ := res.ChoiceAt("failure_class")
+		row.Confidence = conf
+		row.Model = res.Model
+		row.LatencyMs = res.Latency.Milliseconds()
+		row.Correct = row.Skipped == truthWantsSkip(c.Truth)
+		if row.Skipped && !truthWantsSkip(c.Truth) {
+			t.costly++
+		}
+		t.skipped += btoi(row.Skipped)
+		t.correct += btoi(row.Correct)
+		t.causedSum += row.Caused
+		t.confSum += row.Confidence
+		rows = append(rows, mustJSONForReplay(row))
+	}
+	dst := strings.TrimSuffix(path, ".jsonl") + ".answers.jsonl"
+	if err := os.WriteFile(dst, []byte(strings.Join(rows, "\n")+"\n"), 0o644); err != nil {
+		return err
+	}
+	names := make([]string, 0, len(tallies))
+	for k := range tallies {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	fmt.Println("truth           n  skip% mean_p  mean_conf  correct  costly-skip")
+	for _, k := range names {
+		t := tallies[k]
+		fmt.Printf("%-14s %2d %5d%% %7.2f %9.2f %8d %12d\n", k, t.n,
+			100*t.skipped/maxInt(1, t.n), t.causedSum/n1(t.n),
+			t.confSum/n1(t.n), t.correct, t.costly)
+	}
+	correctAll, costlyAll := 0, 0
+	for _, t := range tallies {
+		correctAll += t.correct
+		costlyAll += t.costly
+	}
+	pct := 100 * correctAll / maxInt(1, len(cases))
+	fmt.Printf("overall: %d/%d correct (%d%%), %d costly wrong skips (spec gate: >=70%% correct, no costly skip on patch_caused)\n",
+		correctAll, len(cases), pct, costlyAll)
+	fmt.Println("rows: " + dst)
+	return nil
+}
+
+func mustJSONForReplay(v any) string { b, _ := json.Marshal(v); return string(b) }
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+func n1(n int) float64 {
+	if n < 1 {
+		return 1
+	}
+	return float64(n)
+}
