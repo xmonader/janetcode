@@ -202,18 +202,38 @@ func TestScrubRewritesTheState(t *testing.T) {
 
 func TestPinnedModel(t *testing.T) {
 	cases := map[string]bool{
-		"jev-1.13.0":    true,
-		"jev-2.0.1":     true,
-		"jev-latest":    false,
-		"jev-preview":   false,
-		"jev-1.13":      false,
-		"jev-1.13.0.1":  false,
-		"":              false,
-		"claude-opus-5": false,
+		"jev-1.13.0":           true,
+		"jev-2.0.1":            true,
+		"~typesafe/jev-latest": true,
+		"~typesafe/jev-1.13":   true,
+		"jev-latest":           false,
+		"jev-preview":          false,
+		"~typesafe/claude":     false,
+		"jev-1.13":             false,
+		"":                     false,
+		"claude-opus-5":        false,
 	}
 	for model, want := range cases {
 		if got := PinnedModel(model); got != want {
 			t.Errorf("PinnedModel(%q) = %v, want %v", model, got, want)
+		}
+	}
+}
+
+// The endpoint is per host: OpenRouter's decisions API, TypeSafe's
+// native one. Wrong paths 404 in the wild, so this is pinned on both
+// sides.
+func TestEndpointPerHost(t *testing.T) {
+	cases := map[string]string{
+		"":                             "https://openrouter.ai/api/alpha/decisions",
+		"https://openrouter.ai":        "https://openrouter.ai/api/alpha/decisions",
+		"https://openrouter.ai/api/v1": "https://openrouter.ai/api/alpha/decisions",
+		"https://api.typesafe.ai":      "https://api.typesafe.ai/v1/systemone",
+		"http://127.0.0.1:9000":        "http://127.0.0.1:9000/v1/systemone",
+	}
+	for base, want := range cases {
+		if got := (&Client{BaseURL: base}).endpoint(); got != want {
+			t.Errorf("endpoint(%q) = %q, want %q", base, got, want)
 		}
 	}
 }

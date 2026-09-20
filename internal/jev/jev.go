@@ -24,9 +24,12 @@ import (
 	"time"
 )
 
-// DefaultBaseURL is TypeSafe's API. A gateway (Requesty, Vercel) or a
-// test server overrides it.
-const DefaultBaseURL = "https://api.typesafe.ai"
+// DefaultBaseURL is OpenRouter's decisions endpoint, the route whose
+// wire contract is verified live (model ~typesafe/jev-latest; the
+// response reports the pinned version, e.g. typesafe/jev-1.13-…).
+// TypeSafe's native host answers on /v1/systemone with the same shapes
+// and is selected by pointing base_url at it.
+const DefaultBaseURL = "https://openrouter.ai"
 
 // DefaultTimeout bounds one decision call. Jev's value is cheap
 // immediacy; past MaxTimeout the answer is not worth waiting for.
@@ -183,13 +186,22 @@ type Client struct {
 // gate with its timeout.
 const maxConsecErrors = 3
 
-// endpoint is the one path this API has.
+// endpoint is the one path per host: OpenRouter serves the Decisions
+// API at /api/alpha/decisions, TypeSafe's native host at
+// /v1/systemone. The request and response bodies are the same shape on
+// both, which the live and fake-server tests pin. An OpenRouter base
+// that carries the chat-completions suffix (/api/v1, from copying the
+// chat preset) is normalised rather than 404ing on the first call.
 func (c *Client) endpoint() string {
 	base := c.BaseURL
 	if base == "" {
 		base = DefaultBaseURL
 	}
-	return strings.TrimSuffix(base, "/") + "/v1/systemone"
+	base = strings.TrimSuffix(strings.TrimSuffix(base, "/"), "/api/v1")
+	if strings.Contains(base, "openrouter.ai") {
+		return base + "/api/alpha/decisions"
+	}
+	return base + "/v1/systemone"
 }
 
 func (c *Client) timeout() time.Duration {
@@ -321,10 +333,16 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 	return res, nil
 }
 
-// PinnedModel reports whether model names a versioned Jev id
-// (jev-1.13.0) rather than an alias. The config validator uses it: a
-// threshold tuned against one version must not move underfoot.
+// PinnedModel reports whether model names a model the harness can hold
+// a threshold against: a versioned native id (jev-1.13.0) or one of
+// OpenRouter's ~typesafe/jev-* decision slugs, whose responses always
+// report the pinned version. Bare aliases ("jev-latest", "jev-preview")
+// without the vendor prefix are refused: a threshold tuned against one
+// version must not silently retune itself when the alias moves.
 func PinnedModel(model string) bool {
+	if rest, ok := strings.CutPrefix(model, "~typesafe/"); ok && strings.HasPrefix(rest, "jev") && rest != "jev" {
+		return true
+	}
 	rest, ok := strings.CutPrefix(model, "jev-")
 	if !ok {
 		return false

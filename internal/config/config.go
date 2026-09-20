@@ -198,7 +198,9 @@ type DecisionsConfig struct {
 	// test server goes here. http is accepted only for loopback.
 	BaseURL string `json:"base_url,omitempty"`
 	// APIKeyEnv names the environment variable holding the key; empty is
-	// TYPESAFE_API_KEY. The key itself never goes in the file.
+	// OPENROUTER_API_KEY (the default endpoint is OpenRouter's; a
+	// native TypeSafe base_url usually wants TYPESAFE_API_KEY). The key
+	// itself never goes in the file.
 	APIKeyEnv string `json:"api_key_env,omitempty"`
 	// Model is the pinned, versioned Jev id (jev-1.13.0). Aliases are
 	// refused: a threshold tuned against one version must not move
@@ -244,12 +246,13 @@ func (d *DecisionsConfig) Validate() error {
 	return nil
 }
 
-// KeyEnv is the environment variable the key is read from.
+// KeyEnv is the environment variable the key is read from. The default
+// follows the default endpoint: OpenRouter.
 func (d *DecisionsConfig) KeyEnv() string {
 	if d.APIKeyEnv != "" {
 		return d.APIKeyEnv
 	}
-	return "TYPESAFE_API_KEY"
+	return "OPENROUTER_API_KEY"
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.

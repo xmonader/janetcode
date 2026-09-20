@@ -31,7 +31,7 @@ func TestDecisionsLoadAndValidate(t *testing.T) {
 	if cfg.Decisions == nil || cfg.Decisions.Model != "jev-1.13.0" || !cfg.Decisions.Triage || cfg.Decisions.TimeoutMs != 500 {
 		t.Fatalf("decisions = %+v", cfg.Decisions)
 	}
-	if cfg.Decisions.KeyEnv() != "TYPESAFE_API_KEY" {
+	if cfg.Decisions.KeyEnv() != "OPENROUTER_API_KEY" {
 		t.Fatalf("KeyEnv = %q", cfg.Decisions.KeyEnv())
 	}
 	// An overridden key env is honoured.
