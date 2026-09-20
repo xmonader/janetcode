@@ -150,3 +150,37 @@ track outcomes on our own data, nothing live ships.
   and Vercel gateway routes are OpenAI-shaped enough to hand-roll if
   the API stays `state` + `questions`.
 - Pricing sustainability at eval-harness volume.
+
+## First A/B: triage versus baseline (2026-09-20, live)
+
+Janetcode headless, deepseek/deepseek-v4-flash on OpenRouter, identical
+config, ablation by JANETCODE_OFF=decisions; trust seeded per task dir;
+"calls" is the envelope's model-call count.
+
+- env-failure task ("make a.txt say ok" under a gate that greps a file
+  the change cannot touch, so no repair can pass; n=3 per side):
+  baseline 6–8 model calls, triage 3–4 — **half the repair burn**,
+  decision itself ~0.6–1.0s and ~400–700 input tokens per failed gate;
+  wall time flat (45–60s both sides: the saved calls are the cheap part,
+  the turn-not-spent effect shows in calls, not seconds); cost equal or
+  slightly lower with triage (never higher). All 3 triage runs ended on
+  one confident environmental verdict; the fold recorded `check failed`
+  honestly in all 3 — the exit stays authoritative.
+- patch-caused task (one edit away; n=3 per side): **identical to the
+  digit** — 4 model calls, 7.8k tokens, 0 decision calls, on every run:
+  when the work is right the gate never fails and Jev costs nothing.
+- multistep, comfortably in range (fib/CLI under a verify gate, n=2):
+  no gate failures on deepseek, no decision calls, verdicts identical.
+  Jev's overhead on solved work measured zero.
+- multistep at capacity (INI parser round-trip under a gate, n=2 per
+  side): both sides hit the 12-turn / max-cost cap (exit 53), decision
+  fired once on one run; costs 0.0018–0.0038 both sides — under the
+  budget cap there is nothing to report except that the ceiling
+  dominated before triage could matter.
+
+Caveats: n=3 and n=2, one model, one machine, hand-trapped tasks — this
+is a capability demonstration and a smoke of the instrumentation, not
+the calibration replay the spec gates consumer-on-default on. Verdict
+wording on the simple tasks is "not demonstrated"/"self-checked" on
+both sides regardless of Jev — the pre-existing verdict semantics treat
+grep gates as checks, not tests; nothing here changed them.

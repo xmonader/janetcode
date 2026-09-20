@@ -1,6 +1,5 @@
 package headless
 
-import "time"
 
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
@@ -68,10 +67,10 @@ type CLIResult struct {
 // ended the session closed, and the latency it cost — which a run
 // comparing against the feature costs must see alongside the pass rate.
 type CLIDecisions struct {
-	Calls       int           `json:"calls"`
-	Errors      int           `json:"errors"`
-	CircuitOpen bool          `json:"circuit_open"`
-	Total       time.Duration `json:"total_latency_ms"`
+	Calls       int   `json:"calls"`
+	Errors      int   `json:"errors"`
+	CircuitOpen bool  `json:"circuit_open"`
+	Total       int64 `json:"total_latency_ms"` // milliseconds
 }
 
 // CLIRecoveries counts the ways a run was saved rather than smooth.

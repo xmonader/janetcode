@@ -375,7 +375,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 				Calls:       st.DecisionCalls,
 				Errors:      st.DecisionErrors,
 				CircuitOpen: open,
-				Total:       st.DecisionTime,
+				Total:       st.DecisionTime.Milliseconds(),
 			}
 		}
 	}
