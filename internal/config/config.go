@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
@@ -182,6 +183,73 @@ type Config struct {
 	// Empty uses the session model. The tool is never on the always-on
 	// schema list.
 	AdvisorModel string `json:"advisor_model,omitempty"`
+	// Decisions configures the optional TypeSafe Jev decision client
+	// (internal/jev): typed answers to narrow questions around the agent
+	// loop. Nil means the feature is invisible. When the block is
+	// present each consumer is still off until its own key says so.
+	Decisions *DecisionsConfig `json:"decisions,omitempty"`
+}
+
+// DecisionsConfig is the "decisions" config block. Everything about it
+// is advisory: no answer it produces can permit, refuse or edit — the
+// deterministic guards never read it.
+type DecisionsConfig struct {
+	// BaseURL is the API endpoint; empty is TypeSafe's. A gateway or a
+	// test server goes here. http is accepted only for loopback.
+	BaseURL string `json:"base_url,omitempty"`
+	// APIKeyEnv names the environment variable holding the key; empty is
+	// TYPESAFE_API_KEY. The key itself never goes in the file.
+	APIKeyEnv string `json:"api_key_env,omitempty"`
+	// Model is the pinned, versioned Jev id (jev-1.13.0). Aliases are
+	// refused: a threshold tuned against one version must not move
+	// underfoot when jev-latest does.
+	Model string `json:"model"`
+	// TimeoutMs bounds one decision call; 0 is the client's default and
+	// anything past the client's ceiling is refused here rather than
+	// discovered as slow turns.
+	TimeoutMs int `json:"timeout_ms,omitempty"`
+	// Triage enables verify-failure triage (Phase 1 of
+	// docs/notes/jev-integration-spec.md). Trajectory and Intake are
+	// reserved for the later phases and currently wire nothing.
+	Triage     bool `json:"triage,omitempty"`
+	Trajectory bool `json:"trajectory,omitempty"`
+	Intake     bool `json:"intake,omitempty"`
+}
+
+// Validate rejects a decisions block that cannot work, at load, the same
+// way a bad theme or price table is rejected.
+func (d *DecisionsConfig) Validate() error {
+	if d == nil {
+		return nil
+	}
+	if !jev.PinnedModel(d.Model) {
+		return fmt.Errorf("decisions.model %q is not a pinned version (want jev-X.Y.Z; aliases like jev-latest are refused on purpose)", d.Model)
+	}
+	if d.TimeoutMs < 0 || d.TimeoutMs > int(jev.MaxTimeout/time.Millisecond) {
+		return fmt.Errorf("decisions.timeout_ms is %d (want 0 for the default, or at most %d)", d.TimeoutMs, jev.MaxTimeout/time.Millisecond)
+	}
+	if u := d.BaseURL; u != "" {
+		if strings.HasPrefix(u, "http://") {
+			h := strings.TrimPrefix(u, "http://")
+			if i := strings.IndexAny(h, "/:"); i >= 0 {
+				h = h[:i]
+			}
+			if h != "localhost" && h != "127.0.0.1" && h != "::1" {
+				return fmt.Errorf("decisions.base_url %q is plain http off loopback; states carry command output, so the connection must be https", u)
+			}
+		} else if !strings.HasPrefix(u, "https://") {
+			return fmt.Errorf("decisions.base_url %q wants an https URL", u)
+		}
+	}
+	return nil
+}
+
+// KeyEnv is the environment variable the key is read from.
+func (d *DecisionsConfig) KeyEnv() string {
+	if d.APIKeyEnv != "" {
+		return d.APIKeyEnv
+	}
+	return "TYPESAFE_API_KEY"
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.
@@ -595,6 +663,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, badf("%s: %v", path, err)
 	}
 	if err := validateSandbox(cfg.Sandbox); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	if err := cfg.Decisions.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
 	// A file that cannot be used beats credentials that are merely
