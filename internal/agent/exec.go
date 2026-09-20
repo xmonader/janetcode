@@ -559,7 +559,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			out, isErr = msg, true
 		}
 	}
-	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
+	out = a.stash(ctx, u.ID, u.Name, subjectOf(u.Name, u.Input), out)
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}
@@ -727,7 +727,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	// script read is still findable afterwards through expand_output even
 	// though it never entered the conversation.
 	if !isErr {
-		a.stash(id, name, subjectOf(name, u.Input), out)
+		a.stash(ctx, id, name, subjectOf(name, u.Input), out)
 	}
 	return out, isErr, false
 }

@@ -125,7 +125,7 @@ func TestLongOutputIsArchivedAndExpandable(t *testing.T) {
 
 func TestStashWithoutArchiveTruncates(t *testing.T) {
 	a := &Agent{}
-	out := a.stash("t", "bash", "", strings.Repeat("q", InlineOutput*2))
+	out := a.stash(context.Background(), "t", "bash", "", strings.Repeat("q", InlineOutput*2))
 	if len(out) > InlineOutput+100 || !strings.Contains(out, "omitted") || strings.Contains(out, "ctx-") {
 		t.Fatalf("len=%d", len(out))
 	}

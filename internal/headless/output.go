@@ -314,6 +314,16 @@ func (r *recorder) spentUSD() (float64, bool) {
 	return r.usage.Cost(r.price)
 }
 
+// CLIReceipts is the evidence-receipt consumer's envelope footprint:
+// how many receipts were generated (and stood for a whole oversized
+// output), how many the evidence gate rejected (the preview stood
+// instead), and the context bytes they removed.
+type CLIReceipts struct {
+	Generated int `json:"generated"`
+	Rejected  int `json:"rejected"`
+	SavedB    int `json:"bytes_saved"`
+}
+
 // result builds the envelope. modelCalls and toolCalls come from the
 // agent's own counters where it has them, which survive compaction.
 func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
@@ -376,6 +386,13 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 				Errors:      st.DecisionErrors,
 				CircuitOpen: open,
 				Total:       st.DecisionTime.Milliseconds(),
+			}
+		}
+		if st.ReceiptCalls > 0 {
+			res.Receipts = &CLIReceipts{
+				Generated: st.ReceiptCalls - st.ReceiptRejected,
+				Rejected:  st.ReceiptRejected,
+				SavedB:    st.ReceiptSavedB,
 			}
 		}
 	}

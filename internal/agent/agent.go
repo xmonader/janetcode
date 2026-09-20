@@ -233,6 +233,13 @@ type Agent struct {
 	// Decisions field being set only means a client is configured; each
 	// consumer is opted into separately (config decisions.triage).
 	DecisionsTriage bool
+	// DecisionsReceipts enables the evidence-preserving receipt
+	// consumer (config decisions.receipts): oversized tool outputs are
+	// reduced to a receipt on the session's own provider, accepted only
+	// when every quoted line is byte-exact in the archived output. The
+	// side model is a.AdvisorModel (empty = the session model). All
+	// failures fail open to the head+tail preview.
+	DecisionsReceipts bool
 	// Root is the directory the session works in. Paths shown to the user
 	// and the model by /undo about are relative to it; empty means the
 	// process working directory, which is only right for a front-end

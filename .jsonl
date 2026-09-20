@@ -1,0 +1,30 @@
+{
+  "type": "result",
+  "harness": "janetcode",
+  "result": "Done. Created `a.txt` with content \"ok\".",
+  "is_error": false,
+  "exit_code": 0,
+  "session_id": "20260920-123817-9f5c43",
+  "model": "inception/mercury-2.5",
+  "provider": "openai",
+  "usage": {
+    "input_tokens": 18786,
+    "output_tokens": 597,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0
+  },
+  "cost_usd": 0.00084099,
+  "cost_source": "reported",
+  "num_turns": 2,
+  "tool_calls": 1,
+  "permission_denials": 0,
+  "verdict": "⚠ unverified: 1 file(s) edited and nothing was run against them",
+  "duration_ms": 10938,
+  "recoveries": {
+    "prose_tool_calls": 0,
+    "watchdog_kills": 0,
+    "model_fallbacks": 0,
+    "total": 0
+  },
+  "retries": 0
+}

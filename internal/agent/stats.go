@@ -73,6 +73,14 @@ type Stats struct {
 	DecisionCalls  int
 	DecisionErrors int
 	DecisionTime   time.Duration
+	// ReceiptCalls are evidence-preserving receipts produced for
+	// oversized outputs; ReceiptRejected the ones the all-or-nothing
+	// evidence gate threw away (a rejected receipt means the head+tail
+	// preview stood instead — no wrong evidence); ReceiptSavedB the
+	// bytes those receipts removed from the running context.
+	ReceiptCalls    int
+	ReceiptRejected int
+	ReceiptSavedB   int
 }
 
 // ModelStat is the tally for one model actually used in this session.
@@ -133,6 +141,19 @@ func (s Stats) DecisionLine() string {
 		line += fmt.Sprintf(" · avg %s", textfmt.Duration(s.DecisionTime/time.Duration(max(1, s.DecisionCalls))))
 	}
 	return line
+}
+
+// receipt records one receipt attempt. Rejected is the all-or-nothing
+// evidence gate firing (or the side call erroring); bytes is the
+// head+tail preview the receipt replaced.
+func (c *statsCounter) receipt(rejected bool, bytes int) {
+	c.mu.Lock()
+	c.s.ReceiptCalls++
+	if rejected {
+		c.s.ReceiptRejected++
+	}
+	c.s.ReceiptSavedB += bytes
+	c.mu.Unlock()
 }
 
 // ToolStat is the tally for one tool.

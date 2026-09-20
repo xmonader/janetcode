@@ -34,6 +34,19 @@ type DecisionProvider interface {
 	Available() bool
 }
 
+// TriageQuestions is the verify-triage question set, exported so the
+// offline calibration replay (cmd/janetcode --decisions-replay) asks
+// exactly what a live turn would — no copy that can drift.
+func TriageQuestions() []jev.Question { return triageQuestions() }
+
+// TriageSkip reports the live mapping's consequential answer for a
+// result: the failure class and whether a repair round would be
+// skipped. Exported for the same reason.
+func TriageAction(res *jev.Result) (class string, skip bool) {
+	v := triageAction(res)
+	return v.class, v.skip
+}
+
 // The three triage questions. IDs are stable: they are the keys the
 // session log, the offline replay and any future threshold tuning read.
 const (

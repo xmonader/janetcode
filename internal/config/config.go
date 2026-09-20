@@ -213,9 +213,16 @@ type DecisionsConfig struct {
 	// Triage enables verify-failure triage (Phase 1 of
 	// docs/notes/jev-integration-spec.md). Trajectory and Intake are
 	// reserved for the later phases and currently wire nothing.
-	Triage     bool `json:"triage,omitempty"`
+	Triage bool `json:"triage,omitempty"`
+	// Receipts enables the evidence-preserving receipt consumer
+	// (SoL-Pi's EPR, Phase 0 prototype verified in docs/notes/jev.md):
+	// oversized tool outputs get one cheap side call on the session's
+	// own provider; the receipt stands only when every quoted line is
+	// byte-exact in the archived output, else the head+tail preview
+	// stands untouched. Side model: advisor_model, else the session's.
 	Trajectory bool `json:"trajectory,omitempty"`
 	Intake     bool `json:"intake,omitempty"`
+	Receipts   bool `json:"receipts,omitempty"`
 }
 
 // Validate rejects a decisions block that cannot work, at load, the same
