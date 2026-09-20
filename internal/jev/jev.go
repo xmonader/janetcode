@@ -1,0 +1,351 @@
+// Package jev is a minimal client for TypeSafe's System One decision API
+// (the Jev model): a state and a set of typed questions in, probability
+// distributions and confidences out, with no text generation. janetcode
+// uses it for advisory decisions around the agent loop — verification
+// triage first — never for anything the harness can decide exactly, and
+// never in the permission path (see docs/notes/jev.md and
+// docs/notes/jev-integration-spec.md).
+//
+// The client is deliberately a leaf: it imports nothing from janetcode,
+// retries nothing on the live path (a retried decision is a late
+// decision), and fails soft — every error is meant to be handled as
+// "no opinion" by the caller.
+package jev
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+)
+
+// DefaultBaseURL is TypeSafe's API. A gateway (Requesty, Vercel) or a
+// test server overrides it.
+const DefaultBaseURL = "https://api.typesafe.ai"
+
+// DefaultTimeout bounds one decision call. Jev's value is cheap
+// immediacy; past MaxTimeout the answer is not worth waiting for.
+const (
+	DefaultTimeout = 800 * time.Millisecond
+	MaxTimeout     = 2 * time.Second
+)
+
+// Kind is the question type, matching the API's three primitives.
+type Kind string
+
+const (
+	// Noul asks a yes/no question; the answer is P(true).
+	Noul Kind = "noul"
+	// Choice picks one of Options (id → description).
+	Choice Kind = "choice"
+	// Score places the state on an ordered rubric of Levels.
+	Score Kind = "score"
+)
+
+// Question is one typed question evaluated against the state.
+type Question struct {
+	ID           string
+	Instructions string
+	Kind         Kind
+	// Options are a Choice's candidates, id to description. The id is
+	// what Answer.Choice returns.
+	Options map[string]string
+	// Levels are a Score's rubric, lowest first; the answer's Score is
+	// an index into it.
+	Levels []string
+}
+
+// Answer is one question's result.
+type Answer struct {
+	Kind          Kind
+	Noul          float64            // Kind Noul: P(true)
+	Choice        string             // Kind Choice: the winning option id
+	Score         float64            // Kind Score: the level index
+	Confidence    float64            // Choice and Score only
+	Probabilities map[string]float64 // Choice and Score only
+}
+
+// Result is one Evaluate call: the answers plus what it cost and how
+// long it took. Model is the versioned id the server reports answering
+// (jev-1.13.0), which may differ from the alias asked for.
+type Result struct {
+	Model      string
+	Answers    map[string]Answer
+	TokensIn   int
+	Latency    time.Duration
+	StatusCode int
+}
+
+// Noul is the probability for a Noul question, or false when the
+// answer is absent or of another kind.
+func (r *Result) NoulAt(id string) (float64, bool) {
+	a, ok := r.Answers[id]
+	if !ok || a.Kind != Noul {
+		return 0, false
+	}
+	return a.Noul, true
+}
+
+// ChoiceAt is the selected option and its confidence for a Choice or
+// Score question, or false when absent or of another kind.
+func (r *Result) ChoiceAt(id string) (choice string, confidence float64, ok bool) {
+	a, ok := r.Answers[id]
+	if !ok || (a.Kind != Choice && a.Kind != Score) {
+		return "", 0, false
+	}
+	if a.Kind == Score {
+		// A Score's "choice" is its level index as a string, matching
+		// the keys of Probabilities and the position in Levels.
+		return fmt.Sprintf("%g", a.Score), a.Confidence, true
+	}
+	return a.Choice, a.Confidence, true
+}
+
+// wire types: the API's request and response shapes.
+
+// The API spells a choice's options and a score's rubric both as
+// "criteria": an object for choice, an array for score. Encoding that
+// needs a custom marshaler on the question, not two structs nobody can
+// tell apart.
+func (q Question) MarshalJSON() ([]byte, error) {
+	m := map[string]any{"type": string(q.Kind), "instructions": q.Instructions}
+	switch q.Kind {
+	case Choice:
+		m["criteria"] = q.Options
+	case Score:
+		m["criteria"] = q.Levels
+	}
+	return json.Marshal(m)
+}
+
+type wireRequest struct {
+	State     string              `json:"state"`
+	Model     string              `json:"model"`
+	Questions map[string]Question `json:"questions"`
+}
+
+type wireAnswer struct {
+	Type          string             `json:"type"`
+	Choice        string             `json:"choice"`
+	Score         float64            `json:"score"`
+	Noul          float64            `json:"noul"`
+	Confidence    float64            `json:"confidence"`
+	Probabilities map[string]float64 `json:"probabilities"`
+}
+
+type wireResponse struct {
+	Model   string                `json:"model"`
+	Answers map[string]wireAnswer `json:"answers"`
+	Usage   struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+}
+
+type wireError struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+	Message string `json:"message"`
+}
+
+// Client is one configured Jev endpoint. It is safe for concurrent use.
+type Client struct {
+	BaseURL string // default DefaultBaseURL
+	Key     string
+	// Model is the pinned, versioned model id. Config validation refuses
+	// aliases (jev-latest): a threshold tuned against one version must
+	// not silently retune itself when the alias moves.
+	Model   string
+	Timeout time.Duration // clamped to (0, MaxTimeout]; default DefaultTimeout
+	HTTP    *http.Client  // default http.DefaultClient
+
+	// Scrub, when set, rewrites the state before it leaves the process
+	// (the composition root wires memory.ScanSecret into it). Returning
+	// "[redacted]" for a flagged field is the convention.
+	Scrub func(string) string
+
+	// OnNotice is called at most once per session, when the circuit
+	// opens. Nil is fine; the agent wires it to EvNotice.
+	OnNotice func(string)
+
+	mu         sync.Mutex
+	consecErrs int
+	open       bool
+	noticed    bool
+	calls      int
+	errs       int
+	totalTime  time.Duration
+}
+
+// maxConsecErrors is how many failures in a row close the circuit for
+// the session. A decision service that is down must not tax every later
+// gate with its timeout.
+const maxConsecErrors = 3
+
+// endpoint is the one path this API has.
+func (c *Client) endpoint() string {
+	base := c.BaseURL
+	if base == "" {
+		base = DefaultBaseURL
+	}
+	return strings.TrimSuffix(base, "/") + "/v1/systemone"
+}
+
+func (c *Client) timeout() time.Duration {
+	if c.Timeout <= 0 {
+		return DefaultTimeout
+	}
+	if c.Timeout > MaxTimeout {
+		return MaxTimeout
+	}
+	return c.Timeout
+}
+
+// Available reports whether the circuit is closed: whether a call is
+// worth attempting at all. It never blocks.
+func (c *Client) Available() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return !c.open
+}
+
+// Stats are the session's counters, for /stats and the JSON envelope:
+// calls attempted, how many failed, and the total time spent waiting.
+func (c *Client) Stats() (calls, errs int, total time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls, c.errs, c.totalTime
+}
+
+// record folds one call's outcome into the circuit and the counters.
+func (c *Client) record(d time.Duration, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	c.totalTime += d
+	if err == nil {
+		c.consecErrs = 0
+		return
+	}
+	c.errs++
+	c.consecErrs++
+	if c.consecErrs >= maxConsecErrors && !c.open {
+		c.open = true
+		if !c.noticed && c.OnNotice != nil {
+			c.noticed = true
+			c.OnNotice(fmt.Sprintf("decisions: %d consecutive errors, off for the rest of this session (last: %v)", maxConsecErrors, err))
+		}
+	}
+}
+
+// Evaluate answers every question against state in one request. The
+// caller's ctx is bounded further by the client's timeout. Any error —
+// network, non-200, malformed body — is soft by contract: callers treat
+// it as "no opinion" and behave exactly as if Jev were not configured.
+func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Result, error) {
+	if !c.Available() {
+		return nil, fmt.Errorf("decisions circuit is open")
+	}
+	if c.Key == "" {
+		return nil, fmt.Errorf("no API key")
+	}
+	if len(qs) == 0 {
+		return nil, fmt.Errorf("no questions")
+	}
+	if c.Scrub != nil {
+		state = c.Scrub(state)
+	}
+	questions := make(map[string]Question, len(qs))
+	for _, q := range qs {
+		questions[q.ID] = q
+	}
+	body, err := json.Marshal(wireRequest{State: state, Model: c.Model, Questions: questions})
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout())
+	defer cancel()
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Key)
+	req.Header.Set("Content-Type", "application/json")
+	hc := c.HTTP
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
+	d := time.Since(start)
+	if err != nil {
+		c.record(d, err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		c.record(d, err)
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		var we wireError
+		msg := http.StatusText(resp.StatusCode)
+		if json.Unmarshal(data, &we) == nil {
+			if we.Message != "" {
+				msg = we.Message
+			} else if we.Error.Message != "" {
+				msg = we.Error.Message
+			}
+		}
+		err := fmt.Errorf("decisions %d: %s", resp.StatusCode, msg)
+		c.record(d, err)
+		return nil, err
+	}
+	var wr wireResponse
+	if err := json.Unmarshal(data, &wr); err != nil {
+		c.record(d, err)
+		return nil, fmt.Errorf("decisions: malformed response: %w", err)
+	}
+	res := &Result{
+		Model:      wr.Model,
+		Answers:    make(map[string]Answer, len(wr.Answers)),
+		TokensIn:   wr.Usage.InputTokens,
+		Latency:    d,
+		StatusCode: resp.StatusCode,
+	}
+	for id, wa := range wr.Answers {
+		res.Answers[id] = Answer{
+			Kind: Kind(wa.Type), Noul: wa.Noul, Choice: wa.Choice,
+			Score: wa.Score, Confidence: wa.Confidence, Probabilities: wa.Probabilities,
+		}
+	}
+	c.record(d, nil)
+	return res, nil
+}
+
+// PinnedModel reports whether model names a versioned Jev id
+// (jev-1.13.0) rather than an alias. The config validator uses it: a
+// threshold tuned against one version must not move underfoot.
+func PinnedModel(model string) bool {
+	rest, ok := strings.CutPrefix(model, "jev-")
+	if !ok {
+		return false
+	}
+	dots := 0
+	for _, r := range rest {
+		switch {
+		case r == '.':
+			dots++
+		case r < '0' || r > '9':
+			return false
+		}
+	}
+	return dots == 2
+}
