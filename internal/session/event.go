@@ -52,6 +52,12 @@ const (
 	// ran it (GateVerify or GateAccept). The verdict fold counts it as a
 	// check the turn ran, so a green gate after a red run is not lost.
 	TypeGate = "verify/gate"
+	// TypeDecision records one call to the optional decision provider
+	// (internal/jev): the consumer, the questions, the typed answers
+	// with their confidences, and the action taken. Log-only, never on
+	// the model-visible surface; the model is never shown a decision's
+	// probabilities.
+	TypeDecision = "decision"
 )
 
 // Gate sources on a TypeGate event.

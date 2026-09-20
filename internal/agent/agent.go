@@ -213,6 +213,18 @@ type Agent struct {
 	// undo_apply.go's reportChecks uses it to say why no checks ran rather
 	// than staying silent, without re-reading the trust store itself.
 	VerifyUntrusted bool
+	// Decisions, when set, is the optional decision provider (TypeSafe's
+	// Jev, see internal/jev): typed answers to narrow questions around
+	// the loop. It is advisory by contract — every consumer fails open
+	// to the pre-feature behaviour on any error, and nothing here can
+	// permit, refuse or edit. Off["decisions"] disables the calls
+	// without dropping the field.
+	Decisions DecisionProvider
+	// ScrubState, when set, rewrites one field of a decision state
+	// before it leaves the process. The composition root wires the
+	// memory store's secret scan into it: a field that looks like a
+	// credential goes out as "[redacted]".
+	ScrubState func(string) string
 	// Root is the directory the session works in. Paths shown to the user
 	// and the model by /undo about are relative to it; empty means the
 	// process working directory, which is only right for a front-end

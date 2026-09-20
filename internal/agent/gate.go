@@ -54,6 +54,15 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		emit(Event{Kind: EvNotice, Text: res.Summary() + " · giving up after " + fmt.Sprint(verify.MaxRounds) + " rounds"})
 		return false
 	}
+	// The optional decision provider gets a say before the round is
+	// spent: a confident environmental/flaky/unrelated verdict ends the
+	// turn without spending a model call on it. The round is counted
+	// either way, so the worst case of a wrong answer is one round
+	// fewer, never a loop.
+	if a.triageFailure(ctx, res, emit) {
+		emit(Event{Kind: EvNotice, Text: res.Summary() + " · repair round not spent (" + fmt.Sprint(g.rounds) + "/" + fmt.Sprint(verify.MaxRounds) + ")"})
+		return false
+	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
 	a.appendHarnessText(res.Feedback())
 	return true
