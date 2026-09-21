@@ -458,7 +458,7 @@ func TestEverySetDirectoryIsInTheManual(t *testing.T) {
 }
 
 func numberWord(n int) string {
-	words := []string{"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"}
+	words := []string{"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"}
 	if n < len(words) {
 		return words[n]
 	}

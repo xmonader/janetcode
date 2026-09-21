@@ -55,6 +55,12 @@ type Task struct {
 	// HiddenCheck is the command the held-out gate runs in the scratch
 	// copy; empty means `go test ./acceptance/`.
 	HiddenCheck string `json:"hidden_check,omitempty"`
+	// Reference is a solution kept beside the task and never written into
+	// a work directory: laid over Files it must make the held-out tests
+	// pass, exactly as Files left untouched must make them fail. Both
+	// halves are checked offline (see TestHiddenSetIsDiscriminating). A
+	// held-out set nobody has proved satisfiable is not an instrument.
+	Reference map[string]string `json:"reference,omitempty"`
 	// Check is a shell command run in the work directory afterwards; exit
 	// 0 passes. EVAL_OUTPUT names a file holding the model's final text,
 	// and EVAL_HIDDEN_GATE the held-out gate script when the task has one.

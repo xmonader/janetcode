@@ -174,7 +174,7 @@ you do not intend to push, or hand a task to someone who has no access to
 
 ## The task sets, and which one an ablation can use
 
-`evals/` holds ten sets, and they are not interchangeable:
+`evals/` holds eleven sets, and they are not interchangeable:
 
 | set | where | what it is for |
 |---|---|---|
@@ -187,6 +187,7 @@ you do not intend to push, or hand a task to someone who has no access to
 | 61 | `evals/explore/` | one change to find in a repository too big to read |
 | 71–73 | `evals/gated/` | long tasks that ship a strict `.janetcode/verify.json` (build + vet + gofmt + tests), so `--eval-gate` has a gate that can actually fail |
 | 81–86 | `evals/hard/` | six gap tasks ported from the mixai research repository: small Python programs whose stated behaviour a cheap model gets subtly wrong (occurs check, vector-clock concurrency, integer cent splitting, a regex engine that may not import `re`, deterministic topological order, a PN-counter merge). Each ships its `pytest` specification as a `locked` file, so an edit to the test is restored before grading, and a `.janetcode/verify.json` that runs the same tests inside the run, so `--eval-gate` has a gate that fails exactly when the task is unsolved. This is the set an escalation or advisor arm is measured on, because the easy sets are passed by every model |
+| 91–98 | `evals/hidden/` | the held-out-acceptance set: small-to-mid Go repositories whose prompt states the whole specification, whose visible tests cover the happy path only, and whose grading tests are **held out** — they are never written into the work directory and are laid over a scratch copy by the gate alone (see `internal/eval/hidden.go`). This is the only set whose gate the model cannot run for itself, and so the only one on which a gate failure, a repair round, triage or a cascade escalation can be measured at all. 91–95 carry held-out tests and a reference solution proving them satisfiable; 97 and 98 are controls whose gate fails for a reason outside the repository (an absent linter, a service that is not listening), so a triage skip or veto is scoreable in both directions |
 | 74–76 | `evals/routing/` | short tasks that exercise request routing: two one-look questions a cheap model should be able to answer, and one trivial edit that must stay on the strong one. They are the mixed set the intake-routing A/B needs beside the gated tasks, and they ship no gate — there is nothing for a gate to check in an answer |
 
 `--eval` takes one file or one directory and does not descend, so

@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,4 +159,112 @@ func runShell(t *testing.T, command, dir string) (string, error) {
 	t.Helper()
 	out, err := runCheck(context.Background(), Task{Check: command}, dir, filepath.Join(t.TempDir(), "out.txt"), "")
 	return out, err
+}
+
+// hiddenSet is the shipped held-out task set.
+const hiddenSet = "../../evals/hidden"
+
+// TestHiddenSetIsDiscriminating is the shipped set's own gate: for every
+// task, the fixture as shipped must FAIL its held-out tests and the
+// reference solution must PASS them. A task that fails neither half is
+// measuring nothing, and this is the only place that ever runs the
+// reference — it is never written into a work directory.
+func TestHiddenSetIsDiscriminating(t *testing.T) {
+	if testing.Short() {
+		t.Skip("compiles a Go module per task")
+	}
+	tasks, err := Load(hiddenSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		if !task.Hidden() {
+			continue
+		}
+		t.Run(task.Name, func(t *testing.T) {
+			t.Parallel()
+			if len(task.Reference) == 0 {
+				t.Fatal("no reference solution; the held-out tests are unproven")
+			}
+			ok, err := CheckAtBase(context.Background(), task)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ok {
+				t.Fatal("the untouched fixture passes its held-out tests")
+			}
+			solved := task
+			solved.Files = map[string]string{}
+			for k, v := range task.Files {
+				solved.Files[k] = v
+			}
+			for k, v := range task.Reference {
+				solved.Files[k] = v
+			}
+			ok, err = CheckAtBase(context.Background(), solved)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ok {
+				out, _ := runShell(t, `"$EVAL_HIDDEN_GATE" "$EVAL_DIR"`, t.TempDir())
+				t.Fatalf("the reference solution fails its own held-out tests: %s", out)
+			}
+		})
+	}
+}
+
+// TestControlTasksFailTheirGateEnvironmentally: the control tasks exist
+// to give triage a gate failure that is NOT caused by the patch, so that
+// a skip or a veto can be scored in both directions. Their value depends
+// entirely on the gate failing at base for a reason no code change can
+// fix, which is what this asserts — the project's own build and tests
+// pass, and the step after them does not.
+func TestControlTasksFailTheirGateEnvironmentally(t *testing.T) {
+	if testing.Short() {
+		t.Skip("compiles a Go module per task")
+	}
+	tasks, err := Load(hiddenSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, task := range tasks {
+		if !contains(task.Tags, "control") {
+			continue
+		}
+		seen++
+		t.Run(task.Name, func(t *testing.T) {
+			t.Parallel()
+			var cfg struct {
+				Commands []string `json:"commands"`
+			}
+			raw, ok := task.Files[".janetcode/verify.json"]
+			if !ok {
+				t.Fatal("a control task ships no verify.json")
+			}
+			if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if len(cfg.Commands) < 2 {
+				t.Fatalf("commands = %v, want the project's own checks and an environmental step", cfg.Commands)
+			}
+			dir := t.TempDir()
+			if err := writeFiles(dir, task.Files); err != nil {
+				t.Fatal(err)
+			}
+			for i, command := range cfg.Commands {
+				out, err := runShell(t, command, dir)
+				last := i == len(cfg.Commands)-1
+				if last && err == nil {
+					t.Fatalf("the environmental step passed: %s", out)
+				}
+				if !last && err != nil {
+					t.Fatalf("the project's own check %q failed at base: %s", command, out)
+				}
+			}
+		})
+	}
+	if seen < 2 {
+		t.Fatalf("found %d control tasks, want at least 2", seen)
+	}
 }
