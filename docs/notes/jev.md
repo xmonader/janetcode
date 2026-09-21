@@ -1958,3 +1958,46 @@ and, as truth by construction, the files that run actually read or edited.
 `TestPreselectCorpusIsWellFormed` keeps it scoreable. Nothing consumes it
 yet; it is the input to the tie-break measurement, not evidence for
 anything on its own.
+
+## 2026-09-21 — Item 1 closed deterministically, and where the cascade leaves Jev
+
+Two of this round's results are about Jev by way of not needing it.
+
+**Item 1 (context pre-selection) is closed, deterministically.** The
+previous section left it with recall@10 = 1.00 and precision@5 = 0.00 on
+`evals/explore/61`, and named the next step as a sibling-path tie-break
+measured before any Jev call. That fix shipped (see
+`docs/notes/model-mix.md` for the arithmetic and the before/after table):
+a request word now pulls a file once, by its strongest route, and that
+pull is divided by the number of files the word matches. precision@5 went
+0.00 → 0.40, which **is the ceiling** on a fixture with exactly two right
+answers, and recall@10 stayed 1.00. Both are pinned by a test.
+
+The consequence for the proposed consumer — one Jev call at turn start, a
+noul per candidate file from the ranker's top N, the top-k injected as
+pointers — is that **there is no longer any headroom on this fixture to
+buy a call with.** A reranker cannot beat a deterministic baseline that
+is already at the measurable maximum. Scoring one would need a fixture
+with more than two right answers, and that fixture does not exist yet.
+Status: not built, and now for a better reason than last round's.
+
+**The cascade gives Jev's triage a second job for free.** Escalation
+(`strong_model` + `escalate_after`, both default off) fires when the
+verification gate has failed N rounds in a turn. The obvious worry is the
+one this repository has already priced: burning a strong-model round on a
+failure that is environmental — a missing dependency, a port in use, a
+flaky service — rather than caused by the patch.
+
+That worry needs no new consumer and no new call. `triageFailure` already
+runs *before* the point where the repair round is spent, and a confident
+environmental / flaky / unrelated verdict ends the turn there. Escalation
+was deliberately placed after it, so a failure triage vetoes never reaches
+the cascade at all. The veto is the **ordering**, not a second question.
+Nothing was wired, no flag was added, and `decisions.triage` stays off by
+default exactly as before.
+
+What is genuinely left for Jev in a cascade is the case with no
+deterministic signal at all: a turn that is not failing a gate and not
+looping, where something has to guess whether the cheap model is going to
+get there. That is the same silent-turn tiebreaker Item 6 scoped and did
+not build, and it is still the narrowest role on the list.
