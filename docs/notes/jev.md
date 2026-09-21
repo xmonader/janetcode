@@ -258,3 +258,22 @@ actually recur — exactly the EdgeBench long-horizon setting the paper
 measures, not the short-turn regime the A/Bs run in. The offline
 prototype (reduce.py approach + quote gate) is the reference we would
 start from if that regime arrives.
+
+## Noul criteria on caused_by_change: replay A/B (2026-09-21, live)
+
+Same 35-row corpus, same pinned model, `--decisions-replay`. Baseline is
+the two-question live payload with no criteria; treatment adds
+true/false `criteria` to `caused_by_change` only (the text restates the
+`failure_class` option descriptions, it was not fitted to corpus rows).
+
+| arm | runs | overall | flaky | environmental | unrelated | patch_caused | mean p(caused) patch / flaky | costly skips |
+|---|---|---|---|---|---|---|---|---|
+| no criteria | 1 (+ the 2026-09-20 run) | 28/35 (80%), 29/35 (82%) | 2/5 | 6/8 | 4/6 | 10/10 | 0.73 / 0.31 | 0 |
+| criteria | 2 | 31/35 (88%), 32/35 (91%) | 3/5, 3/5 | 7/8, 7/8 | 5/6, 6/6 | 10/10, 10/10 | 0.77 / 0.24 | 0 |
+
+The criteria widen the separation in both directions (patch up, every
+skip class down), which moves borderline rows off the 0.3 threshold.
+No rows ended in error in any run. Caveat: n=35 and run-to-run noise is
+about one row, so the honest claim is "+3 rows, never worse in any
+cell", not a precise percentage. flaky is still the weak cell: its class
+confidence (0.71–0.73) sits on the 0.7 mapping threshold.

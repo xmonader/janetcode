@@ -70,7 +70,11 @@ const (
 func triageQuestions() []jev.Question {
 	return []jev.Question{
 		{ID: qCausedByChange, Kind: jev.Noul,
-			Instructions: "Is this failure plausibly caused by the change just made, rather than by the environment, a flaky test or an unrelated cause?"},
+			Instructions: "Is this failure plausibly caused by the change just made, rather than by the environment, a flaky test or an unrelated cause?",
+			NoulCriteria: map[string]string{
+				"true":  "the failing output points at code, files or behaviour the change touched",
+				"false": "the failure is a missing dependency, tool or service, a test that passed before on the same code or moves between runs, or a failure on a path the change did not touch",
+			}},
 		{ID: qFailureClass, Kind: jev.Choice,
 			Instructions: "What kind of verification failure is this?",
 			Options: map[string]string{
