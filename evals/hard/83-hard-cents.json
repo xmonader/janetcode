@@ -1,0 +1,19 @@
+{
+  "name": "83-hard-cents",
+  "prompt": "Fix split_cents. Integer cents only. Parts differ by at most 1, sum equals total, extras go to the front.\n\nThe test file in this directory is the specification and must not be changed: it is restored from its original copy before grading, so an edit to it buys nothing. Make `python3 -m pytest -q` pass by fixing the implementation only.",
+  "files": {
+    "cents.py": "def split_cents(total, n):\n    \"\"\"Split total cents into n parts. Parts differ by at most 1. Sum == total.\"\"\"\n    each = round(total / n)\n    return [each] * n\n",
+    "test_cents.py": "from cents import split_cents\n\n\ndef test_sum_exact():\n    for total, n in [(100, 3), (1, 3), (10, 4), (999, 7), (0, 5)]:\n        parts = split_cents(total, n)\n        assert sum(parts) == total\n        assert len(parts) == n\n        assert max(parts) - min(parts) <= 1\n        assert all(p >= 0 for p in parts)\n\n\ndef test_remainder_front():\n    # first (total % n) parts get the extra cent\n    assert split_cents(100, 3) == [34, 33, 33]\n    assert split_cents(1, 3) == [1, 0, 0]\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"python3 -m compileall -q .\",\n    \"python3 -m pytest -q\"\n  ],\n  \"timeout\": 120\n}\n"
+  },
+  "locked": [
+    "test_cents.py"
+  ],
+  "check": "python3 -m pytest -q >/dev/null 2>&1",
+  "timeout": 420,
+  "tags": [
+    "hard",
+    "gap",
+    "python"
+  ]
+}

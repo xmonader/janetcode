@@ -1,0 +1,19 @@
+{
+  "name": "82-hard-vclock",
+  "prompt": "Fix vector-clock compare. Return before/after/equal/concurrent. Do not use totals \u2014 two clocks with the same sum can be concurrent.\n\nThe test file in this directory is the specification and must not be changed: it is restored from its original copy before grading, so an edit to it buys nothing. Make `python3 -m pytest -q` pass by fixing the implementation only.",
+  "files": {
+    "vclock.py": "def tick(clock, node):\n    out = dict(clock)\n    out[node] = out.get(node, 0) + 1\n    return out\n\n\ndef compare(a, b):\n    sa, sb = sum(a.values()), sum(b.values())\n    if sa < sb:\n        return \"before\"\n    if sa > sb:\n        return \"after\"\n    return \"equal\"\n",
+    "test_vclock.py": "from vclock import compare, tick\n\n\ndef test_happens_before():\n    a = {}\n    a = tick(a, \"p\")\n    b = tick(a, \"q\")\n    assert compare(a, b) == \"before\"\n    assert compare(b, a) == \"after\"\n\n\ndef test_concurrent():\n    a = tick({}, \"p\")\n    b = tick({}, \"q\")\n    assert compare(a, b) == \"concurrent\"\n    assert compare(b, a) == \"concurrent\"\n\n\ndef test_equal():\n    a = tick(tick({}, \"p\"), \"q\")\n    b = dict(a)\n    assert compare(a, b) == \"equal\"\n\n\ndef test_not_sum():\n    # same sum, not comparable: p=2 vs q=2\n    a = tick(tick({}, \"p\"), \"p\")\n    b = tick(tick({}, \"q\"), \"q\")\n    assert compare(a, b) == \"concurrent\"\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"python3 -m compileall -q .\",\n    \"python3 -m pytest -q\"\n  ],\n  \"timeout\": 120\n}\n"
+  },
+  "locked": [
+    "test_vclock.py"
+  ],
+  "check": "python3 -m pytest -q >/dev/null 2>&1",
+  "timeout": 420,
+  "tags": [
+    "hard",
+    "gap",
+    "python"
+  ]
+}

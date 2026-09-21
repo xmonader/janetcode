@@ -1,0 +1,19 @@
+{
+  "name": "85-hard-topo",
+  "prompt": "Fix topo_sort. Kahn/DFS with a cycle error. When several nodes are ready, pick the lexicographically smallest name.\n\nThe test file in this directory is the specification and must not be changed: it is restored from its original copy before grading, so an edit to it buys nothing. Make `python3 -m pytest -q` pass by fixing the implementation only.",
+  "files": {
+    "topo.py": "def topo_sort(nodes, edges):\n    \"\"\"Deterministic topological order. On a tie, smaller name first. Cycle -> ValueError.\"\"\"\n    remaining = list(nodes)\n    out = []\n    edges = list(edges)\n    while remaining:\n        remaining.sort()\n        n = remaining[0]\n        out.append(n)\n        remaining.remove(n)\n        edges = [(a, b) for a, b in edges if a != n]\n    return out\n",
+    "test_topo.py": "import pytest\n\nfrom topo import topo_sort\n\n\ndef test_order():\n    # a before b before c; d unconstrained \u2014 d sorts among ready set\n    nodes = [\"a\", \"b\", \"c\", \"d\"]\n    edges = [(\"a\", \"b\"), (\"b\", \"c\")]\n    got = topo_sort(nodes, edges)\n    assert got.index(\"a\") < got.index(\"b\") < got.index(\"c\")\n    assert set(got) == set(nodes)\n\n\ndef test_edge_beats_alpha():\n    # c must precede a even though a < c\n    assert topo_sort([\"a\", \"c\"], [(\"c\", \"a\")]) == [\"c\", \"a\"]\n\n\ndef test_tie_break():\n    # no edges: alphabetical\n    assert topo_sort([\"c\", \"a\", \"b\"], []) == [\"a\", \"b\", \"c\"]\n\n\ndef test_ready_set_alpha():\n    # after a is taken, b and d are both ready; b < d\n    nodes = [\"a\", \"b\", \"d\"]\n    edges = [(\"a\", \"b\"), (\"a\", \"d\")]\n    assert topo_sort(nodes, edges) == [\"a\", \"b\", \"d\"]\n\n\ndef test_cycle():\n    with pytest.raises(ValueError):\n        topo_sort([\"a\", \"b\"], [(\"a\", \"b\"), (\"b\", \"a\")])\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"python3 -m compileall -q .\",\n    \"python3 -m pytest -q\"\n  ],\n  \"timeout\": 120\n}\n"
+  },
+  "locked": [
+    "test_topo.py"
+  ],
+  "check": "python3 -m pytest -q >/dev/null 2>&1",
+  "timeout": 420,
+  "tags": [
+    "hard",
+    "gap",
+    "python"
+  ]
+}

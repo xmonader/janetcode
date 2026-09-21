@@ -1,0 +1,19 @@
+{
+  "name": "81-hard-unify",
+  "prompt": "Fix first-order unification. Must recurse into tuples, compose substitutions, and reject cyclic bindings (occurs check). Terms are strings (vars if lowercase) or tuples like ('->', a, b).\n\nThe test file in this directory is the specification and must not be changed: it is restored from its original copy before grading, so an edit to it buys nothing. Make `python3 -m pytest -q` pass by fixing the implementation only.",
+  "files": {
+    "unify.py": "def is_var(t):\n    return isinstance(t, str) and t[:1].islower() and t.isalnum()\n\n\ndef unify(a, b):\n    \"\"\"Return a substitution dict, or raise ValueError on clash / occurs.\"\"\"\n    if a == b:\n        return {}\n    if is_var(a):\n        return {a: b}\n    if is_var(b):\n        return {b: a}\n    if isinstance(a, tuple) and isinstance(b, tuple) and a[0] == b[0] and len(a) == len(b):\n        return {}\n    raise ValueError(\"clash\")\n",
+    "test_unify.py": "import pytest\n\nfrom unify import unify\n\n\ndef test_var_binds():\n    assert unify(\"a\", \"int\") == {\"a\": \"int\"}\n\n\ndef test_function_args():\n    # ('->', a, b)  ~  ('->', 'int', 'int')\n    s = unify((\"->\", \"a\", \"b\"), (\"->\", \"int\", \"int\"))\n    assert s[\"a\"] == \"int\"\n    assert s[\"b\"] == \"int\"\n\n\ndef test_nested():\n    s = unify((\"->\", \"a\", (\"->\", \"b\", \"a\")), (\"->\", \"int\", (\"->\", \"bool\", \"int\")))\n    assert s[\"a\"] == \"int\"\n    assert s[\"b\"] == \"bool\"\n\n\ndef test_occurs():\n    with pytest.raises(ValueError):\n        unify(\"a\", (\"->\", \"a\", \"int\"))\n\n\ndef test_compose():\n    # unifying (a -> a) with (b -> int) must force a=int and b=int\n    s = unify((\"->\", \"a\", \"a\"), (\"->\", \"b\", \"int\"))\n    assert apply(s, \"a\") == \"int\"\n    assert apply(s, \"b\") == \"int\"\n\n\ndef apply(subst, t):\n    seen = set()\n    while is_var(t) and t in subst and t not in seen:\n        seen.add(t)\n        t = subst[t]\n    if isinstance(t, tuple):\n        return (t[0],) + tuple(apply(subst, x) for x in t[1:])\n    return t\n\n\ndef is_var(t):\n    return isinstance(t, str) and t[:1].islower() and t.isalnum()\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"python3 -m compileall -q .\",\n    \"python3 -m pytest -q\"\n  ],\n  \"timeout\": 120\n}\n"
+  },
+  "locked": [
+    "test_unify.py"
+  ],
+  "check": "python3 -m pytest -q >/dev/null 2>&1",
+  "timeout": 420,
+  "tags": [
+    "hard",
+    "gap",
+    "python"
+  ]
+}

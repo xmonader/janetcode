@@ -1,0 +1,19 @@
+{
+  "name": "84-hard-re",
+  "prompt": "Implement match(pattern, text) for concat, |, * and parentheses. Full-string match. Do not import the stdlib re module.\n\nThe test file in this directory is the specification and must not be changed: it is restored from its original copy before grading, so an edit to it buys nothing. Make `python3 -m pytest -q` pass by fixing the implementation only.",
+  "files": {
+    "re_tiny.py": "def match(pattern, text):\n    \"\"\"Subset: concatenation, |, *, and parentheses. Full-string match.\"\"\"\n    import re\n    return re.fullmatch(pattern, text) is not None\n",
+    "test_re_tiny.py": "import inspect\n\nimport re_tiny\n\n\ndef test_no_stdlib_re():\n    src = inspect.getsource(re_tiny)\n    assert \"import re\" not in src\n    assert \"from re \" not in src\n\n\ndef test_concat_or_star():\n    assert re_tiny.match(\"a*b\", \"aaab\") is True\n    assert re_tiny.match(\"a*b\", \"b\") is True\n    assert re_tiny.match(\"a*b\", \"aa\") is False\n    assert re_tiny.match(\"a|ab\", \"ab\") is True\n    assert re_tiny.match(\"a|ab\", \"a\") is True\n    assert re_tiny.match(\"a|ab\", \"b\") is False\n\n\ndef test_parens():\n    assert re_tiny.match(\"(ab|c)*\", \"abcab\") is True\n    assert re_tiny.match(\"(ab|c)*\", \"ccab\") is True\n    assert re_tiny.match(\"(ab|c)*\", \"ac\") is False\n    assert re_tiny.match(\"a(b|)*c\", \"ac\") is True\n    assert re_tiny.match(\"a(b|)*c\", \"abbbc\") is True\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"python3 -m compileall -q .\",\n    \"python3 -m pytest -q\"\n  ],\n  \"timeout\": 120\n}\n"
+  },
+  "locked": [
+    "test_re_tiny.py"
+  ],
+  "check": "python3 -m pytest -q >/dev/null 2>&1",
+  "timeout": 420,
+  "tags": [
+    "hard",
+    "gap",
+    "python"
+  ]
+}

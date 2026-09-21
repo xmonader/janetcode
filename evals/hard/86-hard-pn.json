@@ -1,0 +1,19 @@
+{
+  "name": "86-hard-pn",
+  "prompt": "Fix the PN-counter CRDT. merge must take componentwise max of increment and decrement maps. value is sum(p)-sum(n). merge is commutative.\n\nThe test file in this directory is the specification and must not be changed: it is restored from its original copy before grading, so an edit to it buys nothing. Make `python3 -m pytest -q` pass by fixing the implementation only.",
+  "files": {
+    "pn.py": "def increment(state, node):\n    p, n = state\n    p = dict(p)\n    p[node] = p.get(node, 0) + 1\n    return p, n\n\n\ndef decrement(state, node):\n    p, n = state\n    n = dict(n)\n    n[node] = n.get(node, 0) + 1\n    return p, n\n\n\ndef value(state):\n    p, n = state\n    return sum(p.values()) - sum(n.values())\n\n\ndef merge(a, b):\n    # last-write-wins on the whole pair \u2014 wrong for a CRDT\n    return b\n",
+    "test_pn.py": "from pn import decrement, increment, merge, value\n\n\ndef empty():\n    return {}, {}\n\n\ndef test_inc_dec():\n    s = increment(empty(), \"p\")\n    s = increment(s, \"p\")\n    s = decrement(s, \"q\")\n    assert value(s) == 1\n\n\ndef test_merge_max():\n    a = increment(increment(empty(), \"p\"), \"p\")  # p +2\n    b = increment(empty(), \"p\")  # p +1\n    b = decrement(b, \"q\")  # q -1\n    m = merge(a, b)\n    assert value(m) == 1  # p=2, q=1\n    # merge is commutative\n    assert value(merge(b, a)) == value(m)\n\n\ndef test_merge_does_not_drop():\n    a = increment(empty(), \"p\")\n    b = increment(empty(), \"r\")\n    m = merge(a, b)\n    assert value(m) == 2\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"python3 -m compileall -q .\",\n    \"python3 -m pytest -q\"\n  ],\n  \"timeout\": 120\n}\n"
+  },
+  "locked": [
+    "test_pn.py"
+  ],
+  "check": "python3 -m pytest -q >/dev/null 2>&1",
+  "timeout": 420,
+  "tags": [
+    "hard",
+    "gap",
+    "python"
+  ]
+}
