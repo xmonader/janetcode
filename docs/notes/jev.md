@@ -1863,9 +1863,25 @@ sample. The budget was spent on the two things that *are* new instead:
      this round measured turned out to be the whole story: `prune.go`'s
      `lastReference`, the repo-map ranker at recall@10 = 1.0, the memory and
      skill selectors' thresholds, `route_cheap`'s own mechanical-step rule.
-2. **A live baseline on a realistically sized fixture** (below), because the
-   one thing the recorded arms genuinely cannot tell us is what a run looks
-   like on a repository bigger than thirteen files.
+2. **The deterministic repo-map baseline on a realistically sized fixture**,
+   measured offline in the item 1 section above (58 files, recall@10 = 1.0,
+   pinned by a test), because the one thing the recorded arms genuinely
+   cannot tell us is how the ranker behaves on a repository bigger than
+   thirteen files.
 
-Live spend for this round: the explore baseline only, on the order of a few
-cents; no decisions call was made at any point.
+A live baseline run of `evals/explore/61` on both models was also launched,
+to put a Step 0 profile beside those numbers:
+
+    janetcode --eval evals/explore --eval-runs 3 --eval-jobs 1 \
+      --eval-timeout 420s --eval-max-turns 80 --eval-off decisions \
+      --eval-json <arm>.json
+
+It was **not finished inside this round's window** — qwen3.7-plus takes
+about 3.5 minutes a run on this fixture — so no numbers from it are quoted
+anywhere here. It changes no conclusion: item 1 is closed on the
+deterministic ranker's recall@10, which needs no run at all. Anyone picking
+this up should run the command above and add a Step 0 row for the 58-file
+case.
+
+**No decisions call was made at any point in this round.** Live spend is the
+explore baseline's main-model tokens alone, on the order of a few cents.
