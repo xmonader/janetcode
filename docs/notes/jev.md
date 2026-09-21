@@ -1476,3 +1476,65 @@ realistically sized repository would move the exploration share up and the
 before-first-edit count up with it; these numbers are the ceiling *for the
 tasks the A/B actually runs*, which is also the ceiling for any A/B run on
 that set.
+
+## 2026-09-21 — Item 5: step-level annotation as the measuring instrument
+
+The round's real product. Until now an A/B on `evals/gated` compared nine
+pass/fail bits per arm, and the honest verdict every time was "the spread is
+larger than the effect". The instrument replaces that with hundreds of
+labelled steps per arm.
+
+Two halves, both deterministic:
+
+- **Phase labels** (`agent.ClassifyCall`, shipped with `--session-profile`
+  above): explore / edit / verify / other per tool call and per model call.
+- **Waste labels** (`agent.WasteLabels`): the three by-construction rules
+  that the Python corpus builder had, ported to Go so the builder, the
+  profiler and any future report cannot drift — a call whose result came
+  back an error or was denied; a call inside a repeat (three identical in a
+  row, or three on the same tool+path inside a window of five); and, for a
+  run that did not pass, a call after its last successful change and after
+  its last green gate.
+
+`--session-profile` prints both, plus a percentile bootstrap over **runs**
+(not steps — a run's own steps are not independent) for the rates an A/B is
+read on. Re-reading last round's four arms through it, with no new live run:
+
+| per run, mean [95% bootstrap], n=9 | qwen off | qwen on | devstral off | devstral on |
+|---|---|---|---|---|
+| model calls | 27.7 [17.8, 37.2] | 23.6 [16.6, 30.0] | 51.0 [43.0, 58.7] | 40.9 [34.3, 48.1] |
+| tool calls | 35.9 [23.3, 47.2] | 32.4 [23.9, 40.6] | 54.2 [44.7, 63.2] | 47.1 [37.9, 56.7] |
+| explore model calls | 6.7 [3.8, 9.7] | 5.7 [3.8, 7.6] | 12.2 [7.8, 16.8] | 8.6 [5.0, 12.4] |
+| model calls before first edit | 3.9 [2.9, 4.9] | 3.6 [2.8, 4.3] | 5.2 [3.2, 8.0] | 4.0 [3.1, 5.0] |
+| **wasted tool calls** | **3.9 [0.9, 7.6]** | **1.6 [0.3, 3.2]** | **6.9 [3.6, 10.9]** | **5.7 [2.7, 8.7]** |
+| input tokens (k) | 447.9 [242.9, 649.9] | 345.3 [203.5, 480.8] | 909.2 [628.1, 1191.2] | 694.1 [450.8, 952.6] |
+| passed | 9/9 | 7/9 | 8/9 | 7/9 |
+
+Pooled waste share of tool calls: qwen 10.8% off (7 errored, 28 loop, 0 dead
+tail) against 4.8% on; devstral 12.7% off (6/56/0) against 12.0% on. Every
+interval still overlaps its partner at n=9 — the instrument does not
+manufacture significance, it only says honestly how much there is. What it
+adds over nine bits is that the *direction* is now consistent across six
+metrics on both models, which nine bits could never show.
+
+**Validation against Jev's own labels**: not repeated, because the previous
+section already did it — `--decisions-annotate`'s `wasted` answer agrees
+with these by-construction labels 63% of the time, precision 0.76, recall
+0.40, twice identically. The deterministic labels are free, exact and
+complete; the model's are none of those. **The instrument uses the
+deterministic labels and no decisions call at all.**
+
+**The critic, retrained.** The instrument's by-product is the training set
+the repository has wanted since 2026-09-08. Feeding `--eval-train` the four
+A/B arm files plus the routing arms:
+
+    janetcode --eval-train <dir of arm json>
+    trajectory critic trained on 72 runs (55 passed, 17 failed) from 8 file(s)
+    cross-validated accuracy 76% (always guessing the majority: 76%)
+    not saved: the critic is no better than guessing
+
+Seventeen failing runs against the thirteen annotated sessions' ten, and a
+real eval feature vector rather than one folded out of a session log — and
+it still exactly ties the majority baseline, so it is still not saved. The
+blocker has not moved: more failing runs. But the source of them has —
+recorded A/B arms are a renewable supply, annotation is not.
