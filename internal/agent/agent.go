@@ -168,6 +168,18 @@ type Agent struct {
 	Tools    *tool.Registry
 	System   string
 	Model    string
+	// StrongModel is the strong slot of the cheap/default/strong trio
+	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
+	// escalate to and the cascade cannot fire.
+	StrongModel string
+	// EscalateAfter is how many verification rounds the session's own
+	// model may fail before the rest of the turn moves to StrongModel.
+	// Zero is off, which is the default: a cascade changes what a run
+	// costs, so it is never on without being asked for.
+	EscalateAfter int
+	// escalateState is the cascade's per-session state (see escalate.go).
+	escalateState escalateState
+
 	// AdvisorModel, when set, is the model advisor consults. Empty uses
 	// the session model. The tool itself is deferred.
 	AdvisorModel string
@@ -414,6 +426,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}()
 
 	compactAt := a.raiseCompactFloor(emit)
+	// A cascade is per turn: the next request starts on the cheap tier
+	// again, which is the whole point of letting it try first.
+	a.endTurnEscalation()
+	defer a.endTurnEscalation()
 	var gates turnGates
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {

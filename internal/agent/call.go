@@ -20,7 +20,18 @@ import (
 // another model could survive (see fallback).
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
 	s := a.Settings()
-	if prov, model, ok := a.routeStep(emit); ok {
+	// A turn that has already failed its own verification has no business
+	// dipping to a cheaper tier, so the cascade is asked first.
+	if prov, model, ok := a.escalateStep(emit); ok {
+		resp, err := a.callOn(ctx, prov, model, emit)
+		if err == nil {
+			return resp, nil
+		}
+		if ctx.Err() != nil {
+			return nil, err
+		}
+		emit(Event{Kind: EvNotice, Text: "escalated call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
+	} else if prov, model, ok := a.routeStep(emit); ok {
 		resp, err := a.callOn(ctx, prov, model, emit)
 		if err == nil {
 			a.stats.routed()

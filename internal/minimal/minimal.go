@@ -54,6 +54,12 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 		return nil, err
 	}
 	ag.Prices = cfg.PriceFor
+	// The strong slot and the cascade: an eval arm that measures
+	// escalation needs the same wiring a session has, and both are inert
+	// until the config names a model and a round count.
+	ag.StrongModel = cfg.StrongModel
+	ag.EscalateAfter = cfg.EscalateAfter
+	ag.AdvisorModel = cfg.AdvisorModel
 	ag.Off = off
 	ag.Archive = archive
 	ag.System = prompt.SystemWith(root, override)

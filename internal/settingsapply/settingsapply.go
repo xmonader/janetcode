@@ -52,6 +52,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetRouteCheap(cfg.RouteCheap)
 	case "advisor_model":
 		a.AdvisorModel = cfg.AdvisorModel
+	case "strong_model":
+		// Changing the slot invalidates the cached resolution, exactly as
+		// /config route_cheap does for the cheap one.
+		a.SetStrongModel(cfg.StrongModel)
 	case "sandbox":
 		// The key is the project's default profile, so setting it
 		// changes what a running sandbox enforces but does not turn one

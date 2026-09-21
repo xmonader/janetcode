@@ -143,6 +143,8 @@ var configWhen = map[string][2]string{
 	"followup":            {"cheap next-prompt ghost text after a turn; tab accepts", "you want a suggested next prompt in the input box without another full turn"},
 	"computer_use":        {"start Cua Driver as an MCP server when cua-driver is on PATH", "you want the model to operate the desktop through accessibility, not pixel clicks"},
 	"advisor_model":       {"model the deferred advisor tool consults when the executor is stuck; empty is the session model", "you want a stronger model to advise a cheap executor without putting advisor on every request"},
+	"strong_model":        {"the strong slot of the cheap/default/strong trio: the model a turn escalates to when its verification gate keeps failing", "you want to run on a cheap model and buy the expensive one only for the turns that actually fail a real check"},
+	"escalate_after":      {"verification rounds the session's own model may fail before the rest of the turn runs on strong_model; 0 is off", "you are measuring or using the cascade and want to say how patient it is"},
 	"decisions":           {"optional TypeSafe Jev decision client for advisory triage of verification failures; states are sent to its API, scrubbed of credential-shaped text", "a failing verify gate sends the model back for environmental or flaky failures it cannot fix; off unless configured"},
 }
 

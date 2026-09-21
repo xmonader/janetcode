@@ -33,7 +33,7 @@ func TestSettableKeysMatchTheTable(t *testing.T) {
 func TestEverySettableKeyRefusesJunk(t *testing.T) {
 	// Keys whose value is an opaque name this package cannot check: a
 	// model id, a route, a theme. They are validated where they are used.
-	free := map[string]bool{"route_cheap": true, "advisor_model": true, "theme": true, "model": true}
+	free := map[string]bool{"route_cheap": true, "advisor_model": true, "strong_model": true, "theme": true, "model": true}
 	for _, k := range SettableKeys {
 		if free[k] {
 			continue

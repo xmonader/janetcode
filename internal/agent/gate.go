@@ -63,6 +63,13 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		emit(Event{Kind: EvNotice, Text: res.Summary() + " · repair round not spent (" + fmt.Sprint(g.rounds) + "/" + fmt.Sprint(verify.MaxRounds) + ")"})
 		return false
 	}
+	// The cascade, after triage has had its say: a repair round the
+	// decision provider vetoed as environmental or flaky never reaches
+	// here, so a missing dependency does not buy a strong-model round.
+	// That veto is free -- it is the ordering, not a second call.
+	if g.rounds >= a.EscalateAfter {
+		a.escalate(fmt.Sprintf("the verification gate failed %d round(s)", g.rounds), emit)
+	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
 	a.appendHarnessText(res.Feedback())
 	return true

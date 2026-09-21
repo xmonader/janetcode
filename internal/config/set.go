@@ -72,6 +72,7 @@ var setters = map[string]setter{
 	// experiment is ended.
 	"route_cheap":   stringKey(func(c *Config) *string { return &c.RouteCheap }),
 	"advisor_model": stringKey(func(c *Config) *string { return &c.AdvisorModel }),
+	"strong_model":  stringKey(func(c *Config) *string { return &c.StrongModel }),
 
 	"theme": func(c *Config, val string) (any, error) {
 		// Refused here as well as at load, for the same reason effort is:

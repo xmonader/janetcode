@@ -156,6 +156,45 @@ uses the session model. Setting it also activates the `advisor` tool for
 that session. A cheap executor plus a stronger advisor looks like
 `"model": "inception/mercury-2.5"` with that `advisor_model`.
 
+### The strong slot and the cascade
+
+`route_cheap`, `model` and `strong_model` are the three model slots a
+session has: the cheap one a mechanical step may dip to, the default one
+it runs on, and the one a failing turn escalates to. They are slots, not
+vendors -- which model fills which is a configuration question, and the
+answer changes with the month.
+
+```json
+{
+  "model": "mistralai/devstral-2512",
+  "strong_model": "qwen/qwen3.7-plus",
+  "escalate_after": 1
+}
+```
+
+`"escalate_after": N` turns on the cascade: when the verification gate
+(see `.janetcode/verify.json`) has failed `N` rounds in a turn, the rest
+of that turn's model calls go to `strong_model`. The next request starts
+on the default model again.
+
+Both halves are required and both default to off, so a configuration that
+names neither behaves exactly as before. `--eval-off escalate` and
+`JANETCODE_OFF=escalate` switch it off for one run.
+
+Two things about the trigger are deliberate. It is the real check
+failing, not a judgement about how hard the request sounds: a model asked
+to predict difficulty routes on the wording, pays the strong rate for
+work the cheap model could do, and still misses the one task that needed
+it. And the decision provider's failure triage (`decisions.triage`) runs
+*before* it, so a failure it confidently calls environmental or flaky
+ends the turn without buying a strong-model round -- that veto costs no
+extra call, it is just the ordering.
+
+Escalation ignores the 20k cross-provider context ceiling that guards
+cheap step routing. That ceiling exists because a cold prompt cache is
+not worth paying for a *cheaper* answer; when the alternative is a turn
+that fails its own gate, it is. Expect a cache miss at the switch.
+
 `"computer_use": true` starts Cua Driver as an MCP server when
 `cua-driver` or `open-computer-use` is on PATH. Off by default. `/cua on`
 sets it and starts the server in the running session.
