@@ -49,12 +49,14 @@ func IntakeQuestions() []jev.Question {
 				"other":     "none of the above, for instance a question about the tool itself or an ambiguous message",
 			}},
 		{ID: qIntakeComplexity, Kind: jev.Score,
-			Instructions: "How much work is this request, for an agent that can read and edit the repository?",
+			Instructions: "How much work is this request for an agent that can read and edit the repository? " +
+				"Count reading as work: a question can cost as much as a change, because judging whether " +
+				"something is correct, safe, fast or thread-safe means reading all of it first.",
 			Levels: []string{
-				"one look: a single file read or one factual answer",
-				"a small edit: one file, a few lines, nothing to design",
-				"a contained change: a handful of files that belong together",
-				"a feature: several files, new tests, decisions to make along the way",
+				"one look: one file read, or one fact, or a line the request quotes in full",
+				"a small job: two or three files to read, or a few lines to change in one file",
+				"a contained job: a handful of files that belong together, read or changed",
+				"a real job: a whole subsystem to read through, or several files to change with tests",
 				"a project: many files, migrations or design work that needs staging",
 			}},
 		{ID: qIntakeNeedsPlan, Kind: jev.Noul,

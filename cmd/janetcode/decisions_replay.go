@@ -289,10 +289,13 @@ type intakeRow struct {
 	Kind       string  `json:"kind"`
 	Confidence float64 `json:"confidence"`
 	Complexity float64 `json:"complexity"`
-	NeedsPlan  float64 `json:"needs_plan"`
-	Model      string  `json:"model,omitempty"`
-	LatencyMs  int64   `json:"latency_ms"`
-	Correct    bool    `json:"correct"`
+	// ComplexityConf is the confidence on that score. The routing gate
+	// reads it, so a row that does not record it cannot be re-scored.
+	ComplexityConf float64 `json:"complexity_confidence"`
+	NeedsPlan      float64 `json:"needs_plan"`
+	Model          string  `json:"model,omitempty"`
+	LatencyMs      int64   `json:"latency_ms"`
+	Correct        bool    `json:"correct"`
 	// Route is what agent.IntakeRouting made of these answers, RouteWhy
 	// the reason it gave, and TruthRoute the label it is scored against.
 	Route      string `json:"route"`
@@ -344,7 +347,7 @@ func runIntakeReplay(ctx context.Context, path string, j *jev.Client, cases []la
 			continue
 		}
 		row.Kind, row.Confidence, _ = res.ChoiceAt("kind")
-		row.Complexity, _, _, _ = res.ScoreAt("complexity")
+		row.Complexity, _, row.ComplexityConf, _ = res.ScoreAt("complexity")
 		row.NeedsPlan, _ = res.NoulAt("needs_plan")
 		row.Model, row.LatencyMs = res.Model, res.Latency.Milliseconds()
 		row.Correct = row.Kind == c.Truth

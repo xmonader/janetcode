@@ -36,7 +36,7 @@ func TestIntakeRoutingMapping(t *testing.T) {
 		wantWhy   string
 	}{
 		{"a confident one-look explain routes", routeResult("explain", 0.99, 0.3, 0.9, 0.2), true, "small read-only explain"},
-		{"a confident small review routes", routeResult("review", 0.9, 0.6, 0.7, 0.4), true, "small read-only review"},
+		{"review never routes: the classifier cannot size it", routeResult("review", 0.9, 0.6, 0.7, 0.4), false, "kind review changes the repository"},
 		{"complexity exactly at the ceiling routes", routeResult("explain", 0.9, 1.0, 0.6, 0.49), true, "small read-only explain"},
 		{"kind confidence exactly at the floor routes", routeResult("explain", 0.8, 0.5, 0.6, 0.1), true, "small read-only explain"},
 
@@ -47,7 +47,7 @@ func TestIntakeRoutingMapping(t *testing.T) {
 
 		{"an unsure explain does not route", routeResult("explain", 0.79, 0.2, 0.9, 0.1), false, "kind explain not confident enough"},
 		{"an unsure complexity does not route", routeResult("explain", 0.99, 0.2, 0.59, 0.1), false, "complexity uncertain"},
-		{"too much work does not route", routeResult("review", 0.99, 1.01, 0.9, 0.1), false, "complexity too high"},
+		{"too much work does not route", routeResult("explain", 0.99, 1.01, 0.9, 0.1), false, "complexity too high"},
 		{"wanting a plan does not route", routeResult("explain", 0.99, 0.4, 0.9, 0.51), false, "wants a plan"},
 
 		{"no answer does not route", nil, false, "no answer"},

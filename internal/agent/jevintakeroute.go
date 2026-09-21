@@ -20,8 +20,8 @@ import (
 //
 // The costly error is routing hard work to the weak model, so the gate
 // is deliberately lopsided: only a turn the classifier is confident is
-// a small, read-only request — explain or review, low complexity, no
-// plan wanted — is routed, and any uncertainty anywhere leaves the turn
+// a small, read-only request — an explain, low complexity, no plan
+// wanted — is routed, and any uncertainty anywhere leaves the turn
 // on the session's own model exactly as with the feature off. A wrong
 // "route" costs a weak answer to a question; a wrong "do not route"
 // costs nothing at all. Everything else about the step router still
@@ -30,8 +30,8 @@ import (
 
 // The routing thresholds. They come from the replay table in
 // docs/notes/jev.md ("Intake routing", 2026-09-21), not from taste: at
-// these values the 41-row corpus shows no cheap route taken on a row
-// labelled strong.
+// these values, over five scoring runs of the 41-row corpus, no cheap
+// route was taken on a row labelled strong.
 const (
 	// routeKindConfidence is how sure the classifier must be of the kind
 	// before the kind gate below means anything.
@@ -47,12 +47,16 @@ const (
 	routeNeedsPlanMax = 0.5
 )
 
-// routeKinds are the request kinds a cheap route is allowed for: the two
-// that ask for no change to the repository. A wrong answer to either is
-// read and judged by the user before anything happens, which is what
-// makes the downgrade recoverable. docs is excluded although it is
-// often small: it writes.
-var routeKinds = map[string]bool{"explain": true, "review": true}
+// routeKinds are the request kinds a cheap route is allowed for. docs
+// is excluded although it is often small: it writes. review is excluded
+// on measurement rather than principle — it asks for no change either,
+// but it is the kind the classifier cannot size. "tell me whether the
+// private-address guard can be bypassed" names one file and scores 0.23
+// on the rubric while meaning "read the guard and everything that calls
+// it", and it was the only costly wrong route in five replay runs.
+// Adding review back buys two more cheap routes out of twelve and costs
+// that one; the table is in docs/notes/jev.md (2026-09-21).
+var routeKinds = map[string]bool{"explain": true}
 
 // IntakeRoute is what the routing consumer decided about a turn, and
 // why. Why is filled in both directions so the session log says what
