@@ -119,6 +119,28 @@ func TestEvaluateSendsTheWireShape(t *testing.T) {
 	}
 }
 
+// A noul's criteria is optional: present verbatim when set, and the
+// key absent entirely when not, so existing payloads are unchanged.
+func TestNoulCriteriaMarshalling(t *testing.T) {
+	plain, err := json.Marshal(Question{ID: "caused", Kind: Noul, Instructions: "Caused by the change?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(plain) != `{"instructions":"Caused by the change?","type":"noul"}` {
+		t.Fatalf("noul without criteria = %s", plain)
+	}
+	withC, err := json.Marshal(Question{ID: "caused", Kind: Noul, Instructions: "Caused by the change?",
+		NoulCriteria: map[string]string{"true": "the change broke it", "false": "the environment did"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"criteria":{"false":"the environment did","true":"the change broke it"},` +
+		`"instructions":"Caused by the change?","type":"noul"}`
+	if string(withC) != want {
+		t.Fatalf("noul with criteria = %s", withC)
+	}
+}
+
 func TestEvaluateSoftErrors(t *testing.T) {
 	srv, _ := fakeServer(t, 500, `{"error":{"message":"over capacity"}}`)
 	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0"}

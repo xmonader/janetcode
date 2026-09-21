@@ -60,8 +60,12 @@ type Question struct {
 	// what Answer.Choice returns.
 	Options map[string]string
 	// Levels are a Score's rubric, lowest first; the answer's Score is
-	// an index into it.
+	// a position on it.
 	Levels []string
+	// NoulCriteria spells out what true and false mean for a Noul. It
+	// is optional — the wire contract allows exactly the keys "true"
+	// and "false", and the question is sent without it when empty.
+	NoulCriteria map[string]string
 }
 
 // Answer is one question's result.
@@ -134,6 +138,12 @@ func (q Question) MarshalJSON() ([]byte, error) {
 		m["criteria"] = q.Options
 	case Score:
 		m["criteria"] = q.Levels
+	case Noul:
+		// Optional here, and omitted when empty so a question without
+		// it goes out byte for byte as it always did.
+		if len(q.NoulCriteria) > 0 {
+			m["criteria"] = q.NoulCriteria
+		}
 	}
 	return json.Marshal(m)
 }
