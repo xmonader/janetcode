@@ -198,7 +198,9 @@ func triageAction(res *jev.Result) triageVerdict {
 // reports whether the repair round should be skipped. Every soft
 // failure returns false, which is "send the failure back as always".
 // The one session-level notice — the circuit opening — is emitted here,
-// on the turn goroutine that made the failing call, exactly once.
+// on the turn goroutine that made the failing call, exactly once per
+// session however often the circuit re-opens after a failed probe: the
+// first notice already says the feature paused itself.
 func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(Event)) bool {
 	if a.Decisions == nil || !a.DecisionsTriage || a.Off["decisions"] {
 		return false
@@ -212,7 +214,7 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	if err != nil {
 		if !a.Decisions.Available() && !a.decisionCircuitSeen {
 			a.decisionCircuitSeen = true
-			emit(Event{Kind: EvNotice, Text: "decisions: repeated errors, off for the rest of this session (" + err.Error() + ")"})
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: repeated errors, paused for %v and then retried once (%s)", jev.DefaultCooldown, err.Error())})
 		}
 		return false
 	}
@@ -220,7 +222,7 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	// ten medians past a second is the service, not this session.
 	if !a.Decisions.Available() && !a.decisionCircuitSeen {
 		a.decisionCircuitSeen = true
-		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: median latency past %v over %d calls, off for the rest of this session", jev.LatencyOpenP50, jev.LatencyWindow)})
+		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: median latency past %v over %d calls, paused for %v and then retried once", jev.LatencyOpenP50, jev.LatencyWindow, jev.DefaultCooldown)})
 	}
 	v := triageAction(ans)
 	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,

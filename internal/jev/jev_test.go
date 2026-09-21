@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -222,6 +223,110 @@ func TestCircuitOpensAfterThreeErrors(t *testing.T) {
 	}
 }
 
+// After the cooldown an open circuit lets exactly one probe through:
+// a failing probe buys another cooldown, a succeeding one closes the
+// circuit for good and the session gets its triage back.
+func TestCircuitHalfOpensAfterTheCooldown(t *testing.T) {
+	var hits atomic.Int32
+	var healthy atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if !healthy.Load() {
+			w.WriteHeader(503)
+			return
+		}
+		_, _ = w.Write([]byte(okBody))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0",
+		Cooldown: 5 * time.Minute, now: func() time.Time { return now }}
+	for i := 0; i < 3; i++ {
+		if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err == nil {
+			t.Fatal("expected error")
+		}
+	}
+	if c.Available() || hits.Load() != 3 {
+		t.Fatalf("circuit not open: available=%v hits=%d", c.Available(), hits.Load())
+	}
+	// Inside the cooldown nothing leaves the process.
+	now = now.Add(4 * time.Minute)
+	if c.Available() {
+		t.Fatal("available before the cooldown elapsed")
+	}
+	if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err == nil {
+		t.Fatal("expected the open circuit to refuse")
+	}
+	if hits.Load() != 3 {
+		t.Fatalf("hits = %d, want 3 (no call inside the cooldown)", hits.Load())
+	}
+	// Cooldown elapsed: one probe, which fails and buys another cooldown.
+	now = now.Add(2 * time.Minute)
+	if !c.Available() {
+		t.Fatal("no probe due after the cooldown")
+	}
+	if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err == nil {
+		t.Fatal("expected the probe to fail")
+	}
+	if hits.Load() != 4 {
+		t.Fatalf("hits = %d, want 4 (exactly one probe)", hits.Load())
+	}
+	if c.Available() {
+		t.Fatal("a failed probe left the circuit available")
+	}
+	// Next cooldown, service healthy: the probe closes the circuit.
+	healthy.Store(true)
+	now = now.Add(5 * time.Minute)
+	if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err != nil {
+		t.Fatalf("probe against a healthy service: %v", err)
+	}
+	if !c.Available() {
+		t.Fatal("a successful probe did not close the circuit")
+	}
+	// And the circuit stays closed: the streak that opened it is spent.
+	if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err != nil {
+		t.Fatalf("call after recovery: %v", err)
+	}
+	if hits.Load() != 6 {
+		t.Fatalf("hits = %d, want 6", hits.Load())
+	}
+}
+
+// Only one probe is ever in flight, however many turns race for it.
+func TestOnlyOneProbeInFlight(t *testing.T) {
+	var hits atomic.Int32
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hits.Add(1) > 3 { // the probe: hold it open while the others race
+			<-release
+		}
+		w.WriteHeader(503)
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0", Timeout: MaxTimeout,
+		Cooldown: time.Minute, now: func() time.Time { return now }}
+	for i := 0; i < 3; i++ {
+		_, _ = c.Evaluate(context.Background(), "s", testQuestions())
+	}
+	now = now.Add(2 * time.Minute)
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = c.Evaluate(context.Background(), "s", testQuestions())
+		}()
+	}
+	// The probe holder blocks until its own timeout; the other seven are
+	// refused locally, so the server must see exactly one more request.
+	wg.Wait()
+	close(release)
+	if hits.Load() != 4 {
+		t.Fatalf("hits = %d, want 4 (three to open, one probe)", hits.Load())
+	}
+}
+
 func TestNoBreakerKeepsCallingAfterABurstOfErrors(t *testing.T) {
 	srv, hits := fakeServer(t, 503, `{}`)
 	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0", NoBreaker: true}
@@ -329,12 +434,12 @@ func TestPinnedModel(t *testing.T) {
 func TestLatencyBreakerOpensOnSlowMedians(t *testing.T) {
 	c := &Client{}
 	for i := 0; i < LatencyWindow-1; i++ {
-		c.record(1100*time.Millisecond, nil)
+		c.record(1100*time.Millisecond, nil, false)
 	}
 	if !c.Available() {
 		t.Fatal("the window is not full yet; it must not open early")
 	}
-	c.record(1200*time.Millisecond, nil)
+	c.record(1200*time.Millisecond, nil, false)
 	if c.Available() {
 		t.Fatal("ten successful calls at >1s median left the circuit closed")
 	}
@@ -342,9 +447,9 @@ func TestLatencyBreakerOpensOnSlowMedians(t *testing.T) {
 	// window of mostly-fast calls produces is fast.
 	c2 := &Client{}
 	for i := 0; i < LatencyWindow-1; i++ {
-		c2.record(3*time.Millisecond, nil)
+		c2.record(3*time.Millisecond, nil, false)
 	}
-	c2.record(1200*time.Millisecond, nil)
+	c2.record(1200*time.Millisecond, nil, false)
 	if !c2.Available() {
 		t.Fatal("nine fast calls and one slow one opened the circuit")
 	}

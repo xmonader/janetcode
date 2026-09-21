@@ -252,16 +252,33 @@ type Client struct {
 	// result; in `doctor` the probe is the only call there is.
 	NoBreaker bool
 
+	// Cooldown is how long an open circuit stays shut before it lets a
+	// single probe call through (DefaultCooldown when zero). The probe
+	// is the only concession: a service that is down costs this session
+	// one call per cooldown, not one per gate failure.
+	Cooldown time.Duration
+
+	// now is the clock, injected by the tests so a cooldown does not
+	// have to elapse in real time. time.Now when nil.
+	now func() time.Time
+
 	mu         sync.Mutex
 	consecErrs int
 	latencies  [LatencyWindow]time.Duration
 	latN       int
 	latIdx     int
 	open       bool
+	openedAt   time.Time
+	probing    bool
 	calls      int
 	errs       int
 	totalTime  time.Duration
 }
+
+// DefaultCooldown is how long the breaker holds an open circuit before
+// probing. Long enough that a dead service is not polled, short enough
+// that a blip does not cost a whole session its triage.
+const DefaultCooldown = 5 * time.Minute
 
 // maxConsecErrors is how many failures in a row close the circuit for
 // the session. A decision service that is down must not tax every later
@@ -307,12 +324,53 @@ func (c *Client) timeout() time.Duration {
 	return c.Timeout
 }
 
-// Available reports whether the circuit is closed: whether a call is
-// worth attempting at all. It never blocks.
+// Available reports whether a call is worth attempting at all: the
+// circuit is closed, or it is open but due a probe and no probe is
+// already in flight. It never blocks and it claims nothing — callers
+// use it as a cheap gate before building a state, and Evaluate does
+// the claiming.
 func (c *Client) Available() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return !c.open
+	return !c.open || (c.probeDueLocked() && !c.probing)
+}
+
+func (c *Client) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
+func (c *Client) cooldown() time.Duration {
+	if c.Cooldown <= 0 {
+		return DefaultCooldown
+	}
+	return c.Cooldown
+}
+
+// probeDueLocked reports whether the cooldown since the circuit opened
+// has elapsed. Caller holds mu.
+func (c *Client) probeDueLocked() bool {
+	return !c.clock().Before(c.openedAt.Add(c.cooldown()))
+}
+
+// allow claims the right to make one call. probe is true when this call
+// is the half-open probe, which record settles: success closes the
+// circuit, failure re-opens it for another cooldown. Exactly one probe
+// is in flight at a time, which is why the claim happens under the same
+// lock that reads the state.
+func (c *Client) allow() (probe, ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.open {
+		return false, true
+	}
+	if c.probing || !c.probeDueLocked() {
+		return false, false
+	}
+	c.probing = true
+	return true, true
 }
 
 // Stats are the session's counters, for /stats and the JSON envelope:
@@ -324,11 +382,31 @@ func (c *Client) Stats() (calls, errs int, total time.Duration) {
 }
 
 // record folds one call's outcome into the circuit and the counters.
-func (c *Client) record(d time.Duration, err error) {
+// probe says this call was the half-open probe: it settles the claim
+// either way, closing the circuit on success and starting a fresh
+// cooldown on failure.
+func (c *Client) record(d time.Duration, err error, probe bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
 	c.totalTime += d
+	if probe {
+		c.probing = false
+		if err != nil {
+			c.errs++
+			c.openedAt = c.clock()
+			return
+		}
+		// A probe that answered closes the circuit and starts both
+		// breakers from scratch: the error streak that opened it is
+		// spent, and the latency window it opened on is stale — judging
+		// the next call against ten old slow samples would re-open the
+		// circuit on the first success.
+		c.open = false
+		c.consecErrs = 0
+		c.latN, c.latIdx = 0, 0
+		return
+	}
 	if err == nil {
 		c.consecErrs = 0
 		c.latencies[c.latIdx] = d
@@ -339,14 +417,14 @@ func (c *Client) record(d time.Duration, err error) {
 		// Checked on the call that fills the window too: ten slow calls
 		// in a row are the service, whatever order they arrived in.
 		if !c.NoBreaker && c.latN == LatencyWindow && p50(&c.latencies, LatencyWindow) > LatencyOpenP50 {
-			c.open = true
+			c.open, c.openedAt = true, c.clock()
 		}
 		return
 	}
 	c.errs++
 	c.consecErrs++
 	if !c.NoBreaker && c.consecErrs >= maxConsecErrors {
-		c.open = true
+		c.open, c.openedAt = true, c.clock()
 	}
 }
 
@@ -395,16 +473,23 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 	if hc == nil {
 		hc = http.DefaultClient
 	}
+	// Claimed here and not at the top: every return path from this point
+	// settles it through record, so a half-open probe can never be lost
+	// to a marshalling error and leave the circuit stuck.
+	probe, ok := c.allow()
+	if !ok {
+		return nil, fmt.Errorf("decisions circuit is open")
+	}
 	resp, err := hc.Do(req)
 	d := time.Since(start)
 	if err != nil {
-		c.record(d, err)
+		c.record(d, err, probe)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		c.record(d, err)
+		c.record(d, err, probe)
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -419,12 +504,12 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 		}
 		err := &StatusError{StatusCode: resp.StatusCode, Message: msg,
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())}
-		c.record(d, err)
+		c.record(d, err, probe)
 		return nil, err
 	}
 	var wr wireResponse
 	if err := json.Unmarshal(data, &wr); err != nil {
-		c.record(d, err)
+		c.record(d, err, probe)
 		return nil, fmt.Errorf("decisions: malformed response: %w", err)
 	}
 	res := &Result{
@@ -440,7 +525,7 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 			Score: wa.Score, Confidence: wa.Confidence, Probabilities: wa.Probabilities,
 		}
 	}
-	c.record(d, nil)
+	c.record(d, nil, probe)
 	return res, nil
 }
 
