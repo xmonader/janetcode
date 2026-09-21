@@ -238,7 +238,7 @@ type DecisionsConfig struct {
 	// offered to sleep consolidation. Nothing is denied or changed
 	// because of the answer.
 	SessionOutcome bool `json:"session_outcome,omitempty"`
-	Receipts    bool `json:"receipts,omitempty"`
+	Receipts       bool `json:"receipts,omitempty"`
 }
 
 // Validate rejects a decisions block that cannot work, at load, the same
