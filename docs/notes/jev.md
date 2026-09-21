@@ -1949,5 +1949,12 @@ would have to be measured first, per the rule.
 is narrower than it looked.** Recall needs nothing. Precision at small k is
 a real, reproducible defect with a named cause, and the next step on it is
 *deterministic* — a sibling-path tie-break — with Jev only in play if that
-fails. The corpus for that measurement now exists as a by-product: six runs
-with the map and the touched set recorded.
+fails.
+
+The corpus for that measurement is shipped:
+`docs/benchmarks/decisions/preselect.jsonl`, six rows (three runs on each
+model), each carrying the repo map's own top-20 ranking as the run saw it
+and, as truth by construction, the files that run actually read or edited.
+`TestPreselectCorpusIsWellFormed` keeps it scoreable. Nothing consumes it
+yet; it is the input to the tie-break measurement, not evidence for
+anything on its own.
