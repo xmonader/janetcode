@@ -424,24 +424,33 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 	}
 	pers := make([]float64, n)
 	why := make([][]string, n)
-	total := 0.0
+	hits := make([]map[string]float64, n)
+	flat := make([]float64, n) // undamped pulls (a changed file)
+	spread := map[string]int{} // how many files each request word matches
 	for i, f := range ix.Files {
-		p := 1.0
 		lp := strings.ToLower(f.Path)
 		base := strings.TrimSuffix(filepath.Base(lp), filepath.Ext(lp))
+		hits[i] = map[string]float64{}
+		// One request word pulls a file once, by its strongest route: a
+		// directory named "report" and a symbol named Report1 are the same
+		// word arriving twice, not two independent pieces of evidence.
+		add := func(word string, weight float64, label string) {
+			if weight > hits[i][word] {
+				hits[i][word] = weight
+			}
+			why[i] = append(why[i], label)
+		}
 		if strings.Contains(lower, lp) || (len(base) >= 3 && containsWord(lower, base)) {
-			p += weightPath
-			why[i] = append(why[i], "path")
+			add(base, weightPath, "path")
 		} else {
 			parts := strings.Split(strings.TrimSuffix(lp, filepath.Ext(lp)), "/")
 			for k, part := range parts {
 				if len(part) >= 3 && words[part] {
-					p += weightPart
 					label := "dir "
 					if k == len(parts)-1 {
 						label = "name "
 					}
-					why[i] = append(why[i], label+part)
+					add(part, weightPart, label+part)
 					break
 				}
 			}
@@ -451,15 +460,35 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 			if i := strings.IndexByte(name, '.'); i >= 0 {
 				name = name[i+1:]
 			}
-			if symbolMentioned(name, words) {
-				p += weightSymbol
-				why[i] = append(why[i], "symbol "+d.Name)
+			if word, ok := symbolMention(name, words); ok {
+				add(word, weightSymbol, "symbol "+d.Name)
 				break
 			}
 		}
 		if changedSet[f.Path] {
-			p += weightChanged
+			// Not a request mention: a file differing from HEAD is a fact
+			// about this file, so it is not damped by how many others share it.
+			flat[i] += weightChanged
 			why[i] = append(why[i], "changed")
+		}
+		for word := range hits[i] {
+			spread[word]++
+		}
+	}
+	// A word that matches many files does not tell them apart, so its pull
+	// is divided among them: "report" over eight report/*.go files is
+	// evidence for the directory, not for any one of its near-identical
+	// members, while a word that names a single file keeps its full weight.
+	total := 0.0
+	for i := range ix.Files {
+		p := 1.0 + flat[i]
+		ws := make([]string, 0, len(hits[i]))
+		for word := range hits[i] {
+			ws = append(ws, word)
+		}
+		sort.Strings(ws) // a map's order must not reach the arithmetic
+		for _, word := range ws {
+			p += hits[i][word] / float64(spread[word])
 		}
 		pers[i] = p
 		total += p
@@ -519,18 +548,30 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 // so "compaction" finds Compact and "verifying" finds verifyGate. Short
 // names (Run, line, tool) are too common to count.
 func symbolMentioned(name string, words map[string]bool) bool {
+	_, ok := symbolMention(name, words)
+	return ok
+}
+
+// symbolMention is symbolMentioned with the request word that matched, so
+// the caller can tell how many files that one word pulls. words is a map,
+// so the smallest match wins rather than whichever came out of the range.
+func symbolMention(name string, words map[string]bool) (string, bool) {
 	if len(name) < 5 {
-		return false
+		return "", false
 	}
 	if words[name] {
-		return true
+		return name, true
 	}
+	best := ""
 	for w := range words {
-		if len(w) >= 5 && (strings.HasPrefix(w, name) || strings.HasPrefix(name, w)) {
-			return true
+		if len(w) < 5 || !(strings.HasPrefix(w, name) || strings.HasPrefix(name, w)) {
+			continue
+		}
+		if best == "" || len(w) < len(best) || (len(w) == len(best) && w < best) {
+			best = w
 		}
 	}
-	return false
+	return best, best != ""
 }
 
 func queryWords(q string) map[string]bool {

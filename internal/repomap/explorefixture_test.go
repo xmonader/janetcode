@@ -29,7 +29,10 @@ const (
 	exploreRankCeiling = 10
 )
 
-func TestRepoMapBaselineOnTheExploreFixture(t *testing.T) {
+// exploreFixture materialises evals/explore/61 into a temp directory and
+// ranks it, so the two baselines below read the same numbers.
+func exploreFixture(t *testing.T) []Ranked {
+	t.Helper()
 	data, err := os.ReadFile(exploreTask)
 	if err != nil {
 		t.Skipf("fixture not present: %v", err)
@@ -60,7 +63,11 @@ func TestRepoMapBaselineOnTheExploreFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
-	ranked := ix.Rank(task.Prompt, nil)
+	return ix.Rank(task.Prompt, nil)
+}
+
+func TestRepoMapBaselineOnTheExploreFixture(t *testing.T) {
+	ranked := exploreFixture(t)
 	if len(ranked) < 2 {
 		t.Fatalf("ranked %d files", len(ranked))
 	}
@@ -84,5 +91,48 @@ func TestRepoMapBaselineOnTheExploreFixture(t *testing.T) {
 		t.Errorf("the worse-placed answer is at rank %d of %d, past the recorded ceiling %d; "+
 			"update docs/notes/jev.md's item 1 baseline with the new number",
 			worst, len(ranked), exploreRankCeiling)
+	}
+}
+
+// The other half of the same measurement, and the one that was broken:
+// how much of the top of the ranking is worth reading. Recall says the
+// answers are in the list; precision says the model does not have to wade
+// through six near-identical siblings to reach them.
+//
+// Floors, not exact values: a change that puts more of the answers higher
+// passes. explorePrecisionFloor is deliberately 2/5 -- both answers inside
+// the top five -- because the fixture has exactly two right answers, so
+// 0.4 is the ceiling as well.
+const (
+	explorePrecisionFloor = 0.4
+	exploreRecallFloor    = 1.0
+)
+
+func TestRepoMapPrecisionOnTheExploreFixture(t *testing.T) {
+	ranked := exploreFixture(t)
+	if len(ranked) < 10 {
+		t.Fatalf("ranked %d files", len(ranked))
+	}
+	answers := map[string]bool{exploreAnswerOne: true, exploreAnswerTwo: true}
+	hits := func(k int) int {
+		n := 0
+		for _, r := range ranked[:k] {
+			if answers[r.File.Path] {
+				n++
+			}
+		}
+		return n
+	}
+	for i, r := range ranked[:10] {
+		t.Logf("%2d %-24s %.6g %v", i+1, r.File.Path, r.Score, r.Why)
+	}
+	p5 := float64(hits(5)) / 5
+	r10 := float64(hits(10)) / float64(len(answers))
+	t.Logf("precision@5 %.2f recall@10 %.2f over %d files", p5, r10, len(ranked))
+	if p5 < explorePrecisionFloor {
+		t.Errorf("precision@5 is %.2f, under the recorded floor %.2f", p5, explorePrecisionFloor)
+	}
+	if r10 < exploreRecallFloor {
+		t.Errorf("recall@10 is %.2f, under the recorded floor %.2f", r10, exploreRecallFloor)
 	}
 }
