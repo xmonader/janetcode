@@ -27,11 +27,12 @@ func (f *fakeDecisions) Evaluate(_ context.Context, _ string, _ []jev.Question) 
 func (f *fakeDecisions) Available() bool { return f.avail }
 
 func triageResult(caused float64, class string, conf float64) *jev.Result {
-	return &jev.Result{Model: "jev-1.13.0", Answers: map[string]jev.Answer{
-		qCausedByChange: {Kind: jev.Noul, Noul: caused},
-		qFailureClass:   {Kind: jev.Choice, Choice: class, Confidence: conf},
-		qWorthRepair:    {Kind: jev.Noul, Noul: 0.5},
-	}}
+	return &jev.Result{Model: "jev-1.13.0", TokensIn: 430, TokensOut: 73, Cost: 0.00001806,
+		Answers: map[string]jev.Answer{
+			qCausedByChange: {Kind: jev.Noul, Noul: caused},
+			qFailureClass:   {Kind: jev.Choice, Choice: class, Confidence: conf},
+			qWorthRepair:    {Kind: jev.Noul, Noul: 0.5},
+		}}
 }
 
 // A live gate failure pays for every question it asks, so it asks only
@@ -152,14 +153,16 @@ func TestTriageSkipEndsTheTurnWithoutARepairCall(t *testing.T) {
 	// distributions, tokens and latency — an offline replay needs the
 	// whole payload, not a summary.
 	extra := string(found.Extra)
-	for _, want := range []string{`"questions"`, `"answers"`, `"tokens_in"`, `"caused_by_change"`, `failure_class`} {
+	for _, want := range []string{`"questions"`, `"answers"`, `"tokens_in"`, `"tokens_out"`, `"cost_usd"`, `"caused_by_change"`, `failure_class`} {
 		if !strings.Contains(extra, want) {
 			t.Fatalf("decision Extra missing %s: %s", want, extra)
 		}
 	}
 	// The failed check is still on the record: skipping the repair must
 	// not tidy the verdict away.
-	if st := a.Stats(); st.DecisionCalls != 1 {
+	// The feature's own price — latency and the provider's reported
+	// spend — is on the stats, so a run can be judged against it.
+	if st := a.Stats(); st.DecisionCalls != 1 || st.DecisionCost != 0.00001806 || st.DecisionTokensOut != 73 {
 		t.Fatalf("decision stats = %+v", st)
 	}
 }
@@ -251,6 +254,12 @@ func TestDecisionLine(t *testing.T) {
 	}
 	s.DecisionErrors = 1
 	if got, want := s.DecisionLine(), "decisions: 2 calls · 1 errored"; got != want {
+		t.Fatalf("DecisionLine = %q, want %q", got, want)
+	}
+	// Spend is the feature's other price, beside latency, and /stats
+	// shows it as soon as the provider reports one.
+	s.DecisionCost = 0.0000361
+	if got, want := s.DecisionLine(), "decisions: 2 calls · 1 errored · $0.0000361"; got != want {
 		t.Fatalf("DecisionLine = %q, want %q", got, want)
 	}
 }

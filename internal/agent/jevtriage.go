@@ -207,7 +207,11 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	}
 	start := time.Now()
 	ans, err := a.Decisions.Evaluate(ctx, a.triageState(res), triageQuestions())
-	a.stats.decision(err != nil, time.Since(start))
+	cost, tokensOut := 0.0, 0
+	if ans != nil {
+		cost, tokensOut = ans.Cost, ans.TokensOut
+	}
+	a.stats.decision(err != nil, time.Since(start), cost, tokensOut)
 	if err != nil {
 		if !a.Decisions.Available() && !a.decisionCircuitSeen {
 			a.decisionCircuitSeen = true
@@ -225,7 +229,8 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,
 		Name: "verify_triage", Extra: mustJSON(map[string]any{
 			"consumer": "verify_triage",
-			"model":    ans.Model, "tokens_in": ans.TokensIn, "latency_ms": ans.Latency.Milliseconds(),
+			"model":    ans.Model, "tokens_in": ans.TokensIn, "tokens_out": ans.TokensOut,
+			"cost_usd": ans.Cost, "latency_ms": ans.Latency.Milliseconds(),
 			"questions": triageQuestions(),
 			"answers":   ans.Answers,
 			"class":     v.class, "caused_by_change": v.p, "confidence": v.conf, "skip": v.skip,

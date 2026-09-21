@@ -386,6 +386,8 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 				Errors:      st.DecisionErrors,
 				CircuitOpen: open,
 				Total:       st.DecisionTime.Milliseconds(),
+				CostUSD:     st.DecisionCost,
+				TokensOut:   st.DecisionTokensOut,
 			}
 		}
 	}

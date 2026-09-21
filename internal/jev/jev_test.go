@@ -40,7 +40,7 @@ const okBody = `{
     "class": {"type": "choice", "choice": "patch", "confidence": 0.8, "probabilities": {"patch": 0.8, "flaky": 0.2}},
     "severity": {"type": "score", "score": 1.035, "confidence": 0.7, "legend": {"0": "low", "1": "mid", "2": "high"}, "probabilities": {"0": 0.1, "1": 0.755, "2": 0.145}}
   },
-  "usage": {"input_tokens": 100, "output_tokens": 10}
+  "usage": {"input_tokens": 100, "output_tokens": 10, "cost": 0.00001806}
 }`
 
 func testQuestions() []Question {
@@ -60,6 +60,12 @@ func TestEvaluateAllThreeKinds(t *testing.T) {
 	}
 	if res.Model != "jev-1.13.0" || res.TokensIn != 100 {
 		t.Fatalf("meta = %+v", res)
+	}
+	// What the call was billed, as the server reported it: the harness
+	// has no rate table for a decisions model, so an unreported figure
+	// must stay zero rather than become an estimate.
+	if res.TokensOut != 10 || res.Cost != 0.00001806 {
+		t.Fatalf("usage = %d out, $%v", res.TokensOut, res.Cost)
 	}
 	if p, ok := res.NoulAt("caused"); !ok || p != 0.9 {
 		t.Fatalf("noul = %v %v", p, ok)

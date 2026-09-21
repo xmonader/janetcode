@@ -73,6 +73,13 @@ type Stats struct {
 	DecisionCalls  int
 	DecisionErrors int
 	DecisionTime   time.Duration
+	// DecisionCost is the USD the provider itself reported for those
+	// calls, and DecisionTokensOut the tokens it billed. The figure is
+	// the server's, never a local estimate: a decision model's price is
+	// not in the harness's rate table, so an unreported cost stays zero
+	// rather than becoming a guess.
+	DecisionCost      float64
+	DecisionTokensOut int
 }
 
 // ModelStat is the tally for one model actually used in this session.
@@ -118,7 +125,8 @@ func (s Stats) PromptLine() string {
 	return fmt.Sprintf("asked %s · %d refused", textfmt.Plural(s.Approvals, "time"), s.Refusals)
 }
 
-// DecisionLine is "decisions: N calls · M errors · avg Xms" for /stats.
+// DecisionLine is "decisions: N calls · M errors · avg Xms · $X" for
+// /stats.
 // Empty until the first decision call, so a session with the feature
 // configured but never triggered says nothing.
 func (s Stats) DecisionLine() string {
@@ -131,6 +139,9 @@ func (s Stats) DecisionLine() string {
 	}
 	if s.DecisionTime > 0 {
 		line += fmt.Sprintf(" · avg %s", textfmt.Duration(s.DecisionTime/time.Duration(max(1, s.DecisionCalls))))
+	}
+	if s.DecisionCost > 0 {
+		line += " · " + llm.FormatUSD(s.DecisionCost)
 	}
 	return line
 }
@@ -223,8 +234,10 @@ func (c *statsCounter) routed() {
 
 // decision records one call to the decision provider, and whether it
 // errored. The call counts even when it failed: the point is to show
-// how much of the feature's promise the session actually used.
-func (c *statsCounter) decision(failed bool, d time.Duration) {
+// how much of the feature's promise the session actually used. cost and
+// tokensOut are the provider's own billing figures, zero for a call
+// that failed or answered without reporting them.
+func (c *statsCounter) decision(failed bool, d time.Duration, cost float64, tokensOut int) {
 	c.mu.Lock()
 	c.s.DecisionCalls++
 	if d > 0 {
@@ -232,6 +245,12 @@ func (c *statsCounter) decision(failed bool, d time.Duration) {
 	}
 	if failed {
 		c.s.DecisionErrors++
+	}
+	if cost > 0 {
+		c.s.DecisionCost += cost
+	}
+	if tokensOut > 0 {
+		c.s.DecisionTokensOut += tokensOut
 	}
 	c.mu.Unlock()
 }

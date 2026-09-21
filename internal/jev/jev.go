@@ -83,9 +83,15 @@ type Answer struct {
 // long it took. Model is the versioned id the server reports answering
 // (jev-1.13.0), which may differ from the alias asked for.
 type Result struct {
-	Model      string
-	Answers    map[string]Answer
-	TokensIn   int
+	Model    string
+	Answers  map[string]Answer
+	TokensIn int
+	// TokensOut and Cost are what the call was billed. Cost is the
+	// server's own USD figure and is zero when it did not send one —
+	// never a local estimate, because a decision model's price is not
+	// in the harness's rate table.
+	TokensOut  int
+	Cost       float64
 	Latency    time.Duration
 	StatusCode int
 }
@@ -168,8 +174,9 @@ type wireResponse struct {
 	Model   string                `json:"model"`
 	Answers map[string]wireAnswer `json:"answers"`
 	Usage   struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens  int     `json:"input_tokens"`
+		OutputTokens int     `json:"output_tokens"`
+		Cost         float64 `json:"cost"`
 	} `json:"usage"`
 }
 
@@ -516,6 +523,8 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 		Model:      wr.Model,
 		Answers:    make(map[string]Answer, len(wr.Answers)),
 		TokensIn:   wr.Usage.InputTokens,
+		TokensOut:  wr.Usage.OutputTokens,
+		Cost:       wr.Usage.Cost,
 		Latency:    d,
 		StatusCode: resp.StatusCode,
 	}

@@ -70,6 +70,11 @@ type CLIDecisions struct {
 	Errors      int   `json:"errors"`
 	CircuitOpen bool  `json:"circuit_open"`
 	Total       int64 `json:"total_latency_ms"` // milliseconds
+	// CostUSD is what the provider itself billed for those calls, and
+	// TokensOut the tokens behind it. Both are omitted when the service
+	// reported no figure, so a zero here is never a local estimate.
+	CostUSD   float64 `json:"cost_usd,omitempty"`
+	TokensOut int     `json:"output_tokens,omitempty"`
 }
 
 // CLIRecoveries counts the ways a run was saved rather than smooth.
