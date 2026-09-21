@@ -1776,3 +1776,44 @@ the code, and it needs the same verification as a result. `--session-profile`
 now makes the cheap version of that check possible — an inert consumer fires
 zero times, and a per-consumer fire count of zero beside a flag that is
 supposed to be on is the tell.
+
+### Item 1's deterministic baseline, measured
+
+The rule is to compute the free deterministic baseline before shipping Jev.
+On `evals/explore/61-explore-large-repo` — 58 indexed files, two of them the
+answer — the existing repo-map ranker, with no model call at all, places
+them at **rank 8 and rank 9**:
+
+    TestRepoMapBaselineOnTheExploreFixture
+      deterministic repo-map baseline over 58 files:
+        billing/limits.go at 9, report/audit.go at 8
+
+| k | recall@k | precision@k |
+|---:|---:|---:|
+| 3 | 0.00 | 0.00 |
+| 5 | 0.00 | 0.00 |
+| **10** | **1.00** | **0.20** |
+| 20 | 1.00 | 0.10 |
+
+A ranker with no signal would average rank 29 of 58. **Recall@10 is already
+1.0**, so a Jev rerank cannot improve recall at the k the repo map already
+injects — there is nothing above 1.0 to win. Its only remaining room is
+precision: moving the two from ranks 8-9 into the top 2-3 so a *smaller*
+pointer list carries them.
+
+That is a small prize with a large downside. The injection is pointers, not
+file contents, so the byte saving from k=10 to k=3 is a few hundred bytes of
+a 6 KB repo-map budget. Against it stands the costly error this item was
+defined by: a confident pointer at the wrong file biases the model, and
+unlike a missing pointer it cannot be recovered by the model reading one
+more file. Recall is the side that matters and recall is already perfect.
+
+The number is pinned in `internal/repomap/explorefixture_test.go` rather
+than left here, so if the ranker changes the test fails and this table
+cannot go quietly stale.
+
+**Item 1 final status: negative result, nothing built, no flag.** The
+deterministic baseline beats what Jev could add, on the one fixture where
+the question is even well posed. What would reopen it: a repository where
+recall@k of the deterministic ranker is measurably under 1 — hundreds of
+files, or a request that names nothing in the paths or symbols it needs.
