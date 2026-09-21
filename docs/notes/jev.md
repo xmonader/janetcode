@@ -1538,3 +1538,87 @@ real eval feature vector rather than one folded out of a session log — and
 it still exactly ties the majority baseline, so it is still not saved. The
 blocker has not moved: more failing runs. But the source of them has —
 recorded A/B arms are a renewable supply, annotation is not.
+
+## 2026-09-21 — Item 3: compaction-time pruning, negative result, nothing built
+
+The idea: at the compaction boundary, one batched call with a noul per old
+tool result — "is this still needed for the remaining work?" — and drop or
+stub the ones that are not.
+
+**The free deterministic baseline already exists and is already shipped.**
+`internal/agent/prune.go` prunes exactly there and only there, for exactly
+the stated reason ("rewriting old messages invalidates the cached request
+prefix"), and it already orders candidates by `lastReference` — the same
+by-construction notion `--session-profile` uses for its stale share: the
+call's subject is never touched again. `pruneTo` archives the full output
+and leaves a placeholder. So a Jev consumer here would be re-deriving, with
+a model call and a latency cost, a signal the harness computes for free.
+
+That alone is the known rule ("a deterministic signal beats Jev wherever one
+exists"). But the item does not even reach that argument, because of the
+ceiling:
+
+| | qwen3.7-plus | devstral-2512 |
+|---|---:|---:|
+| runs | 9 | 9 |
+| **compactions** | **0** | **0** |
+| peak context | ~21k | ~27k |
+| `compact_at` | 80,000 | 80,000 |
+| stale input tokens | 310k (7.7%) | 596k (7.3%) |
+
+The dead weight is real — 7.3-7.7% of every input token is tool output over
+six calls old that nothing ever touched again, and 54-55% of tool results
+are never referenced again at all. It is simply **unreachable**: the only
+boundary this item is allowed to act at was crossed zero times in eighteen
+runs, because the tasks end at a third of the compaction threshold.
+
+The EPR/receipts round (2026-09-20, above) is the precedent and it failed
+the same way from the other side: the mechanism worked, the saving only pays
+back on later turns, and short sessions never reach them. Same regime, same
+answer.
+
+**Status: negative result. No consumer, no flag, no corpus.** What would
+change it: a task set whose runs actually compact — long-horizon sessions,
+not a stricter gate. If that arrives, the first thing to measure is not Jev
+but whether `pruneTo`'s existing `lastReference` ordering already recovers
+the 7.5%, since it is free.
+
+## 2026-09-21 — Item 2: memory, skill and tool-set recall, skipped on measurement
+
+The instruction was to find the existing recall code first and, if selection
+is already deterministic and good, say so and skip. It is, so this says so.
+
+**Memory.** `(*Store).rank` scores name and description words +3, body words
++1, matched `Concerns` path and symbol segments +2 capped at 2, tie-broken
+by an activation decay; `Recall` admits only scores of 4 or more, keeps at
+most `MaxRecall = 4` entries inside a `RecallBudget` of 6 KB. Not
+"everything up to a budget" — an admission threshold, a hard top-N and a
+byte cap, all three.
+
+**Skills.** `Select` scores a name substring +10, each declared keyword +5,
+each shared non-stop word in the description or a heading +1, admits at
+`score >= 3`, caps at `MaxSelected = 5` and `MaxBody = 16 KB`, and skips a
+skill re-attached within the last six turns.
+
+**Tool sets.** The recoverable narrowing this item asks for is already
+built and has been for months: `Registry.AddDeferred` hides a tool from
+`Defs` while `Registry.Get` still resolves it, so a model that calls a
+deferred tool by name **gets the tool**, and `tool_search` reveals more on
+request. Narrowing is therefore safe by construction. It is also the one
+place with measurable bytes: tool schemas are ~14.3 KB against a first
+request of 4,552-4,711 input tokens. But this repository has already paid
+for cutting the prompt on a guess — the 2026-09-11 leanness round reverted a
+440-byte cut to the harness section after it cost a pass and +7% tool calls
+on evals 01-10, and recorded that "the prompt is exactly as sensitive as the
+benchmarks say". A Jev call choosing which tools to hide is that cut with a
+model picking the bytes.
+
+**And there is no corpus and no ceiling.** The eval agent
+(`internal/minimal`) wires neither the skill injector nor the memory store —
+`ag.Prepare` is the repo map alone — so not one of the 72 recorded A/B runs
+selected a single memory or skill. There is nothing to score a consumer
+against, and no measurable waste to recover.
+
+**Status: skipped on measurement, as instructed.** Revisit only with a task
+set that actually loads memories and skills, and only after measuring the
+deterministic selectors' own precision on it.
