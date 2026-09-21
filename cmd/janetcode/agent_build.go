@@ -580,6 +580,7 @@ func (b *agentBuilder) stepDecisions() error {
 	b.ag.Decisions = cl
 	b.ag.DecisionsTriage = b.d.cfg.Decisions.Triage
 	b.ag.DecisionsIntake = b.d.cfg.Decisions.Intake
+	b.ag.DecisionsIntakeRoute = b.d.cfg.Decisions.IntakeRoute
 	return nil
 }
 

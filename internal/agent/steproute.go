@@ -200,10 +200,21 @@ func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
 	if a.Off["routing"] || a.RouteCheapName() == "" || !a.routingAllowed() {
 		return nil, "", false
 	}
-	if a.stepN <= 1 {
+	// The first call of a turn has no step behind it to judge, so it stays
+	// on the session's model — unless the intake consumer has classified
+	// the session's first prompt as small and read-only, which is a
+	// judgement of the same kind made before the turn rather than during
+	// it. Nothing else about the policy is relaxed: the taint and the
+	// warning still stop the route here, and every later call in the turn
+	// still has to follow a mechanical step.
+	first := a.stepN <= 1
+	if first && !a.intakeRoutedCheap() {
 		return nil, "", false
 	}
-	if (a.stepRoute.tainted || a.warned) || !a.stepRoute.prevMechanical {
+	if a.stepRoute.tainted || a.warned {
+		return nil, "", false
+	}
+	if !first && !a.stepRoute.prevMechanical {
 		return nil, "", false
 	}
 	prov, model, sameProvider, ok := a.modelRouter.resolveCheap(a.Settings().Provider, emit)

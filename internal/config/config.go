@@ -222,7 +222,13 @@ type DecisionsConfig struct {
 	// stands untouched. Side model: advisor_model, else the session's.
 	Trajectory bool `json:"trajectory,omitempty"`
 	Intake     bool `json:"intake,omitempty"`
-	Receipts   bool `json:"receipts,omitempty"`
+	// IntakeRoute lets the intake classification act: a first prompt it
+	// is confident is small and read-only starts on route_cheap instead
+	// of the session's model. It needs Intake (there is otherwise no
+	// classification to read) and route_cheap (there is otherwise
+	// nowhere to route), and does nothing without both.
+	IntakeRoute bool `json:"intake_route,omitempty"`
+	Receipts    bool `json:"receipts,omitempty"`
 }
 
 // Validate rejects a decisions block that cannot work, at load, the same

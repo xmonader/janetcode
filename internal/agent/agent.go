@@ -232,6 +232,18 @@ type Agent struct {
 	// session's first prompt (config decisions.intake, Phase 3a). It
 	// reaches no behaviour: see jevintake.go.
 	DecisionsIntake bool
+	// DecisionsIntakeRoute enables routing on that classification (config
+	// decisions.intake_route): a small read-only first prompt may start on
+	// route_cheap. It needs DecisionsIntake to have anything to read, and
+	// route_cheap to have anywhere to go. See jevintakeroute.go.
+	DecisionsIntakeRoute bool
+	// intakeRoute is what the routing consumer made of the classification.
+	// Zero (no route, no reason) whenever routing is off or the answer was
+	// late. Written once per session on the turn goroutine, together with
+	// the turn number it was made for: a route is good for that turn and
+	// no other.
+	intakeRoute     IntakeRoute
+	intakeRouteTurn int
 	// intakeCh carries that classification from the goroutine making the
 	// call to the turn goroutine that logs it, and intakeDone says the
 	// session has had its one classification. Both are touched only from
@@ -471,6 +483,10 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.turnStart, a.warned = time.Now(), false
 	a.modelRouter.newTurn()
 	a.integ.userText = firstText(blocks)
+	// Last, so the classification has had the whole of Prepare to arrive
+	// and the wait below is usually no wait at all. With the routing
+	// consumer off this returns immediately and nothing is collected.
+	a.awaitIntakeRouting(ctx)
 	return maxIter
 }
 

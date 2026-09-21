@@ -86,6 +86,12 @@ type Stats struct {
 	// answered. Nothing in the harness reads it — it is here so a
 	// session can be told what the classifier thought of it.
 	IntakeKind string
+	// DecisionActed counts the decisions the harness did something
+	// different because of — a triage verdict that skipped a repair
+	// round, an intake classification that routed a turn. It is the
+	// number a log-only consumer can never move, and the one an A/B has
+	// to explain any difference with.
+	DecisionActed int
 }
 
 // ModelStat is the tally for one model actually used in this session.
@@ -261,6 +267,14 @@ func (c *statsCounter) decision(failed bool, d time.Duration, cost float64, toke
 	if tokensOut > 0 {
 		c.s.DecisionTokensOut += tokensOut
 	}
+	c.mu.Unlock()
+}
+
+// decisionActed records that a decision changed what the harness did.
+// It is counted beside, not instead of, the call itself.
+func (c *statsCounter) decisionActed() {
+	c.mu.Lock()
+	c.s.DecisionActed++
 	c.mu.Unlock()
 }
 

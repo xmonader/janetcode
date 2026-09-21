@@ -165,23 +165,40 @@ func (a *Agent) recordIntake(out intakeOutcome) {
 	if out.err != nil || out.res == nil {
 		return
 	}
+	// awaitIntakeRouting has already decided by the time this runs, so the
+	// record can say what the answer was used for rather than only what it
+	// said. Routing off, or a late answer, leaves both fields empty.
+	route, acted := "", false
+	if a.DecisionsIntakeRoute {
+		route = "default"
+		if a.intakeRoute.Cheap {
+			route, acted = "cheap", true
+			a.stats.decisionActed()
+		}
+	}
 	kind, kindConf, _ := out.res.ChoiceAt(qIntakeKind)
 	complexity, _, complexityConf, _ := out.res.ScoreAt(qIntakeComplexity)
 	needsPlan, _ := out.res.NoulAt(qIntakeNeedsPlan)
-	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,
-		Name: "intake", Extra: mustJSON(map[string]any{
-			"consumer": "intake",
-			"model":    out.res.Model, "tokens_in": out.res.TokensIn,
-			"tokens_out": out.res.TokensOut, "cost_usd": out.res.Cost,
-			"latency_ms": out.res.Latency.Milliseconds(),
-			"questions":  IntakeQuestions(),
-			"answers":    out.res.Answers,
-			"kind":       kind, "kind_confidence": kindConf,
-			"complexity": complexity, "complexity_confidence": complexityConf,
-			"needs_plan": needsPlan,
-			// Said plainly on the record so a later reader cannot mistake
-			// this for a decision the session acted on.
-			"acted_on": false,
-		})})
+	rec := map[string]any{
+		"consumer": "intake",
+		"model":    out.res.Model, "tokens_in": out.res.TokensIn,
+		"tokens_out": out.res.TokensOut, "cost_usd": out.res.Cost,
+		"latency_ms": out.res.Latency.Milliseconds(),
+		"questions":  IntakeQuestions(),
+		"answers":    out.res.Answers,
+		"kind":       kind, "kind_confidence": kindConf,
+		"complexity": complexity, "complexity_confidence": complexityConf,
+		"needs_plan": needsPlan,
+		// Said plainly on the record so a later reader cannot mistake a
+		// log-only classification for a decision the session acted on.
+		"acted_on": acted,
+	}
+	// The routing consumer (jevintakeroute.go) is the only thing that
+	// reads any of this. With it off the record carries no routing fields
+	// at all, exactly as it did before the consumer existed.
+	if route != "" {
+		rec["route"], rec["route_reason"] = route, a.intakeRoute.Why
+	}
+	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN, Name: "intake", Extra: mustJSON(rec)})
 	a.stats.intake(kind)
 }

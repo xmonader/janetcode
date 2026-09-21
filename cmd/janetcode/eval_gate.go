@@ -72,4 +72,5 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	ag.Decisions = cl
 	ag.DecisionsTriage = cfg.Decisions.Triage
 	ag.DecisionsIntake = cfg.Decisions.Intake
+	ag.DecisionsIntakeRoute = cfg.Decisions.IntakeRoute
 }
