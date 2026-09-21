@@ -1817,3 +1817,48 @@ deterministic baseline beats what Jev could add, on the one fixture where
 the question is even well posed. What would reopen it: a repository where
 recall@k of the deterministic ranker is measurably under 1 — hundreds of
 files, or a request that names nothing in the paths or symbols it needs.
+
+## 2026-09-21 — The added-value check, and why no live A/B was run for it
+
+The plan was: turn on every flag that earned ACTING, compare against all
+flags off, add a third arm with the deterministic baselines only, and read
+the result with the new step-level metrics.
+
+**No item in this round earned ACTING.** Items 1, 2 and 3 are negative
+results on their own deterministic baselines; item 4 is blocked for want of
+a corpus; item 6 is scoped and blocked on a routing constant; item 5 is an
+offline instrument with no live path at all. So "fully on" is exactly the
+configuration the previous round already measured — `triage` + `intake` +
+`intake_route`, the other two flags having been inert — and an A/B of it
+against "all off" would re-run, at ~$6 and two hours, a comparison whose
+recorded arms are on disk.
+
+Re-running an unchanged configuration is not a measurement, it is a second
+sample. The budget was spent on the two things that *are* new instead:
+
+1. **Re-reading the existing four arms through the new instrument.** This is
+   the added-value check, done offline for nothing, and it is strictly more
+   informative than the run it replaces: six per-run metrics with bootstrap
+   intervals instead of nine pass/fail bits. The table is in the item 5
+   section. Verdict per model, on Jev's marginal value:
+   - **qwen3.7-plus: neutral, pointing helpful on cost and unproven on
+     correctness.** 15% fewer model calls, 23% fewer input tokens, wasted
+     tool calls 3.9 -> 1.6 a run; two passes lost, both on the task with the
+     widest spread in every arm. The consumer that produced the call saving
+     is `intake_route` (cheap-tier calls move earlier in the turn); `triage`
+     fired once and skipped nothing.
+   - **devstral-2512: neutral.** 20% fewer model calls, 24% fewer input
+     tokens, wasted calls 6.9 -> 5.7, one pass lost. Same attribution.
+   - **Jev's marginal value over the deterministic arm: not isolated, and
+     that gap stands.** The third arm this round was meant to add —
+     deterministic baselines only — is still the missing control, and it is
+     now clear what it should contain, because every deterministic baseline
+     this round measured turned out to be the whole story: `prune.go`'s
+     `lastReference`, the repo-map ranker at recall@10 = 1.0, the memory and
+     skill selectors' thresholds, `route_cheap`'s own mechanical-step rule.
+2. **A live baseline on a realistically sized fixture** (below), because the
+   one thing the recorded arms genuinely cannot tell us is what a run looks
+   like on a repository bigger than thirteen files.
+
+Live spend for this round: the explore baseline only, on the order of a few
+cents; no decisions call was made at any point.
