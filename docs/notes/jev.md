@@ -1241,3 +1241,40 @@ the same mistake the `next_call_will_fail` result exposed last round,
 where 0.73 precision came from re-reading an ERROR line the harness was
 already holding. Recorded as a negative: **item 10 ships deterministic,
 Jev adds nothing to it.**
+
+## The rest of the list: hook points surveyed, nothing built (2026-09-21)
+
+Items 4, 6, 8, 11 and 12 were to be log-only if the round had room. It
+did not, and what was learned about them is worth more than a rushed
+consumer, so this is the survey and nothing else.
+
+- **#4 plan-drift, periodic.** Hook point exists: `a.mutations`
+  (turnstate.go) is the per-turn "the world changed" counter the verify
+  gate already keys off, and the checkpointer holds the changed paths,
+  so "every N mutating steps, goal + changed file names" is a few lines
+  in `exec.go`. Not built because it has no corpus, and the one
+  neighbouring measurement is discouraging: `on_goal`, asked per step,
+  did not separate on either the 28-row or the 80-row corpus in two
+  earlier rounds. A periodic question over changed *file names* is a
+  genuinely different question, but "different enough to work" is a
+  hypothesis and needs its own labelled data.
+- **#6 subagent delegation. The hook point does not exist.** Delegation
+  in janetcode happens when the model calls the `task` tool. There is no
+  place in `RunBlocks` or `openTurn` where the harness decides to
+  delegate, so there is nothing for a decision to attach to. Building
+  one would be inventing a delegation policy and then asking Jev to run
+  it. Skipped for the reason, not for the time.
+- **#8 TUI hint suppression.** Hook point exists and is unusually clean:
+  `internal/hints` is already a pure function of a `State`, evaluated at
+  turn end, one hint per project. Filtering its output is a `[]Hint ->
+  []Hint` filter. Not built because the costly error is suppressing the
+  one hint that would have helped, the benefit is at most a little less
+  noise, and the ratio does not justify a live consumer this round. It
+  is the cheapest of the five to come back to.
+- **#11/#12 advisory second opinion and goal-mismatch.** Hook points
+  exist at the permission gate, which is exactly why they were left
+  alone. The standing invariant is that Jev is never in the permission
+  or security path; an advisory notice printed *beside* a decision the
+  deterministic guards have already made does not break it, but it is
+  one refactor away from doing so, and the value is a second opinion
+  nobody asked for. Not built.
