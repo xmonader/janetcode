@@ -65,6 +65,11 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	if r := evalVerifyRunner(root); r != nil {
 		ag.SetVerify(r, false)
 	}
+	// The stale-check nudge is deterministic and costs no model call, but
+	// it rides the same gate as triage does. It was reported as part of a
+	// measured arm once while the eval agent never set it, so an arm that
+	// turns it on in the config now actually gets it.
+	ag.StaleCheckNudge = cfg.StaleCheckNudge
 	cl, _ := decisionsClient(cfg, off)
 	if cl == nil {
 		return
