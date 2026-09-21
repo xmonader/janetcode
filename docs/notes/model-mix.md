@@ -131,3 +131,81 @@ quoted as one.
 reaches the measurable ceiling on this fixture, so there is no headroom
 here to buy a call with. It would need a fixture with more than two right
 answers before it could even be scored.
+
+## 2026-09-21 -- the cascade, and the trigger the gate cannot pull
+
+`strong_model` + `escalate_after` ship behind a flag, both default off
+(`internal/agent/escalate.go`). When the verification gate has failed N
+rounds in a turn, the rest of that turn's model calls go to the strong
+slot. The cheap step router is asked *after* the cascade, so a turn that
+is already failing its own checks cannot also dip to a cheaper tier, and
+`routeCheapSmallContext` deliberately does not apply: that 20k ceiling
+exists to stop a cold prompt cache being paid for a *cheaper* answer.
+
+Three arms, three tasks (`81-hard-unify`, `84-hard-re`, `85-hard-topo` --
+the discriminating third), three runs each, gate on, decisions off, one
+binary, `--eval-jobs 2`, no 429s:
+
+| arm | passed | cost | $/solved | wall | model calls | escalations |
+|---|---:|---:|---:|---:|---:|---:|
+| (a) base solo `devstral-2512` | 8/9 [0.67,1.00] | $0.345 | $0.0431 | 15m45s | 121 | -- |
+| (c) cascade `devstral` → `qwen3.7-plus` | 9/9 [1.00,1.00] | $0.124 | $0.0138 | 7m28s | 69 | **0** |
+| (b) strong solo `qwen3.7-plus` | 9/9 [1.00,1.00] | $0.053 | $0.0059 | 6m14s | 37 | -- |
+
+**The cascade fired zero times, so (c) is (a) with two inert config keys
+-- and it still "beat" it by 1 pass, 2.8x cost and 2.1x wall.** That is
+the honest headline of the round: on `84-hard-re` the same model on the
+same task took 35, 34 and 26 calls in one arm and 13, 8 and 24 in the
+other. At n=9, on this model, an A/B measures devstral's variance.
+
+The strong slot is also the cheapest and the fastest arm: 37 model calls
+against the base model's 121, $0.053 against $0.345. On this set there is
+nothing for a cascade to save, because the "cheap" model is neither
+cheaper nor quicker -- `devstral-2512` bills $0.40/M input against
+`qwen3.7-plus`'s $0.32, and spends three to nine times the calls getting
+there. **Cascade's premise is that most work is junior-easy and the
+junior is cheap. Here the junior is not cheap.**
+
+**Why it fired zero times, which is the more useful result.** Nine base
+runs produced sixteen gate commands and **zero gate failures**, and the
+single failure in the arm was `84-hard-re` run 0 *timing out* at 35 model
+calls -- not a wrong answer. The reason is structural: the hard set's gate
+runs the same `pytest` the model runs itself, so the model only ends a
+turn once the tests pass, and the gate then agrees with it. **A truthful
+gate confirms; it does not catch.** The property that makes the gate a
+good grading criterion is exactly the property that makes it a poor
+cascade trigger for a self-checking model.
+
+So a second trigger shipped, chosen by that evidence rather than guessed:
+a turn past 60% of its `max_iterations` and still going escalates. It is
+still a fact about this run rather than a prediction about the request,
+which is the property the whole design rests on. **It is untested live:
+the arms above ran on the build before it.**
+
+For a gate-failure trigger to have anything to pull on, the set needs a
+check the model cannot run for itself -- a hidden specification, or a
+check that costs more than the model will spend. That is the next
+concrete step, and it is a task-set change, not a harness change.
+
+## 2026-09-21 -- advisor and routing: built to the measurement gate, stopped at it
+
+`advisor_mode: "always"` forces a consult with `advisor_model` at turn
+start and at the first gate failure, injecting the reply as guidance text
+(`internal/agent/advisorforce.go`). It is forced by the harness because
+mixai measured that a consult offered as a *tool* is a consult the model
+declines. Capped at two a turn, 45s timeout, fail-open on every path.
+
+Only `off` and `always` are implemented, and `always` was not measured
+live. The rule this repository already set is that gating can only
+recover a fraction of a gain always-on has to show first -- and on a set
+where the cheap model passes 8/9 there is no gain to show. Writing the
+gated policy, and the Jev call that would drive it, before that number
+exists would be inventing a threshold rather than fitting one.
+
+Workstream 6 (a calibrated "will the cheap model pass?" noul, scored
+against real pass/fail) is blocked on the same thing and for a sharper
+reason. Its training labels are per-task cheap-tier pass rates. This
+round's are 8/9, 11/12, 18/18 and 5/5: **a one-class corpus**. A
+calibration measured against it would report the majority rate and learn
+nothing, which is exactly where `--eval-train` sat for eighteen months.
+Nothing was built.
