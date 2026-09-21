@@ -1744,3 +1744,35 @@ baseline. On the gated and routing sets the gate cannot even be reached,
 because the corpus that falls out of them is degenerate. The costly error
 this item was warned about — confidently pointing at the wrong files and
 biasing the model — is unmeasurable on a fixture where every file is right.
+
+## 2026-09-21 — The A/B's own confound, checked: two of the five "on" flags were inert
+
+Before re-running anything, the previous round's arm definition was
+verified against the code rather than against its own description. It does
+not survive.
+
+"Fully on" was recorded as `triage` + `intake` + `intake_route` +
+`session_outcome` + `stale_check_nudge`. Two of those five could not have
+been on:
+
+- **`stale_check_nudge` is not wired into the eval agent at all.** It is set
+  in exactly one place, `agent_build.go:419`, from `cfg.StaleCheckNudge`.
+  Neither `internal/minimal` (the eval agent) nor `eval_gate.go` sets
+  `ag.StaleCheckNudge`, and neither scratch config even contained the key.
+  It was off in **both** arms of **both** models.
+- **`session_outcome` fires only at session end in headless**, which an eval
+  run never reaches — already noted last round as "0, not reached in eval".
+
+So the thing the on arm actually measured was `triage` + `intake` +
+`intake_route`, and the difference between the arms is attributable to those
+three and nothing else. The good news is that the confound the re-run was
+supposed to remove — a deterministic non-Jev flag differing between arms —
+**never existed**: the deterministic flag was equally off on both sides. The
+bad news is that a flag was reported as part of a measured configuration
+without anyone checking that the harness could turn it on.
+
+The lesson generalises past this flag: an arm definition is a claim about
+the code, and it needs the same verification as a result. `--session-profile`
+now makes the cheap version of that check possible — an inert consumer fires
+zero times, and a per-consumer fire count of zero beside a flag that is
+supposed to be on is the tell.
