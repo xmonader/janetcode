@@ -109,26 +109,23 @@ const (
 // the request, the failing command with its (already bounded) output,
 // and the turn's changed files as names with line counts — not diffs,
 // which blow the state up and land on the model's counting weakness.
+//
+// Nothing is scrubbed here. There is exactly one scrubbing hook and it
+// is at the wire (jev.Client.Scrub), which covers every field of every
+// consumer's state — including the failing command line itself, which a
+// per-field hook here used to miss.
 func (a *Agent) triageState(res verify.Result) string {
 	var b strings.Builder
 	req := a.integ.userText
-	b.WriteString("Request: " + a.scrubbed(textfmt.Clip(req, 1500)) + "\n")
+	b.WriteString("Request: " + textfmt.Clip(req, 1500) + "\n")
 	b.WriteString("Failing check: " + res.Failed + "\n")
 	if out := strings.TrimSpace(res.Output); out != "" {
-		b.WriteString("Output: " + a.scrubbed(textfmt.Clip(out, 1200)) + "\n")
+		b.WriteString("Output: " + textfmt.Clip(out, 1200) + "\n")
 	}
 	if files := a.turnChangedFiles(); len(files) > 0 {
 		b.WriteString("Changed this turn: " + strings.Join(files, ", ") + "\n")
 	}
 	return b.String()
-}
-
-// scrubbed rewrites one state field when a scrubber is configured.
-func (a *Agent) scrubbed(s string) string {
-	if a.ScrubState == nil {
-		return s
-	}
-	return a.ScrubState(s)
 }
 
 // turnChangedFiles summarises this turn's provenance: path (tool +add/-del),

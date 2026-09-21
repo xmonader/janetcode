@@ -584,14 +584,13 @@ func (b *agentBuilder) stepDecisions() error {
 		Key:     key,
 		Model:   d.Model,
 		Timeout: time.Duration(d.TimeoutMs) * time.Millisecond,
-	}
-	// One scrubber for every consumer: a state field that scans as a
-	// credential goes out as "[redacted]", never as the value itself.
-	b.ag.ScrubState = func(s string) string {
-		if s != "" && memory.ScanSecret(s) != "" {
-			return "[redacted]"
-		}
-		return s
+		// The one scrubbing hook, at the wire so it covers every field
+		// of every consumer's state: each credential-shaped span goes
+		// out as "[redacted]" and the evidence around it survives.
+		Scrub: func(s string) string {
+			out, _ := memory.RedactSecrets(s)
+			return out
+		},
 	}
 	b.ag.DecisionsTriage = d.Triage
 	return nil

@@ -220,11 +220,6 @@ type Agent struct {
 	// permit, refuse or edit. Off["decisions"] disables the calls
 	// without dropping the field.
 	Decisions DecisionProvider
-	// ScrubState, when set, rewrites one field of a decision state
-	// before it leaves the process. The composition root wires the
-	// memory store's secret scan into it: a field that looks like a
-	// credential goes out as "[redacted]".
-	ScrubState func(string) string
 	// decisionCircuitSeen keeps the circuit-open notice to one per
 	// session. Written and read only from the turn goroutine, which is
 	// the only place triageFailure runs.

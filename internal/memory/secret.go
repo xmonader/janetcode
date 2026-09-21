@@ -53,6 +53,46 @@ func ScanSecret(text string) string {
 	return ""
 }
 
+// RedactPlaceholder is what a redacted span is replaced with.
+const RedactPlaceholder = "[redacted]"
+
+// RedactSecrets rewrites every credential-shaped span in text with
+// RedactPlaceholder and reports how many it replaced. It is the
+// span-level counterpart of ScanSecret, for callers that must send the
+// text somewhere rather than refuse it: blanking a whole field costs a
+// decision its evidence, while blanking the match costs it the key.
+//
+// The same patterns decide, in the same order, so a text RedactSecrets
+// leaves alone is exactly a text ScanSecret reports nothing for. For an
+// assignment it redacts the value only, keeping the name that makes the
+// surrounding line readable.
+func RedactSecrets(text string) (string, int) {
+	n := 0
+	for _, p := range secretPatterns {
+		text = p.re.ReplaceAllStringFunc(text, func(string) string {
+			n++
+			return RedactPlaceholder
+		})
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range assignedSecret.FindAllStringSubmatchIndex(text, -1) {
+		vs, ve := m[2], m[3]
+		if vs < 0 || placeholder(text[vs:ve]) || !looksRandom(text[vs:ve]) {
+			continue
+		}
+		b.WriteString(text[last:vs])
+		b.WriteString(RedactPlaceholder)
+		last = ve
+		n++
+	}
+	if last == 0 {
+		return text, n
+	}
+	b.WriteString(text[last:])
+	return b.String(), n
+}
+
 func placeholder(v string) bool {
 	l := strings.ToLower(v)
 	for _, p := range placeholders {

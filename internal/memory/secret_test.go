@@ -54,3 +54,36 @@ func TestPutRefusesAnEntryHoldingASecret(t *testing.T) {
 		t.Fatalf("a note about where the key lives was refused: %v", err)
 	}
 }
+
+// RedactSecrets must agree with ScanSecret on what is a secret, blank
+// only the span, and leave the surrounding evidence readable — a
+// decision state whose failing output is replaced wholesale is a
+// decision made blind.
+func TestRedactSecretsBlanksTheSpanNotTheText(t *testing.T) {
+	cases := []struct {
+		in, want string
+		n        int
+	}{
+		{"go test ./... failed: FAIL", "go test ./... failed: FAIL", 0},
+		{"curl -H 'Authorization: Bearer sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv' https://x",
+			"curl -H 'Authorization: Bearer [redacted]' https://x", 1},
+		{"api_key = AbCdEf0123456789AbCdEf0123456789 in .env",
+			"api_key = [redacted] in .env", 1},
+		{"api_key = your-key-here", "api_key = your-key-here", 0},
+		{"two: ghp_AbCdEf0123456789AbCdEf0123456789 and AKIAIOSFODNN7EXAMPLE",
+			"two: [redacted] and [redacted]", 2},
+	}
+	for _, c := range cases {
+		got, n := RedactSecrets(c.in)
+		if got != c.want || n != c.n {
+			t.Errorf("RedactSecrets(%q) = %q, %d; want %q, %d", c.in, got, n, c.want, c.n)
+		}
+		// Whatever ScanSecret flags, RedactSecrets must remove.
+		if (ScanSecret(c.in) != "") != (c.n > 0) {
+			t.Errorf("ScanSecret disagrees with RedactSecrets on %q", c.in)
+		}
+		if ScanSecret(got) != "" {
+			t.Errorf("redacted text still scans as %q: %q", ScanSecret(got), got)
+		}
+	}
+}
