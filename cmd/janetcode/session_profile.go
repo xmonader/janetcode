@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,7 +55,7 @@ func sessionProfileMode(w io.Writer, path string, staleAfter int) error {
 		for _, p := range runs {
 			agg := byModel[p.Model]
 			if agg == nil {
-				agg = &agent.CallProfile{Model: p.Model, ToolPhase: map[agent.Phase]int{}, ModelPhase: map[agent.Phase]int{}}
+				agg = &agent.CallProfile{Model: p.Model, ToolPhase: map[agent.Phase]int{}, ModelPhase: map[agent.Phase]int{}, Waste: map[string]int{}}
 				byModel[p.Model] = agg
 			}
 			agg.Add(p)
@@ -104,7 +105,9 @@ func profileRuns(path string, staleAfter int) ([]*agent.CallProfile, error) {
 		if model == "" {
 			model = "unknown"
 		}
-		return []*agent.CallProfile{agent.ProfileRun(model, sess.Events(), staleAfter)}, nil
+		// A recorded session has no pass/fail bit, so the dead-tail rule
+		// cannot apply; the other two waste labels still do.
+		return []*agent.CallProfile{agent.ProfileRun(model, sess.Events(), staleAfter, true)}, nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -123,7 +126,7 @@ func profileRuns(path string, staleAfter int) ([]*agent.CallProfile, error) {
 		if len(f.Results[i].Events) == 0 {
 			continue
 		}
-		out = append(out, agent.ProfileRun(model, f.Results[i].Events, staleAfter))
+		out = append(out, agent.ProfileRun(model, f.Results[i].Events, staleAfter, f.Results[i].Passed))
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no events recorded (run with --eval-json on a build that logs events)")
@@ -163,8 +166,14 @@ func writeProfileTable(w io.Writer, byModel map[string]*agent.CallProfile, stale
 			p.ToolOutputPaid, profilePct(p.ToolOutputPaid, p.InputTokens))
 		fmt.Fprintf(w, "  of that, stale (>%d calls old, never referenced again): %d (%.1f%% of input, %.0f%% of tool output)\n",
 			staleAfter, p.ToolOutputStale, profilePct(p.ToolOutputStale, p.InputTokens), profilePct(p.ToolOutputStale, p.ToolOutputPaid))
-		fmt.Fprintf(w, "  results never referenced again: %d of %d (%.0f%%)\n\n",
+		fmt.Fprintf(w, "  results never referenced again: %d of %d (%.0f%%)\n",
 			p.StaleResults, p.Results, profilePct(p.StaleResults, p.Results))
+		wasted := p.Waste[agent.WasteErrored] + p.Waste[agent.WasteLoop] + p.Waste[agent.WasteDeadTail]
+		fmt.Fprintf(w, "  wasted tool calls: %d of %d (%.1f%%) -- errored %d, loop %d, dead tail %d\n",
+			wasted, p.ToolCalls, profilePct(wasted, p.ToolCalls),
+			p.Waste[agent.WasteErrored], p.Waste[agent.WasteLoop], p.Waste[agent.WasteDeadTail])
+		writeProfileSpread(w, p.Points)
+		fmt.Fprintln(w)
 	}
 }
 
@@ -187,4 +196,68 @@ func meanF(n float64, d int) string {
 		return "n/a"
 	}
 	return fmt.Sprintf("%.0f", n/float64(d))
+}
+
+// writeProfileSpread turns the per-run rows into the step-level metrics an
+// A/B is read on, each with a bootstrap interval over runs. The unit of
+// resampling is the run, because that is the unit that was randomised: a
+// run's own steps are not independent of each other.
+func writeProfileSpread(w io.Writer, points []agent.RunPoint) {
+	if len(points) < 2 {
+		return
+	}
+	rows := []struct {
+		label string
+		of    func(agent.RunPoint) float64
+	}{
+		{"explore model calls", func(r agent.RunPoint) float64 { return float64(r.Explore) }},
+		{"model calls before first edit", func(r agent.RunPoint) float64 { return float64(r.BeforeFirstEdit) }},
+		{"wasted tool calls", func(r agent.RunPoint) float64 { return float64(r.Wasted) }},
+		{"model calls", func(r agent.RunPoint) float64 { return float64(r.ModelCalls) }},
+		{"tool calls", func(r agent.RunPoint) float64 { return float64(r.ToolCalls) }},
+		{"input tokens (k)", func(r agent.RunPoint) float64 { return float64(r.InputTokens) / 1000 }},
+	}
+	fmt.Fprintf(w, "  per run (mean [95%% bootstrap], n=%d):\n", len(points))
+	for _, row := range rows {
+		vals := make([]float64, len(points))
+		for i, pt := range points {
+			vals[i] = row.of(pt)
+		}
+		m, lo, hi := meanCI(vals, 2000, 7)
+		fmt.Fprintf(w, "    %-30s %7.1f  [%.1f, %.1f]\n", row.label, m, lo, hi)
+	}
+	var passed int
+	for _, pt := range points {
+		if pt.Passed {
+			passed++
+		}
+	}
+	fmt.Fprintf(w, "    %-30s %7d / %d\n", "passed", passed, len(points))
+}
+
+// meanCI is a percentile bootstrap of the mean. The seed is fixed so two
+// readings of the same file print the same interval.
+func meanCI(vals []float64, resamples int, seed int64) (mean, lo, hi float64) {
+	n := len(vals)
+	if n == 0 {
+		return 0, 0, 0
+	}
+	for _, v := range vals {
+		mean += v
+	}
+	mean /= float64(n)
+	if n < 2 {
+		return mean, mean, mean
+	}
+	rnd := rand.New(rand.NewSource(seed))
+	means := make([]float64, resamples)
+	for i := range means {
+		var s float64
+		for j := 0; j < n; j++ {
+			s += vals[rnd.Intn(n)]
+		}
+		means[i] = s / float64(n)
+	}
+	sort.Float64s(means)
+	return mean, means[resamples*25/1000], means[resamples*975/1000]
 }

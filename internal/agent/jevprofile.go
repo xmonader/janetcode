@@ -185,6 +185,27 @@ type CallProfile struct {
 	// Compactions counts how often the run crossed the compaction boundary:
 	// the only place item 3 is allowed to act.
 	Compactions int
+
+	// Waste counts tool calls under each by-construction waste label.
+	Waste map[string]int
+
+	// Points is one row per run, so a report can put a spread on any of
+	// these rates instead of quoting a pooled number as if it were exact.
+	Points []RunPoint
+}
+
+// RunPoint is one run's totals: the unit a bootstrap resamples.
+type RunPoint struct {
+	Passed          bool
+	ModelCalls      int
+	ToolCalls       int
+	Explore         int
+	Edit            int
+	Verify          int
+	Wasted          int
+	BeforeFirstEdit int
+	InputTokens     int
+	OutputTokens    int
 }
 
 func newCallProfile(model string) *CallProfile {
@@ -192,6 +213,7 @@ func newCallProfile(model string) *CallProfile {
 		Model:      model,
 		ToolPhase:  map[Phase]int{},
 		ModelPhase: map[Phase]int{},
+		Waste:      map[string]int{},
 	}
 }
 
@@ -216,6 +238,10 @@ func (p *CallProfile) Add(o *CallProfile) {
 	p.Results += o.Results
 	p.StaleResults += o.StaleResults
 	p.Compactions += o.Compactions
+	for k, v := range o.Waste {
+		p.Waste[k] += v
+	}
+	p.Points = append(p.Points, o.Points...)
 }
 
 // ProfileTokens is the token estimate the profiler uses for tool output.
@@ -230,9 +256,12 @@ const staleQuoteMin = 24
 
 // ProfileRun classifies one recorded run. staleAfter is the age in model
 // calls past which an unreferenced tool result counts as dead weight.
-func ProfileRun(model string, events []session.Event, staleAfter int) *CallProfile {
+func ProfileRun(model string, events []session.Event, staleAfter int, passed bool) *CallProfile {
 	p := newCallProfile(model)
 	p.Runs = 1
+	waste := WasteLabels(events, passed)
+	wasteAt := 0
+	point := RunPoint{Passed: passed}
 
 	type call struct {
 		name, args string
@@ -264,6 +293,7 @@ func ProfileRun(model string, events []session.Event, staleAfter int) *CallProfi
 			if e.Usage != nil {
 				in := e.Usage.InputTokens + e.Usage.CacheReadTokens
 				p.InputTokens += in
+				point.OutputTokens += e.Usage.OutputTokens
 				if modelCalls == 1 {
 					p.InputFirst = in
 				}
@@ -273,6 +303,13 @@ func ProfileRun(model string, events []session.Event, staleAfter int) *CallProfi
 			ph := ClassifyCall(e.Name, e.Arguments)
 			p.ToolCalls++
 			p.ToolPhase[ph]++
+			if wasteAt < len(waste) {
+				if lbl := waste[wasteAt]; lbl != WasteNone {
+					p.Waste[lbl]++
+					point.Wasted++
+				}
+				wasteAt++
+			}
 			if ph == PhaseEdit && !seenEdit {
 				seenEdit = true
 				p.CallsBeforeFirstEdit = modelCalls
@@ -320,6 +357,15 @@ func ProfileRun(model string, events []session.Event, staleAfter int) *CallProfi
 	for _, v := range subjectTouch {
 		sort.Ints(v)
 	}
+
+	point.ModelCalls = p.ModelCalls
+	point.ToolCalls = p.ToolCalls
+	point.Explore = p.ModelPhase[PhaseExplore]
+	point.Edit = p.ModelPhase[PhaseEdit]
+	point.Verify = p.ModelPhase[PhaseVerify]
+	point.BeforeFirstEdit = p.CallsBeforeFirstEdit
+	point.InputTokens = p.InputTokens
+	p.Points = []RunPoint{point}
 
 	for _, r := range results {
 		p.Results++

@@ -78,7 +78,7 @@ func TestProfileRunCountsPhasesAndFirstEdit(t *testing.T) {
 	ev = append(ev, assistant(10, "checking", 400, 150))
 	ev = append(ev, toolPair(11, "d", "bash", `{"command":"go test ./..."}`, "ok")...)
 
-	p := ProfileRun("m", ev, 2)
+	p := ProfileRun("m", ev, 2, true)
 	if p.ModelCalls != 4 || p.ToolCalls != 4 {
 		t.Fatalf("calls: model %d tool %d, want 4 and 4", p.ModelCalls, p.ToolCalls)
 	}
@@ -124,7 +124,7 @@ func TestProfileRunStaleAccounting(t *testing.T) {
 	ev = append(ev, toolPair(20, "reread2", "read_file", `{"path":"kept.go"}`, keptBody)...)
 	ev = append(ev, assistant(22, "I saw "+quotedLine, 10, 0))
 
-	p := ProfileRun("m", ev, 1)
+	p := ProfileRun("m", ev, 1, true)
 	if p.Results != 4 {
 		t.Fatalf("results %d, want 4", p.Results)
 	}
@@ -145,7 +145,7 @@ func TestProfileRunStaleAccounting(t *testing.T) {
 // report would otherwise print as 0.0 calls before an edit that never came.
 func TestProfileRunNoEditsLeavesTheMeanUndefined(t *testing.T) {
 	ev := []session.Event{assistant(1, "hello", 10, 0)}
-	p := ProfileRun("m", ev, 6)
+	p := ProfileRun("m", ev, 6, true)
 	if p.EditingRuns != 0 || p.CallsBeforeFirstEdit != 0 {
 		t.Errorf("a run with no edit reported %d over %d", p.CallsBeforeFirstEdit, p.EditingRuns)
 	}
