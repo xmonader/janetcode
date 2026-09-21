@@ -22,6 +22,19 @@ extra reads: the turn's own prompt as the goal, plus the last eight tool
 calls rendered the way internal/agent.StuckState renders them. Keep this
 file and StuckState in step.
 
+The state stops BEFORE the labelled call runs. The window holds the
+calls up to i-1 with their outcomes, and call i appears as a pending
+line with no result:
+
+    9. About to run: edit_file {"path":"main.go",…} -> (not run yet)
+
+This is the fix to the first round's leakage. Rendering call i with its
+own `ERROR:` line made `next_call_will_fail` score whether Jev can read
+a flag the harness already holds, not whether it can predict one; label
+(a) is derived from exactly that line. `--leaky` restores the old
+rendering for comparison and should only ever be used to reproduce the
+first round's numbers.
+
 Usage:
   python3 docs/benchmarks/decisions/build-stuck-corpus.py \
       --out docs/benchmarks/decisions/stuck.jsonl run-a.json run-b.json
@@ -93,22 +106,29 @@ def strip_repomap(s):
     return s[:i].strip() if i > 0 else s
 
 
-def render_state(goal, window):
+def render_state(goal, window, pending=None):
+    """Render the goal, the finished calls in window, and — unless the
+    corpus is being built leaky — the pending call with no outcome."""
     out = ["Goal: " + clip(goal, GOAL_BUDGET)]
-    if not window:
+    if not window and pending is None:
         out.append("Recent tool calls: none yet")
         return clip("\n".join(out) + "\n", STATE_BUDGET)
     out.append("Recent tool calls, oldest first:")
+    if not window:
+        out.append("(none yet)")
     for i, s in enumerate(window):
         line = "%d. %s %s -> " % (i + 1, s["tool"], s["args"])
         if s["failed"]:
             line += "ERROR: "
         line += s["outcome"]
         out.append(clip(line, LINE_BUDGET))
+    if pending is not None:
+        out.append(clip("%d. About to run: %s %s -> (not run yet)" % (
+            len(window) + 1, pending["tool"], pending["args"]), LINE_BUDGET))
     return clip("\n".join(out) + "\n", STATE_BUDGET)
 
 
-def label_run(res):
+def label_run(res, leaky=False):
     """Return [(index, state, truth)] for every tool call in one run."""
     ev = res.get("events") or []
     calls, results, samples = [], {}, []
@@ -174,9 +194,13 @@ def label_run(res):
         })
 
     for i in range(len(calls)):
-        window = rendered[max(0, i - WINDOW + 1):i + 1]
-        samples.append((i, render_state(goal_at.get(int(calls[i]["seq"]), ""), window),
-                        "waste" if i in waste else "healthy"))
+        goal = goal_at.get(int(calls[i]["seq"]), "")
+        if leaky:
+            state = render_state(goal, rendered[max(0, i - WINDOW + 1):i + 1])
+        else:
+            state = render_state(goal, rendered[max(0, i - WINDOW + 1):i],
+                                 pending=rendered[i])
+        samples.append((i, state, "waste" if i in waste else "healthy"))
     return samples
 
 
@@ -186,6 +210,9 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--per-class", type=int, default=40)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--leaky", action="store_true",
+                    help="render the labelled call's own result in the state "
+                         "(the first round's leaky framing; for comparison only)")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -194,7 +221,7 @@ def main():
         doc = json.load(open(path))
         arm = doc.get("variant") or path
         for res in doc["results"]:
-            for idx, state, truth in label_run(res):
+            for idx, state, truth in label_run(res, leaky=args.leaky):
                 name = "%s:%s#%s:call%d" % (arm, res["name"], res.get("run"), idx)
                 pools[truth].append({"name": name, "truth": truth,
                                      "state": state, "consumer": "stuck"})
