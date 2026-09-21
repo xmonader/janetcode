@@ -28,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/jev"
+	"github.com/xmonader/janetcode/internal/memory"
 )
 
 type labeledState struct {
@@ -59,7 +60,8 @@ func decisionsReplayMode(ctx context.Context, path string) error {
 			return fmt.Errorf("decisions-replay: %s is empty", cfg.Decisions.KeyEnv())
 		}
 		client = &jev.Client{BaseURL: cfg.Decisions.BaseURL, Key: key, NoBreaker: true,
-			Model: cfg.Decisions.Model, Timeout: time.Duration(cfg.Decisions.TimeoutMs) * time.Millisecond}
+			Model: cfg.Decisions.Model, Timeout: time.Duration(cfg.Decisions.TimeoutMs) * time.Millisecond,
+			Scrub: replayScrub}
 	} else {
 		// No block configured: default to the verified route rather than
 		// refusing, because --decisions-replay is itself the thing being
@@ -68,9 +70,18 @@ func decisionsReplayMode(ctx context.Context, path string) error {
 		if key == "" {
 			return fmt.Errorf("decisions-replay: no OPENROUTER_API_KEY and no decisions block in the config")
 		}
-		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout, NoBreaker: true}
+		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout, NoBreaker: true, Scrub: replayScrub}
 	}
 	return runDecisionsReplay(ctx, path, client)
+}
+
+// replayScrub is the same wire-level redaction a live session installs
+// (agent_build.go). A corpus is read from recorded sessions and is
+// committed, so the replay path must not be the one route that sends a
+// state out unredacted.
+func replayScrub(s string) string {
+	out, _ := memory.RedactSecrets(s)
+	return out
 }
 
 // Retries live here, in the replay driver, and nowhere else: the live
