@@ -1,0 +1,18 @@
+{"name": "explain:what-does-this-do", "truth": "explain", "state": "what does prepareBlocks do in internal/agent/agent.go, and who calls it?", "consumer": "intake"}
+{"name": "explain:why-this-design", "truth": "explain", "state": "why does the compaction keep the last six messages verbatim instead of summarising everything?", "consumer": "intake"}
+{"name": "explain:trace-a-value", "truth": "explain", "state": "walk me through how a --max-cost value reaches the budget check; I am not changing anything, I just want to follow it", "consumer": "intake"}
+{"name": "implement:new-flag", "truth": "implement", "state": "add a --json flag to the doctor command that prints the same rows as a JSON object", "consumer": "intake"}
+{"name": "implement:new-package", "truth": "implement", "state": "write a small internal/ratelimit package with a token bucket, a Wait(ctx) and tests", "consumer": "intake"}
+{"name": "implement:feature-across-files", "truth": "implement", "state": "add per-project prompt history: store it under the config dir keyed by cwd, load it on start, and wire it into the TUI input box", "consumer": "intake"}
+{"name": "debug:test-fails", "truth": "debug", "state": "TestUndoRestoresOnlyTheTurn started failing on master this morning, find out why and fix it", "consumer": "intake"}
+{"name": "debug:panic", "truth": "debug", "state": "the TUI panics with index out of range in transcript.go when I resize below 40 columns; track it down", "consumer": "intake"}
+{"name": "debug:wrong-output", "truth": "debug", "state": "/stats reports a cost of $0.00 even though the provider returned usage; something is dropping the figure", "consumer": "intake"}
+{"name": "review:security", "truth": "review", "state": "look over internal/tool/fetch.go and tell me whether the private-address guard can be bypassed", "consumer": "intake"}
+{"name": "review:diff", "truth": "review", "state": "review the last three commits on this branch before I merge them: correctness first, then style", "consumer": "intake"}
+{"name": "review:performance", "truth": "review", "state": "is internal/repomap.Build doing anything quadratic? check it against a 20k-file tree", "consumer": "intake"}
+{"name": "docs:readme", "truth": "docs", "state": "update the README so the install section mentions go install and the minimum Go version", "consumer": "intake"}
+{"name": "docs:manual-page", "truth": "docs", "state": "write the configuration.md section for the decisions block, in the voice the rest of that file uses", "consumer": "intake"}
+{"name": "docs:comments", "truth": "docs", "state": "the exported functions in internal/pipewrite have no doc comments; write them", "consumer": "intake"}
+{"name": "other:about-the-tool", "truth": "other", "state": "how do I stop janetcode asking me to approve every edit?", "consumer": "intake"}
+{"name": "other:ambiguous", "truth": "other", "state": "the thing with the sessions", "consumer": "intake"}
+{"name": "other:not-code", "truth": "other", "state": "what timezone are these session timestamps in?", "consumer": "intake"}

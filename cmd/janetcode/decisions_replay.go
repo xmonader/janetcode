@@ -36,6 +36,12 @@ type labeledState struct {
 	State string `json:"state"`
 	File  string `json:"file,omitempty"`
 	Seq   int    `json:"seq,omitempty"`
+	// Consumer names which consumer's questions the row is labeled for.
+	// Empty is the triage corpus, the only one there was when the flag
+	// was written. A corpus says so in its rows rather than in a second
+	// flag: the file and the question set belong together, and a corpus
+	// scored with the wrong questions is worse than one refused.
+	Consumer string `json:"consumer,omitempty"`
 }
 
 // decisionsReplayMode wires the flag: a decisions client built the same
@@ -179,6 +185,9 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 	if len(cases) == 0 {
 		return fmt.Errorf("%s: no labeled states", path)
 	}
+	if cases[0].Consumer == "intake" {
+		return runIntakeReplay(ctx, path, j, cases)
+	}
 	questions := agent.TriageQuestions()
 	tallies := map[string]*classTally{}
 	var rows []string
@@ -243,6 +252,92 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 	// An error row counts as incorrect in that denominator, so a run
 	// that lost rows to the service must not read as a run the mapping
 	// did badly on.
+	if errorRows > 0 {
+		fmt.Printf("degraded: %d/%d rows ended in error after %d attempts each and count as incorrect above\n",
+			errorRows, len(cases), replayMaxAttempts)
+	}
+	fmt.Println("rows: " + dst)
+	return nil
+}
+
+// intakeRow is one scored intake row: what the classifier called the
+// prompt, how sure it was, and the other two answers, which have no
+// truth to score against and are recorded for their distribution.
+type intakeRow struct {
+	Name       string  `json:"name"`
+	Truth      string  `json:"truth"`
+	Kind       string  `json:"kind"`
+	Confidence float64 `json:"confidence"`
+	Complexity float64 `json:"complexity"`
+	NeedsPlan  float64 `json:"needs_plan"`
+	Model      string  `json:"model,omitempty"`
+	LatencyMs  int64   `json:"latency_ms"`
+	Correct    bool    `json:"correct"`
+}
+
+type intakeTally struct {
+	n, correct                      int
+	confSum, complexitySum, planSum float64
+}
+
+// runIntakeReplay scores the Phase 3a intake corpus: the only answer
+// with a truth is kind, so that is what accuracy means here. complexity
+// and needs_plan are reported per labeled kind because the thing worth
+// knowing before anything acts on them is whether they separate at all
+// — a needs_plan that reads the same for "explain this function" and
+// "port the storage layer" is a question not worth asking.
+func runIntakeReplay(ctx context.Context, path string, j *jev.Client, cases []labeledState) error {
+	questions := agent.IntakeQuestions()
+	tallies := map[string]*intakeTally{}
+	var rows []string
+	errorRows := 0
+	for _, c := range cases {
+		res, err := evaluateRetrying(ctx, j, agent.IntakeState(c.State), questions, sleepCtx)
+		t := tallies[c.Truth]
+		if t == nil {
+			t = &intakeTally{}
+			tallies[c.Truth] = t
+		}
+		t.n++
+		row := intakeRow{Name: c.Name, Truth: c.Truth}
+		if err != nil {
+			errorRows++
+			row.Model = "error: " + err.Error()
+			rows = append(rows, mustJSONForReplay(row))
+			fmt.Printf("%-38s %-12s ERROR: %v\n", c.Name, c.Truth, err)
+			continue
+		}
+		row.Kind, row.Confidence, _ = res.ChoiceAt("kind")
+		row.Complexity, _, _, _ = res.ScoreAt("complexity")
+		row.NeedsPlan, _ = res.NoulAt("needs_plan")
+		row.Model, row.LatencyMs = res.Model, res.Latency.Milliseconds()
+		row.Correct = row.Kind == c.Truth
+		t.correct += btoi(row.Correct)
+		t.confSum += row.Confidence
+		t.complexitySum += row.Complexity
+		t.planSum += row.NeedsPlan
+		rows = append(rows, mustJSONForReplay(row))
+	}
+	dst := strings.TrimSuffix(path, ".jsonl") + ".answers.jsonl"
+	if err := os.WriteFile(dst, []byte(strings.Join(rows, "\n")+"\n"), 0o644); err != nil {
+		return err
+	}
+	names := make([]string, 0, len(tallies))
+	for k := range tallies {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	fmt.Println("truth         n  correct  mean_conf  mean_complexity  mean_needs_plan")
+	correctAll := 0
+	for _, k := range names {
+		t := tallies[k]
+		correctAll += t.correct
+		fmt.Printf("%-12s %2d %8d %10.2f %16.2f %16.2f\n", k, t.n, t.correct,
+			t.confSum/n1(t.n), t.complexitySum/n1(t.n), t.planSum/n1(t.n))
+	}
+	fmt.Printf("overall: %d/%d kind correct (%d%%)\n",
+		correctAll, len(cases), 100*correctAll/maxInt(1, len(cases)))
+	fmt.Println("phase 3a is log-only: these numbers are what a later gate would be read from, not a threshold anything acts on today")
 	if errorRows > 0 {
 		fmt.Printf("degraded: %d/%d rows ended in error after %d attempts each and count as incorrect above\n",
 			errorRows, len(cases), replayMaxAttempts)
