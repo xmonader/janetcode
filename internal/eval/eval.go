@@ -255,8 +255,22 @@ type Result struct {
 	// Features is the agent's trajectory at the end of the run, the
 	// training data for the success predictor (agent.Train).
 	Features map[string]float64 `json:"features,omitempty"`
+	// Decisions is what the optional decision provider did during the
+	// run. A consumer that silently could not call it — a wrong model
+	// slug, a missing key, an opened circuit — is otherwise invisible in
+	// a result file, and an arm measured that way measures nothing.
+	Decisions DecisionStats `json:"decisions,omitempty"`
 	// Events is the append-only trajectory log when the agent had a Log.
 	Events []session.Event `json:"events,omitempty"`
+}
+
+// DecisionStats is one run's use of the decision provider.
+type DecisionStats struct {
+	Calls   int           `json:"calls,omitempty"`
+	Errors  int           `json:"errors,omitempty"`
+	Acted   int           `json:"acted,omitempty"`
+	Time    time.Duration `json:"time,omitempty"`
+	CostUSD float64       `json:"cost_usd,omitempty"`
 }
 
 // Compaction summarises the context pipeline's work in one run.
@@ -677,6 +691,7 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 	st := ag.Stats()
 	res.ModelTime = st.ModelTime
 	res.Recoveries, res.WatchdogKills, res.ModelFallbacks = st.Recoveries, st.WatchdogKills, st.Fallbacks
+	res.Decisions = DecisionStats{Calls: st.DecisionCalls, Errors: st.DecisionErrors, Acted: st.DecisionActed, Time: st.DecisionTime, CostUSD: st.DecisionCost}
 	for _, t := range st.Tools {
 		res.ToolTime += t.Time
 	}

@@ -12,9 +12,11 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/gitx"
+	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // scripted answers every task the same way: write hello.txt, then say done.
@@ -353,5 +355,59 @@ func TestLoadRelativeDirResolvesPatchAbsolute(t *testing.T) {
 	}
 	if string(got) != "hello world\n" {
 		t.Fatalf("hello.txt = %q", got)
+	}
+}
+
+// fakeDecisions answers a triage question without a network, and
+// counts how often it was asked.
+type fakeDecisions struct{ calls int }
+
+func (f *fakeDecisions) Available() bool { return true }
+func (f *fakeDecisions) Evaluate(_ context.Context, _ string, _ []jev.Question) (*jev.Result, error) {
+	f.calls++
+	return &jev.Result{Model: "jev-1.13.0", TokensIn: 430, TokensOut: 73, Cost: 0.00001806,
+		Latency: 250 * time.Millisecond,
+		Answers: map[string]jev.Answer{
+			"caused_by_change": {Kind: jev.Noul, Noul: 0.1},
+			"failure_class":    {Kind: jev.Choice, Choice: "environmental", Confidence: 0.9},
+		}}, nil
+}
+
+// TestDecisionStatsReachTheResult: an arm whose decision provider was
+// never actually reachable — a wrong model slug, a missing key, an
+// opened circuit — produced zero decisions and no sign of it anywhere in
+// the result file. One such arm was run and thrown away before this was
+// recorded; the counters now travel with the run.
+func TestDecisionStatsReachTheResult(t *testing.T) {
+	dir := t.TempDir()
+	writeTask(t, dir, "d.json", Task{Name: "d", Prompt: "write hello", Check: "true"})
+	tasks, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd := &fakeDecisions{}
+	r := &Runner{NewAgent: func(root, _ string) (*agent.Agent, error) {
+		ag := &agent.Agent{
+			Provider: &scripted{},
+			Tools:    tool.NewRegistry(tool.WriteFile{Root: root}),
+			Model:    "m", Price: &llm.Price{Input: 1, Output: 2},
+			Log:             &session.Memory{},
+			Decisions:       fd,
+			DecisionsTriage: true,
+		}
+		// A gate that cannot pass, so the turn reaches triage.
+		ag.SetVerify(&verify.Runner{Config: verify.Config{Commands: []string{"false"}, Timeout: 30}, Cwd: root}, false)
+		return ag, nil
+	}}
+	res := r.Run(context.Background(), tasks)
+	if fd.calls == 0 {
+		t.Fatal("the decision provider was never asked")
+	}
+	got := res[0].Decisions
+	if got.Calls != fd.calls {
+		t.Fatalf("Decisions.Calls = %d, want %d", got.Calls, fd.calls)
+	}
+	if got.Errors != 0 || got.Time <= 0 || got.CostUSD <= 0 {
+		t.Fatalf("Decisions = %+v, want the latency and cost carried through", got)
 	}
 }
