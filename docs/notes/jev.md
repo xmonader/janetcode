@@ -499,3 +499,80 @@ make build
 Read the paired bootstrap intervals, not the point estimates: this set
 swings about 21% between identical runs, which is why the spec asks for
 five.
+
+## The Phase 1 gate, wired and run: triage never fired (2026-09-21)
+
+The blocker above is gone. `--eval-gate` (off by default) wires two
+things onto the eval agent that only a real session had: the
+verification gate — the work directory's `.janetcode/verify.json` if the
+fixture ships one, otherwise the checks for its project type (`go build
+./...` + `go test ./...`, or `python3 -m compileall -q .`) — and the
+configured decision provider, through the same `decisionsClient` a
+session's `stepDecisions` now calls, scrubber included. Without the flag
+the eval agent is exactly what it was, so every baseline already in this
+repository stays valid; `--eval-off decisions` keeps the gate and drops
+the provider, which is the control arm.
+
+Both arms therefore ran **with the gate on**; the only difference was
+decisions on versus off. Same model (`dashscope-coding/qwen3.7-plus`),
+same tasks, the two arms launched two seconds apart so endpoint drift
+hits both.
+
+```sh
+make build
+# decisions on (config has a "decisions" block, triage+intake true,
+# OPENROUTER_API_KEY in the environment only)
+./bin/janetcode --eval evals --eval-only 51-price-chain-bug,56-two-failures \
+    --eval-gate --eval-runs 3 --eval-jobs 3 --eval-timeout 360s \
+    --eval-label jev-on --eval-json jev-on.json
+# decisions off, gate still on
+./bin/janetcode --eval evals --eval-only 51-price-chain-bug,56-two-failures \
+    --eval-gate --eval-off decisions --eval-runs 3 --eval-jobs 3 \
+    --eval-timeout 360s --eval-label jev-off --eval-json jev-off.json
+# second pair, harder tasks: --eval-only 52-options-refactor,57-expr-layers
+#   --eval-runs 2 --eval-jobs 4 --eval-timeout 330s
+```
+
+n per cell: 3 runs × 2 tasks (51, 56) plus 2 runs × 2 tasks (52, 57) per
+arm — 10 runs an arm, 20 runs in all, ~23 minutes of wall clock with the
+four processes overlapping. No 429s.
+
+| | decisions on | decisions off |
+|---|---|---|
+| passed | 10/10 | 9/10 |
+| gate commands run | 20 | 18 |
+| **gate failures** | **0** | **0** |
+| repair rounds | 0 | 0 |
+| triage calls | 0 | 0 |
+| skips taken | 0 | 0 |
+| intake calls (log-only) | 10 | — |
+| main-model calls | 76 (mean 7.6) | 66 (mean 6.6) |
+| main-model tokens in / out | 83,262 / 36,267 | 78,970 / 38,848 |
+| main-model cost | not priced (`cost_known: false` for this model) | same |
+| wall per run, mean | 135 s | 178 s |
+| Jev latency p50 | 640 ms (n=10, intake only) | — |
+| Jev cost | $0.000333 total | — |
+| circuit-open events | 0 | 0 |
+
+**The finding is the zero.** Triage fired not once in 20 gated runs,
+because the gate never failed in 20 runs: this model runs `go test`
+itself as a tool before it ends a turn, so by the time the gate runs the
+tests already pass. Triage is reachable in evals now — a unit test
+drives a failing gate into `triageFailure` with a fake provider — but on
+this eval set it has nothing to triage. Everything else in the table is
+noise at n=10: the pass difference is one off-arm run that hit the
+330 s `--eval-timeout` mid-turn (a harness cap, not a wrong answer), and
+the model-call and wall-time gaps are inside the ±21% this set swings
+between identical runs. No cost comparison is possible at all —
+qwen3.7-plus has no price table here, so `cost_usd` is 0 on every run.
+
+What did get measured is intake's price, which is real and small: one
+call per run at 640 ms p50 and $0.000033 a call, off the turn's critical
+path, and no circuit opened.
+
+To actually measure triage, the gate has to be one that fails for
+reasons the model cannot pre-empt: flaky or environmental commands
+(a network fetch, a port bind, a clock- or ordering-sensitive test) in
+the fixture's own `.janetcode/verify.json`. That is a corpus change, not
+a harness change, and it is the next step — the current eval set cannot
+answer the Phase 1 question however many runs it is given.
