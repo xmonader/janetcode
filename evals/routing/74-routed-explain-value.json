@@ -1,0 +1,15 @@
+{
+  "name": "74-routed-explain-value",
+  "prompt": "What does Fold(4) return in fold.go? Reply with just the number and nothing else.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "fold.go": "package m\n\n// Fold sums the first n triangular numbers.\nfunc Fold(n int) int {\n\ttotal := 0\n\tfor i := 1; i <= n; i++ {\n\t\ttotal += i * (i + 1) / 2\n\t}\n\treturn total\n}\n"
+  },
+  "check": "tail -1 \"$EVAL_OUTPUT\" | grep -qw 20",
+  "max_tool_calls": 6,
+  "tags": [
+    "read",
+    "answer",
+    "routing"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "76-routed-trivial-edit",
+  "prompt": "The default timeout in config.go is 5 seconds and it must be 30 seconds. Change it, and nothing else.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "config.go": "package m\n\nimport \"time\"\n\n// DefaultTimeout bounds one request.\nconst DefaultTimeout = 5 * time.Second\n\n// Retries is how many times a failed request is tried again.\nconst Retries = 3\n",
+    "config_test.go": "package m\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nfunc TestRetriesUnchanged(t *testing.T) {\n\tif Retries != 3 {\n\t\tt.Fatalf(\"Retries = %d\", Retries)\n\t}\n}\n\nfunc TestTimeout(t *testing.T) {\n\tif DefaultTimeout != 30*time.Second {\n\t\tt.Fatalf(\"DefaultTimeout = %v\", DefaultTimeout)\n\t}\n}\n"
+  },
+  "check": "go test ./... >/dev/null 2>&1",
+  "max_tool_calls": 12,
+  "tags": [
+    "edit",
+    "routing"
+  ]
+}

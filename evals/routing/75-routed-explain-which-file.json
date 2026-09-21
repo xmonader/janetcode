@@ -1,0 +1,17 @@
+{
+  "name": "75-routed-explain-which-file",
+  "prompt": "Which file in this directory defines the function Normalize? Reply with just the filename.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "parse.go": "package m\n\nfunc Parse(s string) []string { return nil }\n",
+    "clean.go": "package m\n\nimport \"strings\"\n\n// Normalize lowercases and trims a field value.\nfunc Normalize(s string) string { return strings.ToLower(strings.TrimSpace(s)) }\n",
+    "report.go": "package m\n\nfunc Report() string { return \"\" }\n"
+  },
+  "check": "grep -q \"clean.go\" \"$EVAL_OUTPUT\" && ! grep -q \"parse.go\" \"$EVAL_OUTPUT\"",
+  "max_tool_calls": 6,
+  "tags": [
+    "read",
+    "answer",
+    "routing"
+  ]
+}
