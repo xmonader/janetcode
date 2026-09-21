@@ -95,19 +95,30 @@ func (r *Result) NoulAt(id string) (float64, bool) {
 	return a.Noul, true
 }
 
-// ChoiceAt is the selected option and its confidence for a Choice or
-// Score question, or false when absent or of another kind.
+// ChoiceAt is the selected option id and its confidence for a Choice
+// question, or false when the answer is absent or of another kind. A
+// Score answer is deliberately not one: its score is a continuous
+// position on the rubric, not an option id — ScoreAt reads those.
 func (r *Result) ChoiceAt(id string) (choice string, confidence float64, ok bool) {
 	a, ok := r.Answers[id]
-	if !ok || (a.Kind != Choice && a.Kind != Score) {
+	if !ok || a.Kind != Choice {
 		return "", 0, false
 	}
-	if a.Kind == Score {
-		// A Score's "choice" is its level index as a string, matching
-		// the keys of Probabilities and the position in Levels.
-		return fmt.Sprintf("%g", a.Score), a.Confidence, true
-	}
 	return a.Choice, a.Confidence, true
+}
+
+// ScoreAt is a Score answer's position on the rubric, the distribution
+// over the level indices and its confidence, or false when the answer
+// is absent or of another kind. The score is continuous — 1.035 sits
+// between levels 1 and 2 — while the keys of probs are the integer
+// level indices as strings ("0", "1", "2"), so the score is not one of
+// them and must not be stringified into one.
+func (r *Result) ScoreAt(id string) (score float64, probs map[string]float64, confidence float64, ok bool) {
+	a, ok := r.Answers[id]
+	if !ok || a.Kind != Score {
+		return 0, nil, 0, false
+	}
+	return a.Score, a.Probabilities, a.Confidence, true
 }
 
 // wire types: the API's request and response shapes.

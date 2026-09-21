@@ -36,7 +36,7 @@ const okBody = `{
   "answers": {
     "caused": {"type": "noul", "noul": 0.9},
     "class": {"type": "choice", "choice": "patch", "confidence": 0.8, "probabilities": {"patch": 0.8, "flaky": 0.2}},
-    "severity": {"type": "score", "score": 2, "confidence": 0.7, "legend": {"0": "low", "1": "mid", "2": "high"}, "probabilities": {"0": 0.1, "1": 0.2, "2": 0.7}}
+    "severity": {"type": "score", "score": 1.035, "confidence": 0.7, "legend": {"0": "low", "1": "mid", "2": "high"}, "probabilities": {"0": 0.1, "1": 0.755, "2": 0.145}}
   },
   "usage": {"input_tokens": 100, "output_tokens": 10}
 }`
@@ -65,11 +65,24 @@ func TestEvaluateAllThreeKinds(t *testing.T) {
 	if ch, conf, ok := res.ChoiceAt("class"); !ok || ch != "patch" || conf != 0.8 {
 		t.Fatalf("choice = %q %v %v", ch, conf, ok)
 	}
-	if lv, conf, ok := res.ChoiceAt("severity"); !ok || lv != "2" || conf != 0.7 {
-		t.Fatalf("score = %q %v %v", lv, conf, ok)
+	// The API's score is a continuous expectation over the rubric while
+	// the probabilities are keyed by integer level index: reading it as
+	// a choice would hand callers "1.035", a key of nothing.
+	sc, probs, conf, ok := res.ScoreAt("severity")
+	if !ok || sc != 1.035 || conf != 0.7 || probs["1"] != 0.755 || len(probs) != 3 {
+		t.Fatalf("score = %v %v %v %v", sc, probs, conf, ok)
 	}
 	if _, ok := res.NoulAt("class"); ok {
 		t.Fatal("a choice answered as a noul")
+	}
+	if ch, _, ok := res.ChoiceAt("severity"); ok {
+		t.Fatalf("a score answered as a choice: %q", ch)
+	}
+	if _, _, _, ok := res.ScoreAt("class"); ok {
+		t.Fatal("a choice answered as a score")
+	}
+	if _, _, _, ok := res.ScoreAt("absent"); ok {
+		t.Fatal("a missing answer answered as a score")
 	}
 	if hits.Load() != 1 {
 		t.Fatalf("hits = %d", hits.Load())
