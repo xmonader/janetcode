@@ -43,6 +43,12 @@ type labeledState struct {
 	// flag: the file and the question set belong together, and a corpus
 	// scored with the wrong questions is worse than one refused.
 	Consumer string `json:"consumer,omitempty"`
+	// TruthRoute is the intake corpus's second label: whether routing
+	// this request to the cheap tier is safe. It is truth by
+	// construction — "cheap" exactly when the request asks for no change
+	// to the repository and can be answered from at most two files —
+	// and it scores agent.IntakeRouting, the mapping a live turn takes.
+	TruthRoute string `json:"truth_route,omitempty"`
 }
 
 // decisionsReplayMode wires the flag: a decisions client built the same
@@ -287,11 +293,25 @@ type intakeRow struct {
 	Model      string  `json:"model,omitempty"`
 	LatencyMs  int64   `json:"latency_ms"`
 	Correct    bool    `json:"correct"`
+	// Route is what agent.IntakeRouting made of these answers, RouteWhy
+	// the reason it gave, and TruthRoute the label it is scored against.
+	Route      string `json:"route"`
+	RouteWhy   string `json:"route_why,omitempty"`
+	TruthRoute string `json:"truth_route,omitempty"`
 }
 
 type intakeTally struct {
 	n, correct                      int
 	confSum, complexitySum, planSum float64
+}
+
+// routeTally is the routing confusion matrix. costly is the only cell
+// that can hurt: a request labeled strong that the mapping sent to the
+// cheap tier. missed is the opposite and costs nothing but the saving.
+type routeTally struct {
+	labeled            int
+	cheapCheap, costly int
+	missed, strongOK   int
 }
 
 // runIntakeReplay scores the Phase 3a intake corpus: the only answer
@@ -303,6 +323,8 @@ type intakeTally struct {
 func runIntakeReplay(ctx context.Context, path string, j *jev.Client, cases []labeledState) error {
 	questions := agent.IntakeQuestions()
 	tallies := map[string]*intakeTally{}
+	var routes routeTally
+	var costlyNames []string
 	var rows []string
 	errorRows := 0
 	for _, c := range cases {
@@ -326,6 +348,23 @@ func runIntakeReplay(ctx context.Context, path string, j *jev.Client, cases []la
 		row.NeedsPlan, _ = res.NoulAt("needs_plan")
 		row.Model, row.LatencyMs = res.Model, res.Latency.Milliseconds()
 		row.Correct = row.Kind == c.Truth
+		rt := agent.IntakeRouting(res)
+		row.Route, row.RouteWhy, row.TruthRoute = "default", rt.Why, c.TruthRoute
+		if rt.Cheap {
+			row.Route = "cheap"
+		}
+		switch {
+		case c.TruthRoute == "":
+		case c.TruthRoute == "cheap" && rt.Cheap:
+			routes.labeled, routes.cheapCheap = routes.labeled+1, routes.cheapCheap+1
+		case c.TruthRoute == "cheap":
+			routes.labeled, routes.missed = routes.labeled+1, routes.missed+1
+		case rt.Cheap:
+			routes.labeled, routes.costly = routes.labeled+1, routes.costly+1
+			costlyNames = append(costlyNames, c.Name)
+		default:
+			routes.labeled, routes.strongOK = routes.labeled+1, routes.strongOK+1
+		}
 		t.correct += btoi(row.Correct)
 		t.confSum += row.Confidence
 		t.complexitySum += row.Complexity
@@ -351,7 +390,19 @@ func runIntakeReplay(ctx context.Context, path string, j *jev.Client, cases []la
 	}
 	fmt.Printf("overall: %d/%d kind correct (%d%%)\n",
 		correctAll, len(cases), 100*correctAll/maxInt(1, len(cases)))
-	fmt.Println("phase 3a is log-only: these numbers are what a later gate would be read from, not a threshold anything acts on today")
+	if routes.labeled > 0 {
+		fmt.Printf("\nrouting (agent.IntakeRouting over %d labeled rows)\n", routes.labeled)
+		fmt.Println("truth_route  routed_cheap  kept_on_strong")
+		fmt.Printf("%-12s %12d %15d\n", "cheap", routes.cheapCheap, routes.missed)
+		fmt.Printf("%-12s %12d %15d\n", "strong", routes.costly, routes.strongOK)
+		fmt.Printf("costly wrong routes (strong sent to cheap): %d\n", routes.costly)
+		for _, n := range costlyNames {
+			fmt.Println("  costly: " + n)
+		}
+		fmt.Printf("cheap-route recall: %d/%d\n", routes.cheapCheap, routes.cheapCheap+routes.missed)
+		fmt.Println("gate: a costly wrong route is what decides this consumer; a missed cheap route costs only the saving")
+	}
+	fmt.Println("kind is scored as before; the routing table above is what decisions.intake_route acts on")
 	if errorRows > 0 {
 		fmt.Printf("degraded: %d/%d rows ended in error after %d attempts each and count as incorrect above\n",
 			errorRows, len(cases), replayMaxAttempts)
