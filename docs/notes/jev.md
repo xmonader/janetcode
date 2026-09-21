@@ -576,3 +576,193 @@ reasons the model cannot pre-empt: flaky or environmental commands
 the fixture's own `.janetcode/verify.json`. That is a corpus change, not
 a harness change, and it is the next step — the current eval set cannot
 answer the Phase 1 question however many runs it is given.
+
+## Long tasks, a gate that can fail, and the mid-turn ceiling (2026-09-21)
+
+The previous section ended on a zero: 20 gated runs, no gate failure, no
+triage call. Two things were wrong with that set — the tasks were short
+(6–20 model calls) and the gate was the project-type fallback, `go build
+./...` plus `go test ./...`, which is exactly what this model runs
+itself before it ends a turn. Both were fixed here, and the zero came
+back.
+
+### The gated set
+
+`evals/gated/` (commit b7f1529) holds three long tasks that ship their
+own `.janetcode/verify.json`. 71 and 72 are copies of the session
+fixtures 41 and 43 — seven and six prompts, 22–36 model calls and 31–44
+tool calls a run — and 73 is a copy of 57-expr-layers. They are copies,
+not edits, so every baseline already recorded for 41, 43 and 57 stays
+comparable. The Go gate is four commands:
+
+```json
+{"commands": ["go build ./...", "go vet ./...",
+  "out=$(gofmt -l .); if [ -n \"$out\" ]; then echo 'gofmt: not formatted:'; echo \"$out\"; exit 1; fi",
+  "go test ./..."], "timeout": 120}
+```
+
+`go vet` and the `gofmt -l` guard are the point: they are ordinary
+things a repository gates on and unusual things a model runs on itself.
+
+Before trusting a zero again, the plumbing was proved with a fixture
+whose gate cannot pass (`{"commands": ["go build ./...", "echo
+'integration smoke test could not reach the fixture service'; exit
+1"]}`, kept out of the repository). The gate failed, triage fired once,
+called it `environmental` at p(caused)=0.07 and confidence 0.96, and
+skipped the repair round — 314 ms, $0.000028. So the gate, the triage
+call and the skip all work end to end; on the real tasks they simply
+have nothing to do.
+
+### Half 1: Jev on versus Jev off, gate on in both arms
+
+```sh
+make build
+XDG_CONFIG_HOME=<a config dir whose config.json has the decisions block:
+  {"model":"~typesafe/jev-latest","timeout_ms":2000,"triage":true,"intake":true}>
+COMMON="--eval evals/gated --eval-gate --eval-runs 3 --eval-jobs 3 \
+        --eval-timeout 420s --eval-max-turns 80"
+./bin/janetcode $COMMON --eval-label jev-on  --eval-json jev-on.json &
+sleep 2
+./bin/janetcode $COMMON --eval-off decisions --eval-label jev-off \
+        --eval-json jev-off.json &
+```
+
+n per cell: 3 runs × 3 tasks per arm, 9 runs an arm, 18 in all, ~73
+minutes with the six processes overlapping, no 429s. Same endpoint and
+model as the last round (`dashscope-coding/qwen3.7-plus`); the two arms
+launched two seconds apart so endpoint drift hits both. The raw
+`--eval-json` files carry every session event and are not committed.
+
+| | decisions on | decisions off |
+|---|---|---|
+| passed | 9/9 | 8/9 |
+| main-model calls, total (mean) | 175 (19.4) | 177 (19.7) |
+| main-model calls, per-run range | 5–28 | 5–36 |
+| tool calls, total | 241 | 239 |
+| **failed/wrong tool calls** | **4** | **4** |
+| loop calls | 0 | 0 |
+| **gate commands run** | **120** | **116** |
+| **gate failures** | **0** | **0** |
+| repair rounds | 0 | 0 |
+| triage calls / skips | 0 / 0 | 0 / 0 |
+| costly wrong skips | none (no skips) | — |
+| intake calls (log-only) | 9 | — |
+| tokens in / out | 302,062 / 51,070 | 290,385 / 47,823 |
+| wall per run, mean (median) | 359 s (372 s) | 381 s (304 s) |
+| Jev latency p50 / cost | 664 ms / $0.000298 total | — |
+| circuit-open events | 0 | 0 |
+
+"Failed/wrong tool call" is defined from what the log actually records:
+a `tool/result` event carrying a tool name and `is_error: true`, or
+`denied: true` (the harness refused, nothing ran). Reads of paths that
+do not exist and edits whose `old_string` does not match both arrive
+that way, so they are counted; "repeated identical call" is counted
+separately as a loop (≥3 consecutive calls with the same tool and the
+same arguments, or ≥3 calls on the same tool-and-path inside a window of
+five) and did not occur once in 480 tool calls.
+
+Per task, sorted within the cell so the spread is visible:
+
+| task | arm | pass | model calls | tool calls | wall s |
+|---|---|---|---|---|---|
+| 71-gated-go-service | on | 3/3 | 26 / 27 / 28 | 31 / 35 / 44 | 372 / 444 / 802 |
+| 71-gated-go-service | off | 3/3 | 26 / 31 / 36 | 36 / 41 / 43 | 304 / 668 / 670 |
+| 72-gated-python-ledger | on | 3/3 | 22 / 23 / 28 | 34 / 36 / 37 | 258 / 473 / 578 |
+| 72-gated-python-ledger | off | 2/3 | 12 / 23 / 27 | 19 / 36 / 39 | 257 / 514 / 577 |
+| 73-gated-expr-layers | on | 3/3 | 5 / 6 / 10 | 7 / 8 / 9 | 68 / 117 / 122 |
+| 73-gated-expr-layers | off | 3/3 | 5 / 5 / 12 | 7 / 7 / 11 | 141 / 146 / 151 |
+
+**Verdict: not enough signal, and the reason is structural rather than
+statistical.** Every difference in the table sits inside the run-to-run
+spread of one cell — 71 alone swings 26 to 36 model calls and 304 to 802
+seconds between identical runs, which is wider than any arm gap. The one
+off-arm failure was a stalled stream, not a wrong answer. The number
+that matters is the one that is not noise: **236 gate commands ran
+across the two arms and none of them failed**, so triage, the only thing
+Jev changes today, had nothing to act on. That is a harder zero than the
+last one: this gate included `go vet` and a `gofmt -l` guard on every
+gating turn, and the model still arrived at the end of every turn with a
+clean tree. Adding runs to this design cannot produce a signal.
+
+### Half 2: would a mid-turn consumer pay?
+
+The 18 recorded runs are the trajectory data Phase 2 never had. Every
+tool call in them was labelled from the log alone, no judgement:
+
+- **(a) errored** — the result came back `is_error` or `denied`.
+- **(b) loop** — ≥3 consecutive calls with identical tool and
+  arguments, or ≥3 calls on the same tool-and-path within a window of
+  five.
+- **(c) dead tail** — the run did not pass, and no later call ever
+  produced a successful mutating result or a passing gate.
+
+A main-model call counts as wasted if it issued a labelled call or sits
+in the dead tail. The result:
+
+| | on | off | both |
+|---|---|---|---|
+| wasted main-model calls | 2 / 175 | 4 / 177 | **6 / 352 = 1.7%** |
+| wasted tool calls | — | — | 8 / 480 = 1.7% |
+| of which loops | 0 | 0 | **0** |
+
+**The ceiling is 1.7% of main-model calls, and that is the answer to the
+expectation that Jev shows up as fewer main-model calls.** A perfect
+mid-turn oracle, consulted free and never wrong, could remove at most
+one main-model call in sixty on this model and this set. qwen3.7-plus on
+these tasks does not flail: it never repeated a call, never reverted an
+edit, and errored on eight tool calls out of 480, mostly a first
+`edit_file` whose anchor did not match, which it fixed on the next step.
+
+The corpus was still built and scored, as a smoke test of the
+instrument rather than a calibration: `docs/benchmarks/decisions/
+stuck.jsonl`, 28 rows (8 waste, 20 healthy) built by
+`build-stuck-corpus.py` from the same two `--eval-json` files, scored
+through the new `consumer: "stuck"` branch of `--decisions-replay`
+(commits fa7e01f, af119be). Two runs:
+
+```sh
+./bin/janetcode --decisions-replay docs/benchmarks/decisions/stuck.jsonl
+```
+
+| question | thr | precision | recall | run 2 |
+|---|---|---|---|---|
+| `stuck` | any of 0.5–0.9 | — (never fires) | 0.00 | same |
+| `on_goal` (inverted) | 0.5–0.9 | 0.00 | 0.00 | same |
+| `next_call_will_fail` | 0.5 | 0.73 | 1.00 | 0.73 / 1.00 |
+| `next_call_will_fail` | 0.6 | 0.71 | 0.62 | 0.60 / 0.38 |
+| `next_call_will_fail` | 0.7 | 1.00 | 0.25 | 1.00 / 0.25 |
+
+Mean probabilities, waste versus healthy: `stuck` 0.26 vs 0.12,
+`on_goal` 0.85 vs 0.78, `next_call_will_fail` 0.63 vs 0.25. Replay
+latency p50 358 and 367 ms over the two runs.
+
+Three caveats, and the third is the one that decides it. Eight positives
+cannot support a precision estimate — 0.73 is eight rows. `stuck` never
+fires because there were no loops to see, which is the ceiling result
+restated rather than a failure of the question. And
+`next_call_will_fail` is reading an error that has already happened: the
+state window ends at the call being labelled and shows its own `ERROR:`
+line, which is also what (a) labels the row on. It is not scoring a
+prediction, it is scoring whether Jev can read a line the harness
+already has, deterministically, for free, at zero latency.
+
+**Recommendation: reject a mid-turn consumer for this model.** Not
+"later" — on these numbers. The ceiling is 1.7% of main-model calls; the
+only question that separated the classes separates them by re-reading a
+flag the harness already holds; and the latency story is the opposite of
+free: 640 ms p50 live (358 ms on the replay's warmer path) consulted
+every step on a 30-step run adds ~19 s of wall clock to save at most
+half a step, and a false positive interrupts a healthy run, which is the
+costly error. The only trigger policy that could have paid — consult
+only after a tool error or a repeated call — is a policy whose trigger
+is already the deterministic signal, so the consult adds latency and
+subtracts nothing.
+
+What would change the answer, stated so it is not re-litigated by
+adding runs: a model that actually loops (the ceiling here is the
+model's competence, not Jev's), or a gate that fails for reasons the
+model cannot pre-empt, which on this evidence means something outside
+the repository — a network fetch, a port bind, a service — not a
+stricter local lint. `evals/gated/` is the place to put that when there
+is one; the instrument (`--eval-gate`, the `stuck` consumer, the corpus
+builder) is finished and waiting.
