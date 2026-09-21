@@ -1454,7 +1454,10 @@ carried it, which is what the provider actually re-reads.
   the model commits to an edit — 3.9 calls on qwen, 5.2 on devstral, 10-14%
   of a run. And some of those are the model reading the file it is about to
   change, which is necessary work, not waste. So the honest ceiling is a
-  single-digit percentage of model calls, not a quarter.
+  single-digit percentage of model calls, not a quarter. **Revised below**:
+  on a 58-file repository exploration is 43-50% of model calls and 40-54% of
+  the run happens before the first edit. The caveat at the end of this
+  section is exactly why, and it was worth taking seriously.
 - **Item 2 (memory / skill / tool-set recall): not sized here** — see its own
   section; the recall paths are already deterministic and capped.
 - **Item 3 (compaction-time pruning): zero on this evidence.** 7.3-7.7% of
@@ -1804,26 +1807,15 @@ them at **rank 8 and rank 9**:
 
 A ranker with no signal would average rank 29 of 58. **Recall@10 is already
 1.0**, so a Jev rerank cannot improve recall at the k the repo map already
-injects — there is nothing above 1.0 to win. Its only remaining room is
-precision: moving the two from ranks 8-9 into the top 2-3 so a *smaller*
-pointer list carries them.
-
-That is a small prize with a large downside. The injection is pointers, not
-file contents, so the byte saving from k=10 to k=3 is a few hundred bytes of
-a 6 KB repo-map budget. Against it stands the costly error this item was
-defined by: a confident pointer at the wrong file biases the model, and
-unlike a missing pointer it cannot be recovered by the model reading one
-more file. Recall is the side that matters and recall is already perfect.
+injects — there is nothing above 1.0 to win.
 
 The number is pinned in `internal/repomap/explorefixture_test.go` rather
 than left here, so if the ranker changes the test fails and this table
 cannot go quietly stale.
 
-**Item 1 final status: negative result, nothing built, no flag.** The
-deterministic baseline beats what Jev could add, on the one fixture where
-the question is even well posed. What would reopen it: a repository where
-recall@k of the deterministic ranker is measurably under 1 — hundreds of
-files, or a request that names nothing in the paths or symbols it needs.
+What sits *above* the two answers turned out to matter more than the recall
+figure, and it took a live run on the same fixture to see. That run is the
+next section, and it revises this one.
 
 ## 2026-09-21 — The added-value check, and why no live A/B was run for it
 
@@ -1885,3 +1877,77 @@ case.
 
 **No decisions call was made at any point in this round.** Live spend is the
 explore baseline's main-model tokens alone, on the order of a few cents.
+
+## 2026-09-21 — Step 0 on a 58-file repository, and what it revises
+
+The gated fixtures are 2 to 13 files, and the Step 0 section said so as a
+caveat. The caveat was the finding. `evals/explore/61-explore-large-repo` —
+58 indexed files, a task whose answer is two of them — was run three times
+on each model with every decisions flag off, purely to profile it:
+
+    janetcode --eval evals/explore --eval-runs 3 --eval-jobs 1 \
+      --eval-timeout 420s --eval-max-turns 80 --eval-off decisions \
+      --eval-json <arm>.json
+
+| per run | qwen3.7-plus | devstral-2512 | (gated, for contrast) |
+|---|---:|---:|---|
+| runs / passed | 3 / 2 | 3 / 3 | |
+| model calls | 8.0 [7.0, 9.0] | 9.3 [8.0, 10.0] | 27.7 / 51.0 |
+| tool calls | 9.3 [8.0, 11.0] | 10.3 [9.0, 11.0] | 35.9 / 54.2 |
+| **explore, of tool calls** | **64%** | **58%** | 37% / 35% |
+| **explore, of model calls** | **50%** | **43%** | 24% / 24% |
+| **model calls before the first edit** | **4.3 of 8.0 (54%)** | **3.7 of 9.3 (40%)** | 14% / 10% |
+| input tokens | 46.9k [38.7, 55.1] | 72.2k [61.0, 78.7] | 448k / 909k |
+| tool output, of input | 6% | 27% | 36% / 36% |
+| stale, of input | 0.2% | 7.0% | 7.7% / 7.3% |
+| wasted tool calls | 1.0 [0.0, 2.0] | 0.0 [0.0, 0.0] | 3.9 / 6.9 |
+| cost a run | — | ~$0.0075 | |
+
+**The exploration ceiling roughly doubles and the before-first-edit share
+roughly quadruples.** On a repository the size of a real one, half the model
+calls are the model looking for something, and 40-54% of the run happens
+before it commits to an edit. The Step 0 numbers taken on 13-file fixtures
+understated item 1's opportunity by about a factor of four, exactly as the
+caveat warned. Any future claim about context curation measured on
+`evals/gated` should be read as a lower bound and nothing more.
+
+### The ranking's real failure is precision, not recall
+
+Running the recall analysis against what the runs actually touched, on all
+six runs of both models, gives the same picture every time:
+
+| | recall@3 | recall@5 | recall@10 | precision@5 |
+|---|---:|---:|---:|---:|
+| every run, both models | 0.00 | 0.00 | 0.67-1.00 | **0.00** |
+
+And the top of the map is the same five files in all six runs:
+
+    map top5: report/report1.go, report/report2.go, report/report3.go,
+              report/report4.go, report/report5.go
+    answers:  report/audit.go (8), billing/limits.go (9)
+
+Those five are junk. They outrank the answers because the request contains
+the word "report" and their *paths* do, and nothing else distinguishes them.
+The ranker's personalisation is doing what it was built to do and the
+tie-break has no way to prefer `report/audit.go` over `report/report3.go`.
+
+**This revises the previous section's conclusion, which was too strong.**
+"Recall@10 is 1.0 so there is nothing to win" is right about recall and
+wrong about the item: the losable prize is not recall, it is the five
+useless lines sitting above the answers in a map the model reads first. That
+is precisely the question this item wanted to ask — *is this file needed to
+fulfil the request?* — and it is a question a noul over a one-line file
+summary could plausibly answer where a path-word tie-break cannot.
+
+It is still not evidence. Both models solved the task anyway (5 of 6 runs)
+with the junk in place, in 8-9 model calls, so the junk's *cost* is
+unmeasured and may be zero. And the deterministic fix has not been tried
+either: a tie-break that penalises near-identical sibling paths is free and
+would have to be measured first, per the rule.
+
+**Item 1 status, final for this round: not built, no flag, and the negative
+is narrower than it looked.** Recall needs nothing. Precision at small k is
+a real, reproducible defect with a named cause, and the next step on it is
+*deterministic* — a sibling-path tie-break — with Jev only in play if that
+fails. The corpus for that measurement now exists as a by-product: six runs
+with the map and the touched set recorded.
