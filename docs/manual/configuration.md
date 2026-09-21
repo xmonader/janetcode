@@ -280,7 +280,8 @@ permission system or the shell-safety classifier.
     "model": "~typesafe/jev-latest",
     "api_key_env": "OPENROUTER_API_KEY",
     "timeout_ms": 800,
-    "triage": true
+    "triage": true,
+    "intake": false
   }
 }
 ```
@@ -294,21 +295,41 @@ whose responses always report the pinned version); point `base_url` at
 aliases like `jev-latest` are refused at load so a threshold cannot
 silently retune itself when the alias moves. The key is read from the
 environment named by `api_key_env` and never lives in the file. Each
-consumer is off until its own key is set (`triage` is the only one
-today); the block being present alone enables nothing.
+consumer is off until its own key is set; the block being present alone
+enables nothing.
+
+Two consumers exist. `triage` is the one above. `intake` classifies the
+session's **first prompt** — what kind of request it is (explain /
+implement / debug / review / docs / other), how much work it looks like
+on a five-rung rubric, and whether it would go better with an explicit
+plan — and then does nothing with the answer: it is written to the
+session log as a `decision` event marked `"acted_on": false`, counted in
+`/stats`, and read by nobody. Routing, plan mode and the todo hint keep
+their deterministic rules. The call is made on its own goroutine beside
+the turn's preparation and collected once the turn's work is done, so it
+adds no latency to the turn; an answer that is somehow still in flight
+by then is dropped rather than waited for. It exists to produce the
+calibration data that acting on it would first have to earn.
 
 What leaves the machine when triage fires: your request, the failing
 command and its captured output, the changed files with line counts, no
-diffs. Every field is scanned for credential-shaped text first and a
-hit is sent as `[redacted]`. Calls are bounded by `timeout_ms`
-(default 800, at most 2000), never retried, and three consecutive
-errors — or a median past one second over a window of ten calls — turn
-the feature off for the session with one notice; a dead or slow
-decision service costs a session nothing but the timeouts it already
-spent. `JANETCODE_OFF=decisions` (or `--eval-off decisions`) disables
+diffs; when intake fires, your first prompt and nothing else. The state
+is scanned for credential-shaped text on its way out and each match —
+not the field around it — is replaced with `[redacted]`, so a key in a
+failing command stays home while the evidence beside it still reaches
+the service. Calls are bounded by `timeout_ms` (default 800, at most
+2000) and never retried. Three consecutive errors — or a median past one
+second over a window of ten calls — pause the feature with one notice;
+five minutes later a single probe call is allowed, and it either closes
+the circuit or buys another five minutes. A dead or slow decision
+service therefore costs a session one call per five minutes, and a
+service that recovers mid-session is used again. `JANETCODE_OFF=decisions` (or `--eval-off decisions`) disables
 the calls regardless of the config, and `/stats` gains a
-"decisions: N calls · M errors · avg Xms" line once anything has been
-asked.
+"decisions: N calls · M errors · avg Xms · $X" line once anything has
+been asked — the cost being the service's own reported figure, never a
+local estimate — plus what intake made of the first prompt when that
+consumer is on. The headless JSON envelope carries the same under
+`decisions`.
 `janetcode --doctor` probes the endpoint when a key is present. The
 design and the measurement gates are in
 `docs/notes/jev-integration-spec.md`.
@@ -322,6 +343,13 @@ skip rate, mean caused probability, correct vs costly-wrong-skips.
 `docs/benchmarks/decisions/triage.jsonl` holds the shipped corpus.
 The spec's gate: ≥70% correct overall and no wrong skip where the truth
 says the patch caused the failure.
+
+A corpus names the consumer it is labeled for in its rows
+(`"consumer": "intake"`); the triage corpus, which predates the field,
+leaves it out. `docs/benchmarks/decisions/intake.jsonl` is the intake
+corpus, scored on the `kind` answer — the only one of the three with a
+truth to score against — with complexity and needs_plan reported per
+labeled kind so it is visible whether they separate at all.
 
 ### Stream watchdog
 

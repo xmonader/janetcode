@@ -277,3 +277,225 @@ No rows ended in error in any run. Caveat: n=35 and run-to-run noise is
 about one row, so the honest claim is "+3 rows, never worse in any
 cell", not a precise percentage. flaky is still the weak cell: its class
 confidence (0.71–0.73) sits on the 0.7 mapping threshold.
+
+## Sharper failure_class option text: replay A/B (2026-09-21, live)
+
+Same 35-row corpus, same pinned model, `--decisions-replay`, three runs
+a side. Baseline is the shipped question set after the noul-criteria
+change above. The treatment rewrites the five `failure_class` option
+descriptions to say what each class *is* rather than name it:
+`environmental` covers a tool or runtime that is "missing, unreachable
+or the wrong version" (it said "missing" only); `flaky` covers "timing,
+a race, a port or another shared resource in the test setup" as well as
+"passed on a retry"; `patch_caused` and `inconclusive` say what
+evidence would pick them. The text generalises the class definitions —
+it was not written against particular rows.
+
+| arm | runs | overall | environmental | flaky | unrelated | patch_caused | inconclusive | mean class conf | costly skips |
+|---|---|---|---|---|---|---|---|---|---|
+| baseline | 3 | 32, 31, 31 /35 | 7, 7, 7 /8 | 3, 3, 3 /5 | 6, 5, 5 /6 | 10/10 ×3 | 6/6 ×3 | 0.71–0.80 | 0 |
+| sharper text | 3 | 33, 33, 33 /35 | 8/8 ×3 | 4, 4, 4 /5 | 5, 5, 5 /6 | 10/10 ×3 | 6/6 ×3 | 0.88–0.93 | 0 |
+
+Shipped. Two rows move and stay moved in every run — `env:py39-vs-310-syntax`
+(a runtime version mismatch, which the old text did not describe) and
+`flaky:parallel-workers-same-port` (a race over a port, likewise) — and
+mean class confidence rises 0.1–0.2 in every cell, which is the
+mechanism: the answers are no longer sitting on the 0.7 mapping
+threshold. patch_caused stays 10/10 with zero costly skips.
+
+The one `unrelated` row that fails in the treatment,
+`unrelated:gate-runs-every-package`, also fails in two of the three
+baseline runs: it is a `go test ./...` failure in `internal/netx` after
+a docs-only edit, genuinely split between `unrelated` and
+`environmental`, and it fails for want of confidence in *either*, not
+for want of the right label. It is a borderline row in both arms, not a
+regression.
+
+Two rows are still wrong in every treatment run. `flaky:timing-off-by-ms-under-load`
+(p(caused) 0.69–0.71) is a row where the change really did touch the
+backoff the failing test measures; the label is arguably the weaker
+party. The `unrelated` row above is the other.
+
+## Skip mass instead of class confidence: tried and reverted (2026-09-21)
+
+The mapping skips when p(caused) ≤ 0.3 **and** the winning class is a
+skip class **and** its confidence ≥ 0.7. But `environmental`, `flaky`
+and `unrelated` all mean the same thing to the mapping — another repair
+round will not fix this — so an answer that splits 0.45/0.40 between two
+of them is certain about the *decision* and uncertain only about the
+*label*, and reading the winner's confidence throws that away. The
+treatment summed the distribution's mass over the three skip classes and
+thresholded that instead (identical for a distribution with one winner,
+strictly more permissive otherwise), falling back to the old reading
+when a provider reports no distribution.
+
+| arm | runs | overall | unrelated | patch_caused | costly skips |
+|---|---|---|---|---|---|
+| class confidence (shipped) | 3 | 33/35 ×3 | 5/6 ×3 | 10/10 ×3 | **0** |
+| skip mass | 2 | 33/35, 33/35 | **6/6, 6/6** | **9/10, 9/10** | **1, 1** |
+
+Reverted. It buys the `unrelated` cell and pays with the one thing the
+gate forbids: `patch:fixture-reads-tightened-schema` is skipped in both
+runs — a repair round not spent on a failure the patch really caused.
+
+The reason is worth keeping. On that row the model answers p(caused)
+0.21–0.23 and puts 0.88–0.90 of its class mass on skip classes: it is
+confidently wrong, and the only thing standing between it and a costly
+skip today is that the mass is split between two labels, so no single
+one clears 0.7. Today's safety on that row is an accident of the
+scoring rule, not a signal. Any later widening of the skip condition has
+to answer for that row first.
+
+## Structured state instead of rendered text: tried and reverted (2026-09-21)
+
+The wire contract takes `state` as a string, an object or an array; the
+client only ever sent a string. The treatment widened the client with an
+`EvaluateState(ctx, any, qs)` and had the replay split each corpus state
+back into `{request, failing_check, output, changed_this_turn}`, sending
+the same evidence as an object. Two runs a side, same corpus, same
+questions.
+
+| arm | runs | overall | environmental | flaky | unrelated | patch_caused | mean p(caused) patch / unrelated |
+|---|---|---|---|---|---|---|---|
+| rendered string | 3 | 33/35 ×3 | 8/8 | 4/5 | 5/6 | 10/10 | 0.77 / 0.09 |
+| structured object | 2 | 29/35, 30/35 | 7/8, 7/8 | 3/5, 3/5 | **3/6, 4/6** | 10/10 | 0.80 / 0.13 |
+
+Reverted, along with the API widening it needed. It is worse in three
+cells and better in none, and the direction is consistent: every class's
+mean p(caused) rises, so the model reads a field-keyed object as more
+incriminating than the same words as prose. The `unrelated` cell halves.
+Per-field scrubbing, which was the other reason to want an object, was
+solved differently — see the redaction note below.
+
+## Hardening round (2026-09-21)
+
+Four changes with no replay to run, each with a test that fails without
+it.
+
+**The replay is no longer killed by its own circuit breaker.** A burst
+of 503s used to open the circuit three rows in, after which every
+remaining row returned "circuit is open" and counted as incorrect — a
+corpus lost to a transient outage, read as a calibration result.
+`jev.Client.NoBreaker` turns the breaker off for `--decisions-replay`
+and `doctor`; the live path is unchanged and must never set it.
+
+**The circuit half-opens.** It used to open for the rest of the session,
+so a five-second blip cost a four-hour session all of its triage. After
+a five-minute cooldown exactly one probe call is allowed: success closes
+the circuit and resets both breakers (including the latency window,
+which is stale by then and would otherwise re-open on the first
+success), failure buys another cooldown. The claim is made under the
+same lock that reads the state, so eight racing turns produce one probe;
+the session-level notice is still emitted once however often the circuit
+re-opens.
+
+**One scrubbing hook, at the wire, redacting the span.** There were two:
+`jev.Client.Scrub`, which production never set, and `agent.ScrubState`,
+which replaced a whole state field with `[redacted]` when
+`memory.ScanSecret` fired anywhere in it — and which covered the request
+and the output but not the failing command line, the likeliest place for
+a key to be (`curl -H "Authorization: Bearer …"`). The per-field hook is
+gone and the wire hook is wired, using a new `memory.RedactSecrets` that
+replaces each matched span and, for an assignment, only the value. A
+blanked field is a decision made blind; a blanked span is a decision
+made on the evidence minus the key.
+
+**Spend is visible.** The response's `usage.cost` and `output_tokens`
+are parsed and accumulated, and `/stats`, the session `decision` event
+and the headless `decisions` envelope report cumulative USD beside the
+existing latency. The figure is always the service's own — a decisions
+model is not in the harness's rate table, so an unreported cost stays
+zero rather than becoming an estimate.
+
+## Phase 3a intake classification, log-only (2026-09-21)
+
+The session's first prompt is classified — `kind` (choice of explain /
+implement / debug / review / docs / other), `complexity` (a five-rung
+score), `needs_plan` (a noul) — behind `decisions.intake`, default off.
+Nothing reads the answer. It is written to the session log as a
+`decision` event carrying `"acted_on": false`, counted in `/stats`, and
+that is all: routing, plan mode and the todo hint keep their
+deterministic rules, and acting on any of this needs its own measured
+gate. The call runs on its own goroutine started before the turn's
+Prepare hook and is collected once the turn's work is done, so it adds
+nothing to the turn; an answer still in flight by then is dropped.
+
+Calibration on a new 18-row corpus (`docs/benchmarks/decisions/intake.jsonl`,
+three rows per kind, hand-written, truth by construction), two runs:
+
+| truth | n | correct (run 1, 2) | mean conf | mean complexity | mean needs_plan |
+|---|---|---|---|---|---|
+| explain | 3 | 3, 3 | 1.00 | 0.31, 0.34 | 0.30 |
+| implement | 3 | 3, 3 | 1.00 | 2.41, 2.40 | 0.71 |
+| debug | 3 | 3, 3 | 1.00 | 1.43, 1.44 | 0.61 |
+| review | 3 | 3, 3 | 0.99 | 0.66, 0.64 | 0.55 |
+| docs | 3 | 3, 3 | 1.00 | 0.91, 0.90 | 0.26 |
+| other | 3 | 2, 2 | 0.80 | 0.50, 0.51 | 0.27 |
+| **overall** | 18 | **17/18 (94%)** | | | |
+
+`kind` is near-saturated and the one miss is arguably the label's fault:
+"what timezone are these session timestamps in?" is called `explain`
+(confidence 0.47), which is defensible. The two unscored answers do
+separate — complexity runs 0.3 (explain) to 2.4 (implement) on the
+rubric's 0–4 index, needs_plan 0.26 (docs) to 0.71 (implement) — which
+is the thing worth knowing before anything acts on them. Same provenance
+caveat as the triage corpus: hand-constructed, not recorded sessions.
+
+## Phase 2 (trajectory): skipped, not attempted (2026-09-21)
+
+The spec fixes Phase 2's hook point (every five tool calls), its state
+and its questions (`on_goal`, `stuck`, `recommended`,
+`success_likelihood`), but not the two things an implementation has to
+decide: the five rungs of the `success_likelihood` rubric, and what
+"disagrees with the local signal" means numerically against a critic
+score that is a probability with a 35% warning threshold. Both would be
+invented here and then calibrated against themselves. There is also no
+corpus to calibrate against — the truth for `stuck` is whether the
+session went on to fail, which is exactly the recorded-session data the
+Phase 0 note says does not exist yet. Left undone deliberately.
+
+## The open Phase 1 gate: cannot be run as specified (2026-09-21)
+
+The spec's second gate is evals 51–62 under `--eval-compare`, ≥5 runs a
+side, triage on against triage off, passing if the pass rate is not
+worse and repair calls are down. It cannot be run today, and not for
+want of budget: **the eval harness has no verify gate and no decision
+client.** `internal/eval`'s agents come from `internal/minimal`, which
+never calls `SetVerify` and never wires `Decisions`; `verifyGate`
+returns immediately on a nil runner, and `triageFailure` is only ever
+reached from it. Both sides of the comparison would be byte-identical
+runs, and the gate would "pass" having measured nothing.
+
+What it would take, in order: wire a verify gate into the eval agent
+(per task, from the project type or a task-declared command), wire
+`stepDecisions`' equivalent into `internal/minimal`, and then
+**re-baseline every eval number in the repository** — adding a gate
+changes tool counts, pass rates and cost on every task, so the existing
+`docs/benchmarks/multistep` baselines would no longer be comparable.
+That is its own round with its own risks and must not be slipped in
+beside a triage change.
+
+Cost once it is wired, from this repository's own measured figures for
+the same set (`docs/benchmarks/multistep/REPORT.md`, PROJECT-STATE:
+five runs of one variant of evals 51–62 on qwen3.7-flash ≈ 6 h and
+≈ $0.55): two sides at five runs is ≈ 12 h wall and ≈ $1.10 — an order
+of magnitude past an hour, so it was not started. The command lines,
+for whoever picks it up:
+
+```sh
+make build
+# baseline: triage off
+./bin/janetcode --eval evals --eval-only multistep --eval-runs 5 \
+    --eval-jobs 2 --eval-off decisions --eval-label triage-off \
+    --eval-json docs/benchmarks/multistep/triage-off.json
+# treatment: triage on (needs decisions.triage: true in the config and
+# the key in the environment)
+./bin/janetcode --eval evals --eval-only multistep --eval-runs 5 \
+    --eval-jobs 2 --eval-label triage-on \
+    --eval-json docs/benchmarks/multistep/triage-on.json \
+    --eval-compare docs/benchmarks/multistep/triage-off.json
+```
+
+Read the paired bootstrap intervals, not the point estimates: this set
+swings about 21% between identical runs, which is why the spec asks for
+five.
