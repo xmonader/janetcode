@@ -1082,3 +1082,162 @@ Cost of the wait: routing must be decided before the first request, so
 this is the one intake call a turn waits on — 700 ms at most, after
 Prepare has had its chance to cover it, and a late answer is collected,
 priced and logged at the end of the turn without routing anything.
+
+## Offline session annotation, and the critic's first negative class (2026-09-21)
+
+Item 5 on the surviving list, and the one with no live risk: the
+sessions are already over. `--decisions-annotate <sessions>` takes a
+session file or a directory of them, folds each recorded turn out of the
+log (`agent.AnnotateTurns` — prompt, the turn's tool calls with their
+results, the harness's own verdict line) and asks four questions of it:
+how it ended (success / partial / failed / abandoned), whether it made
+progress, whether work was wasted, whether a tool was misused.
+
+Two files come out. `annotations.jsonl` is the rows. `critic-train.json`
+is shaped like an eval result file, deliberately, so `--eval-train`
+reads it without knowing where it came from.
+
+### Why that second file is the point
+
+`internal/critic` fits a logistic predictor on `{Features, Passed}`:
+`Features` is the sixteen-number `agent.FoldTrajectory` vector, `Passed`
+is whether the eval run passed. It has never trained, for one reason
+recorded in PROJECT-STATE since 2026-09-08 — **there are no negatives.**
+`critic.Train` refuses one-class data outright, and the eval runs that
+produce the training data nearly all pass.
+
+A recorded session that went badly is a negative. So the annotation's
+outcome answer becomes the label: a session counts as a pass when its
+last annotated turn came back `success`, and `partial`, `failed` and
+`abandoned` are all "no".
+
+Run over the 28 sessions in `~/.local/share/janetcode/sessions`:
+
+| | |
+|---|---|
+| sessions with turns to annotate | 13 (9 had no turn at all) |
+| turns annotated | 29, 0 errored |
+| outcomes | success 11, partial 6, failed 6, abandoned 6 |
+| `wasted` ≥ 0.5 | 9 turns |
+| `tool_misuse` ≥ 0.5 | 10 turns |
+| training samples | 13 — **3 passing, 10 failing** |
+
+`--eval-train` on that file:
+
+```
+trajectory critic trained on 13 runs (3 passed, 10 failed) from 1 file(s)
+cross-validated accuracy 54% (always guessing the majority: 77%)
+not saved: the critic is no better than guessing; more failing runs are needed
+```
+
+**The blocker moved.** For eighteen months of this repository's history
+the critic could not be fitted at all; it now fits, and loses to the
+majority class at n=13. That is a different problem, and a countable
+one: more annotated sessions. Nothing was saved, so the live critic is
+unchanged.
+
+### Agreement against truth by construction
+
+Model annotations are not ground truth, so they were scored against
+labels that are: the 80-row `stuck` corpus, where every tool call was
+labelled `waste` or `healthy` from the log alone by
+`build-stuck-corpus.py`. The same four questions were run over those
+states (`consumer: "annotate"`, a one-line retag of `stuck.jsonl`, not
+committed twice), and `wasted ≥ 0.5` scored against the label. Two runs,
+identical:
+
+| | run 1 | run 2 |
+|---|---|---|
+| tp / fp / fn / tn | 16 / 5 / 24 / 35 | 16 / 5 / 24 / 35 |
+| agreement | 51/80 (63%) | 51/80 (63%) |
+| precision on waste | 0.76 | 0.76 |
+| recall on waste | 0.40 | 0.40 |
+
+For comparison, the mid-turn `stuck` question on the same corpus last
+round was precision 0.60 at recall 0.07. The annotation question is the
+better of the two by a distance — **it finds 40% of the waste and is
+right three times in four when it fires** — which is a usable offline
+labeller and still nowhere near a live gate.
+
+Caveat worth stating: those 80 states are single tool calls rendered
+mid-turn, and the annotation question is written about a whole turn. The
+agreement rate is therefore a lower bound on the question as it is
+actually asked, and an approximation either way.
+
+## Session outcome classification, log-only (2026-09-21)
+
+Item 9, behind `decisions.session_outcome`, default off. One call after
+the last turn — success / partial / failed / abandoned, with the
+choice's confidence — over one line a turn (what was asked, how many
+calls, how many failed, the harness's verdict). Logged as a `decision`
+event with `"acted_on": false` and counted in `/stats`.
+
+It is offered to sleep consolidation, which is the one place it can be
+worth something today: `sleepfold.Fold` builds `memory.SleepInput` with
+a `GoalOutcome` that is empty whenever the model never opened a goal,
+which is most sessions. The outcome now fills that blank — and only
+that blank: a goal the model opened and closed still wins, because that
+is the harness's own record rather than an opinion about it.
+
+Two findings while wiring it:
+
+- **There is no session-end hook outside headless.** `builtAgent.close`
+  runs under a five-second shutdown grace, and the TUI cancels the
+  context every background call uses (`m.endLife()`) *before* `tea.Quit`
+  — so a classification started there would be cancelled by the exit it
+  was triggered by. Headless is honest about it ("a headless run is one
+  session per process, so its end is the session's end") and that is the
+  only place this consumer is called from. A TUI session gets no
+  classification, and saying so is better than starting a call that
+  cannot finish.
+- `sleepfold` rendered *every* decision event in triage's vocabulary, so
+  an intake record folded to `intake →  (caused=0.00, sent the model
+  back)`. A consumer with no class and no skip is now skipped, and
+  session outcome renders as itself.
+
+**Memory extraction triage (item 7) was not attempted.** The hook point
+exists and was found — `[]Extracted` sits unwritten between `Extract`
+and `Apply` in both `internal/tui/memory.go` and
+`internal/headless/headless.go`, exactly the shape `StampEvidence`
+already filters — but acting on it means suppressing candidates, the
+costly error is dropping a memory worth keeping, and there is no corpus
+of labelled candidates to measure that against. Building one is the
+next piece of work, not a thing to skip the gate for.
+
+## Premature stop: deterministic, and Jev adds nothing (2026-09-21)
+
+Item 10, flagged borderline in the original list because evidence
+checking brushes Jev's counting weakness. It turns out most of it was
+already deterministic and already shipped, and the part that was missing
+needed no model either.
+
+What already exists: `TurnOutcome` (verdict.go) folds every turn from
+the event log — files edited, checks run, how many passed, whether tests
+were actually exercised, whether a red check later went green, whether
+the model claimed something ("the tests pass") — and `Overclaimed()`
+sends the turn back once when the claim and the record disagree. That is
+premature-stop detection, and it has been in the harness for weeks.
+
+What was missing is one thing, and it is an ordering: **`Ran` and
+`Passed` are per-turn totals and cannot say whether anything ran after
+the last edit.** A turn that edits, runs the tests, edits again and
+stops is green on every number the fold keeps, and nothing has been run
+against the tree as it now stands.
+
+That is a free signal — two sequence numbers — so it was taken for free.
+`TurnOutcome.EditedAfterCheck` is the last successful edit coming after
+the last check; `StaleCheck()` is that plus a claim over it; the nudge
+is behind `stale_check_nudge`, default off, and shares the overclaim
+gate's one-correction-a-turn budget so the costly error — nagging a
+finished turn into another round of model calls — is bounded to one
+nudge. A turn that ran nothing at all is already `unverified` and
+already sent back, and is deliberately left to that gate.
+
+**Jev was not consulted, and there is nothing left for it to answer.**
+The question was "does the transcript tail contain evidence for the
+claim", and the harness holds the transcript, the exit codes and the
+ordering. Asking a model to re-read what the harness already knows is
+the same mistake the `next_call_will_fail` result exposed last round,
+where 0.73 precision came from re-reading an ERROR line the harness was
+already holding. Recorded as a negative: **item 10 ships deterministic,
+Jev adds nothing to it.**
