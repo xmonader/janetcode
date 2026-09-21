@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -208,5 +209,39 @@ func TestRecordsCheckAcceptsTheCorrectSolution(t *testing.T) {
 	}
 	if want := strings.TrimSpace(files[".eval-expected/changed.txt"]); want != fmt.Sprint(changed) {
 		t.Fatalf("expected changed = %s, solution changed %d", want, changed)
+	}
+}
+
+// TestGatedSetShipsAStrictVerifyFile guards what the gated set exists
+// for: every task in evals/gated/ must ship its own
+// .janetcode/verify.json, because --eval-gate falls back to the bland
+// project-type checks (go build + go test) when a fixture does not, and
+// those are exactly the checks this model already runs itself before it
+// ends a turn — a gate that can never fail measures nothing.
+func TestGatedSetShipsAStrictVerifyFile(t *testing.T) {
+	tasks, err := Load(filepath.Join("..", "..", "evals", "gated"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) == 0 {
+		t.Fatal("no gated tasks")
+	}
+	for _, task := range tasks {
+		if !contains(task.Tags, "gated") {
+			t.Errorf("%s: tags=%v, want gated", task.Name, task.Tags)
+		}
+		raw, ok := task.Files[".janetcode/verify.json"]
+		if !ok {
+			t.Fatalf("%s: ships no .janetcode/verify.json", task.Name)
+		}
+		var cfg struct {
+			Commands []string `json:"commands"`
+		}
+		if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+			t.Fatalf("%s: verify.json: %v", task.Name, err)
+		}
+		if len(cfg.Commands) < 2 {
+			t.Errorf("%s: %d gate commands, want at least a build and a test", task.Name, len(cfg.Commands))
+		}
 	}
 }
