@@ -162,6 +162,33 @@ type Runner struct {
 	Log func(string)
 	// Mutate runs Config.Mutate once the commands pass.
 	Mutate MutateFunc
+	// Display renames a command in everything that is reported: the
+	// Result's Passed and Failed entries, and so the summary, the
+	// feedback the model reads and the gate event. A held-out acceptance
+	// gate runs a script whose path is exactly what the run must not
+	// disclose — the path is what runs, the label is what is said.
+	Display map[string]string
+}
+
+// name is how a command is reported: its Display entry, else itself.
+func (r *Runner) name(command string) string {
+	if n, ok := r.Display[command]; ok && n != "" {
+		return n
+	}
+	return command
+}
+
+// CommandNames are the commands as they are reported, for a notice that
+// says what is about to run.
+func (r *Runner) CommandNames() []string {
+	if r == nil {
+		return nil
+	}
+	out := make([]string, 0, len(r.Config.Commands))
+	for _, c := range r.Config.Commands {
+		out = append(out, r.name(c))
+	}
+	return out
 }
 
 // Enabled reports whether there is anything to run.
@@ -203,10 +230,10 @@ func (r *Runner) Run(ctx context.Context) Result {
 		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
 		if err == nil {
-			res.Passed = append(res.Passed, command)
+			res.Passed = append(res.Passed, r.name(command))
 			continue
 		}
-		res.Failed, res.Output = command, out.String()
+		res.Failed, res.Output = r.name(command), out.String()
 		var ee *exec.ExitError
 		switch {
 		case timedOut:

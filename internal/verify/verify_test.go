@@ -114,3 +114,42 @@ func TestOutputIsBounded(t *testing.T) {
 		t.Fatal("the truncation is not explained")
 	}
 }
+
+// TestDisplayHidesTheCommand: a held-out acceptance gate runs a script
+// whose path is the one thing the run must not disclose. With a Display
+// entry, nothing the model or the user is shown names the command — not
+// the pass list, not the failure summary, not the feedback — while the
+// command itself is still what ran.
+func TestDisplayHidesTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	secret := filepath.Join(dir, "held-out-9f3a2b", "gate.sh")
+	if err := os.MkdirAll(filepath.Dir(secret), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secret, []byte("#!/bin/sh\necho '--- FAIL: TestWidth (0.00s)'\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := &Runner{
+		Config:  Config{Commands: []string{"true", secret}, Timeout: 30},
+		Cwd:     dir,
+		Display: map[string]string{secret: "acceptance tests"},
+	}
+	if got := r.CommandNames(); len(got) != 2 || got[1] != "acceptance tests" {
+		t.Fatalf("CommandNames = %v", got)
+	}
+	res := r.Run(context.Background())
+	if res.OK() {
+		t.Fatal("gate passed; want a failure")
+	}
+	if res.Failed != "acceptance tests" {
+		t.Fatalf("Failed = %q, want the label", res.Failed)
+	}
+	for _, s := range []string{res.Summary(), res.Feedback(), strings.Join(res.Passed, " ")} {
+		if strings.Contains(s, secret) || strings.Contains(s, "held-out-9f3a2b") {
+			t.Fatalf("the command path leaked into %q", s)
+		}
+	}
+	if !strings.Contains(res.Feedback(), "TestWidth") {
+		t.Fatalf("feedback lost the CI-style failure text: %q", res.Feedback())
+	}
+}

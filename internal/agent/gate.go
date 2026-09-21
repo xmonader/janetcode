@@ -35,7 +35,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		return false
 	}
 	g.seen = a.mutations
-	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(gate.Config.Commands, " · ")})
+	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(gate.CommandNames(), " · ")})
 	res := gate.Run(ctx)
 	if ctx.Err() != nil {
 		return false
