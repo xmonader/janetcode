@@ -230,6 +230,61 @@ minutes, so neither the tool limit nor the clock decides a result.
 `--eval-only multistep --eval-runs 3` is the run; `docs/benchmarks/multistep/`
 has the calibration and what the ablations measured on it.
 
+## Held-out acceptance tests
+
+A verification gate the model can run for itself never fails. Every set
+before `evals/hidden/` ships its grading tests inside the work directory,
+so the model runs them before it ends a turn and the gate only ever
+confirms — sixteen gate commands and zero gate failures on `evals/hard/`.
+Triage, a repair round, a cascade escalation and a gate-triggered advisor
+consult all fire on a gate *failure*, so none of them can be measured
+against such a gate at all.
+
+A task in `evals/hidden/` therefore has two test suites. Its `files` carry
+a visible one that covers the ordinary path; its `hidden` map carries the
+held-out one, and the runner never writes that into the work directory.
+`hidden` is a flat map of file names; they are laid out as the package
+`acceptance/`, in a directory of the runner's own outside the workspace,
+beside a generated `gate.sh`. The gate copies the workspace into a fresh
+scratch directory, discards anything the run put in `acceptance/`, lays
+the held-out files over the copy, runs one command there (`hidden_check`,
+by default `go test ./acceptance/`) and deletes the copy. `--eval-gate`
+appends that script to the task's own verification commands under the
+display label `acceptance tests`, so the script's path never appears in
+what the model reads: the gate failure it is sent back with is the
+command's output, which for `go test` is the failing test names and the
+assertion messages, exactly what a CI failure shows.
+
+Three properties make it an instrument rather than a set of files, and
+each is a test:
+
+- the held-out sources are never in the work directory, and neither the
+  gate script's path nor the held-out directory appears in the failure
+  text (`TestHeldOutTestsNeverReachTheWorkspace`);
+- the fixture as shipped FAILS its held-out tests, and the task's
+  `reference` solution — kept in the task file and never written into a
+  work directory — PASSES them (`TestHiddenSetIsDiscriminating`);
+- the control tasks' gates fail at base for a reason no code change can
+  fix (`TestControlTasksFailTheirGateEnvironmentally`).
+
+Because the held-out tests are their own package, they can only exercise
+the module's *exported* API, and they never run the model's own tests.
+That is deliberate twice over: it is the API's contract that a second
+call site, a backward-compatibility promise or an error path is stated
+in, and it keeps a file the model wrote out of the only process that can
+see the held-out sources.
+
+The residual, stated plainly: this is leak-proofing against discovery,
+not against a model that deliberately writes exfiltration code. A package
+the held-out tests import could print their source in an `init`, and the
+output would reach the model. Nothing in a recorded session has done so,
+and `TestHeldOutTestsNeverReachTheWorkspace` is what would catch the
+accidental case.
+
+A task's `check` is `"$EVAL_HIDDEN_GATE" "$EVAL_DIR"`, so the grade and
+the gate are the same judgement and "first-attempt pass" (the gate's
+first verdict) and "final pass" (the grade) can be read apart.
+
 ## The two janetcode drivers in harnessbench
 
 `harnessbench` can run janetcode two ways, and they measure different
