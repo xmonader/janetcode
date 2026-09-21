@@ -281,6 +281,31 @@ output would reach the model. Nothing in a recorded session has done so,
 and `TestHeldOutTestsNeverReachTheWorkspace` is what would catch the
 accidental case.
 
+### An eval run is not sandboxed
+
+Worth knowing before writing any task whose checks mention something
+outside the repository. The eval runner sets `AutoApprove`, and
+`exec.go`'s approval test begins `!modes.AutoApprove`, so the bash tool's
+`Guard` — which in a session puts every command that changes a file
+outside the workspace in front of the user, whatever the permission mode
+— approves itself in an eval. An eval run can therefore write anywhere
+the user running it can.
+
+That is not hypothetical. Building the control tasks produced both halves
+of it in one evening: a run read a README saying the checks call a house
+linter, compiled a binary, installed it as `~/bin/svc-lint` and made the
+gate pass; another read that the checks publish to a local service on a
+port, started a listener called `indexservice` and bound it. Both
+"fixed" the environment rather than the code, and both destroyed the
+control they were meant to be measured by — the second of them by
+binding a port in the ephemeral range, which then broke the control's
+own test for every later run on that machine.
+
+The lesson for a task author is narrow and practical: **a gate step that
+fails for an environmental reason must fail in a way an unprivileged
+process cannot arrange.** A missing credential the harness does not hold
+works; a port below 1024 works; a named binary and a high port do not.
+
 A task's `check` is `"$EVAL_HIDDEN_GATE" "$EVAL_DIR"`, so the grade and
 the gate are the same judgement and "first-attempt pass" (the gate's
 first verdict) and "final pass" (the grade) can be read apart.
