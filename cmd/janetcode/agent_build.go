@@ -593,6 +593,7 @@ func (b *agentBuilder) stepDecisions() error {
 		},
 	}
 	b.ag.DecisionsTriage = d.Triage
+	b.ag.DecisionsIntake = d.Intake
 	return nil
 }
 

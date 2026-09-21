@@ -80,6 +80,12 @@ type Stats struct {
 	// rather than becoming a guess.
 	DecisionCost      float64
 	DecisionTokensOut int
+	// IntakeKind is what the log-only intake consumer (jevintake.go)
+	// called the session's first prompt: explain / implement / debug /
+	// review / docs / other, or "" when it was never asked or never
+	// answered. Nothing in the harness reads it — it is here so a
+	// session can be told what the classifier thought of it.
+	IntakeKind string
 }
 
 // ModelStat is the tally for one model actually used in this session.
@@ -142,6 +148,9 @@ func (s Stats) DecisionLine() string {
 	}
 	if s.DecisionCost > 0 {
 		line += " · " + llm.FormatUSD(s.DecisionCost)
+	}
+	if s.IntakeKind != "" {
+		line += " · first prompt read as " + s.IntakeKind
 	}
 	return line
 }
@@ -252,6 +261,14 @@ func (c *statsCounter) decision(failed bool, d time.Duration, cost float64, toke
 	if tokensOut > 0 {
 		c.s.DecisionTokensOut += tokensOut
 	}
+	c.mu.Unlock()
+}
+
+// intake records the log-only classification of the session's first
+// prompt. It is the only thing kept from that call beyond its price.
+func (c *statsCounter) intake(kind string) {
+	c.mu.Lock()
+	c.s.IntakeKind = kind
 	c.mu.Unlock()
 }
 

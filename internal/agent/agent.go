@@ -228,6 +228,17 @@ type Agent struct {
 	// Decisions field being set only means a client is configured; each
 	// consumer is opted into separately (config decisions.triage).
 	DecisionsTriage bool
+	// DecisionsIntake enables the log-only intake classification of the
+	// session's first prompt (config decisions.intake, Phase 3a). It
+	// reaches no behaviour: see jevintake.go.
+	DecisionsIntake bool
+	// intakeCh carries that classification from the goroutine making the
+	// call to the turn goroutine that logs it, and intakeDone says the
+	// session has had its one classification. Both are touched only from
+	// the turn goroutine.
+	intakeCh       chan intakeOutcome
+	intakeDone     bool
+	intakeDeadline time.Time
 	// Root is the directory the session works in. Paths shown to the user
 	// and the model by /undo about are relative to it; empty means the
 	// process working directory, which is only right for a front-end
@@ -363,6 +374,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	turnBegan := time.Now()
 	defer func() { a.stats.turnTook(time.Since(turnBegan)) }()
 	defer a.endTurn(ctx)
+	// Collected here, after the turn's work and before the turn closes:
+	// by now the first model call has long outlived the decision call's
+	// deadline, and an answer that still has not arrived is dropped
+	// rather than waited for.
+	defer a.drainIntake()
 	// A note typed with ctrl+s reaches the model before the turn's next
 	// call. A turn that ends with its final answer has no next call, so
 	// the note stays queued for the turn after this one. Say so, rather
@@ -443,19 +459,30 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	if maxIter <= 0 {
 		maxIter = 50
 	}
+	// Fired before Prepare so the classification runs beside the turn's
+	// preparation rather than after it, and collected at the end of the
+	// turn: the turn never waits on it.
+	if a.turnN == 0 {
+		a.startIntake(ctx, firstText(blocks))
+	}
 	blocks = a.prepareBlocks(ctx, blocks, emit)
 	a.beginTurn(ctx, blocks...)
 	a.loops.reset()
 	a.turnStart, a.warned = time.Now(), false
 	a.modelRouter.newTurn()
-	a.integ.userText = ""
+	a.integ.userText = firstText(blocks)
+	return maxIter
+}
+
+// firstText is the turn's user text: the first non-empty text block,
+// ignoring the images a multimodal turn carries beside it.
+func firstText(blocks []llm.Block) string {
 	for _, b := range blocks {
 		if b.Type == llm.BlockText && b.Text != "" {
-			a.integ.userText = b.Text
-			break
+			return b.Text
 		}
 	}
-	return maxIter
+	return ""
 }
 
 // prepareBlocks runs the Prepare hook over the turn's blocks — skills,
