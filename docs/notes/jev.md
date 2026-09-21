@@ -1278,3 +1278,122 @@ consumer, so this is the survey and nothing else.
   deterministic guards have already made does not break it, but it is
   one refactor away from doing so, and the value is a second opinion
   nobody asked for. Not built.
+
+## 2026-09-21 — the on/off A/B, two models, four arms
+
+The final verification for everything shipped this round. "On" is every
+`decisions.*` flag this repo now has enabled (`triage`, `intake`,
+`intake_route`, `session_outcome`) plus `stale_check_nudge`; "off" is all
+of them off. The verify gate is on in both arms, and `route_cheap` with
+`qwen/qwen3-30b-a3b-instruct-2507` is on in both arms — that is
+deliberate, because `intake_route` does not turn routing on, it only lets
+the existing cheap route start at the *first* call of a turn Jev called
+cheap. So the off arm still routes; the on arm routes earlier.
+
+Three runs a task, `--eval-jobs 1`, arms interleaved, scratch
+`XDG_CONFIG_HOME`. Sets: `evals/gated` 71-73 and `evals/routing` 74-76.
+
+    janetcode --eval <set> --eval-gate --eval-runs 3 --eval-jobs 1 \
+      --eval-timeout 420s --eval-max-turns 80 \
+      --eval-route qwen/qwen3-30b-a3b-instruct-2507 --eval-json <arm>.json
+
+### mistralai/devstral-2512 (openrouter)
+
+| gated 71-73 (n=9)   |     on |    off |
+|---------------------|-------:|-------:|
+| passed              |    7/9 |    8/9 |
+| main-model calls    |    368 |    459 |
+| tokens in / out     | 2.07M / 63.8k | 2.44M / 64.6k |
+| main-model cost     | $0.769 | $0.905 |
+| cheap-tier calls    |    107 |    145 |
+| wall (s)            |   2018 |   2346 |
+| failed tool calls   |      7 |      6 |
+| loops (max_repeat)  |     34 |     43 |
+| gate cmds / failures|  125/3 |  131/4 |
+| repair rounds       |      3 |      4 |
+
+| routing 74-76 (n=9) |     on |    off |
+|---------------------|-------:|-------:|
+| passed              |    6/9 |    6/9 |
+| main-model calls    |     18 |     18 |
+| cost                | $0.0161| $0.0149|
+| cheap-tier calls    |     11 |      6 |
+| wall (s)            |     30 |     57 |
+
+### dashscope-coding/qwen3.7-plus
+
+| gated 71-73 (n=9)   |     on |    off |
+|---------------------|-------:|-------:|
+| passed              |    7/9 |    9/9 |
+| main-model calls    |    212 |    249 |
+| tokens in / out     | 579k / 55.4k | 671k / 60.1k |
+| main-model cost     | $0.0296| $0.0310|
+| cheap-tier calls    |     36 |     42 |
+| wall (s)            |   4135 |   4808 |
+| failed tool calls   |      9 |      7 |
+| loops (max_repeat)  |     28 |     30 |
+| gate cmds / failures|  123/1 |  123/1 |
+| repair rounds       |      1 |      1 |
+
+| routing 74-76 (n=9) |     on |    off |
+|---------------------|-------:|-------:|
+| passed              |    6/9 |    6/9 |
+| main-model calls    |     24 |     25 |
+| cost                |$0.00396|$0.00307|
+| cheap-tier calls    |     17 |     13 |
+| wall (s)            |    130 |    395 |
+
+### Per-consumer fire and acted-on counts (on arms only)
+
+| consumer        | devstral fired / acted | qwen fired / acted |
+|-----------------|-----------------------:|-------------------:|
+| intake          |                18 / 5  |            18 / 6  |
+| verify triage   |                 3 / 0  |             1 / 0  |
+| session_outcome |         0 (headless only, not reached in eval) |  0 |
+| stale-check nudge (deterministic, no Jev call) | 0 | 0 |
+
+Jev itself: devstral 21 calls, p50 513 ms gated / 327 ms routing, $0.00071
+total; qwen 19 calls, p50 627 ms / 374 ms, $0.00064 total. No breaker
+trips, no timeouts recorded, no Jev error path taken.
+
+### Costly errors, listed
+
+The costly error for intake routing is *a hard task started on the weak
+tier*. Live count: **zero, both models.** All 18 gated-task turns (three
+implementation tasks x three runs x two models) routed `default`, and so
+did all six runs of 76-routed-trivial-edit — the only `cheap` routes were
+on 74 and 75, the two one-look explain questions, which is exactly what
+the corpus said would happen (0/29 costly over five replay runs).
+
+The costly error for verify triage is *skipping a gate that would have
+caught a real failure*. It fired 4 times across both models and skipped
+nothing, so the count is zero by construction this round.
+
+74-routed-explain-value fails 0/3 in **both** arms and on **both**
+models — both models answer "10" where the truth is 20. It is a
+task/model discriminator, not a routing failure; the on and off arms give
+the same wrong answer, one of them cheaper.
+
+### Verdict
+
+- **devstral:** decisions-on cost 20% fewer main-model calls, 15% less
+  money and 14% less wall for one extra failure out of nine — a
+  difference this sample cannot resolve from noise, pointing very
+  slightly the wrong way on correctness.
+- **qwen3.7-plus:** decisions-on cost 15% fewer calls and 14% less wall
+  but lost two of nine passes (both on 73-gated-expr-layers, which is
+  also the task with the widest run-to-run spread in every arm), so the
+  on arm is not defensible as a win on this evidence.
+
+Run-to-run spread is the honest headline: on the gated set a single task
+varies by 2x in calls and 3x in wall between its own three runs, so a
+9-run arm cannot detect a one-pass difference. What the A/B *does*
+establish is the safety claim, which is what it was for: the routing
+dial never once sent an implementation task to the weak tier live, triage
+never skipped a gate, and no consumer took a Jev error path. The savings
+are real and repeat across two models; the correctness delta is inside
+the noise and needs a much larger n, or a set with less variance, before
+anyone should read it either way. Nothing here justifies flipping these
+flags on by default, and they stay off.
+
+Total live spend this round: ~$1.75 main model, $0.0014 Jev.
