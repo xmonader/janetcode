@@ -136,6 +136,7 @@ var configWhen = map[string][2]string{
 	"hints":               {"one-time hints about features you have not used", "you know the harness and want the transcript quiet"},
 	"proof_notes":         {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
 	"sandbox":             {"the sandbox profile a session in this project starts under: off, workspace, read-only or strict", "this project's commands should always be confined, not only when you remember to type /sandbox"},
+	"stale_check_nudge":   {"send a turn back once when its checks passed, it edited again afterwards and it then said it was done", "a model that tests in the middle of a turn and edits at the end of it; off by default because it changes what a turn does"},
 	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
 	"followup":            {"cheap next-prompt ghost text after a turn; tab accepts", "you want a suggested next prompt in the input box without another full turn"},
 	"computer_use":        {"start Cua Driver as an MCP server when cua-driver is on PATH", "you want the model to operate the desktop through accessibility, not pixel clicks"},

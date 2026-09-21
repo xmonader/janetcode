@@ -217,6 +217,16 @@ session's model (`/model` switches back).
 
 ### Step routing (experimental)
 
+`stale_check_nudge` (default off) covers the one premature stop the
+verdict rules cannot see. A turn that edits, runs the tests, edits again
+and then says it is done has every total green — something ran, it
+passed, tests were exercised — and none of it was run against the tree
+as it now stands. With the key on, such a turn is sent back once, with
+the evidence stated, sharing the same one-correction-a-turn budget as
+the overclaim gate: the expensive mistake here is nagging a finished
+turn into another round of model calls. A turn that never ran anything
+is already `unverified` and already sent back, and is not nudged twice.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

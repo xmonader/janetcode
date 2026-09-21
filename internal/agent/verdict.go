@@ -75,6 +75,11 @@ type TurnOutcome struct {
 	TestsEdited []string `json:"tests_edited,omitempty"`
 	// Checks are the commands counted as checks, newest last.
 	Checks []string `json:"checks,omitempty"`
+	// EditedAfterCheck is true when the last successful edit of the turn
+	// came after the last check that ran: whatever passed, it passed
+	// against a tree the turn has since changed. Ran and Passed are
+	// per-turn totals and cannot say this.
+	EditedAfterCheck bool `json:"edited_after_check,omitempty"`
 	// Why is the one-line reason for the verdict.
 	Why string `json:"why"`
 	// Gaming is report-only: signs the edits may have faked a green.
@@ -338,6 +343,10 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	// this turn's work, not something that was already there.
 	createdHere := map[string]bool{}
 	acceptWriting := false
+	// The sequence numbers of the last successful edit and the last check
+	// that ran in this turn, so the fold can say whether anything was run
+	// after the last change rather than only how much ran in total.
+	lastEditSeq, lastCheckSeq := 0, 0
 	// The latest run of each check command in this turn, in the order
 	// each command last ran.
 	latest := map[string]checkRun{}
@@ -376,6 +385,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				continue
 			}
 			see(cmd, checkRun{isErr: e.IsError, output: e.Output, gate: e.Source})
+			lastCheckSeq = e.Seq
 			continue
 		}
 		if e.Type != session.TypeToolResult || e.CallID == "" || refused(e) {
@@ -401,6 +411,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			} else {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
+			lastEditSeq = e.Seq
 			if d := gamingDelta(e.Name, e.Arguments); d.Path != "" {
 				if e.Name == "write_file" && strings.HasPrefix(e.Output, "Created ") {
 					createdHere[d.Path] = true
@@ -415,11 +426,16 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			}{cmd, runFailed(e)})
 			if check && !neverRan(e) {
 				see(cmd, checkRun{isErr: runFailed(e), output: e.Output})
+				lastCheckSeq = e.Seq
 			}
 		}
 	}
 	// A red check that a later green check re-ran another way never
 	// reached the code: the model fixed the command, not the code.
+	// The one thing Ran and Passed cannot say: whether anything was run
+	// after the last edit. A turn that edits, tests, edits again and stops
+	// has a green check and a stale one.
+	o.EditedAfterCheck = lastEditSeq > 0 && lastEditSeq > lastCheckSeq
 	retired := map[string]bool{}
 	for i, cmd := range order {
 		if !latest[cmd].isErr {
@@ -548,6 +564,28 @@ func (o TurnOutcome) Overclaimed() bool {
 		return true
 	}
 	return false
+}
+
+// StaleCheck reports the premature stop the verdict rules cannot see: a
+// turn that ran a check, edited afterwards, and then said it was done.
+// Every total the fold keeps is green — something ran, it passed, tests
+// were exercised — and none of it was run against the tree as it now
+// stands.
+//
+// It is deliberately narrower than Overclaimed: the model must have
+// claimed something, and the turn must actually have checked at some
+// point, because a turn that never ran anything is already
+// VerdictUnverified and already nagged for it.
+func (o TurnOutcome) StaleCheck() bool {
+	return o.Claimed != "" && o.EditedAfterCheck && o.Ran > 0 && !o.Overclaimed()
+}
+
+// StaleCheckNote is what the model is told. Same voice as Correction:
+// state the evidence, ask for the check, leave room for being wrong.
+func (o TurnOutcome) StaleCheckNote() string {
+	return fmt.Sprintf("[harness] You wrote %q, and %d check(s) did pass in this turn — but you edited again afterwards, "+
+		"so nothing has been run against the code as it now stands. Re-run the check and report what it says, "+
+		"or say plainly that the last edit is unverified.", o.Claimed, o.Passed)
 }
 
 // Correction is what the model is told when its claim and the turn

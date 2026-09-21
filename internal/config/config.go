@@ -138,6 +138,11 @@ type Config struct {
 	// negative disables the bound.
 	StreamIdleTimeout int `json:"stream_idle_timeout,omitempty"`
 	StreamMaxDuration int `json:"stream_max_duration,omitempty"`
+	// StaleCheckNudge sends a turn back once when the turn's checks
+	// passed, it edited again afterwards, and it then said it was done:
+	// everything that passed, passed against a tree the turn has since
+	// changed. Off by default, and bounded to one nudge a turn.
+	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`

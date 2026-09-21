@@ -237,6 +237,11 @@ type Agent struct {
 	// route_cheap. It needs DecisionsIntake to have anything to read, and
 	// route_cheap to have anywhere to go. See jevintakeroute.go.
 	DecisionsIntakeRoute bool
+	// StaleCheckNudge sends a turn back once when its checks passed, it
+	// edited afterwards and it then claimed to be done (see
+	// TurnOutcome.StaleCheck). Off by default: it changes what a turn
+	// does, and every eval baseline here was measured without it.
+	StaleCheckNudge bool
 	// DecisionsSessionOutcome enables the session-end outcome
 	// classification (config decisions.session_outcome, item 9). It is
 	// log-only: nothing in the harness changes because of the answer,
@@ -666,6 +671,18 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
 		a.appendHarnessText(outcome.Correction())
+		return false
+	}
+	// The premature stop the verdict rules cannot see: checks passed, the
+	// model edited afterwards, and then it said it was done. Opt-in,
+	// because every baseline in this repository was measured without it,
+	// and bounded by the same one-correction-a-turn counter, because the
+	// expensive mistake here is nagging a turn that is genuinely finished
+	// into another round of model calls.
+	if a.StaleCheckNudge && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
+		g.corrections++
+		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
+		a.appendHarnessText(outcome.StaleCheckNote())
 		return false
 	}
 	a.logOutcome(outcome)
