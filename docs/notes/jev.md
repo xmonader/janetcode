@@ -2001,3 +2001,101 @@ deterministic signal at all: a turn that is not failing a gate and not
 looping, where something has to guess whether the cheap model is going to
 get there. That is the same silent-turn tiebreaker Item 6 scoped and did
 not build, and it is still the narrowest role on the list.
+
+## 2026-09-21 — the held-out gate, and the first real gate failures
+
+Every Jev consumer that triggers on a verification failure has been
+unmeasurable in this repository for the same reason, stated plainly in
+the previous section: **a truthful gate confirms, it does not catch.**
+The model runs the grading tests itself before it ends a turn, so the
+gate agrees with it — sixteen gate commands and zero failures on
+`evals/hard`. Triage never fires, the cascade never escalates, the
+advisor's gate-failure trigger never pulls.
+
+This round built the instrument that removes that objection, and then
+ran it.
+
+### The instrument
+
+`evals/hidden/` holds tasks whose grading tests are **held out of the
+workspace**. `eval.Task.HiddenFiles` are never written into the work
+directory: `prepareHidden` lays them out as a package `acceptance/` in a
+directory of the runner's own, beside a generated `gate.sh` that copies
+the workspace to a scratch directory, discards anything the run put in
+`acceptance/`, overlays the held-out tests, runs one command there and
+deletes the copy. `--eval-gate` appends that script as the last verify
+command, under `verify.Runner.Display` — a new, small field whose whole
+purpose is that a command may be *reported* under a label. The label is
+`acceptance tests`, so the script's path cannot appear in `Result.Failed`,
+`Summary`, `Feedback` or the gate event. What the model is sent back with
+is the command's output: `go test`'s failing test names and assertion
+messages, which is what a real CI failure shows and no more.
+
+Leak-proofing is three tests and one live check. The tests: the held-out
+sources are never in the workspace and no path appears in the failure
+text; the shipped fixture FAILS its held-out tests and the task's
+`reference` solution PASSES them; the control tasks' gates fail at base
+for a reason no code change can fix. The live check: a recorded run of
+`91-hidden-csvsum` on `z-ai/glm-5.3-flash`, grepped for every held-out
+test name, for `acceptance_test`, for the held-out directory and for
+`gate.sh` — **zero hits**, while the gate line in the same session reads
+`verifying: go build ./... · go vet ./... · go test ./... · acceptance
+tests`.
+
+The residual is stated rather than hidden: this is leak-proofing against
+discovery, not against a model that deliberately writes exfiltration code
+into a package the acceptance tests import.
+
+### Calibration: the gate now fails, and only one task discriminates
+
+Five tasks, three runs each, two tiers, every decisions flag off,
+`--eval-jobs 2`, one binary, zero 429s.
+
+| | `z-ai/glm-5.3-flash` (cheap) | `qwen/qwen3.7-plus` |
+|---|---:|---:|
+| first-attempt gate pass | 0.83 [0.58, 1.00] | 0.80 [0.60, 1.00] |
+| final pass | 11/15 = 0.73 | 13/15 = 0.87 |
+| **held-out gate failures a run** | **0.13 [0.00, 0.33]** | **0.33 [0.00, 0.73]** |
+| repair rounds a run | 0.13 | 0.33 |
+| model calls a run | 11.6 [8.8, 15.0] | 9.5 [5.9, 14.0] |
+| cost a run | $0.0099 | $0.0139 |
+| $ per solved task | **$0.0135** | $0.0160 |
+| wall for fifteen runs | 56m26s | 26m43s |
+
+Per task, first-attempt gate pass:
+
+| task | cheap | qwen |
+|---|---:|---:|
+| 91 csvsum (edge cases) | 1.00 | 1.00 |
+| 92 bucket (race, clamp) | 1.00 | 1.00 |
+| 93 render (backward compat) | 1.00 | 1.00 |
+| 94 migrate (idempotency, error path) | **0.00** | **0.00** |
+| 95 discount tiers (62 files, two call sites) | 1.00 | 1.00 |
+
+**The headline is the one number this repository has never had: held-out
+gate failures, seven of them, every one on code the model wrote.** The
+gate caught what the visible tests did not, the repair rounds were spent
+on it, and on `94` the model recovered to a pass in a third of runs. The
+mechanism works.
+
+**The calibration does not.** Four of five tasks are 1.00 first-attempt
+on both tiers and `94` is 0.00 on both: nothing lands in the 30–70% band
+that was the target, and the two tiers are indistinguishable on
+first-attempt pass (0.83 vs 0.80, intervals overlapping completely).
+Under the rule stated for this round — drop what is 0% or 100% for
+everyone — `evals/hidden` currently has **one** discriminating task.
+
+A second confound has to be named: **all six final failures were the
+420-second wall cap, not a wrong answer.** `glm-5.3-flash` is slow
+(56m26s against qwen's 26m43s for the same fifteen runs), so "final pass"
+on the cheap tier is partly measuring the clock. The arms below were run
+at 900 s for that reason.
+
+### The strong slot
+
+Nothing here moves it. `qwen/qwen3.7-plus` passes more (0.87 vs 0.73) and
+runs in half the wall, but costs more per solved task ($0.0160 vs
+$0.0135) and is *not* better on first-attempt gate pass. On this set the
+two tiers are not two tiers. The slot stays with `qwen/qwen3.7-plus`,
+which is where the previous round left it, and the honest reason is that
+this set cannot separate them rather than that it confirmed them.
