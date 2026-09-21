@@ -281,7 +281,8 @@ permission system or the shell-safety classifier.
     "api_key_env": "OPENROUTER_API_KEY",
     "timeout_ms": 800,
     "triage": true,
-    "intake": false
+    "intake": false,
+    "intake_route": false
   }
 }
 ```
@@ -298,7 +299,7 @@ environment named by `api_key_env` and never lives in the file. Each
 consumer is off until its own key is set; the block being present alone
 enables nothing.
 
-Two consumers exist. `triage` is the one above. `intake` classifies the
+Three consumers exist. `triage` is the one above. `intake` classifies the
 session's **first prompt** — what kind of request it is (explain /
 implement / debug / review / docs / other), how much work it looks like
 on a five-rung rubric, and whether it would go better with an explicit
@@ -310,6 +311,32 @@ the turn's preparation and collected once the turn's work is done, so it
 adds no latency to the turn; an answer that is somehow still in flight
 by then is dropped rather than waited for. It exists to produce the
 calibration data that acting on it would first have to earn.
+
+`intake_route` is the one thing that acts on that classification, and it
+needs both `intake` (there is otherwise nothing to read) and
+`route_cheap` (there is otherwise nowhere to route).
+When the classifier is confident the first prompt is an **explain** of
+low complexity that wants no plan, the turn's first model call goes to
+`route_cheap` instead of the session's model — which the step router
+otherwise refuses, because before the first step it has no finished step
+to judge. Everything else about step routing still applies from the
+second call on, so the first edit, the first failure or the first
+warning ends the route for the rest of the turn.
+
+Turning this on is the one case where the intake call costs the turn
+something: routing has to be decided before the first request, so the
+turn waits for the classification, at most 700 ms and only for whatever
+is left after its own preparation. A late answer is still collected,
+priced and logged at the end of the turn — it simply does not route, and
+the turn runs exactly as it would with the consumer off. The record then
+carries `"route": "cheap"` or `"default"`, the reason, and `"acted_on"`.
+
+The gate is deliberately lopsided, because the expensive mistake is
+sending hard work to the weak model and the cheap one is only a saving
+foregone. `review` asks for no change either and is still excluded: it
+is the kind the classifier cannot size, scoring "tell me whether the
+private-address guard can be bypassed" at 0.23 on the rubric. The
+measurements are in `docs/notes/jev.md`.
 
 What leaves the machine when triage fires: your request, the failing
 command and its captured output, the changed files with line counts, no

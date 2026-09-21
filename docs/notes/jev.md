@@ -987,3 +987,98 @@ model class is repetition, and repetition is detectable without Jev.
   qwen3.7-plus the cost column is real.
 - Total main-model spend for the round, pilots and the discarded 429
   batch included: ~$1.84. Jev spend: ~$0.007.
+
+## Intake routing: shipped, acting, explain only (2026-09-21)
+
+Phase 3a classified the first prompt and nobody read it. The question
+this round asks is the one that was deferred: can anything act on it?
+
+### What janetcode can actually route on today
+
+Three per-turn knobs exist, and only one of them is a model choice.
+`route_cheap` (`internal/agent/steproute.go`) sends mechanical steps of
+a turn to a cheaper model and refuses the first call of every turn by
+construction — `a.stepN <= 1` — because before a step has finished there
+is nothing to judge the turn by. Reasoning `effort` is per-request but
+honoured by the Anthropic provider alone, so it cannot be measured on
+either of this round's models. Plan mode is settable per turn and was
+**not** used: janetcode's plan mode is read-only until a human accepts,
+so turning it on for an implementation turn would stop the work rather
+than sequence it, and in headless or eval runs there is nobody to
+accept. Subagent delegation has no harness-side decision point at all —
+the model calls the `task` tool or it does not.
+
+So `decisions.intake_route` routes exactly one thing: it lets the
+existing cheap route start at the first call of the turn that was
+classified. Nothing else is relaxed, and no tier system was invented.
+
+### The corpus
+
+`docs/benchmarks/decisions/intake.jsonl` grew from 18 rows to 41 and
+gained a second label, `truth_route`, by the same construction rule
+throughout: **cheap exactly when the request asks for no change to the
+repository and can be answered from at most two files.** The 23 new rows
+are aimed at the routing gate rather than the kind one — eight
+explain/review requests that really are one look, eight that sound
+trivial and are not ("is this thread-safe?", "anything racy in
+internal/tui?"), seven that sound like questions while asking for a
+change. Same provenance caveat as every corpus here: hand written.
+
+### The rubric was the bug
+
+First scoring run, thresholds as designed (explain+review, kind
+confidence ≥ 0.8, complexity ≤ 1.0 at confidence ≥ 0.6, needs_plan <
+0.5):
+
+| | routed cheap | kept on strong |
+|---|---|---|
+| truth cheap (12) | 7 | 5 |
+| **truth strong (29)** | **7** | 22 |
+
+Seven costly wrong routes. The cause is visible in the answers file, not
+in the mapping: `review:security` scored complexity **0.02**, and
+`review:one-line-leak` scored **0.03**. The rubric's five rungs were all
+phrased as edits — "one look", "a small edit", "a contained change", "a
+feature", "a project" — so a request that changes nothing has no rung to
+land on and falls to zero whatever it asks for.
+
+The fix is the same shape as the `failure_class` squeeze that shipped
+earlier: reword the question, change nothing else. The rungs now count
+reading as work ("a whole subsystem to read through"), and the
+instructions say so outright: *a question can cost as much as a change,
+because judging whether something is correct, safe, fast or thread-safe
+means reading all of it first.*
+
+| | kind correct | costly wrong routes | cheap recall |
+|---|---|---|---|
+| edit-only rubric, 1 run | 35/41 | 7 / 29 | 7/12 |
+| reading-aware rubric, 3 runs | 35/41, 35/41, 35/41 | 1, 1, 1 | 5/12 |
+| reading-aware, explain only, 2 runs | 35/41, 36/41 | **0, 0** | 3/12 |
+
+Kind accuracy is untouched by the rewording, which is the thing that had
+to be checked before the rubric could move: the shipped log-only
+consumer is calibrated on it.
+
+### Why review was cut
+
+The one costly route that survives the rubric fix is the same row in
+every run: *"look over internal/tool/fetch.go and tell me whether the
+private-address guard can be bypassed"* — one file named, complexity
+0.23, and in truth the guard plus everything that calls it. review is
+the kind the classifier cannot size, so it is excluded on the
+measurement rather than on principle. Putting it back buys two more
+cheap routes out of twelve and costs that one; the dial is one entry in
+`routeKinds` and the numbers above are what to re-read before turning
+it.
+
+**Shipped acting**, behind `decisions.intake_route`, default off:
+explain only, 0/29 costly over five scoring runs, 3/12 recall. The
+costly error is stated plainly: a request that needs the strong model
+sent to the weak one — bounded, because the step router's taint rules
+end the route at the first edit, failure or warning after the first
+call.
+
+Cost of the wait: routing must be decided before the first request, so
+this is the one intake call a turn waits on — 700 ms at most, after
+Prepare has had its chance to cover it, and a late answer is collected,
+priced and logged at the end of the turn without routing anything.
