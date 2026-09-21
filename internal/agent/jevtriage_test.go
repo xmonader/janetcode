@@ -34,6 +34,35 @@ func triageResult(caused float64, class string, conf float64) *jev.Result {
 	}}
 }
 
+// A live gate failure pays for every question it asks, so it asks only
+// the ones the mapping reads; worth_repair is recorded by the offline
+// replay and nothing else, so it lives in that set alone.
+func TestLiveTriageAsksOnlyWhatTheMappingReads(t *testing.T) {
+	ids := func(qs []jev.Question) map[string]bool {
+		m := map[string]bool{}
+		for _, q := range qs {
+			m[q.ID] = true
+		}
+		return m
+	}
+	live := ids(triageQuestions())
+	if len(live) != 2 || !live[qCausedByChange] || !live[qFailureClass] {
+		t.Fatalf("live questions = %v", live)
+	}
+	if live[qWorthRepair] {
+		t.Fatal("worth_repair is asked live but triageAction never reads it")
+	}
+	replay := ids(TriageQuestions())
+	if len(replay) != 3 || !replay[qWorthRepair] || !replay[qCausedByChange] || !replay[qFailureClass] {
+		t.Fatalf("replay questions = %v", replay)
+	}
+	// The replay set is built from the live one, so building it must
+	// not leave the live one changed.
+	if len(triageQuestions()) != 2 {
+		t.Fatal("TriageQuestions mutated the live set")
+	}
+}
+
 // The mapping is the whole feature; it is pure, so it is tested
 // exhaustively rather than through the loop.
 func TestTriageActionMapping(t *testing.T) {
@@ -123,7 +152,7 @@ func TestTriageSkipEndsTheTurnWithoutARepairCall(t *testing.T) {
 	// distributions, tokens and latency — an offline replay needs the
 	// whole payload, not a summary.
 	extra := string(found.Extra)
-	for _, want := range []string{`"questions"`, `"answers"`, `"tokens_in"`, `worth_repair`, `failure_class`} {
+	for _, want := range []string{`"questions"`, `"answers"`, `"tokens_in"`, `"caused_by_change"`, `failure_class`} {
 		if !strings.Contains(extra, want) {
 			t.Fatalf("decision Extra missing %s: %s", want, extra)
 		}

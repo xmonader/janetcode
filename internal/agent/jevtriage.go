@@ -34,10 +34,15 @@ type DecisionProvider interface {
 	Available() bool
 }
 
-// TriageQuestions is the verify-triage question set, exported so the
-// offline calibration replay (cmd/janetcode --decisions-replay) asks
-// exactly what a live turn would — no copy that can drift.
-func TriageQuestions() []jev.Question { return triageQuestions() }
+// TriageQuestions is the offline calibration replay's question set
+// (cmd/janetcode --decisions-replay): the live set a turn asks, plus
+// worth_repair, which the replay records per row while the live
+// mapping ignores it. Built here rather than copied there so the two
+// cannot drift apart.
+func TriageQuestions() []jev.Question {
+	return append(triageQuestions(), jev.Question{ID: qWorthRepair, Kind: jev.Noul,
+		Instructions: "Is another automated repair attempt on this failure likely to succeed?"})
+}
 
 // TriageSkip reports the live mapping's consequential answer for a
 // result: the failure class and whether a repair round would be
@@ -47,17 +52,21 @@ func TriageAction(res *jev.Result) (class string, skip bool) {
 	return v.class, v.skip
 }
 
-// The three triage questions. IDs are stable: they are the keys the
-// session log, the offline replay and any future threshold tuning read.
+// The triage question ids. They are stable: they are the keys the
+// session log, the offline replay and any future threshold tuning
+// read. qWorthRepair is asked by the replay only (TriageQuestions).
 const (
 	qCausedByChange = "caused_by_change"
 	qFailureClass   = "failure_class"
 	qWorthRepair    = "worth_repair"
 )
 
-// triageQuestions are evaluated together in one request; they are
-// independent by design (a System One request evaluates them in
-// parallel against the same state).
+// triageQuestions is what a live gate failure asks: the two answers
+// triageAction actually reads, evaluated together in one request. They
+// are independent by design (a System One request evaluates them in
+// parallel against the same state). A question the mapping ignores is
+// state and tokens spent on every gate failure for nothing, so
+// worth_repair stays in the replay set until something reads it.
 func triageQuestions() []jev.Question {
 	return []jev.Question{
 		{ID: qCausedByChange, Kind: jev.Noul,
@@ -71,8 +80,6 @@ func triageQuestions() []jev.Question {
 				"unrelated":     "a pre-existing failure on a path the change did not touch",
 				"inconclusive":  "the output is not enough to tell",
 			}},
-		{ID: qWorthRepair, Kind: jev.Noul,
-			Instructions: "Is another automated repair attempt on this failure likely to succeed?"},
 	}
 }
 

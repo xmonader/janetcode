@@ -157,7 +157,7 @@ Questions:
 |---|---|---|
 | `caused_by_change` | Noul | "Is this failure plausibly caused by the change just made?" |
 | `failure_class` | Choice | environmental / flaky / unrelated / patch / inconclusive |
-| `worth_repair` | Noul | "Is another automated repair attempt likely to fix this?" |
+| `worth_repair` | Noul | "Is another automated repair attempt likely to fix this?" — asked by the offline replay only (`agent.TriageQuestions`), not live: the action mapping below never reads it, and a live gate failure should not pay for an answer nothing consumes. |
 
 Action mapping (deterministic rules over the answers, logged):
 
