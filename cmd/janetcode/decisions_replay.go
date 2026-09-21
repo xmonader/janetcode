@@ -185,8 +185,11 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 	if len(cases) == 0 {
 		return fmt.Errorf("%s: no labeled states", path)
 	}
-	if cases[0].Consumer == "intake" {
+	switch cases[0].Consumer {
+	case "intake":
 		return runIntakeReplay(ctx, path, j, cases)
+	case "stuck":
+		return runStuckReplay(ctx, path, j, cases)
 	}
 	questions := agent.TriageQuestions()
 	tallies := map[string]*classTally{}
