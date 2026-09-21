@@ -1,0 +1,133 @@
+# Model mixing: the hard set, the strong slot, the cascade
+
+Notes on running one session across more than one model: a cheap slot, a
+default slot and a strong slot, and the policies that move work between
+them. The Jev-specific half of this work lives in `jev.md`; this file
+holds the parts that need no decision model at all.
+
+The prior is the mixai research repository (`grokplay/mixai`), which ran
+eight mixing strategies over six "gap" tasks and measured one winner:
+**cascade** -- let the cheap model try, and when the *real check* fails,
+call the expensive one. It was the only mix that was both complete and
+cheaper than every frontier baseline. The losers are as instructive: a
+difficulty judge over-routed to the frontier on tasks that merely sounded
+hard; advisor and fusion **tools** went unused because the model had to
+choose to call them; a hardcoded mid-session promotion misfired in both
+directions; and a senior-plus-junior pair cost more than the senior alone.
+
+## 2026-09-21 -- the hard set, and why it is not hard
+
+`evals/hard/` (81-86) ports mixai's six gap tasks: small Python programs
+whose stated behaviour a cheap model gets subtly wrong -- an occurs check
+in unification, vector clocks that are concurrent at equal sums, integer
+cent splitting with the remainder to the front, a regex engine forbidden
+from importing `re`, a topological order with a lexicographic tie-break,
+and a PN-counter whose merge must be componentwise max.
+
+Each ships its `pytest` specification as a `locked` file, so an edit to
+the test is restored before grading, and a `.janetcode/verify.json` that
+runs the same tests inside the run. The gate is therefore *truthful*: it
+fails exactly when the task is unsolved, which is the property a cascade
+trigger needs and which the existing gated set (71-73) does not have --
+there the gate is build, vet, gofmt and tests over work the model wrote,
+and the model arrives at the end of a turn with a clean tree.
+
+**The set is not hard for any model tested.** Three runs a task, gate on,
+decisions off, through OpenRouter:
+
+| model | passed | cost | wall | $/solved |
+|---|---:|---:|---:|---:|
+| `qwen/qwen3.7-plus` (3 runs a task) | **18/18** | $0.092 | 10m8s | $0.0051 |
+| `z-ai/glm-5.3-flash` (2 runs a task) | **11/12** | $0.037 | 25m3s | $0.0034 |
+| `qwen/qwen3.7-flash` (partial, cut short) | 5/5 | -- | -- | -- |
+
+mixai's junior was `google/gemma-4-31b-it`, which failed the regex task
+and passed the other five. Two years of model releases later, a model at
+$0.075/M input passes eleven of twelve. **The gap these tasks were built
+to expose has closed at the price point they were built to expose it at.**
+
+That is a result about the tasks, not about mixing. It is recorded here
+rather than worked around, because the honest consequence is that every
+arm that needs headroom -- advisor, routing, and the interesting half of
+cascade -- cannot be read on this set with these models. The set is still
+worth committing: it is the only set in the repository whose gate is
+exactly its grading criterion, and it will discriminate again for a
+weaker slot.
+
+## 2026-09-21 -- the strong slot: GLM 5.3 flash is a cheap model
+
+The tentative pick for the strong/advisor slot was "GLM 5.3 flash".
+Verified against OpenRouter's live models endpoint rather than assumed:
+
+| model | input $/M | output $/M | context |
+|---|---:|---:|---:|
+| `z-ai/glm-5.3-flash` | 0.075 | 0.25 | 1.31M |
+| `z-ai/glm-5.3-flashx` | 0.37 | 1.25 | 1.05M |
+| `z-ai/glm-5.3` | 0.91 | 2.86 | 1.31M |
+| `qwen/qwen3.7-plus` | 0.32 | 1.28 | 1.00M |
+| `qwen/qwen3.7-max` | 1.48 | 4.43 | 1.00M |
+| `mistralai/devstral-2512` | 0.40 | 2.00 | 0.26M |
+
+`z-ai/glm-5.3-flash` is priced at a quarter of `qwen/qwen3.7-plus` on
+input and a fifth on output, and it scored *below* it on the hard set
+(11/12 against 18/18). **It is a cheap-slot model, not a strong-slot
+model.** The non-flash model of the same generation, `z-ai/glm-5.3`, is
+the GLM candidate for a strong slot; `z-ai/glm-5.3-flashx` sits between
+them. The concern was worth testing and the answer was the unwelcome one.
+
+The slot is therefore held by `qwen/qwen3.7-plus`: it is the only
+candidate measured at the top of the hard set, and at $0.0051 a solved
+task it is not an expensive strong slot by any historical standard.
+
+Note also what the price table says about `mistralai/devstral-2512`: at
+$0.40/M input it is **more expensive than the model it would be the cheap
+tier for**. A "cheap tier" is a measurement, not a reputation.
+
+## 2026-09-21 -- repo-map precision: a word that matches eight files
+
+`precision@5` on the 58-file explore fixture was **0.00**: the map's top
+five were `report/report1..5.go`, junk pulled above the two real answers
+(at ranks 8 and 9) because the request ends "Report which two files were
+involved". Two defects with one cause, both deterministic, no decision
+model involved:
+
+1. The directory component `report` matched eight files and was worth the
+   full `weightPart` (2.0) to each of them. A word that matches eight of
+   fifty-eight files is evidence about a directory, not about any file in
+   it.
+2. The symbol stem rule then matched `Report1`..`Report7` against the same
+   word `report`, so each filler file collected `weightSymbol` (1.5) on
+   top -- the same request word counted twice for one file.
+
+The fix is one idea applied twice, in `(*Index).Rank`: a request word
+pulls a file **once**, by its strongest route, and that pull is divided by
+the number of files the word matches. `symbolMentioned` grew a sibling,
+`symbolMention`, that returns *which* word matched (deterministically --
+the shortest, then lexicographically smallest -- because `words` is a map
+and its range order must never reach the arithmetic). A file changed
+against HEAD is not a request mention and is not damped.
+
+| | precision@5 | recall@10 | `billing/limits.go` | `report/audit.go` |
+|---|---:|---:|---:|---:|
+| before | 0.00 | 1.00 | 9 | 8 |
+| rarity damping only | 0.20 | 1.00 | 1 | 9 |
+| **shipped (damping + one pull per word)** | **0.40** | **1.00** | **1** | **2** |
+
+0.40 is the ceiling: the fixture has exactly two right answers, so two of
+five is all a perfect ranker can score at k=5. Both numbers are now
+pinned by `TestRepoMapPrecisionOnTheExploreFixture` beside the existing
+rank baseline, and the whole `repomap` suite is unchanged otherwise.
+
+One honesty note on the second step. With damping alone the two answers
+and the seven fillers end up at *equal* personalisation, and what puts
+`report/audit.go` at rank 2 rather than rank 9 is partly the graph and
+partly the lexicographic tie-break on equal scores. A fixture whose
+filler files sorted before `audit.go` would not get the same rank 2. The
+*precision* claim is robust -- the fillers can no longer outrank the
+answers -- but the exact rank 2 is not load-bearing and should not be
+quoted as one.
+
+**Open, not built:** a Jev rerank of the top ten. The deterministic fix
+reaches the measurable ceiling on this fixture, so there is no headroom
+here to buy a call with. It would need a fixture with more than two right
+answers before it could even be scored.
