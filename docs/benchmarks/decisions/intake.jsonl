@@ -1,18 +1,41 @@
-{"name": "explain:what-does-this-do", "truth": "explain", "state": "what does prepareBlocks do in internal/agent/agent.go, and who calls it?", "consumer": "intake"}
-{"name": "explain:why-this-design", "truth": "explain", "state": "why does the compaction keep the last six messages verbatim instead of summarising everything?", "consumer": "intake"}
-{"name": "explain:trace-a-value", "truth": "explain", "state": "walk me through how a --max-cost value reaches the budget check; I am not changing anything, I just want to follow it", "consumer": "intake"}
-{"name": "implement:new-flag", "truth": "implement", "state": "add a --json flag to the doctor command that prints the same rows as a JSON object", "consumer": "intake"}
-{"name": "implement:new-package", "truth": "implement", "state": "write a small internal/ratelimit package with a token bucket, a Wait(ctx) and tests", "consumer": "intake"}
-{"name": "implement:feature-across-files", "truth": "implement", "state": "add per-project prompt history: store it under the config dir keyed by cwd, load it on start, and wire it into the TUI input box", "consumer": "intake"}
-{"name": "debug:test-fails", "truth": "debug", "state": "TestUndoRestoresOnlyTheTurn started failing on master this morning, find out why and fix it", "consumer": "intake"}
-{"name": "debug:panic", "truth": "debug", "state": "the TUI panics with index out of range in transcript.go when I resize below 40 columns; track it down", "consumer": "intake"}
-{"name": "debug:wrong-output", "truth": "debug", "state": "/stats reports a cost of $0.00 even though the provider returned usage; something is dropping the figure", "consumer": "intake"}
-{"name": "review:security", "truth": "review", "state": "look over internal/tool/fetch.go and tell me whether the private-address guard can be bypassed", "consumer": "intake"}
-{"name": "review:diff", "truth": "review", "state": "review the last three commits on this branch before I merge them: correctness first, then style", "consumer": "intake"}
-{"name": "review:performance", "truth": "review", "state": "is internal/repomap.Build doing anything quadratic? check it against a 20k-file tree", "consumer": "intake"}
-{"name": "docs:readme", "truth": "docs", "state": "update the README so the install section mentions go install and the minimum Go version", "consumer": "intake"}
-{"name": "docs:manual-page", "truth": "docs", "state": "write the configuration.md section for the decisions block, in the voice the rest of that file uses", "consumer": "intake"}
-{"name": "docs:comments", "truth": "docs", "state": "the exported functions in internal/pipewrite have no doc comments; write them", "consumer": "intake"}
-{"name": "other:about-the-tool", "truth": "other", "state": "how do I stop janetcode asking me to approve every edit?", "consumer": "intake"}
-{"name": "other:ambiguous", "truth": "other", "state": "the thing with the sessions", "consumer": "intake"}
-{"name": "other:not-code", "truth": "other", "state": "what timezone are these session timestamps in?", "consumer": "intake"}
+{"name": "explain:what-does-this-do", "truth": "explain", "truth_route": "cheap", "state": "what does prepareBlocks do in internal/agent/agent.go, and who calls it?", "consumer": "intake"}
+{"name": "explain:why-this-design", "truth": "explain", "truth_route": "cheap", "state": "why does the compaction keep the last six messages verbatim instead of summarising everything?", "consumer": "intake"}
+{"name": "explain:trace-a-value", "truth": "explain", "truth_route": "strong", "state": "walk me through how a --max-cost value reaches the budget check; I am not changing anything, I just want to follow it", "consumer": "intake"}
+{"name": "implement:new-flag", "truth": "implement", "truth_route": "strong", "state": "add a --json flag to the doctor command that prints the same rows as a JSON object", "consumer": "intake"}
+{"name": "implement:new-package", "truth": "implement", "truth_route": "strong", "state": "write a small internal/ratelimit package with a token bucket, a Wait(ctx) and tests", "consumer": "intake"}
+{"name": "implement:feature-across-files", "truth": "implement", "truth_route": "strong", "state": "add per-project prompt history: store it under the config dir keyed by cwd, load it on start, and wire it into the TUI input box", "consumer": "intake"}
+{"name": "debug:test-fails", "truth": "debug", "truth_route": "strong", "state": "TestUndoRestoresOnlyTheTurn started failing on master this morning, find out why and fix it", "consumer": "intake"}
+{"name": "debug:panic", "truth": "debug", "truth_route": "strong", "state": "the TUI panics with index out of range in transcript.go when I resize below 40 columns; track it down", "consumer": "intake"}
+{"name": "debug:wrong-output", "truth": "debug", "truth_route": "strong", "state": "/stats reports a cost of $0.00 even though the provider returned usage; something is dropping the figure", "consumer": "intake"}
+{"name": "review:security", "truth": "review", "truth_route": "strong", "state": "look over internal/tool/fetch.go and tell me whether the private-address guard can be bypassed", "consumer": "intake"}
+{"name": "review:diff", "truth": "review", "truth_route": "strong", "state": "review the last three commits on this branch before I merge them: correctness first, then style", "consumer": "intake"}
+{"name": "review:performance", "truth": "review", "truth_route": "strong", "state": "is internal/repomap.Build doing anything quadratic? check it against a 20k-file tree", "consumer": "intake"}
+{"name": "docs:readme", "truth": "docs", "truth_route": "strong", "state": "update the README so the install section mentions go install and the minimum Go version", "consumer": "intake"}
+{"name": "docs:manual-page", "truth": "docs", "truth_route": "strong", "state": "write the configuration.md section for the decisions block, in the voice the rest of that file uses", "consumer": "intake"}
+{"name": "docs:comments", "truth": "docs", "truth_route": "strong", "state": "the exported functions in internal/pipewrite have no doc comments; write them", "consumer": "intake"}
+{"name": "other:about-the-tool", "truth": "other", "truth_route": "cheap", "state": "how do I stop janetcode asking me to approve every edit?", "consumer": "intake"}
+{"name": "other:ambiguous", "truth": "other", "truth_route": "strong", "state": "the thing with the sessions", "consumer": "intake"}
+{"name": "other:not-code", "truth": "other", "truth_route": "cheap", "state": "what timezone are these session timestamps in?", "consumer": "intake"}
+{"name": "explain:one-constant", "truth": "explain", "truth_route": "cheap", "state": "what is the default value of compact_at?", "consumer": "intake"}
+{"name": "explain:what-does-this-error-mean", "truth": "explain", "truth_route": "cheap", "state": "what does janetcode mean when it says a file changed since it was read?", "consumer": "intake"}
+{"name": "explain:signature", "truth": "explain", "truth_route": "cheap", "state": "what arguments does shell.IsCheck take and what does it return?", "consumer": "intake"}
+{"name": "explain:which-file", "truth": "explain", "truth_route": "cheap", "state": "which file holds the text of the permission prompt?", "consumer": "intake"}
+{"name": "explain:flag-exists", "truth": "explain", "truth_route": "cheap", "state": "is there a --version flag on this binary?", "consumer": "intake"}
+{"name": "review:one-line-leak", "truth": "review", "truth_route": "cheap", "state": "quick check on one line I just wrote: log.Printf(\"key=%s\", cfg.APIKey) -- is that a problem?", "consumer": "intake"}
+{"name": "review:typo-in-comment", "truth": "review", "truth_route": "cheap", "state": "does the comment on Write in internal/pipewrite spell it 'recieve'? just tell me, do not touch anything", "consumer": "intake"}
+{"name": "review:obvious-injection", "truth": "review", "truth_route": "cheap", "state": "is exec.Command(\"sh\", \"-c\", userInput) in scripts/run.go injectable? a one-line answer is fine", "consumer": "intake"}
+{"name": "review:thread-safety", "truth": "review", "truth_route": "strong", "state": "simple question: is internal/agent.Agent safe to use from two goroutines?", "consumer": "intake"}
+{"name": "explain:why-slow", "truth": "explain", "truth_route": "strong", "state": "quick one: why is the first request of a session so much slower than the rest?", "consumer": "intake"}
+{"name": "review:is-this-correct", "truth": "review", "truth_route": "strong", "state": "is the compaction logic correct? a yes or no is fine", "consumer": "intake"}
+{"name": "explain:how-does-caching-work", "truth": "explain", "truth_route": "strong", "state": "short version: how does prompt caching work here, end to end?", "consumer": "intake"}
+{"name": "review:any-races", "truth": "review", "truth_route": "strong", "state": "anything racy in internal/tui? a quick look is fine", "consumer": "intake"}
+{"name": "explain:where-does-money-go", "truth": "explain", "truth_route": "strong", "state": "briefly: which calls in a session actually cost money, and how is the total worked out?", "consumer": "intake"}
+{"name": "review:does-the-guard-hold", "truth": "review", "truth_route": "strong", "state": "does the path confinement actually hold for symlinks? one paragraph is enough", "consumer": "intake"}
+{"name": "review:scrubber-sufficient", "truth": "review", "truth_route": "strong", "state": "is memory.RedactSecrets sufficient to keep keys out of the session log? short answer please", "consumer": "intake"}
+{"name": "debug:urgent-sounding-trivial", "truth": "debug", "truth_route": "strong", "state": "production is down and every request 500s: the config reads JWT_SECRET but the platform sets JWT_SIGNING_KEY. Change internal/config/config.go to read JWT_SIGNING_KEY.", "consumer": "intake"}
+{"name": "implement:sounds-like-a-question", "truth": "implement", "truth_route": "strong", "state": "could you just add a --dry-run flag?", "consumer": "intake"}
+{"name": "implement:tiny-rename-big-blast", "truth": "implement", "truth_route": "strong", "state": "small thing: rename the field ID to Id everywhere, including the JSON wire format and the session files already on disk", "consumer": "intake"}
+{"name": "debug:make-the-tests-pass", "truth": "debug", "truth_route": "strong", "state": "quick one: make the tests pass", "consumer": "intake"}
+{"name": "implement:one-liner-cache", "truth": "implement", "truth_route": "strong", "state": "one-liner: cache the repo map so we stop rebuilding it every turn", "consumer": "intake"}
+{"name": "docs:just-document-it", "truth": "docs", "truth_route": "strong", "state": "just document the config format", "consumer": "intake"}
+{"name": "debug:off-by-an-hour", "truth": "debug", "truth_route": "strong", "state": "tiny fix: the session timestamps are off by an hour, sometimes", "consumer": "intake"}
