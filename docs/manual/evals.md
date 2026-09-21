@@ -174,7 +174,7 @@ you do not intend to push, or hand a task to someone who has no access to
 
 ## The task sets, and which one an ablation can use
 
-`evals/` holds nine sets, and they are not interchangeable:
+`evals/` holds ten sets, and they are not interchangeable:
 
 | set | where | what it is for |
 |---|---|---|
@@ -186,6 +186,7 @@ you do not intend to push, or hand a task to someone who has no access to
 | 51–59 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on |
 | 61 | `evals/explore/` | one change to find in a repository too big to read |
 | 71–73 | `evals/gated/` | long tasks that ship a strict `.janetcode/verify.json` (build + vet + gofmt + tests), so `--eval-gate` has a gate that can actually fail |
+| 81–86 | `evals/hard/` | six gap tasks ported from the mixai research repository: small Python programs whose stated behaviour a cheap model gets subtly wrong (occurs check, vector-clock concurrency, integer cent splitting, a regex engine that may not import `re`, deterministic topological order, a PN-counter merge). Each ships its `pytest` specification as a `locked` file, so an edit to the test is restored before grading, and a `.janetcode/verify.json` that runs the same tests inside the run, so `--eval-gate` has a gate that fails exactly when the task is unsolved. This is the set an escalation or advisor arm is measured on, because the easy sets are passed by every model |
 | 74–76 | `evals/routing/` | short tasks that exercise request routing: two one-look questions a cheap model should be able to answer, and one trivial edit that must stay on the strong one. They are the mixed set the intake-routing A/B needs beside the gated tasks, and they ship no gate — there is nothing for a gate to check in an answer |
 
 `--eval` takes one file or one directory and does not descend, so
