@@ -135,6 +135,32 @@ func (a *Agent) resolveStrong(emit func(Event)) (llm.Provider, string, bool) {
 	return prov, model, true
 }
 
+// escalateNearCapAt is the share of a turn's iteration budget after which
+// a turn that is still going is treated as not converging.
+//
+// This is the second trigger, and it exists because of what the first one
+// could not see. On the hard eval set the model runs the grading tests
+// itself, so by the time it ends a turn the verification gate agrees with
+// it and never fails -- the gate confirms rather than catches. The only
+// failure in nine base-model runs was a turn that ran out of clock at 35
+// model calls, which no gate-failure trigger can reach.
+//
+// Burning most of the budget is a fact about this run, not a prediction
+// about the request, so it keeps the property the cascade is built on.
+const escalateNearCapAt = 0.6
+
+// escalateNearCap fires the cascade when a turn has spent most of its
+// iteration budget and is still going.
+func (a *Agent) escalateNearCap(iter, maxIter int, emit func(Event)) {
+	if !a.EscalateEnabled() || maxIter <= 0 {
+		return
+	}
+	if float64(iter) < escalateNearCapAt*float64(maxIter) {
+		return
+	}
+	a.escalate(fmt.Sprintf("the turn has used %d of its %d model calls and is still going", iter, maxIter), emit)
+}
+
 // escalateStep reports the provider and model this call should use when
 // the cascade has fired, and false when it has not. It is asked before
 // the cheap step router, because a turn that is already failing its own

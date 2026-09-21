@@ -155,3 +155,50 @@ func TestEscalationUnroutableStrongModelDisablesForTheSession(t *testing.T) {
 		t.Fatalf("no notice explained why escalation is off: %+v", *evs)
 	}
 }
+
+// The second trigger: a turn that has burned most of its iteration
+// budget and is still going. Not a prediction about the request -- a
+// fact about this run.
+func TestEscalationFiresWhenTheTurnIsNotConverging(t *testing.T) {
+	a, _ := escalatableAgent()
+	evs, emit := collect()
+	for _, iter := range []int{0, 5, 29} {
+		a.escalateNearCap(iter, 50, emit)
+		if _, on := a.escalated(); on {
+			t.Fatalf("iteration %d of 50 must not escalate", iter)
+		}
+	}
+	a.escalateNearCap(30, 50, emit) // 0.6 of the budget
+	why, on := a.escalated()
+	if !on || !strings.Contains(why, "30 of its 50 model calls") {
+		t.Fatalf("escalated = %q %v", why, on)
+	}
+	notices := 0
+	for _, e := range *evs {
+		if e.Kind == EvNotice && strings.Contains(e.Text, "escalating to") {
+			notices++
+		}
+	}
+	if notices != 1 {
+		t.Fatalf("expected one notice, got %d", notices)
+	}
+}
+
+// Off, and an unset budget, are both no-ops.
+func TestEscalationNearCapIsSilentWhenDisabled(t *testing.T) {
+	a, _ := escalatableAgent()
+	a.EscalateAfter = 0
+	evs, emit := collect()
+	a.escalateNearCap(49, 50, emit)
+	if _, on := a.escalated(); on {
+		t.Fatal("a disabled cascade must not fire")
+	}
+	b, _ := escalatableAgent()
+	b.escalateNearCap(49, 0, emit)
+	if _, on := b.escalated(); on {
+		t.Fatal("an unknown budget must not fire")
+	}
+	if len(*evs) != 0 {
+		t.Fatalf("expected silence: %+v", *evs)
+	}
+}

@@ -441,6 +441,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		a.escalateNearCap(iter, maxIter, emit)
 		// Recomputed every step: it also publishes the estimate the status
 		// bar reads while the turn runs.
 		if err := a.maybeCompact(ctx, compactAt, emit); err != nil {

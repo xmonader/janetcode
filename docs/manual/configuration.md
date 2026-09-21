@@ -219,6 +219,14 @@ it. And the decision provider's failure triage (`decisions.triage`) runs
 ends the turn without buying a strong-model round -- that veto costs no
 extra call, it is just the ordering.
 
+There is a second trigger, with no key of its own: a turn that has spent
+60% of its `max_iterations` and is still going escalates too. It exists
+because of what the gate cannot see. When the model can run the grading
+tests itself, it only ends a turn once they pass, so the gate agrees with
+it and never fails -- it confirms rather than catches. Burning most of the
+budget is still a fact about this run rather than a prediction about the
+request, which is the property the cascade is built on.
+
 Escalation ignores the 20k cross-provider context ceiling that guards
 cheap step routing. That ceiling exists because a cold prompt cache is
 not worth paying for a *cheaper* answer; when the alternative is a turn
