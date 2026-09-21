@@ -209,3 +209,29 @@ round's are 8/9, 11/12, 18/18 and 5/5: **a one-class corpus**. A
 calibration measured against it would report the majority rate and learn
 nothing, which is exactly where `--eval-train` sat for eighteen months.
 Nothing was built.
+
+## 2026-09-21 -- a gate the model cannot run, and what it caught
+
+The previous section ended on the one concrete next step: "for a
+gate-failure trigger to have anything to pull on, the set needs a check
+the model cannot run for itself." That set now exists (`evals/hidden/`,
+mechanism in `docs/manual/evals.md`, evidence in `docs/notes/jev.md`),
+and the first thing to report about it is that it works: **seven held-out
+gate failures in thirty calibration runs, every one on code the model
+wrote, with the repair rounds spent on them.** Against the hard set's
+sixteen gate commands and zero failures, that is the whole difference.
+
+The second thing to report is that the difficulty is not calibrated.
+Four of the five tasks are passed first-attempt by both tiers in every
+run and the fifth is failed first-attempt by both in every run, so the
+band the pilot was aiming at (30-70%) is empty and the two tiers cannot
+be told apart on first-attempt pass at all: 0.83 [0.58, 1.00] for
+`z-ai/glm-5.3-flash` against 0.80 [0.60, 1.00] for `qwen/qwen3.7-plus`.
+The strong slot therefore stays where the last round put it, for a worse
+reason than last time: not because this set confirmed the choice, but
+because it cannot separate the candidates.
+
+A third fact matters for anyone reading the pass column: **every final
+failure in the pilot was the wall cap, not a wrong answer.** At 420 s,
+`glm-5.3-flash` -- which took 56m26s over fifteen runs against qwen's
+26m43s -- timed out six times. The arms were run at 900 s.
