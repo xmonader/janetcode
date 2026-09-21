@@ -374,9 +374,31 @@ says the patch caused the failure.
 A corpus names the consumer it is labeled for in its rows
 (`"consumer": "intake"`); the triage corpus, which predates the field,
 leaves it out. `docs/benchmarks/decisions/intake.jsonl` is the intake
-corpus, scored on the `kind` answer — the only one of the three with a
-truth to score against — with complexity and needs_plan reported per
-labeled kind so it is visible whether they separate at all.
+corpus, scored on the `kind` answer and, where a row carries a
+`truth_route` label, on the routing mapping `intake_route` acts on: the
+confusion matrix names every costly wrong route by row.
+
+`janetcode --decisions-annotate <sessions>` is the offline labelling
+run. It takes a session `.jsonl` or a directory of them, asks the
+decisions model four questions about each recorded turn — how it ended
+(success / partial / failed / abandoned), whether it made progress,
+whether work was wasted, whether a tool was misused — and writes two
+files into `--decisions-annotate-out` (the working directory by
+default):
+
+- `annotations.jsonl`, one `agent.Annotation` row per turn: session id,
+  turn, the four answers with the outcome's confidence, the call and
+  failure counts, and the harness's own verdict line for comparison.
+- `critic-train.json`, shaped like an eval result file so `--eval-train`
+  reads it unchanged: one sample per session, the trajectory feature
+  vector an eval run would have recorded, labelled by how the last turn
+  ended. This is the only way the local critic gets a negative class
+  without a failing eval run.
+
+Nothing live reads either file, and nothing in a session calls this: the
+sessions are already over. The rows are model annotations, not ground
+truth — `docs/notes/jev.md` records what they agree with the harness's
+by-construction waste labels about.
 
 ### Stream watchdog
 

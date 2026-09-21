@@ -228,6 +228,11 @@ type DecisionsConfig struct {
 	// classification to read) and route_cheap (there is otherwise
 	// nowhere to route), and does nothing without both.
 	IntakeRoute bool `json:"intake_route,omitempty"`
+	// SessionOutcome enables the session-end outcome classification
+	// (item 9): one call after the last turn, logged, counted, and
+	// offered to sleep consolidation. Nothing is denied or changed
+	// because of the answer.
+	SessionOutcome bool `json:"session_outcome,omitempty"`
 	Receipts    bool `json:"receipts,omitempty"`
 }
 

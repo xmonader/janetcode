@@ -55,15 +55,29 @@ type labeledState struct {
 // way a session builds one (config's decisions block, else the
 // OpenRouter defaults), then the calibration.
 func decisionsReplayMode(ctx context.Context, path string) error {
+	client, err := offlineDecisionsClient("decisions-replay")
+	if err != nil {
+		return err
+	}
+	return runDecisionsReplay(ctx, path, client)
+}
+
+// replayClient builds the client every offline driver shares: the
+// config's decisions block if there is one, the verified OpenRouter
+// route otherwise, and in both cases NoBreaker — an offline pass must
+// not be killed halfway by its own circuit, which once turned a 503
+// burst into a page of error rows that read as a bad calibration.
+// who names the caller for the error messages.
+func offlineDecisionsClient(who string) (*jev.Client, error) {
 	cfg, err := config.Load(config.Overrides{})
 	if err != nil {
-		return fmt.Errorf("decisions-replay: %w", err)
+		return nil, fmt.Errorf("%s: %w", who, err)
 	}
 	var client *jev.Client
 	if cfg.Decisions != nil {
 		key := os.Getenv(cfg.Decisions.KeyEnv())
 		if key == "" {
-			return fmt.Errorf("decisions-replay: %s is empty", cfg.Decisions.KeyEnv())
+			return nil, fmt.Errorf("%s: %s is empty", who, cfg.Decisions.KeyEnv())
 		}
 		client = &jev.Client{BaseURL: cfg.Decisions.BaseURL, Key: key, NoBreaker: true,
 			Model: cfg.Decisions.Model, Timeout: time.Duration(cfg.Decisions.TimeoutMs) * time.Millisecond,
@@ -74,11 +88,11 @@ func decisionsReplayMode(ctx context.Context, path string) error {
 		// tried out.
 		key := os.Getenv("OPENROUTER_API_KEY")
 		if key == "" {
-			return fmt.Errorf("decisions-replay: no OPENROUTER_API_KEY and no decisions block in the config")
+			return nil, fmt.Errorf("%s: no OPENROUTER_API_KEY and no decisions block in the config", who)
 		}
 		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout, NoBreaker: true, Scrub: replayScrub}
 	}
-	return runDecisionsReplay(ctx, path, client)
+	return client, nil
 }
 
 // replayScrub is the same wire-level redaction a live session installs
@@ -207,6 +221,8 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 		return runIntakeReplay(ctx, path, j, cases)
 	case "stuck":
 		return runStuckReplay(ctx, path, j, cases)
+	case "annotate":
+		return runAnnotateReplay(ctx, path, j, cases)
 	}
 	questions := agent.TriageQuestions()
 	tallies := map[string]*classTally{}

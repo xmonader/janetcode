@@ -51,6 +51,10 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return true, decisionsReplayMode(ctx, o.decisionsReplay)
+	case o.decisionsAnnotate != "":
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return true, decisionsAnnotateMode(ctx, o.decisionsAnnotate, o.decisionsAnnotateOut)
 	case o.runDoctor:
 		// The checkup makes a live model call, so ctrl+c ends it rather
 		// than waiting out the provider's own timeout.
@@ -82,6 +86,8 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{initial != "" && o.promptText != "", "give the prompt either with -p or as an argument, not both"},
 		{o.until != "" && o.promptText == "", "--until needs a headless prompt (-p)"},
 		{o.decisionsReplay != "" && o.promptText != "", "--decisions-replay is a calibration run, not a session; drop -p"},
+		{o.decisionsAnnotate != "" && o.promptText != "", "--decisions-annotate is an offline labelling run, not a session; drop -p"},
+		{o.decisionsAnnotate != "" && o.decisionsReplay != "", "--decisions-annotate and --decisions-replay are separate runs"},
 		{o.doctorFix && !o.runDoctor, "--fix is --doctor's: run janetcode --doctor --fix"},
 		{format != headless.FormatText && o.promptText == "" && o.watchCmd == "", "--output-format applies to a headless run (-p)"},
 		{o.watchCmd != "" && o.until != "", "--watch and --until cannot be combined"},

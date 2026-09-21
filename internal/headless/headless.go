@@ -301,9 +301,13 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
 	}
+	// A headless run is one session per process, so its end is the
+	// session's end. The outcome classification (item 9) runs first and
+	// writes its answer into the record, so consolidation reads a record
+	// that says how the session ended; with the consumer off it does
+	// nothing at all.
+	ag.ClassifySessionOutcome(ctx)
 	if err == nil && opts.Memory != nil && opts.AutoMemory && !ag.Off["sleep"] && ag.LastTurnMutated() {
-		// A headless run is one session per process, so its end is the
-		// session's end: consolidate what the record established.
 		sleepSession(ctx, opts)
 	}
 	// The turn is already on disk: every message was appended to the log as

@@ -56,8 +56,29 @@ func Fold(events []session.Event) memory.SleepInput {
 				Class    string  `json:"class"`
 				Skip     bool    `json:"skip"`
 				Caused   float64 `json:"caused_by_change"`
+				Outcome  string  `json:"outcome"`
+				OutConf  float64 `json:"outcome_confidence"`
 			}{}
 			_ = json.Unmarshal(e.Extra, &v)
+			if v.Consumer == "session_outcome" {
+				// The one thing consolidation has never had: how the session
+				// ended. A goal the model opened and closed still wins — that
+				// is the harness's own record — so this only fills a blank.
+				if in.GoalOutcome == "" && v.Outcome != "" {
+					in.GoalOutcome = v.Outcome
+				}
+				if v.Outcome != "" {
+					in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "decision",
+						Name: v.Consumer, Text: textfmt.Clip(fmt.Sprintf("session ended %s (confidence %.2f)", v.Outcome, v.OutConf), 300)})
+				}
+				continue
+			}
+			if v.Class == "" {
+				// A consumer with no class and no skip (intake and anything
+				// like it) has nothing to say in this vocabulary, and saying
+				// it anyway reads as a triage verdict of "".
+				continue
+			}
 			verb := "sent the model back"
 			if v.Skip {
 				verb = "skipped the repair round"

@@ -237,6 +237,11 @@ type Agent struct {
 	// route_cheap. It needs DecisionsIntake to have anything to read, and
 	// route_cheap to have anywhere to go. See jevintakeroute.go.
 	DecisionsIntakeRoute bool
+	// DecisionsSessionOutcome enables the session-end outcome
+	// classification (config decisions.session_outcome, item 9). It is
+	// log-only: nothing in the harness changes because of the answer,
+	// though sleep consolidation may read it. See jevoutcome.go.
+	DecisionsSessionOutcome bool
 	// intakeRoute is what the routing consumer made of the classification.
 	// Zero (no route, no reason) whenever routing is off or the answer was
 	// late. Written once per session on the turn goroutine, together with
