@@ -222,6 +222,22 @@ func TestCircuitOpensAfterThreeErrors(t *testing.T) {
 	}
 }
 
+func TestNoBreakerKeepsCallingAfterABurstOfErrors(t *testing.T) {
+	srv, hits := fakeServer(t, 503, `{}`)
+	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0", NoBreaker: true}
+	for i := 0; i < 6; i++ {
+		if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err == nil {
+			t.Fatal("expected error")
+		}
+	}
+	if !c.Available() {
+		t.Fatal("NoBreaker client opened its circuit")
+	}
+	if hits.Load() != 6 {
+		t.Fatalf("hits = %d, want 6 (every call must reach the server)", hits.Load())
+	}
+}
+
 func TestSuccessResetsTheErrorStreak(t *testing.T) {
 	var n atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

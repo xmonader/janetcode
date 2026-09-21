@@ -243,6 +243,15 @@ type Client struct {
 	// "[redacted]" for a flagged field is the convention.
 	Scrub func(string) string
 
+	// NoBreaker turns the circuit breaker off for this client. A live
+	// session must never set it — a decision service that is down must
+	// not tax every later gate with its timeout. The offline tools set
+	// it: in `--decisions-replay` a burst of 503s would otherwise open
+	// the circuit and turn every remaining row into an error row, which
+	// is a corpus lost to a transient outage rather than a calibration
+	// result; in `doctor` the probe is the only call there is.
+	NoBreaker bool
+
 	mu         sync.Mutex
 	consecErrs int
 	latencies  [LatencyWindow]time.Duration
@@ -329,14 +338,14 @@ func (c *Client) record(d time.Duration, err error) {
 		}
 		// Checked on the call that fills the window too: ten slow calls
 		// in a row are the service, whatever order they arrived in.
-		if c.latN == LatencyWindow && p50(&c.latencies, LatencyWindow) > LatencyOpenP50 {
+		if !c.NoBreaker && c.latN == LatencyWindow && p50(&c.latencies, LatencyWindow) > LatencyOpenP50 {
 			c.open = true
 		}
 		return
 	}
 	c.errs++
 	c.consecErrs++
-	if c.consecErrs >= maxConsecErrors {
+	if !c.NoBreaker && c.consecErrs >= maxConsecErrors {
 		c.open = true
 	}
 }

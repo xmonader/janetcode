@@ -52,7 +52,7 @@ func decisionsReplayMode(ctx context.Context, path string) error {
 		if key == "" {
 			return fmt.Errorf("decisions-replay: %s is empty", cfg.Decisions.KeyEnv())
 		}
-		client = &jev.Client{BaseURL: cfg.Decisions.BaseURL, Key: key,
+		client = &jev.Client{BaseURL: cfg.Decisions.BaseURL, Key: key, NoBreaker: true,
 			Model: cfg.Decisions.Model, Timeout: time.Duration(cfg.Decisions.TimeoutMs) * time.Millisecond}
 	} else {
 		// No block configured: default to the verified route rather than
@@ -62,7 +62,7 @@ func decisionsReplayMode(ctx context.Context, path string) error {
 		if key == "" {
 			return fmt.Errorf("decisions-replay: no OPENROUTER_API_KEY and no decisions block in the config")
 		}
-		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout}
+		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout, NoBreaker: true}
 	}
 	return runDecisionsReplay(ctx, path, client)
 }

@@ -120,7 +120,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 				case key == "":
 					warn("decisions", "configured ("+d.Model+") but "+d.KeyEnv()+" is empty; advisory triage is off")
 				default:
-					cl := &jev.Client{BaseURL: d.BaseURL, Key: key, Model: d.Model, Timeout: jev.MaxTimeout}
+					cl := &jev.Client{BaseURL: d.BaseURL, Key: key, Model: d.Model, Timeout: jev.MaxTimeout, NoBreaker: true}
 					start := time.Now()
 					_, perr := cl.Evaluate(ctx, "probe", []jev.Question{
 						{ID: "ok", Kind: jev.Noul, Instructions: "Does this state contain a question at all?"},
