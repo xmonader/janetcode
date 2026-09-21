@@ -90,3 +90,34 @@ func TestIntakeCorpusIsWellFormed(t *testing.T) {
 		}
 	}
 }
+
+func TestStuckCorpusIsWellFormed(t *testing.T) {
+	rows := corpusRows(t, "../../docs/benchmarks/decisions/stuck.jsonl")
+	truths := map[string]int{}
+	for _, r := range rows {
+		if r.Consumer != "stuck" {
+			t.Fatalf("row %q: consumer = %q, want stuck", r.Name, r.Consumer)
+		}
+		if r.Truth != "waste" && r.Truth != "healthy" {
+			t.Fatalf("row %q: truth %q, want waste or healthy", r.Name, r.Truth)
+		}
+		// The state is built the way agent.StuckState builds one, and a
+		// row that lost its shape would be scored against questions that
+		// assume it.
+		if !strings.HasPrefix(r.State, "Goal: ") || !strings.Contains(r.State, "Recent tool calls") {
+			t.Fatalf("row %q: state is not a StuckState:\n%s", r.Name, r.State)
+		}
+		truths[r.Truth]++
+	}
+	// This is a smoke corpus, not a calibration set: eighteen recorded
+	// long runs produced only eight wasted steps in all (1.7% of tool
+	// calls), so the waste class cannot be made large without a model
+	// that actually flails. The guard is that both classes are present
+	// at all — the note in docs/notes/jev.md carries the caveat that no
+	// precision figure from this many positives is an estimate.
+	for _, want := range []string{"waste", "healthy"} {
+		if truths[want] < 5 {
+			t.Fatalf("%s has %d rows; under five nothing can be read at all", want, truths[want])
+		}
+	}
+}
