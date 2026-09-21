@@ -766,3 +766,224 @@ the repository — a network fetch, a port bind, a service — not a
 stricter local lint. `evals/gated/` is the place to put that when there
 is one; the instrument (`--eval-gate`, the `stuck` consumer, the corpus
 builder) is finished and waiting.
+
+## A weaker main model: devstral-2512, gate failures and real loops (2026-09-21)
+
+The previous two sections both ended on the same zero, and both said the
+same thing about why: `dashscope-coding/qwen3.7-plus` never fails the
+gate, never loops, and wastes 1.7% of its calls, so triage — the only
+thing Jev changes today — has nothing to act on. This round changes the
+main model and nothing else. The Jev side is untouched: same pinned
+`~typesafe/jev-latest` (answers report `typesafe/jev-1.13-20260917`),
+same `--eval-gate`, same `evals/gated/` 71–73, same metric and
+waste-label definitions.
+
+### Picking the model
+
+OpenRouter's `/api/v1/models` was queried and filtered to models whose
+`supported_parameters` contain `tools`, in the small open-weights class
+and cheap. Four were piloted with one gated run each on
+`73-gated-expr-layers`, under a scratch `XDG_CONFIG_HOME` whose
+`config.json` holds an `openrouter` provider plus the `decisions` block
+(`~/.config/janetcode` was not touched; the key lives in the scratch
+file and is never committed):
+
+| pilot model | pass | model calls | tool calls | tool errors | wall | cost | what it showed |
+|---|---|---|---|---|---|---|---|
+| `qwen/qwen3-coder-30b-a3b-instruct` | FAIL | 2 | 1 | 0 | 5 s | $0.0008 | one `list_dir`, then an empty assistant message and `end_turn` — no progress at all, measures nothing |
+| `qwen/qwen3-32b` | FAIL | 5 | 16 | 2 | 7 m (timeout) | $0.005 | never finished a turn inside the cap |
+| `mistralai/mistral-small-3.2-24b-instruct` | FAIL | 24 | 25 | 6 | 3 m 27 s | $0.029 | ended on `ErrStuck` ("stuck repeating the same tool call") — loops, but never passes |
+| **`mistralai/devstral-2512`** | **PASS** | **42** | **42** | **0** | **1 m 57 s** | **$0.041** | passed *and* failed its gate (`gofmt -l`), triage fired, `patch_caused` p=0.88 conf=0.93, repair round spent, run then passed |
+
+`devstral-2512` is the one in the useful band: it finishes real work, and
+it arrives at the end of a turn with a tree the gate rejects — which is
+exactly what qwen3.7-plus never did. The tier below it (mistral-small
+24B, qwen3-32b, qwen3-coder-30b) is too weak to be informative: a model
+that cannot drive the tools produces 0% and measures the harness, not
+Jev. Pinned model id for this round: **`mistralai/devstral-2512`**.
+
+### The A/B
+
+```sh
+make build
+# XDG_CONFIG_HOME points at a scratch config dir whose config.json is
+#   {"provider":"openrouter","model":"mistralai/devstral-2512",
+#    "providers":{"openrouter":{"type":"openai",
+#       "base_url":"https://openrouter.ai/api/v1","api_key":"<from env>",
+#       "model":"mistralai/devstral-2512"}},
+#    "decisions":{"model":"~typesafe/jev-latest",
+#       "api_key_env":"OPENROUTER_API_KEY","timeout_ms":2000,
+#       "triage":true,"intake":true}}
+COMMON="--eval evals/gated --eval-gate --eval-runs 3 --eval-jobs 1 \
+        --eval-timeout 420s --eval-max-turns 80"
+./bin/janetcode $COMMON --eval-label jev-on  --eval-json ab-on.json &
+sleep 2
+./bin/janetcode $COMMON --eval-off decisions --eval-label jev-off \
+        --eval-json ab-off.json &
+```
+
+n per cell: 3 runs × 3 tasks per arm, 9 runs an arm, 18 in all, ~24
+minutes with the two processes overlapping. `--eval-jobs 1`, not 3: the
+first attempt at `--eval-jobs 3` (six concurrent devstral requests) was
+thrown away — every run in it came back `Provider returned error (HTTP
+429)`, which is an invalid run by the rule set for this experiment, and
+the whole batch was rerun at one job an arm. The A/B below has **no
+429s**. Raw `--eval-json` files are not committed.
+
+| | Jev on | Jev off |
+|---|---|---|
+| passed | 9/9 | 7/9 |
+| main-model calls, total (mean) | 265 (29.4) | 329 (36.6) |
+| main-model calls, per-run range | 22–42 | 20–64 |
+| tool calls, total | 380 | 436 |
+| **failed/wrong tool calls** | **10** | **6** |
+| **loop calls** | **45** | **44** |
+| **gate commands run** | **123** | **129** |
+| **gate failures** | **1** | **3** |
+| repair rounds spent | 1 | 3 |
+| triage calls / skips | 1 / 0 | 0 / 0 |
+| costly wrong skips | **none (no skip was taken)** | — |
+| intake calls (log-only) | 9 | — |
+| tokens in / out | 1,221,601 / 50,673 | 1,265,191 / 60,545 |
+| main-model cost | $0.683 | $0.764 |
+| wall per run, mean (median) | 117 s (124 s) | 159 s (157 s) |
+| Jev latency p50 / cost | 532 ms / $0.000331 total | — |
+| circuit-open events | 0 | 0 |
+
+Per task, sorted within the cell so the spread is visible:
+
+| task | arm | pass | model calls | tool calls | wall s | gate failures |
+|---|---|---|---|---|---|---|
+| 71-gated-go-service | on | 3/3 | 23 / 28 / 32 | 40 / 49 / 54 | 124 / 131 / 133 | 0 / 0 / 1 |
+| 71-gated-go-service | off | 3/3 | 25 / 29 / 30 | 48 / 50 / 50 | 110 / 170 / 200 | 0 / 1 / 1 |
+| 72-gated-python-ledger | on | 3/3 | 22 / 26 / 28 | 40 / 43 / 45 | 90 / 124 / 162 | 0 / 0 / 0 |
+| 72-gated-python-ledger | off | 3/3 | 20 / 29 / 32 | 33 / 44 / 45 | 103 / 126 / 147 | 0 / 0 / 0 |
+| 73-gated-expr-layers | on | 3/3 | 27 / 37 / 42 | 29 / 39 / 41 | 82 / 89 / 117 | 0 / 0 / 0 |
+| 73-gated-expr-layers | off | 1/3 | 37 / 63 / 64 | 38 / 63 / 65 | 157 / 206 / 211 | 1 / 0 / 0 |
+
+The single triage call, in full: task 71 run 2, the gate's `gofmt -l`
+guard failed, Jev answered `caused_by_change` 0.89, class
+`patch_caused` at confidence 0.95, in 380 ms. The truth was
+`patch_caused` — the model had written an unformatted `main.go` — so
+the correct action was to spend the repair round, which is what
+happened, and the run then passed. **Jev took no skip in this round, so
+it skipped no repair round the weak model needed, and there is no costly
+wrong skip to list.** That is the safety answer: on this evidence Jev
+does not hurt.
+
+**Verdict: not enough signal, again, but for a new reason.** The gate now
+fails — four times across 18 runs, where 236 gate commands produced zero
+failures last round — and loops now happen, 89 of them. But triage was
+consulted exactly once in 9 gated runs, and its one answer was the
+answer that changes nothing. A single call cannot explain the on-arm's
+9/9 versus 7/9, its 64 fewer model calls or its 42 s shorter mean run;
+those sit inside the spread one cell shows between identical runs (73
+alone runs 27 to 64 model calls off-arm and 27 to 42 on-arm), and both
+off-arm failures are the harness's 60-tool-call cap firing on a model
+that padded, not a wrong answer. Attributing any of that to Jev would be
+reading noise. The honest reading is: a weaker model makes the gate fail
+often enough for triage to exist, but not often enough — at 4 failures
+per 18 runs — for 9 runs an arm to measure what triage is worth.
+
+### Half 2: the waste ceiling, without the leakage
+
+Every tool call in the 18 runs was labelled by construction, same three
+labels as last round (errored / loop / dead tail):
+
+| | on | off | both |
+|---|---|---|---|
+| wasted main-model calls | 18 / 265 | 19 / 329 | **37 / 594 = 6.2%** |
+| wasted tool calls | 53 / 380 | 50 / 436 | 103 / 816 = 12.6% |
+| of which errored | — | — | 16 |
+| **of which loops** | **45** | **44** | **89** |
+| of which dead tail | — | — | 0 |
+
+**The ceiling moved from 1.7% to 6.2% of main-model calls, and the shape
+of the waste changed completely.** With qwen3.7-plus the waste was eight
+errored calls and no loops; with devstral it is 89 loop calls and 16
+errors. A perfect mid-turn oracle could now remove about one main-model
+call in sixteen. That is the first time this number has been large
+enough to be worth an oracle at all.
+
+The corpus was rebuilt from these two files and rescored:
+
+```sh
+python3 docs/benchmarks/decisions/build-stuck-corpus.py \
+    --out docs/benchmarks/decisions/stuck.jsonl --per-class 40 \
+    ab-on.json ab-off.json          # 80 rows (40 waste, 40 healthy)
+./bin/janetcode --decisions-replay docs/benchmarks/decisions/stuck.jsonl
+```
+
+The leakage the first round flagged is fixed (commit 29fa85f). The state
+window now ends at call i-1 and the labelled call appears as
+`About to run: <tool> <args> -> (not run yet)`, so all three questions
+are scored before the result exists. `--leaky` reproduces the old
+framing.
+
+| question | thr | run 1 precision / recall | run 2 |
+|---|---|---|---|
+| `stuck` | 0.5 | 0.60 / 0.07 | 0.60 / 0.08 |
+| `stuck` | 0.6 | 1.00 / 0.05 | 1.00 / 0.05 |
+| `stuck` | 0.7 | 1.00 / 0.03 | 1.00 / 0.03 |
+| `on_goal` (inverted) | 0.5 | 0.50 / 0.05 | 0.50 / 0.05 |
+| `on_goal` (inverted) | ≥0.6 | 0.00 / 0.00 | 0.00 / 0.00 |
+| `next_call_will_fail` | 0.5 | 0.75 / 0.15 | 0.71 / 0.13 |
+| `next_call_will_fail` | 0.6 | 0.75 / 0.07 | 0.67 / 0.05 |
+| `next_call_will_fail` | 0.7 | 1.00 / 0.03 | 1.00 / 0.03 |
+
+Replay latency p50 329 ms and 352 ms over the two runs.
+
+**`stuck` finally has positives to find, and finds almost none of them.**
+40 of the 80 rows are waste and 89 of the 103 waste calls in the pool
+are loop calls, so the question "is this agent repeating itself without
+making progress?" is being asked on a corpus built mostly of exactly
+that. It fires on three of forty at 0.5 and on two at 0.6. The
+precision figures that read 1.00 are one or two rows and mean nothing.
+
+A leaky rebuild (`--leaky`, scored once, 78 rows, 2 rows lost to a
+provider deadline) gives `next_call_will_fail` 0.60/0.15 at 0.5 — this
+round the leaky and honest framings barely differ, because the waste is
+no longer mostly errored calls whose `ERROR:` line the leaky state
+handed over. That is a second-order confirmation of the first round's
+caveat rather than a contradiction of it.
+
+**Recommendation: reject a mid-turn consumer for this model class too,
+and this time the rejection is about Jev, not about the model.** The
+headroom is real now — 6.2% of main-model calls, 12.6% of tool calls,
+89 loop calls — and Jev cannot see it: recall 0.05–0.15 at any threshold
+where precision is not one row. The concrete trigger policy that was
+worth pricing, and the arithmetic that kills it: consult only when the
+last two calls share a tool and a path (the cheapest deterministic
+prefix of a loop). On these runs that trigger fires on roughly 90 of 816
+calls, ~5 times a run; at the measured 532 ms live p50 that is ~2.7 s a
+run of added latency, against a 117–159 s run, which is affordable. What
+is not affordable is the return: at 0.07 recall the consult catches
+fewer than one of the ~5 loop episodes a run, and at 0.60 precision at
+that threshold two of five firings interrupt a healthy step. The trigger
+itself — "same tool, same path, twice" — is already the signal, is free,
+and is deterministic; a consult on top of it adds latency and subtracts
+nothing. Nothing was wired mid-turn.
+
+What would change the answer: a question that is asked about the loop
+rather than about the agent ("has the state this call reads changed
+since the last identical call?"), which is a harness fact and needs no
+model at all. That is the finding to carry forward — the waste at this
+model class is repetition, and repetition is detectable without Jev.
+
+### Caveats
+
+- 4 gate failures and 1 triage call in 18 runs. Every triage statistic
+  in the table is n=1.
+- The on/off gaps in pass rate, model calls and wall time are not
+  attributable to Jev: Jev intervened once, and that intervention
+  changed nothing (`patch_caused` → spend the round, the default).
+  Intake is log-only (`acted_on: false`).
+- The first `--eval-jobs 3` batch was discarded for 429s; only the
+  `--eval-jobs 1` batch is reported. Running one job an arm is also why
+  the arms are not perfectly time-matched inside a task.
+- Both off-arm failures are the 60-tool-call harness cap, not wrong
+  answers.
+- `mistralai/devstral-2512` is priced by OpenRouter, so unlike
+  qwen3.7-plus the cost column is real.
+- Total main-model spend for the round, pilots and the discarded 429
+  batch included: ~$1.84. Jev spend: ~$0.007.
