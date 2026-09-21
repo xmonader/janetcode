@@ -1622,3 +1622,77 @@ against, and no measurable waste to recover.
 **Status: skipped on measurement, as instructed.** Revisit only with a task
 set that actually loads memories and skills, and only after measuring the
 deterministic selectors' own precision on it.
+
+## 2026-09-21 — Item 4: ask-before-working, blocked for want of a corpus
+
+The consumer is easy to write; the ground truth does not exist here.
+
+The detector was defined deterministically first, as required: a
+"should have asked" is a *follow-up human turn* (not a synthetic
+harness-written one) that matches a correction vocabulary — `no,`, `not
+what`, `I meant`, `actually`, `instead`, `revert`, `undo that`, `that's
+wrong`, `don't`, `stop`, `wrong file`, `I said` — and that follows a turn
+which made at least one edit. Direction was changed after work was done: by
+construction, the question should have been asked first.
+
+Run over every recorded session in the local store:
+
+| | count |
+|---|---:|
+| session files | 35 |
+| sessions with a real human prompt | 9 |
+| **multi-turn human sessions** | **4** |
+| follow-up human turns (the labellable population) | 4 |
+| **redirects after an edit** | **0** |
+
+Four labellable turns and zero positives. That is not a weak corpus, it is
+no corpus: the eval sessions are single-prompt by construction, and the
+handful of real sessions in this store were driven by an operator who does
+not redirect mid-task.
+
+A hand-built corpus was considered and rejected. With zero observed
+positives there is nothing for invented rows to be validated *against* —
+they would define the phenomenon rather than sample it, and the replay
+against them would score the author's imagination. Shipping log-only on that
+basis would put an unvalidated live call on the intake path for no
+measurement, which is the failure mode this whole round exists to avoid.
+
+**Status: blocked. Exact missing input: recorded multi-turn sessions with a
+human who changes direction** — twenty or so follow-up turns with a handful
+of positives would be enough to score a detector. Nothing built, no flag, no
+corpus file.
+
+## 2026-09-21 — Item 6: escalation routing, surveyed and scoped, not built
+
+Feasibility first, as instructed, and the answer is better than expected:
+**mid-turn model switching already works.** `(*Agent).call` asks
+`routeStep` on every model call, so the tier is chosen per call, not per
+turn. There is no missing hook.
+
+What is missing is the direction. Today's `route_cheap` is default-first: it
+starts on the strong model and dips to the cheap tier for a *mechanical*
+step (`read_file`, `list_dir`, `glob`, `grep`, `repo_map`, or a green
+`shell.IsCheck` bash), and `stepRoute.taint` ends the dip at the first edit,
+failure or warning. Item 6 wants cheap-first with escalation on struggle.
+The deterministic struggle signals it would escalate on all already exist
+and are already counted: `max_repeat` (the loop counter the waste labeller
+reads), the tool-error streak, `turnGates`' repair-round counters, and
+`StaleCheck`. Jev would be a tiebreaker on a silent turn, which is the
+narrowest role on this whole list.
+
+**The blocker is a number, not a hook.** `routeCheapSmallContext = 20_000`
+refuses cross-provider routing above 20k tokens, precisely because a model
+switch costs a cold prompt cache. The Step 0 profile says a gated run's
+input reaches 21.4k (qwen) to 26.5k (devstral) by its last call, growing
+428-569 tokens a call. So a cheap-first turn would be forced back to the
+strong model around call 30 on its own, with a cache miss at the switch, and
+the escalation policy would decide nothing for most of the run. Raising the
+ceiling is a separate change with its own cache-cost A/B.
+
+The priority argument also holds against it. qwen3.7-plus cost $0.0296 for
+nine gated runs; the dollars are already noise, so the only currency is wall
+time — and wall time is what a cold cache at every escalation spends.
+
+**Status: scoped, not built.** The next step, if revisited, is the
+cross-provider context ceiling and its cache cost, measured on its own,
+before any decision consumer is written. Nothing shipped, no flag.
