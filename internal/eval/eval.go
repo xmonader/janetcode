@@ -45,8 +45,19 @@ type Task struct {
 	// before Check runs, so a run cannot pass by editing them: /eval keep
 	// stores a session's locked /accept acceptance tests this way.
 	Locked []string `json:"locked,omitempty"`
+	// HiddenFiles are held-out acceptance tests: files the task ships and
+	// the runner never writes into the work directory. They are laid over
+	// a scratch copy of the workspace by the held-out gate alone (see
+	// hidden.go), so the model can neither read them nor run them, and a
+	// gate failure is the first thing in this repository's evals that the
+	// model cannot pre-empt by running the grading tests itself.
+	HiddenFiles map[string]string `json:"hidden,omitempty"`
+	// HiddenCheck is the command the held-out gate runs in the scratch
+	// copy; empty means `go test ./acceptance/`.
+	HiddenCheck string `json:"hidden_check,omitempty"`
 	// Check is a shell command run in the work directory afterwards; exit
-	// 0 passes. EVAL_OUTPUT names a file holding the model's final text.
+	// 0 passes. EVAL_OUTPUT names a file holding the model's final text,
+	// and EVAL_HIDDEN_GATE the held-out gate script when the task has one.
 	Check string `json:"check"`
 	// Timeout in seconds for the model run; zero means 180.
 	Timeout int `json:"timeout,omitempty"`
@@ -135,6 +146,9 @@ func Load(path string) ([]Task, error) {
 			if _, ok := t.Files[name]; !ok {
 				return nil, fmt.Errorf("%s: locked file %q is not in files", f, name)
 			}
+		}
+		if err := checkHiddenTask(t); err != nil {
+			return nil, fmt.Errorf("%s: %w", f, err)
 		}
 		if seen[t.Name] {
 			return nil, fmt.Errorf("%s: duplicate task name %q", f, t.Name)
@@ -316,8 +330,11 @@ func FoldCompaction(events []session.Event) Compaction {
 
 // Runner executes tasks with fresh agents.
 type Runner struct {
-	// NewAgent builds an agent whose tools are rooted at dir.
-	NewAgent func(dir string) (*agent.Agent, error)
+	// NewAgent builds an agent whose tools are rooted at dir. hiddenGate
+	// is the held-out acceptance gate's script for this run, or "" when
+	// the task ships no held-out tests; the caller appends it to the
+	// verification gate (see hidden.go).
+	NewAgent func(dir, hiddenGate string) (*agent.Agent, error)
 	// Keep leaves work directories on disk and records them in Result.Dir.
 	Keep bool
 	// Log receives one line per event — a task starting, its progress
@@ -507,15 +524,17 @@ func restoreLocked(dir string, t Task) error {
 	return writeFiles(dir, locked)
 }
 
-// runCheck runs a task's Check in dir, with EVAL_OUTPUT naming outPath.
-func runCheck(ctx context.Context, t Task, dir, outPath string) (string, error) {
+// runCheck runs a task's Check in dir, with EVAL_OUTPUT naming outPath
+// and EVAL_HIDDEN_GATE the held-out gate script, so a task graded on
+// held-out tests runs exactly the gate the turn ran.
+func runCheck(ctx context.Context, t Task, dir, outPath, hiddenGate string) (string, error) {
 	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer ccancel()
 	cmd := shell.Command(cctx, t.Check)
 	cmd.Dir = dir
 	// Scrubbed of the agent's credentials: a task's check is project
 	// content, run and read back with its output.
-	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
+	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir, "EVAL_HIDDEN_GATE="+hiddenGate)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
@@ -586,7 +605,13 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 		res.Reason = "setup: " + err.Error()
 		return res
 	}
-	ag, err := r.NewAgent(dir)
+	hiddenGate, hiddenCleanup, err := prepareHidden(t)
+	if err != nil {
+		res.Reason = "held-out tests: " + err.Error()
+		return res
+	}
+	defer hiddenCleanup()
+	ag, err := r.NewAgent(dir, hiddenGate)
 	if err != nil {
 		res.Reason = "agent: " + err.Error()
 		return res
@@ -683,7 +708,7 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 		return res
 	}
 	var cerr error
-	res.CheckOut, cerr = runCheck(ctx, t, dir, outPath)
+	res.CheckOut, cerr = runCheck(ctx, t, dir, outPath, hiddenGate)
 	if cerr != nil {
 		res.Reason = "check failed: " + cerr.Error()
 		if res.CheckOut != "" {

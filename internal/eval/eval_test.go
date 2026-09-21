@@ -59,7 +59,7 @@ func TestLoadFilterAndRun(t *testing.T) {
 	tasks[3].MaxToolCalls = 1
 	tasks[3].Check = "false"
 	var seed string
-	r := &Runner{Jobs: 2, NewAgent: func(root string) (*agent.Agent, error) {
+	r := &Runner{Jobs: 2, NewAgent: func(root, _ string) (*agent.Agent, error) {
 		if b, err := os.ReadFile(filepath.Join(root, "sub", "x.txt")); err == nil {
 			seed = string(b)
 		}
@@ -105,7 +105,7 @@ func TestRunnerOverridesForBenchmarks(t *testing.T) {
 		t.Fatal(err)
 	}
 	tasks[0].MaxToolCalls = 1
-	newAgent := func(root string) (*agent.Agent, error) {
+	newAgent := func(root, _ string) (*agent.Agent, error) {
 		return &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m"}, nil
 	}
 	if rs := (&Runner{NewAgent: newAgent, IgnoreToolLimit: true, Timeout: time.Minute}).Run(context.Background(), tasks); !rs[0].Passed {
@@ -119,7 +119,7 @@ func TestRunnerOverridesForBenchmarks(t *testing.T) {
 
 func TestRepeatedRunsAndSummary(t *testing.T) {
 	calls := 0
-	r := &Runner{Runs: 3, NewAgent: func(root string) (*agent.Agent, error) {
+	r := &Runner{Runs: 3, NewAgent: func(root, _ string) (*agent.Agent, error) {
 		calls++
 		return &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Price: &llm.Price{Input: 1, Output: 2}}, nil
 	}}
@@ -206,7 +206,7 @@ func TestLoadRejectsBadTasks(t *testing.T) {
 }
 
 func TestRunFailsWhenModelErrors(t *testing.T) {
-	r := &Runner{NewAgent: func(root string) (*agent.Agent, error) {
+	r := &Runner{NewAgent: func(root, _ string) (*agent.Agent, error) {
 		return &agent.Agent{Provider: &scripted{fail: true}, Tools: tool.NewRegistry(), Model: "m"}, nil
 	}}
 	res := r.Run(context.Background(), []Task{{Name: "t", Prompt: "p", Check: "test -f hello.txt"}})
@@ -237,7 +237,7 @@ func TestFoldCompaction(t *testing.T) {
 }
 
 func TestSessionTaskSendsPromptsInTurn(t *testing.T) {
-	r := &Runner{NewAgent: func(root string) (*agent.Agent, error) {
+	r := &Runner{NewAgent: func(root, _ string) (*agent.Agent, error) {
 		return &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: &session.Memory{}}, nil
 	}}
 	task := Task{Name: "s", Prompts: []string{"write hello", "now say 42"}, Check: `grep -q "hello world" hello.txt && grep -q 42 "$EVAL_OUTPUT"`}

@@ -46,7 +46,7 @@ func (l *lockedBuffer) String() string {
 // and how many tool calls it has made.
 func TestRunnerReportsStartAndProgress(t *testing.T) {
 	var log lockedBuffer
-	r := &Runner{Log: &log, ProgressEvery: 20 * time.Millisecond, NewAgent: func(root string) (*agent.Agent, error) {
+	r := &Runner{Log: &log, ProgressEvery: 20 * time.Millisecond, NewAgent: func(root, _ string) (*agent.Agent, error) {
 		return &agent.Agent{Provider: &slowScripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m"}, nil
 	}}
 	r.Run(context.Background(), []Task{{Name: "slow", Prompt: "p", Check: "true"}})

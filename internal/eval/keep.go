@@ -430,7 +430,12 @@ func CheckAtBase(ctx context.Context, t Task) (bool, error) {
 	if err := os.WriteFile(outPath, nil, 0o644); err != nil {
 		return false, err
 	}
-	if _, err := runCheck(ctx, t, dir, outPath); err != nil {
+	hiddenGate, hiddenCleanup, err := prepareHidden(t)
+	if err != nil {
+		return false, err
+	}
+	defer hiddenCleanup()
+	if _, err := runCheck(ctx, t, dir, outPath, hiddenGate); err != nil {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}

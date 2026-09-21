@@ -17,7 +17,7 @@ import (
 // was never set up, failing later for a reason with nothing to do with it.
 func TestSetupReportsAFileItCouldNotWrite(t *testing.T) {
 	r := &Runner{
-		NewAgent: func(string) (*agent.Agent, error) {
+		NewAgent: func(string, string) (*agent.Agent, error) {
 			t.Error("the run started even though setup failed")
 			return nil, errors.New("no agent in this test")
 		},
@@ -40,7 +40,7 @@ func TestSetupReportsAFileItCouldNotWrite(t *testing.T) {
 // A task whose agent panics must fail that task, not the whole run: the
 // other tasks are already queued and several may have passed.
 func TestAPanickingTaskFailsOnlyItself(t *testing.T) {
-	r := &Runner{NewAgent: func(string) (*agent.Agent, error) { panic("boom") }}
+	r := &Runner{NewAgent: func(string, string) (*agent.Agent, error) { panic("boom") }}
 	results := r.Run(context.Background(), []Task{
 		{Name: "panics", Prompt: "p", Check: "true"},
 		{Name: "second", Prompt: "p", Check: "true"},
@@ -64,7 +64,7 @@ func TestCancelledRunDoesNotStartQueuedTasks(t *testing.T) {
 	var started atomic.Int64
 	r := &Runner{
 		Jobs: 1,
-		NewAgent: func(string) (*agent.Agent, error) {
+		NewAgent: func(string, string) (*agent.Agent, error) {
 			started.Add(1)
 			return nil, errors.New("no agent in this test")
 		},

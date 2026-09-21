@@ -6,6 +6,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -25,11 +26,15 @@ const evalGateTimeout = 120
 // was recorded without one: a gate changes tool counts, pass rates and
 // cost on every task, so turning it on by default would silently
 // invalidate the baselines.
-func evalVerifyRunner(root string) *verify.Runner {
+// hiddenGate, when set, is the held-out acceptance gate for this run: it
+// is appended as the last command, under a display label, so the failure
+// the model reads names the failing tests and never the script that ran
+// them (see internal/eval/hidden.go and verify.Runner.Display).
+func evalVerifyRunner(root, hiddenGate string) *verify.Runner {
 	cfg, _, err := verify.Load(root)
 	if err != nil || len(cfg.Commands) == 0 {
 		cmds := evalProjectChecks(root)
-		if len(cmds) == 0 {
+		if len(cmds) == 0 && hiddenGate == "" {
 			return nil
 		}
 		cfg = verify.Config{Commands: cmds, Timeout: evalGateTimeout}
@@ -37,9 +42,15 @@ func evalVerifyRunner(root string) *verify.Runner {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = evalGateTimeout
 	}
+	var display map[string]string
+	if hiddenGate != "" {
+		command := eval.HiddenGateCommand(hiddenGate, root)
+		cfg.Commands = append(cfg.Commands, command)
+		display = map[string]string{command: eval.HiddenGateLabel}
+	}
 	// No Mutate: mutation testing is a second experiment and would
 	// dominate the wall time of a task that takes a minute to run.
-	return &verify.Runner{Config: cfg, Cwd: root}
+	return &verify.Runner{Config: cfg, Cwd: root, Display: display}
 }
 
 // evalProjectChecks reads the work directory's project type and returns
@@ -61,8 +72,8 @@ func evalProjectChecks(root string) []string {
 // "verification" step and stepDecisions. Decisions follow the config and
 // --eval-off exactly as a session does, so an arm with decisions off is
 // a gate-only run and the pair differs in one thing.
-func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[string]bool) {
-	if r := evalVerifyRunner(root); r != nil {
+func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[string]bool, hiddenGate string) {
+	if r := evalVerifyRunner(root, hiddenGate); r != nil {
 		ag.SetVerify(r, false)
 	}
 	// The stale-check nudge is deterministic and costs no model call, but

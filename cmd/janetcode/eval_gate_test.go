@@ -38,7 +38,7 @@ func TestEvalProjectChecksFollowTheWorkDir(t *testing.T) {
 	if got := evalProjectChecks(t.TempDir()); got != nil {
 		t.Fatalf("unknown project checks = %v, want none", got)
 	}
-	if r := evalVerifyRunner(t.TempDir()); r != nil {
+	if r := evalVerifyRunner(t.TempDir(), ""); r != nil {
 		t.Fatal("a directory with no project type got a gate")
 	}
 }
@@ -57,7 +57,7 @@ func TestEvalVerifyRunnerPrefersTheTaskFile(t *testing.T) {
 		[]byte(`{"commands":["make check"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r := evalVerifyRunner(dir)
+	r := evalVerifyRunner(dir, "")
 	if r == nil || len(r.Config.Commands) != 1 || r.Config.Commands[0] != "make check" {
 		t.Fatalf("runner = %+v", r)
 	}
@@ -89,7 +89,7 @@ func TestWireEvalGateOnAndDecisionsOff(t *testing.T) {
 	}
 	cfg := evalGateTestConfig(t, "k")
 	ag := evalTestAgent(t, dir, cfg)
-	wireEvalGate(ag, dir, cfg, nil)
+	wireEvalGate(ag, dir, cfg, nil, "")
 	gate, _ := ag.VerifyGate()
 	if !gate.Enabled() {
 		t.Fatal("no verify gate after --eval-gate")
@@ -102,7 +102,7 @@ func TestWireEvalGateOnAndDecisionsOff(t *testing.T) {
 	}
 
 	off := evalTestAgent(t, dir, cfg)
-	wireEvalGate(off, dir, cfg, map[string]bool{"decisions": true})
+	wireEvalGate(off, dir, cfg, map[string]bool{"decisions": true}, "")
 	gate, _ = off.VerifyGate()
 	if !gate.Enabled() {
 		t.Fatal("--eval-off decisions must keep the gate: that is the control arm")
@@ -137,7 +137,7 @@ func TestWireEvalGateWithoutAKeyWiresNoProvider(t *testing.T) {
 	}
 	cfg := evalGateTestConfig(t, "")
 	ag := evalTestAgent(t, dir, cfg)
-	wireEvalGate(ag, dir, cfg, nil)
+	wireEvalGate(ag, dir, cfg, nil, "")
 	if gate, _ := ag.VerifyGate(); !gate.Enabled() {
 		t.Fatal("the gate is independent of the key")
 	}
@@ -185,7 +185,7 @@ func TestEvalGateFailureReachesTriage(t *testing.T) {
 	}
 	ag.AutoApprove = true
 	ag.Log = &session.Memory{}
-	wireEvalGate(ag, dir, cfg, nil)
+	wireEvalGate(ag, dir, cfg, nil, "")
 	fd := &fakeEvalDecisions{}
 	ag.Decisions = fd // the same field wireEvalGate set, with no network behind it
 	var notices []string

@@ -133,7 +133,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	// uses (see cmd/janetcode/provider.go), so an eval run measures the
 	// feature exactly as a session would use it.
 	pool := newProviderPool(cfg, prov)
-	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root string) (*agent.Agent, error) {
+	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root, hiddenGate string) (*agent.Agent, error) {
 		// The eval agent carries the tools a real session does, minus the
 		// ones that need a terminal or the network. A benchmark run
 		// against a smaller agent measures something nobody uses.
@@ -146,7 +146,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		ag.Route = pool.For
 		ag.RouteCheap = o.route
 		if o.gate {
-			wireEvalGate(ag, root, cfg, off)
+			wireEvalGate(ag, root, cfg, off, hiddenGate)
 		}
 		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
 		return ag, nil
