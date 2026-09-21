@@ -53,6 +53,7 @@ type options struct {
 	evalTimeout  time.Duration
 	evalTurns    int
 	evalNoLimit  bool
+	evalGate     bool
 	inspectWhat  string
 	wtBranch     string
 	acpMode      bool
@@ -150,6 +151,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.StringVar(&o.evalTrain, "eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
 	fs.DurationVar(&o.evalTimeout, "eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
 	fs.IntVar(&o.evalTurns, "eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
+	fs.BoolVar(&o.evalGate, "eval-gate", false, "run eval tasks under a verification gate: the work directory's .janetcode/verify.json, or the checks for its project type, run after a turn that changed something, and the configured decision provider (config \"decisions\", off with --eval-off decisions) may triage a failure. Off by default: a gate changes tool counts, pass rates and cost, so every baseline in this repository was recorded without one")
 	fs.BoolVar(&o.evalNoLimit, "eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
 	fs.StringVar(&o.inspectWhat, "inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; `list` names them all")
 	fs.StringVar(&o.wtBranch, "worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")

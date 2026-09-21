@@ -1,0 +1,75 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/verify"
+)
+
+// evalGateTimeout bounds one verify command inside an eval run. Eval
+// tasks are small; a check that runs longer than this has hung, and the
+// task's own wall budget is what the run is measured against.
+const evalGateTimeout = 120
+
+// evalVerifyRunner is the verification gate an eval task runs under when
+// --eval-gate is given, or nil when nothing can be derived. A task that
+// ships its own .janetcode/verify.json wins — it is part of the fixture,
+// so it needs no trust prompt — and otherwise the commands come from the
+// project type of the work directory, which is what a real project's
+// verify.json almost always says for these languages.
+//
+// The gate is opt-in because every existing benchmark in this repository
+// was recorded without one: a gate changes tool counts, pass rates and
+// cost on every task, so turning it on by default would silently
+// invalidate the baselines.
+func evalVerifyRunner(root string) *verify.Runner {
+	cfg, _, err := verify.Load(root)
+	if err != nil || len(cfg.Commands) == 0 {
+		cmds := evalProjectChecks(root)
+		if len(cmds) == 0 {
+			return nil
+		}
+		cfg = verify.Config{Commands: cmds, Timeout: evalGateTimeout}
+	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = evalGateTimeout
+	}
+	// No Mutate: mutation testing is a second experiment and would
+	// dominate the wall time of a task that takes a minute to run.
+	return &verify.Runner{Config: cfg, Cwd: root}
+}
+
+// evalProjectChecks reads the work directory's project type and returns
+// the checks for it. Unknown project types get no gate rather than a
+// guessed command: a gate that fails for its own reasons would feed the
+// model noise and count as a repair round.
+func evalProjectChecks(root string) []string {
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
+		return []string{"go build ./...", "go test ./..."}
+	}
+	if py, _ := filepath.Glob(filepath.Join(root, "*.py")); len(py) > 0 {
+		return []string{"python3 -m compileall -q ."}
+	}
+	return nil
+}
+
+// wireEvalGate puts the verify gate and the decision provider on an eval
+// agent, the same two things a real session gets from cd.go's
+// "verification" step and stepDecisions. Decisions follow the config and
+// --eval-off exactly as a session does, so an arm with decisions off is
+// a gate-only run and the pair differs in one thing.
+func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[string]bool) {
+	if r := evalVerifyRunner(root); r != nil {
+		ag.SetVerify(r, false)
+	}
+	cl, _ := decisionsClient(cfg, off)
+	if cl == nil {
+		return
+	}
+	ag.Decisions = cl
+	ag.DecisionsTriage = cfg.Decisions.Triage
+	ag.DecisionsIntake = cfg.Decisions.Intake
+}

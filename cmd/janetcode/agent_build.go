@@ -570,16 +570,35 @@ func (b *agentBuilder) stepTurnHooks() error {
 // client is advisory by contract and nothing here can fail the build: a
 // missing key is a note on stderr and a session without the feature.
 func (b *agentBuilder) stepDecisions() error {
-	d := b.d.cfg.Decisions
-	if d == nil || b.off["decisions"] {
+	cl, keyless := decisionsClient(b.d.cfg, b.off)
+	if keyless {
+		fmt.Fprintf(os.Stderr, "decisions: configured but %s is empty; off for this session\n", b.d.cfg.Decisions.KeyEnv())
+	}
+	if cl == nil {
 		return nil
+	}
+	b.ag.Decisions = cl
+	b.ag.DecisionsTriage = b.d.cfg.Decisions.Triage
+	b.ag.DecisionsIntake = b.d.cfg.Decisions.Intake
+	return nil
+}
+
+// decisionsClient composes the Jev client from the config's "decisions"
+// block, or returns nil when the block is absent, --off names
+// "decisions", or the key environment variable is empty (keyless is
+// true only in that last case, so the caller can say so once). It is the
+// single composition point: a real session and an eval run under
+// --eval-gate wire the identical client, including the scrubber.
+func decisionsClient(cfg *config.Config, off map[string]bool) (client *jev.Client, keyless bool) {
+	d := cfg.Decisions
+	if d == nil || off["decisions"] {
+		return nil, false
 	}
 	key := os.Getenv(d.KeyEnv())
 	if key == "" {
-		fmt.Fprintf(os.Stderr, "decisions: configured but %s is empty; off for this session\n", d.KeyEnv())
-		return nil
+		return nil, true
 	}
-	b.ag.Decisions = &jev.Client{
+	return &jev.Client{
 		BaseURL: d.BaseURL,
 		Key:     key,
 		Model:   d.Model,
@@ -591,10 +610,7 @@ func (b *agentBuilder) stepDecisions() error {
 			out, _ := memory.RedactSecrets(s)
 			return out
 		},
-	}
-	b.ag.DecisionsTriage = d.Triage
-	b.ag.DecisionsIntake = d.Intake
-	return nil
+	}, false
 }
 
 // stepUndo opens the session's undo ledger and the snapshot store behind

@@ -47,6 +47,10 @@ type evalOptions struct {
 	facts                      int
 	factsBlind                 bool
 	compare, off, route, label string
+	// gate turns on the verification gate and the decision provider for
+	// the eval agent (--eval-gate). Off by default so a run without it is
+	// byte-identical to every run recorded before it existed.
+	gate bool
 	// prompt records a replaced or extended system prompt, so an A/B of
 	// the prompt itself can be told apart in the results file.
 	prompt prompt.Override
@@ -141,6 +145,9 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		ag.CompactAt = compactAt
 		ag.Route = pool.For
 		ag.RouteCheap = o.route
+		if o.gate {
+			wireEvalGate(ag, root, cfg, off)
+		}
 		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
 		return ag, nil
 	}}

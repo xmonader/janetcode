@@ -335,6 +335,7 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-timeout <seconds>` | replace every task's own timeout, so a benchmark gives each harness the same wall budget |
 | `--eval-max-turns <n>` | cap the model calls one task may spend (`--max-turns` is the same cap for a real run) |
 | `--eval-no-tool-limit` | ignore each task's `max_tool_calls`, for comparing against harnesses that enforce no tool budget |
+| `--eval-gate` | run tasks under a verification gate (the work directory's `.janetcode/verify.json`, else the checks for its project type) and wire the configured decision provider, so failure triage can be measured. Off by default: a gate changes tool counts, pass rates and cost, so results recorded without it are not comparable with results recorded under it |
 | `--eval-compact-at <tokens>` | compact earlier than the default, to force compaction on tasks that would not otherwise reach it |
 | `--eval-facts <n>` | after each run that compacted, probe up to n facts mined from what compaction removed and record how many the model still recalls |
 | `--eval-facts-blind` | probe without `expand_output`: what the compacted context alone retains |
