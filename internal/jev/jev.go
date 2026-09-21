@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -170,6 +171,53 @@ type wireResponse struct {
 		InputTokens  int `json:"input_tokens"`
 		OutputTokens int `json:"output_tokens"`
 	} `json:"usage"`
+}
+
+// StatusError is a non-200 answer from the decisions endpoint. Every
+// error is still soft by contract — the live path treats it as "no
+// opinion" and never retries — but the offline replay needs to tell a
+// rate limit from a bad request, so the status and any Retry-After the
+// server sent travel with the message instead of being formatted away.
+type StatusError struct {
+	StatusCode int
+	Message    string
+	// RetryAfter is the server's Retry-After header, parsed from
+	// either seconds or an HTTP date, and zero when absent or
+	// unparseable.
+	RetryAfter time.Duration
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("decisions %d: %s", e.StatusCode, e.Message)
+}
+
+// Retryable reports whether the same request could plausibly succeed
+// later: a rate limit or a server-side failure, never a 4xx the
+// request itself earned.
+func (e *StatusError) Retryable() bool {
+	return e.StatusCode == http.StatusTooManyRequests || e.StatusCode >= 500
+}
+
+// parseRetryAfter reads the header in both forms the spec allows:
+// delay-seconds and an HTTP date. Anything else, or a date in the
+// past, is no delay at all.
+func parseRetryAfter(h string, now time.Time) time.Duration {
+	h = strings.TrimSpace(h)
+	if h == "" {
+		return 0
+	}
+	if secs, err := strconv.ParseFloat(h, 64); err == nil {
+		if secs <= 0 {
+			return 0
+		}
+		return time.Duration(secs * float64(time.Second))
+	}
+	if t, err := http.ParseTime(h); err == nil {
+		if d := t.Sub(now); d > 0 {
+			return d
+		}
+	}
+	return 0
 }
 
 type wireError struct {
@@ -360,7 +408,8 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 				msg = we.Error.Message
 			}
 		}
-		err := fmt.Errorf("decisions %d: %s", resp.StatusCode, msg)
+		err := &StatusError{StatusCode: resp.StatusCode, Message: msg,
+			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())}
 		c.record(d, err)
 		return nil, err
 	}

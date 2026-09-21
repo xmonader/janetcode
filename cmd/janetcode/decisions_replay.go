@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -64,6 +65,74 @@ func decisionsReplayMode(ctx context.Context, path string) error {
 		client = &jev.Client{Key: key, Model: "~typesafe/jev-latest", Timeout: jev.MaxTimeout}
 	}
 	return runDecisionsReplay(ctx, path, client)
+}
+
+// Retries live here, in the replay driver, and nowhere else: the live
+// gate deliberately never retries (a retried decision is a late
+// decision), but calibration has the opposite trade-off — a 429 that
+// becomes an error row is a row that silently does not count, which
+// deflates the accuracy the spec gate is read from.
+const (
+	replayMaxAttempts = 4
+	replayBackoffBase = 500 * time.Millisecond
+	replayBackoffMax  = 8 * time.Second
+	replayCallTimeout = 20 * time.Second
+)
+
+// evaluateRetrying answers one labeled state, retrying a rate limit or
+// a 5xx with capped exponential backoff and honouring Retry-After when
+// the server sends one. Anything else — a bad request, a malformed
+// body, the circuit opening — comes back on the first attempt. sleep is
+// injected so the tests do not wait.
+func evaluateRetrying(ctx context.Context, j *jev.Client, state string, qs []jev.Question,
+	sleep func(context.Context, time.Duration) error) (*jev.Result, error) {
+	for attempt := 1; ; attempt++ {
+		callCtx, cancel := context.WithTimeout(ctx, replayCallTimeout)
+		res, err := j.Evaluate(callCtx, state, qs)
+		cancel()
+		if err == nil {
+			return res, nil
+		}
+		var se *jev.StatusError
+		if !errors.As(err, &se) || !se.Retryable() || attempt >= replayMaxAttempts {
+			return nil, err
+		}
+		// The client's own circuit opens after three consecutive
+		// errors and then refuses locally, so a further attempt would
+		// only report the circuit instead of the failure that opened
+		// it. Stop on the real error.
+		if !j.Available() {
+			return nil, err
+		}
+		if serr := sleep(ctx, replayBackoff(se.RetryAfter, attempt)); serr != nil {
+			return nil, serr
+		}
+	}
+}
+
+// replayBackoff prefers the server's own Retry-After and otherwise
+// doubles from the base, capped either way.
+func replayBackoff(retryAfter time.Duration, attempt int) time.Duration {
+	d := retryAfter
+	if d <= 0 {
+		d = replayBackoffBase << (attempt - 1)
+	}
+	if d > replayBackoffMax {
+		d = replayBackoffMax
+	}
+	return d
+}
+
+// sleepCtx waits, or returns as soon as the run is cancelled.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 type replayRow struct {
@@ -113,10 +182,9 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 	questions := agent.TriageQuestions()
 	tallies := map[string]*classTally{}
 	var rows []string
+	errorRows := 0
 	for _, c := range cases {
-		ctx2, cancel := context.WithTimeout(ctx, 20*time.Second)
-		res, err := j.Evaluate(ctx2, c.State, questions)
-		cancel()
+		res, err := evaluateRetrying(ctx, j, c.State, questions, sleepCtx)
 		t := tallies[c.Truth]
 		if t == nil {
 			t = &classTally{}
@@ -125,6 +193,7 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 		t.n++
 		row := replayRow{Name: c.Name, Truth: c.Truth}
 		if err != nil {
+			errorRows++
 			row.Model = "error: " + err.Error()
 			rows = append(rows, mustJSONForReplay(row))
 			fmt.Printf("%-38s %.40s  ERROR: %v\n", c.Name, c.Truth, err)
@@ -171,6 +240,13 @@ func runDecisionsReplay(ctx context.Context, path string, j *jev.Client) error {
 	pct := 100 * correctAll / maxInt(1, len(cases))
 	fmt.Printf("overall: %d/%d correct (%d%%), %d costly wrong skips (spec gate: >=70%% correct, no costly skip on patch_caused)\n",
 		correctAll, len(cases), pct, costlyAll)
+	// An error row counts as incorrect in that denominator, so a run
+	// that lost rows to the service must not read as a run the mapping
+	// did badly on.
+	if errorRows > 0 {
+		fmt.Printf("degraded: %d/%d rows ended in error after %d attempts each and count as incorrect above\n",
+			errorRows, len(cases), replayMaxAttempts)
+	}
 	fmt.Println("rows: " + dst)
 	return nil
 }

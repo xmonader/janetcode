@@ -3,6 +3,7 @@ package jev
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -146,6 +147,54 @@ func TestEvaluateSoftErrors(t *testing.T) {
 	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0"}
 	if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err == nil || !strings.Contains(err.Error(), "over capacity") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// A non-200 carries its status and Retry-After to the caller so the
+// offline replay can tell a rate limit from a bad request. The message
+// is unchanged, and so is the soft-error contract.
+func TestStatusErrorCarriesStatusAndRetryAfter(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "2")
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte(`{"error":{"message":"slow down"}}`))
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0"}
+	_, err := c.Evaluate(context.Background(), "s", testQuestions())
+	var se *StatusError
+	if !errors.As(err, &se) {
+		t.Fatalf("err = %v (%T), want *StatusError", err, err)
+	}
+	if se.StatusCode != 429 || se.Message != "slow down" || se.RetryAfter != 2*time.Second {
+		t.Fatalf("status error = %+v", se)
+	}
+	if !se.Retryable() {
+		t.Fatal("429 is not retryable")
+	}
+	if se.Error() != "decisions 429: slow down" {
+		t.Fatalf("message = %q", se.Error())
+	}
+	if (&StatusError{StatusCode: 400}).Retryable() || !(&StatusError{StatusCode: 503}).Retryable() {
+		t.Fatal("retryable classification is wrong")
+	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	cases := map[string]time.Duration{
+		"":                              0,
+		"3":                             3 * time.Second,
+		"0":                             0,
+		"-5":                            0,
+		"nonsense":                      0,
+		"Mon, 21 Sep 2026 12:00:30 GMT": 30 * time.Second,
+		"Mon, 21 Sep 2026 11:59:00 GMT": 0, // already past
+	}
+	for h, want := range cases {
+		if got := parseRetryAfter(h, now); got != want {
+			t.Errorf("parseRetryAfter(%q) = %v, want %v", h, got, want)
+		}
 	}
 }
 
