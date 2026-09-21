@@ -1696,3 +1696,51 @@ time — and wall time is what a cold cache at every escalation spends.
 **Status: scoped, not built.** The next step, if revisited, is the
 cross-provider context ceiling and its cache cost, measured on its own,
 before any decision consumer is written. Nothing shipped, no flag.
+
+## 2026-09-21 — Item 1: context pre-selection, and why the eval set cannot judge it
+
+The consumer: one Jev call at turn start, concurrent with the intake
+request, a noul per candidate file from the deterministic repo-map ranker's
+top N ("is this file needed to fulfil the request?"), and the top-k injected
+as **pointers** — path plus a reason — not contents.
+
+Step 0 gives the ceiling: exploration is 24% of model calls on both models,
+but a turn-start injection can only reach the part that happens before the
+model commits to an edit, and that is 3.9 calls of 27.7 on qwen (14%) and
+5.2 of 51.0 on devstral (10%). Some of those calls are the model reading the
+file it is about to change, which is the work, not waste.
+
+Then the fixtures answer the question before any ranker is scored. Over the
+same eighteen off-arm runs, counting the distinct files each task's runs
+actually read or edited against the fixture's file count:
+
+| task | fixture files | distinct files touched | share of the fixture |
+|---|---:|---:|---:|
+| 71-gated-go-service | 13 | 10-11 | 77-85% |
+| 72-gated-python-ledger | 9 | 7 | 78% |
+| 73-gated-expr-layers | 2 | 5 (creates 3) | the whole thing |
+| 74/75/76-routed | 2-4 | 1-2 | the whole thing |
+
+**A run touches four fifths of its repository.** The correct answer to "is
+this file needed?" is *yes* for almost every candidate, so any ranker — the
+existing deterministic one, a Jev rerank of it, or a coin that always says
+yes — scores near-perfect recall and near-perfect precision, and none of
+them can be told apart. There is no deterministic baseline to beat because
+the baseline is already at the ceiling. That is not a property of the
+ranker; it is a property of a 2-to-13-file fixture.
+
+So the measurement was moved to the one realistically sized fixture this
+repository has, `evals/explore/61-explore-large-repo` — **59 files, and a
+task whose answer is exactly two of them** (a constant in `billing/limits.go`
+and the one file that hard-codes its value, `report/audit.go`). That is the
+regime where pre-selection is worth something: recall of 2 in 59, where
+precision is the costly side.
+
+(Baseline run and its numbers: see the section below.)
+
+**Status at this point: not built, and correctly so.** The evidence gate
+says corpus, then replay, then two scored runs, then beat the deterministic
+baseline. On the gated and routing sets the gate cannot even be reached,
+because the corpus that falls out of them is degenerate. The costly error
+this item was warned about — confidently pointing at the wrong files and
+biasing the model — is unmeasurable on a fixture where every file is right.
