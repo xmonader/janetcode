@@ -213,6 +213,13 @@ func TestHiddenSetIsDiscriminating(t *testing.T) {
 	}
 }
 
+// A control's failure text must not tell the model how to fake the
+// environment. The first version of 98 pointed at 127.0.0.1:59717, and a
+// run read the README, wrote a listener called `indexservice`, bound the
+// port and turned the environmental failure into a pass. The port is now
+// 81: an unprivileged process cannot bind it, so the only way past that
+// step is the one there is meant to be, which is none.
+//
 // TestControlTasksFailTheirGateEnvironmentally: the control tasks exist
 // to give triage a gate failure that is NOT caused by the patch, so that
 // a skip or a veto can be scored in both directions. Their value depends

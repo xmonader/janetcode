@@ -5,8 +5,8 @@
     "go.mod": "module example.com/svclint\n\ngo 1.22\n",
     "slug.go": "// Package slug turns a title into a URL slug.\npackage slug\n\nimport \"strings\"\n\n// Make lowercases s and joins its words with single hyphens.\nfunc Make(s string) string {\n\treturn strings.Join(strings.Fields(strings.ToLower(s)), \"-\")\n}\n",
     "slug_test.go": "package slug\n\nimport \"testing\"\n\nfunc TestMake(t *testing.T) {\n\tif got := Make(\"  Hello   World \"); got != \"hello-world\" {\n\t\tt.Fatalf(\"Make = %q\", got)\n\t}\n}\n",
-    "README.md": "# slug\n\nTurns a title into a URL slug. The project's checks publish the slug\nindex to the local index service on port 59717, which CI starts first.\n",
-    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"go build ./...\",\n    \"go test ./...\",\n    \"(exec 3<>/dev/tcp/127.0.0.1/59717) 2>/dev/null || { echo 'index-publish: dial tcp 127.0.0.1:59717: connect: connection refused'; exit 1; }\"\n  ],\n  \"timeout\": 120\n}\n"
+    "README.md": "# slug\n\nTurns a title into a URL slug. The project's checks publish the slug\nindex to the local index service on port 81, which CI starts first.\n",
+    ".janetcode/verify.json": "{\n  \"commands\": [\n    \"go build ./...\",\n    \"go test ./...\",\n    \"(exec 3<>/dev/tcp/127.0.0.1/81) 2>/dev/null || { echo 'index-publish: dial tcp 127.0.0.1:81: connect: connection refused'; exit 1; }\"\n  ],\n  \"timeout\": 120\n}\n"
   },
   "check": "go test ./... >/dev/null 2>&1 && grep -q 'func Unique' slug.go",
   "timeout": 420,
