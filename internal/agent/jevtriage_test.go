@@ -263,3 +263,45 @@ func TestDecisionLine(t *testing.T) {
 		t.Fatalf("DecisionLine = %q, want %q", got, want)
 	}
 }
+
+// Every class the mapping can act on must be an option the model can
+// pick, and every option must be a class the mapping knows: an option
+// text that drifts out of the Choice, or a skip class with no option,
+// silently turns a calibrated threshold into a default.
+func TestFailureClassOptionsCoverTheMapping(t *testing.T) {
+	var opts map[string]string
+	for _, q := range triageQuestions() {
+		if q.ID == qFailureClass {
+			opts = q.Options
+		}
+	}
+	if opts == nil {
+		t.Fatal("no failure_class question")
+	}
+	for class := range skipClasses {
+		if _, ok := opts[class]; !ok {
+			t.Fatalf("skip class %q is not an option the model can pick", class)
+		}
+	}
+	for _, class := range []string{"patch_caused", "inconclusive"} {
+		if _, ok := opts[class]; !ok {
+			t.Fatalf("%q is not an option", class)
+		}
+	}
+	if len(opts) != len(skipClasses)+2 {
+		t.Fatalf("options = %v; the mapping knows %d skip classes plus patch_caused and inconclusive",
+			opts, len(skipClasses))
+	}
+	// The descriptions are what the replay calibrates against: an empty
+	// or duplicated one is a question that cannot separate its classes.
+	seen := map[string]bool{}
+	for id, desc := range opts {
+		if strings.TrimSpace(desc) == "" {
+			t.Fatalf("option %q has no description", id)
+		}
+		if seen[desc] {
+			t.Fatalf("option %q repeats another option's description", id)
+		}
+		seen[desc] = true
+	}
+}

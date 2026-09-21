@@ -78,11 +78,11 @@ func triageQuestions() []jev.Question {
 		{ID: qFailureClass, Kind: jev.Choice,
 			Instructions: "What kind of verification failure is this?",
 			Options: map[string]string{
-				"patch_caused":  "the change the agent just made broke it",
-				"environmental": "a missing dependency, tool or service the change did not touch",
-				"flaky":         "the same code passed before, or the failure moves between runs",
+				"patch_caused":  "the change the agent just made broke it: the failure names code, files or behaviour the change touched",
+				"environmental": "the machine rather than the code: a dependency, tool, service or runtime that is missing, unreachable or the wrong version",
+				"flaky":         "the failure is not deterministic: it passed on a retry or earlier on this same code, or it comes from timing, a race, a port or another shared resource in the test setup rather than from the code under test",
 				"unrelated":     "a pre-existing failure on a path the change did not touch",
-				"inconclusive":  "the output is not enough to tell",
+				"inconclusive":  "the output is not enough to tell which of the others it is",
 			}},
 	}
 }
