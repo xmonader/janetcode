@@ -1517,6 +1517,13 @@ manufacture significance, it only says honestly how much there is. What it
 adds over nine bits is that the *direction* is now consistent across six
 metrics on both models, which nine bits could never show.
 
+**The instrument agrees with the harness's own counters.** `FoldTrajectory`
+computes `model_calls` and `tool_calls` for every eval result by a
+completely separate path; the profiler, walking the raw event log, arrives
+at the same numbers on both off arms — 249/323 for qwen and 459/488 for
+devstral, exact. Two independent readings of the same log agreeing to the
+call is the cheapest validation available and it was taken.
+
 **Validation against Jev's own labels**: not repeated, because the previous
 section already did it — `--decisions-annotate`'s `wasted` answer agrees
 with these by-construction labels 63% of the time, precision 0.76, recall
