@@ -98,6 +98,7 @@ type wireJSONSchema struct {
 }
 
 type wireChunk struct {
+	Model   string `json:"model"`
 	Choices []struct {
 		Delta struct {
 			Content          string              `json:"content"`

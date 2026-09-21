@@ -28,10 +28,10 @@ func TestRouteLineReportsWhatActuallyRouted(t *testing.T) {
 
 func TestStatsCounterTracksPerModelCallsAndTokens(t *testing.T) {
 	var c statsCounter
-	c.model("main-model", 10*time.Millisecond, llm.Usage{InputTokens: 100, OutputTokens: 20}, false)
-	c.model("main-model", 10*time.Millisecond, llm.Usage{InputTokens: 50, OutputTokens: 10}, false)
-	c.model("cheap-model", 5*time.Millisecond, llm.Usage{InputTokens: 30, OutputTokens: 5}, false)
-	c.model("cheap-model", 5*time.Millisecond, llm.Usage{}, true) // a failed call: no usage to add
+	c.model("main-model", "", 10*time.Millisecond, llm.Usage{InputTokens: 100, OutputTokens: 20}, false)
+	c.model("main-model", "", 10*time.Millisecond, llm.Usage{InputTokens: 50, OutputTokens: 10}, false)
+	c.model("cheap-model", "", 5*time.Millisecond, llm.Usage{InputTokens: 30, OutputTokens: 5}, false)
+	c.model("cheap-model", "", 5*time.Millisecond, llm.Usage{}, true) // a failed call: no usage to add
 	c.routed()
 	c.routed()
 
@@ -62,14 +62,47 @@ func TestStatsCounterTracksPerModelCallsAndTokens(t *testing.T) {
 // is: most calls first, name breaking ties.
 func TestStatsSnapshotSortsModelsByCallsThenName(t *testing.T) {
 	a := &Agent{}
-	a.stats.model("b-model", time.Millisecond, llm.Usage{}, false)
-	a.stats.model("a-model", time.Millisecond, llm.Usage{}, false)
-	a.stats.model("a-model", time.Millisecond, llm.Usage{}, false)
+	a.stats.model("b-model", "", time.Millisecond, llm.Usage{}, false)
+	a.stats.model("a-model", "", time.Millisecond, llm.Usage{}, false)
+	a.stats.model("a-model", "", time.Millisecond, llm.Usage{}, false)
 	st := a.Stats()
 	if len(st.Models) != 2 || st.Models[0].Name != "a-model" || st.Models[0].Calls != 2 {
 		t.Fatalf("Models = %+v", st.Models)
 	}
 	if st.Models[1].Name != "b-model" || st.Models[1].Calls != 1 {
 		t.Fatalf("Models = %+v", st.Models)
+	}
+}
+
+// A gateway is free to answer with a different model than the one asked
+// for, and an escalation that silently lands back on the cheap model is a
+// measurement error. The served name is counted against the asked one.
+func TestStatsRecordsTheModelTheProviderSaidAnswered(t *testing.T) {
+	a := &Agent{}
+	a.stats.model("strong", "strong", time.Millisecond, llm.Usage{}, false)
+	a.stats.model("strong", "cheap", time.Millisecond, llm.Usage{}, false)
+	a.stats.model("plain", "", time.Millisecond, llm.Usage{}, false)
+	st := a.Stats()
+	var strong, plain ModelStat
+	for _, m := range st.Models {
+		switch m.Name {
+		case "strong":
+			strong = m
+		case "plain":
+			plain = m
+		}
+	}
+	if strong.Served["strong"] != 1 || strong.Served["cheap"] != 1 {
+		t.Fatalf("Served = %v", strong.Served)
+	}
+	got, n := strong.ServedElsewhere()
+	if got != "cheap" || n != 1 {
+		t.Fatalf("ServedElsewhere = %q %d", got, n)
+	}
+	if plain.Served != nil {
+		t.Fatalf("a provider that names nothing must record nothing: %v", plain.Served)
+	}
+	if got, n := plain.ServedElsewhere(); got != "" || n != 0 {
+		t.Fatalf("ServedElsewhere on a silent provider = %q %d", got, n)
 	}
 }

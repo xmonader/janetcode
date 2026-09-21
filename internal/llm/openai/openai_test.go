@@ -1238,3 +1238,33 @@ func TestProviderRefusesACrossOriginRedirect(t *testing.T) {
 		t.Fatalf("ListModels leaked the key: %q", gotAuth)
 	}
 }
+
+// A gateway may answer with a model other than the one asked for. The
+// name it reports comes back on the response so the caller can audit an
+// escalation instead of assuming it landed where it aimed.
+func TestStreamCarriesBackTheServedModel(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		chunk string
+		want  string
+	}{
+		{"named", `{"model":"served/other","choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}`, "served/other"},
+		{"silent", `{"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				io.WriteString(w, sse(tc.chunk))
+			})
+			resp, err := p.Stream(context.Background(),
+				llm.Request{Model: "asked/model", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}},
+				func(llm.Event) {})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.Model != tc.want {
+				t.Fatalf("Model = %q, want %q", resp.Model, tc.want)
+			}
+		})
+	}
+}

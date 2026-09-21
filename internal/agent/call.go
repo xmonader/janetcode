@@ -94,7 +94,11 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 			a.lastDecode = d
 		}
 	}
-	a.stats.model(model, took, u, err != nil)
+	served := ""
+	if resp != nil {
+		served = resp.Model
+	}
+	a.stats.model(model, served, took, u, err != nil)
 	a.stats.firstToken(model, a.lastTTFT)
 	if err == nil {
 		a.lastCallModel = model

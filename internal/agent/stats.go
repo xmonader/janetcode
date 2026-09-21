@@ -110,6 +110,25 @@ type ModelStat struct {
 	// queueing, or the answers being long.
 	TTFT  time.Duration
 	Usage llm.Usage
+	// Served counts, per model name the provider said answered, how many
+	// of this model's calls it answered. A gateway may serve something
+	// other than what was asked for, and an escalation that quietly
+	// lands back on the cheap model is a measurement error rather than a
+	// saving -- so the asked name keys the row and the served names are
+	// counted inside it. Empty when the provider named nothing.
+	Served map[string]int
+}
+
+// ServedElsewhere reports the model the provider named for this row when
+// it was not the model asked for, and how many calls went that way. It is
+// the audit line an escalation arm needs: asked X, got Y, N times.
+func (m ModelStat) ServedElsewhere() (string, int) {
+	for got, n := range m.Served {
+		if got != m.Name {
+			return got, n
+		}
+	}
+	return "", 0
 }
 
 // RouteLine is "routed N of M model calls to <cheap>", worded once so
@@ -196,7 +215,7 @@ func (c *statsCounter) turn() {
 // actually answered it (Model, a fallback, or RouteCheap), so the
 // per-model breakdown reflects where the calls really went rather than
 // only the session's nominal model.
-func (c *statsCounter) model(name string, d time.Duration, u llm.Usage, failed bool) {
+func (c *statsCounter) model(name, served string, d time.Duration, u llm.Usage, failed bool) {
 	c.mu.Lock()
 	c.s.ModelCalls++
 	c.s.ModelTime += d
@@ -220,6 +239,12 @@ func (c *statsCounter) model(name string, d time.Duration, u llm.Usage, failed b
 		m.Errors++
 	} else {
 		m.Usage.Add(u)
+	}
+	if served != "" {
+		if m.Served == nil {
+			m.Served = map[string]int{}
+		}
+		m.Served[served]++
 	}
 	c.mu.Unlock()
 }

@@ -352,6 +352,12 @@ type Response struct {
 	Message    Message
 	StopReason StopReason
 	Usage      Usage
+	// Model is the model the provider says answered, when it says so at
+	// all. A gateway is free to serve something other than what was asked
+	// for, and an escalation that silently lands back on the cheap model
+	// is a measurement error, not a saving -- so the served name is
+	// carried back rather than assumed to equal the requested one.
+	Model string
 }
 
 // EventType identifies a streaming event.

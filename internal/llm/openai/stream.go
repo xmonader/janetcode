@@ -221,6 +221,7 @@ type streamState struct {
 	nextSlot int
 	finish   string
 	usage    llm.Usage
+	model    string
 }
 
 func newStreamState(emit func(llm.Event)) *streamState {
@@ -230,6 +231,9 @@ func newStreamState(emit func(llm.Event)) *streamState {
 // add folds one decoded chunk into the state, emitting deltas as they
 // arrive.
 func (s *streamState) add(ch wireChunk) {
+	if ch.Model != "" {
+		s.model = ch.Model
+	}
 	if ch.Usage != nil {
 		s.usage = usageOf(ch.Usage)
 	}
@@ -359,7 +363,7 @@ func (s *streamState) response() (*llm.Response, error) {
 	if len(msg.Blocks) == 0 {
 		msg.Blocks = []llm.Block{{Type: llm.BlockText, Text: ""}}
 	}
-	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, calls > 0), Usage: s.usage}, nil
+	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, calls > 0), Usage: s.usage, Model: s.model}, nil
 }
 
 // stopReason maps finish_reason; a response that called tools stops for
