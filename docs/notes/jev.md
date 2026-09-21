@@ -1397,3 +1397,82 @@ anyone should read it either way. Nothing here justifies flipping these
 flags on by default, and they stay off.
 
 Total live spend this round: ~$1.75 main model, $0.0014 Jev.
+
+## 2026-09-21 — Step 0: where the calls and the input tokens actually go
+
+Before building any context-curation consumer, the harness was asked the
+only question that sizes them: what is a run *spending*? `--session-profile`
+(new, offline, no decisions call at all) reads recorded runs — an
+`--eval-json` result file, a session `.jsonl`, or a directory of either —
+and classifies every tool call as explore / edit / verify / other from the
+log alone. `bash` is judged by its command: `shell.IsCheck` makes it verify,
+a reading head (`ls`, `cat`, `find`, `git status`…) explore, a writing head
+(`mkdir`, `rm`, `gofmt -w`…) edit, anything else other. A model call takes
+the strongest phase of the calls it issued (edit > verify > explore >
+other). `--session-profile-stale N` sets the age, in model calls, past which
+an unreferenced tool result counts as dead weight; the default 6 is the tail
+compaction keeps verbatim.
+
+Input source: the **off arms** of the 2026-09-21 four-arm A/B, `evals/gated`
+71-73, nine runs per model — the cleanest recorded behaviour this repository
+has, with no decisions consumer touching it.
+
+| | qwen3.7-plus | devstral-2512 |
+|---|---:|---:|
+| runs | 9 | 9 |
+| model calls / tool calls | 249 / 323 | 459 / 488 |
+| **compactions** | **0** | **0** |
+| tool calls explore | 121 (37%) | 169 (35%) |
+| tool calls edit | 137 (42%) | 164 (34%) |
+| tool calls verify | 42 (13%) | 57 (12%) |
+| tool calls other | 23 (7%) | 98 (20%) |
+| **model calls explore** | **60 (24%)** | **110 (24%)** |
+| model calls edit | 97 (39%) | 153 (33%) |
+| model calls verify | 40 (16%) | 57 (12%) |
+| model calls other | 52 (21%) | 139 (30%) |
+| **mean model calls before the first edit** | **3.9 of 27.7 (14%)** | **5.2 of 51.0 (10%)** |
+| input at the first call / at the last | 4,711 / 21,426 | 4,552 / 26,525 |
+| input growth per call | 569 tok | 428 tok |
+| input tokens (fresh + cache read) | 4.03M | 8.18M |
+| of that, tool output carried forward | 1.43M (36%) | 2.99M (36%) |
+| **stale: >6 calls old, never referenced again** | **310k (7.7% of input, 22% of tool output)** | **596k (7.3% of input, 20% of tool output)** |
+| tool results never referenced again | 176 / 323 (54%) | 267 / 488 (55%) |
+
+"Never referenced again" is by construction, the same notion `prune.go`'s
+`lastReference` uses: the call's subject (path, pattern or command) is never
+touched by a later call, *and* no line of its output over 24 characters is
+quoted in any later assistant text. Tool-output tokens are estimated at four
+bytes per token — provider usage numbers price a whole request, not one
+block — and a result is charged once for every later model call that still
+carried it, which is what the provider actually re-reads.
+
+### The ceilings these set
+
+- **Item 1 (context pre-selection): 24% of model calls, and realistically
+  10-14%.** Exploration is a quarter of model calls on both models, but a
+  turn-start injection can only reach the exploration that happens *before*
+  the model commits to an edit — 3.9 calls on qwen, 5.2 on devstral, 10-14%
+  of a run. And some of those are the model reading the file it is about to
+  change, which is necessary work, not waste. So the honest ceiling is a
+  single-digit percentage of model calls, not a quarter.
+- **Item 2 (memory / skill / tool-set recall): not sized here** — see its own
+  section; the recall paths are already deterministic and capped.
+- **Item 3 (compaction-time pruning): zero on this evidence.** 7.3-7.7% of
+  input tokens *is* dead weight, and that is a real number — but item 3 is
+  allowed to act only at the compaction boundary, and **these eighteen runs
+  compacted zero times**. Peak context is ~26k against a `compact_at` of
+  80,000. A consumer that only fires at a boundary nothing reaches saves
+  exactly nothing, whatever its accuracy. Recorded as a negative result
+  below; no live consumer built.
+
+Commands:
+
+    janetcode --session-profile <arm>.json
+    janetcode --session-profile ~/.local/share/janetcode/sessions
+    janetcode --session-profile <dir> --session-profile-stale 12
+
+Caveat: the gated set's fixtures are 2-13 files. A profile taken on a
+realistically sized repository would move the exploration share up and the
+before-first-edit count up with it; these numbers are the ceiling *for the
+tasks the A/B actually runs*, which is also the ceiling for any A/B run on
+that set.

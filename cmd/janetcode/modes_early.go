@@ -47,6 +47,8 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		}
 	case o.listSess:
 		return true, printSessions()
+	case o.sessionProfile != "":
+		return true, sessionProfileMode(os.Stdout, o.sessionProfile, o.sessionProfileStale)
 	case o.decisionsReplay != "":
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -88,6 +90,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{o.decisionsReplay != "" && o.promptText != "", "--decisions-replay is a calibration run, not a session; drop -p"},
 		{o.decisionsAnnotate != "" && o.promptText != "", "--decisions-annotate is an offline labelling run, not a session; drop -p"},
 		{o.decisionsAnnotate != "" && o.decisionsReplay != "", "--decisions-annotate and --decisions-replay are separate runs"},
+		{o.sessionProfile != "" && o.promptText != "", "--session-profile reads recorded runs, it does not start one; drop -p"},
 		{o.doctorFix && !o.runDoctor, "--fix is --doctor's: run janetcode --doctor --fix"},
 		{format != headless.FormatText && o.promptText == "" && o.watchCmd == "", "--output-format applies to a headless run (-p)"},
 		{o.watchCmd != "" && o.until != "", "--watch and --until cannot be combined"},

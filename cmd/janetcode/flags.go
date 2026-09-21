@@ -79,13 +79,17 @@ type options struct {
 	// decisionsAnnotateOut is where the two output files land.
 	decisionsAnnotate    string
 	decisionsAnnotateOut string
-	doctorFix            bool
-	runProof             bool
-	recipeName           string
-	themeFlag            string
-	web                  bool
-	webAddr              string
-	bg                   bool
+	// sessionProfile is the offline call/token profiler: where a recorded
+	// run's calls and input tokens went, with no decisions call at all.
+	sessionProfile      string
+	sessionProfileStale int
+	doctorFix           bool
+	runProof            bool
+	recipeName          string
+	themeFlag           string
+	web                 bool
+	webAddr             string
+	bg                  bool
 	// addDir collects --add-dir, which is repeatable.
 	addDir stringList
 }
@@ -177,6 +181,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.BoolVar(&o.doctorFix, "fix", false, "with --doctor: carry out the safe repairs it lists (a misspelled config key, a missing config directory, an untrusted .janetcode/verify.json, an expired MCP login that cannot refresh, a directory of ours the owner cannot read) and print each change; anything needing judgement is still only reported")
 	fs.StringVar(&o.decisionsAnnotate, "decisions-annotate", "", "label recorded sessions offline with the decisions model (a session .jsonl or a directory of them) and exit")
 	fs.StringVar(&o.decisionsAnnotateOut, "decisions-annotate-out", "", "directory for --decisions-annotate's annotations.jsonl and critic-train.json (default: the working directory)")
+	fs.StringVar(&o.sessionProfile, "session-profile", "", "classify the calls of recorded runs offline (an --eval-json result file, a session .jsonl, or a directory of either) as explore/edit/verify/other, report input-token growth and the share of context that is stale tool output, and exit")
+	fs.IntVar(&o.sessionProfileStale, "session-profile-stale", profileStaleAfter, "with --session-profile: how many model calls old an unreferenced tool result has to be before it counts as stale")
 	fs.StringVar(&o.decisionsReplay, "decisions-replay", "", "calibrate the optional verify-triage decisions model against a labeled state corpus (one JSON per line: name, truth, state) and exit")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	fs.BoolVar(&o.runProof, "proof", false, "print the proof note (see internal/proof) attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed")

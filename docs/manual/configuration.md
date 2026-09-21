@@ -410,6 +410,28 @@ sessions are already over. The rows are model annotations, not ground
 truth — `docs/notes/jev.md` records what they agree with the harness's
 by-construction waste labels about.
 
+### Profiling a recorded run
+
+`janetcode --session-profile <path>` is the offline counterpart with no
+model in it at all. It reads recorded runs — an `--eval-json` result
+file, a session `.jsonl`, or a directory of either — and prints, per
+model: how many calls were exploration, edits, verification or none of
+those; how many model calls came before the first edit; how the input
+grew per call; and how much of the input is tool output older than N
+model calls that nothing ever referenced again. `bash` is classified by
+its command, with `shell.IsCheck` deciding verification.
+
+`--session-profile-stale N` (default 6, the tail compaction keeps
+verbatim) sets that age. "Never referenced again" is by construction and
+means both things: the call's subject — path, pattern or command — is
+never touched by a later call, and no line of its output over 24
+characters is quoted in any later assistant message.
+
+The point of the report is to bound a context-curation change before
+building it: exploration share is the ceiling on what pre-selection can
+save, and the stale share is the ceiling on what pruning could recover.
+`docs/notes/jev.md` records the measured ceilings.
+
 ### Stream watchdog
 
 A streamed model call can stop producing without ever failing: the socket

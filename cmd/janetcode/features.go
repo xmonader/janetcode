@@ -81,6 +81,8 @@ var flagWhen = map[string]string{
 	"doctor":                 "something is not working and you want to know which part",
 	"decisions-replay":       "measuring whether the optional verify-triage decisions model is calibrated before trusting it live",
 	"decisions-annotate":     "labelling recorded sessions offline so the local trajectory critic has failing runs to learn from",
+	"session-profile":        "finding out where a recorded run's calls and input tokens went before trying to cut either",
+	"session-profile-stale":  "tuning how old an untouched tool result has to be before --session-profile calls it dead weight",
 	"decisions-annotate-out": "putting an annotation run's two files somewhere other than the working directory",
 	"init-project":           "a repository janetcode has never seen: it writes the instruction file every session here will read",
 	"fix":                    "the doctor listed repairs you want carried out: the safe, obvious ones only",
