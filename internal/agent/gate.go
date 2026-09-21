@@ -71,6 +71,11 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		a.escalate(fmt.Sprintf("the verification gate failed %d round(s)", g.rounds), emit)
 	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
+	// The second forced consult: the project's own checks have said the
+	// work is wrong, which is the one trigger with a real signal behind
+	// it. It goes in before the feedback so the model reads the failure
+	// last, closest to its next call.
+	a.adviseOnGateFailure(ctx, res.Feedback(), emit)
 	a.appendHarnessText(res.Feedback())
 	return true
 }

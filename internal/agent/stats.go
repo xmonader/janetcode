@@ -66,6 +66,12 @@ type Stats struct {
 	// report "routed N of M model calls to <cheap>" — the number the
 	// feature has to earn its keep against, not a guess.
 	RoutedCalls int
+	// AdvisorConsults counts the consults the harness forced (see
+	// advisorforce.go), not the ones the model asked for with the tool.
+	// An arm that measures a forced advisor needs to know it actually
+	// fired: a feature that is on and never consulted is a null result
+	// about the wiring, not about the advisor.
+	AdvisorConsults int
 	// DecisionCalls counts calls to the optional decision provider
 	// (internal/jev) and DecisionErrors how many failed. DecisionTime is
 	// the wall time they cost, so /stats can price the feature in its
@@ -272,6 +278,13 @@ func (c *statsCounter) routed() {
 	c.mu.Unlock()
 }
 
+// advisorConsult records one consult the harness forced.
+func (c *statsCounter) advisorConsult() {
+	c.mu.Lock()
+	c.s.AdvisorConsults++
+	c.mu.Unlock()
+}
+
 // decision records one call to the decision provider, and whether it
 // errored. The call counts even when it failed: the point is to show
 // how much of the feature's promise the session actually used. cost and
@@ -412,7 +425,7 @@ var switches = map[string]bool{
 	"accept": true, "recipe": true, "proof": true, "impact": true, "routing": true,
 	"protected": true, "ladder": true, "undoabout": true, "mermaid": true,
 	"keeprevert": true, "memoryrank": true, "sleep": true, "decisions": true,
-	"escalate": true,
+	"escalate": true, "advisor": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

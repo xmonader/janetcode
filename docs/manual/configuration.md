@@ -156,6 +156,35 @@ uses the session model. Setting it also activates the `advisor` tool for
 that session. A cheap executor plus a stronger advisor looks like
 `"model": "inception/mercury-2.5"` with that `advisor_model`.
 
+### The forced advisor
+
+`"advisor_mode": "always"` makes the harness buy a consult with
+`advisor_model` at the start of a turn and again the first time the
+verification gate fails, and injects the reply into the executor's
+context as guidance text. The advisor has no tools and does not act.
+
+```json
+{
+  "model": "mistralai/devstral-2512",
+  "advisor_model": "qwen/qwen3.7-plus",
+  "advisor_mode": "always",
+  "advisor_max_consults": 2
+}
+```
+
+The default is `"off"`, which leaves the `advisor` tool exactly as it was:
+available when `advisor_model` is set, and pressed only if the model
+decides to. That distinction is the point. A consult offered as a tool is
+a consult the model declines -- in the mixai measurements the strategies
+that put the panel behind a tool call were never pressed and scored
+identically to the cheap model working alone. So `always` takes the
+choice away from the model.
+
+`advisor_max_consults` caps consults per turn (default 2). Every failure
+path is open: a spent budget, a provider error, a timeout and an empty
+reply all leave the turn exactly as it would have been with the feature
+off. `--eval-off advisor` switches it off for one run.
+
 ### The strong slot and the cascade
 
 `route_cheap`, `model` and `strong_model` are the three model slots a

@@ -168,6 +168,12 @@ type Agent struct {
 	Tools    *tool.Registry
 	System   string
 	Model    string
+	// AdvisorMode is how the harness forces advisor consults:
+	// AdvisorOff (the default) or AdvisorAlways. See advisorforce.go.
+	AdvisorMode string
+	// AdvisorMaxConsults caps forced consults per turn; 0 uses
+	// advisorForcedCap.
+	AdvisorMaxConsults int
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.
@@ -505,6 +511,9 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	}
 	blocks = a.prepareBlocks(ctx, blocks, emit)
 	a.beginTurn(ctx, blocks...)
+	// The first forced consult, after the request is in the history so
+	// the advisor sees the same transcript the executor will.
+	a.adviseAtTurnStart(ctx, firstText(blocks), emit)
 	a.loops.reset()
 	a.turnStart, a.warned = time.Now(), false
 	a.modelRouter.newTurn()

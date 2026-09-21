@@ -63,7 +63,10 @@ type turnMonitor struct {
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
 
-	advisorUses     int32
+	advisorUses int32
+	// advisorForced counts the consults the harness bought this turn, as
+	// opposed to advisorUses, which counts the ones the model asked for.
+	advisorForced   int32
 	compactPrefired bool
 }
 
@@ -111,6 +114,7 @@ func (m *turnMonitor) startTurn() {
 	m.turnUse = llm.Usage{}
 	m.usageMu.Unlock()
 	atomic.StoreInt32(&m.advisorUses, 0)
+	atomic.StoreInt32(&m.advisorForced, 0)
 	m.compactPrefired = false
 }
 

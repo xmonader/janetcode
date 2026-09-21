@@ -184,6 +184,13 @@ type Config struct {
 	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
 	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
 	ComputerUse *bool `json:"computer_use,omitempty"`
+	// AdvisorMode is how the harness forces advisor consults, as opposed
+	// to offering the advisor tool and hoping the model presses it:
+	// "off" (the default) or "always". A consult returns guidance text
+	// injected into the executor's context; the advisor never acts.
+	AdvisorMode string `json:"advisor_mode,omitempty"`
+	// AdvisorMaxConsults caps forced consults per turn. 0 is two.
+	AdvisorMaxConsults int `json:"advisor_max_consults,omitempty"`
 	// StrongModel is the strong slot of the cheap/default/strong trio:
 	// route_cheap names the cheap one, model the default, this one the
 	// model a failing turn escalates to. Empty means there is no tier

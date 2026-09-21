@@ -404,6 +404,8 @@ func (b *agentBuilder) stepCore() error {
 	ag.Root = d.cwd
 	ag.Files = b.files
 	ag.AdvisorModel = d.cfg.AdvisorModel
+	ag.AdvisorMode = d.cfg.AdvisorMode
+	ag.AdvisorMaxConsults = d.cfg.AdvisorMaxConsults
 	ag.StrongModel = d.cfg.StrongModel
 	ag.EscalateAfter = d.cfg.EscalateAfter
 	// Every model the session pays for, not only the one it is set to: a

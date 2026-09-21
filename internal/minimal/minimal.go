@@ -60,6 +60,8 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 	ag.StrongModel = cfg.StrongModel
 	ag.EscalateAfter = cfg.EscalateAfter
 	ag.AdvisorModel = cfg.AdvisorModel
+	ag.AdvisorMode = cfg.AdvisorMode
+	ag.AdvisorMaxConsults = cfg.AdvisorMaxConsults
 	ag.Off = off
 	ag.Archive = archive
 	ag.System = prompt.SystemWith(root, override)
