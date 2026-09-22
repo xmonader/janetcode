@@ -46,6 +46,7 @@
       <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
       <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
     </div>
+    <div class="drag-handle" id="nav-resize" title="Drag to resize · double-click to reset"></div>
   </aside>
 
   <div class="col">
@@ -175,6 +176,7 @@
     </div>
 
     <aside class="preview" id="preview">
+      <div class="drag-handle" id="pv-resize" title="Drag to resize · double-click to reset"></div>
       <div class="pv-bar">
         <input id="pv-url" type="url" placeholder="http://localhost:3000" autocomplete="off" spellcheck="false">
         <button type="button" id="pv-refresh" class="icon-btn" title="Reload">↻</button>
@@ -189,6 +191,7 @@
     </aside>
 
     <aside class="work" id="work">
+      <div class="drag-handle" id="work-resize" title="Drag to resize · double-click to reset"></div>
       <div class="work-tabs" role="tablist">
         <button type="button" role="tab" data-pane="plan" class="on">Plan</button>
         <button type="button" role="tab" data-pane="files">Changed files</button>

@@ -159,6 +159,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 
 /* ---- nav rail --------------------------------------------------------- */
 .nav {
+  position: relative;
   background: var(--sidebar);
   border-right: 0.5px solid var(--line);
   overflow: auto;
@@ -336,7 +337,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   backdrop-filter: saturate(150%) blur(12px);
   -webkit-backdrop-filter: saturate(150%) blur(12px);
   border-bottom: 0.5px solid var(--line);
-  z-index: 10;
+  z-index: 40;
   flex: none;
 }
 .nav-open { display: none; }
@@ -975,7 +976,7 @@ pre.sheetbody {
   left: 50%;
   transform: translateX(-50%);
   width: min(38rem, calc(100% - 12px));
-  z-index: 26;
+  z-index: 45;
   background: var(--surface);
   border: 0.5px solid var(--warn-border);
   border-top: 3px solid var(--warn);
@@ -991,7 +992,7 @@ pre.sheetbody {
   inset: 0;
   background: var(--overlay);
   backdrop-filter: blur(2px);
-  z-index: 25;
+  z-index: 44;
   pointer-events: none;
 }
 .ask p { margin: 0 0 0.6rem; font-weight: 600; font-size: 0.92rem; }
@@ -1380,6 +1381,37 @@ pre.sheetbody {
 .menu-row.on { background: var(--blue-soft); }
 .menu-sub { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
 .menu-empty { padding: 10px; color: var(--faint); font-size: 12px; }
+
+/* drag-to-resize handles on the three panels' inner edges */
+.drag-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 6;
+  touch-action: none;
+}
+.drag-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--blue);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.drag-handle:hover::before { opacity: 0.45; }
+body.resizing { cursor: col-resize; user-select: none !important; }
+body.resizing .shell,
+body.resizing .work,
+body.resizing .preview { transition: none !important; }
+.nav > .drag-handle { right: 0; }
+.nav > .drag-handle::before { right: 3px; }
+.work > .drag-handle, .preview > .drag-handle { left: -4px; }
+.work > .drag-handle::before, .preview > .drag-handle::before { left: 3px; }
 
 /* ---- drawers: work panel + web preview --------------------------------- */
 .work, .preview {
@@ -1844,6 +1876,7 @@ kbd {
 }
 @media (max-width: 960px) {
   .shell, .shell.nav-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .drag-handle { display: none; }
   .nav {
     position: fixed;
     top: 0;

@@ -2372,7 +2372,7 @@
     localStorage.setItem("janetcode-preview-open", open ? "1" : "");
     if (open && pvFrame.hidden && pvUrl.value) pvLoad(pvUrl.value);
   }
-  pvToggle.addEventListener("click", () => pvOpen(pvPane.hidden));
+  pvToggle.addEventListener("click", () => pvOpen(!shell.classList.contains("pv-open")));
   document.getElementById("pv-close").addEventListener("click", () => pvOpen(false));
   pvUrl.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); pvLoad(pvUrl.value); } });
   document.getElementById("pv-refresh").addEventListener("click", () => { if (pvUrl.value) pvLoad(pvUrl.value); });
@@ -2383,6 +2383,62 @@
     pvWidthBtn.classList.toggle("on", narrow);
     localStorage.setItem("janetcode-preview-narrow", narrow ? "1" : "");
   });
+
+  // Drag-to-resize for the three panels: the nav rail widens as the
+  // pointer moves right (dir 1), the right-edge drawers widen as it
+  // moves left (dir -1). Widths persist per browser; double-clicking a
+  // handle resets that panel to its default.
+  function dragResize(handle, dir, getW, setW, min, max, storageKey) {
+    if (!handle) return;
+    handle.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      const startX = ev.clientX;
+      const startW = getW();
+      handle.setPointerCapture(ev.pointerId);
+      document.body.classList.add("resizing");
+      const move = (e) => {
+        const w = Math.round(startW + (e.clientX - startX) * dir);
+        setW(Math.max(min, Math.min(max, w)));
+      };
+      const up = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        document.body.classList.remove("resizing");
+        try { localStorage.setItem(storageKey, String(Math.round(getW()))); } catch (_) {}
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
+    });
+    handle.addEventListener("dblclick", () => {
+      setW(0);
+      try { localStorage.removeItem(storageKey); } catch (_) {}
+    });
+  }
+  const navPanel = document.querySelector(".nav");
+  const workPanel = document.getElementById("work");
+  dragResize(document.getElementById("nav-resize"), 1,
+    () => navPanel.getBoundingClientRect().width,
+    (w) => document.documentElement.style.setProperty("--nav-w", (w || 268) + "px"),
+    200, 440, "janetcode-nav-w");
+  dragResize(document.getElementById("work-resize"), -1,
+    () => workPanel.getBoundingClientRect().width,
+    (w) => { workPanel.style.width = w ? w + "px" : ""; },
+    260, 640, "janetcode-work-w");
+  dragResize(document.getElementById("pv-resize"), -1,
+    () => pvPane.getBoundingClientRect().width,
+    (w) => { pvPane.style.width = w ? w + "px" : ""; },
+    320, 960, "janetcode-preview-w");
+  try {
+    const savedNav = parseInt(localStorage.getItem("janetcode-nav-w") || "", 10);
+    if (savedNav >= 200 && savedNav <= 440) document.documentElement.style.setProperty("--nav-w", savedNav + "px");
+    const savedWork = parseInt(localStorage.getItem("janetcode-work-w") || "", 10);
+    if (savedWork >= 260 && savedWork <= 640) workPanel.style.width = savedWork + "px";
+    const savedPv = parseInt(localStorage.getItem("janetcode-preview-w") || "", 10);
+    if (savedPv >= 320 && savedPv <= 960) pvPane.style.width = savedPv + "px";
+  } catch (_) {}
   log.addEventListener("click", async (ev) => {
     const codecopy = ev.target.closest(".codecopy");
     if (codecopy) {
