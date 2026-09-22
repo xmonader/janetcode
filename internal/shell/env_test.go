@@ -47,7 +47,15 @@ func TestScrubEnvDropsEveryProviderKey(t *testing.T) {
 	}
 	// Scrubbing by shape must not take what a command the model is
 	// legitimately running needs: gh, npm publish and cargo all read one.
-	kept := []string{"GITHUB_TOKEN", "NPM_TOKEN", "CARGO_REGISTRY_TOKEN", "AWS_ACCESS_KEY_ID", "PATH", "HOME"}
+	kept := []string{"GITHUB_TOKEN", "NPM_TOKEN", "CARGO_REGISTRY_TOKEN", "AWS_ACCESS_KEY_ID", "PATH", "HOME", "MONKEY", "KEYBOARD_LAYOUT"}
+	// Matching the shape only at the end of the name missed every key a
+	// person keeps more than one of: a recorded run carried
+	// DEEPSEEK_API_KEY_PERSONAL to a command that ran `env`. The phrase
+	// is what says credential, wherever in the name it sits.
+	gone = append(gone,
+		"DEEPSEEK_API_KEY_PERSONAL", "OPENAI_API_KEY_WORK", "MY_API_KEY_2",
+		"ANTHROPIC_AUTH_TOKEN_OLD", "STRIPE_SECRET_KEY_TEST",
+	)
 
 	var env []string
 	for _, n := range append(append([]string{}, gone...), kept...) {

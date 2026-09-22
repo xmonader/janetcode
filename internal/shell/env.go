@@ -26,7 +26,14 @@ var secretEnv = map[string]bool{
 // from a command the model is legitimately running, and they do not match.
 // An MCP server that needs one of these is unaffected — its configured
 // env is expanded from the real environment and appended after the scrub.
-var secretSuffix = []string{"_API_KEY", "_AUTH_TOKEN", "_API_TOKEN", "_SECRET_KEY", "_ACCESS_KEY"}
+// Matching only at the end of the name was the gap a recorded eval run
+// walked through: a person who holds two DeepSeek keys spells the second
+// one DEEPSEEK_API_KEY_PERSONAL, which ends in _PERSONAL, so it went to
+// every command the model ran and an `env` printed it. The phrase is
+// what says credential, and it says it wherever in the name it sits — so
+// the match is on whole `_`-separated words anywhere, which is why
+// MONKEY and KEYBOARD_LAYOUT are untouched.
+var secretPhrase = []string{"_API_KEY_", "_AUTH_TOKEN_", "_API_TOKEN_", "_SECRET_KEY_", "_ACCESS_KEY_"}
 
 // isSecretName reports whether a variable holds a credential this process
 // must not hand to a model-run command.
@@ -34,8 +41,16 @@ func isSecretName(name string) bool {
 	if secretEnv[name] {
 		return true
 	}
-	for _, suf := range secretSuffix {
-		if strings.HasSuffix(name, suf) {
+	upper := strings.ToUpper(name)
+	// AWS_ACCESS_KEY_ID names the public half of a pair; the secret half
+	// is AWS_SECRET_ACCESS_KEY, and aws needs both to be told apart. An
+	// identifier is not a credential whatever precedes it.
+	if strings.HasSuffix(upper, "_ID") {
+		return false
+	}
+	padded := "_" + upper + "_"
+	for _, p := range secretPhrase {
+		if strings.Contains(padded, p) {
 			return true
 		}
 	}
