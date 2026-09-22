@@ -543,18 +543,13 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 	return out
 }
 
-// symbolMentioned matches a symbol against the request's words: exactly
+// symbolMention matches a symbol against the request's words: exactly
 // for names of five letters or more, and by a shared five-letter stem
 // so "compaction" finds Compact and "verifying" finds verifyGate. Short
-// names (Run, line, tool) are too common to count.
-func symbolMentioned(name string, words map[string]bool) bool {
-	_, ok := symbolMention(name, words)
-	return ok
-}
-
-// symbolMention is symbolMentioned with the request word that matched, so
-// the caller can tell how many files that one word pulls. words is a map,
-// so the smallest match wins rather than whichever came out of the range.
+// names (Run, line, tool) are too common to count. It returns the request
+// word that matched, so the caller can tell how many files that one word
+// pulls. words is a map, so the smallest match wins rather than whichever
+// came out of the range.
 func symbolMention(name string, words map[string]bool) (string, bool) {
 	if len(name) < 5 {
 		return "", false
