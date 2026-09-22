@@ -187,11 +187,13 @@ off. `--eval-off advisor` switches it off for one run.
 
 ### The strong slot and the cascade
 
-`route_cheap`, `model` and `strong_model` are the three model slots a
+`route_cheap`, `model` and `strong_model` are three of the model slots a
 session has: the cheap one a mechanical step may dip to, the default one
 it runs on, and the one a failing turn escalates to. They are slots, not
 vendors -- which model fills which is a configuration question, and the
-answer changes with the month.
+answer changes with the month. The full set is in "The model slots"
+below, together with the one rule that governs all of them: an empty slot
+is the session's own model.
 
 ```json
 {
@@ -344,6 +346,63 @@ would justify leaving it on. `/stats` reports "routed N of M model calls
 to `<cheap>`" once anything has actually routed, and `/config
 route_cheap=` (empty) turns it back off for the running session.
 
+### The model slots
+
+A session runs on one model and may name others for particular jobs:
+
+| slot | key | what fills it does |
+|------|-----|--------------------|
+| main | `model` | every call that no other slot claims |
+| cheap | `route_cheap` | a turn's mechanical steps, when step routing fires |
+| strong | `strong_model` | the rest of a turn whose gate kept failing, with `escalate_after` |
+| advisor | `advisor_model` | the advisor tool's consults, forced when `advisor_mode` is `always` |
+| vision | `vision_model` | nothing yet -- the slot is recorded, and an image pasted into a turn still rides on the session's own model |
+
+**Every empty slot is the main model.** One resolver says so --
+`(*config.Config).Slot(name) -> (provider, model)` in
+`internal/config/slot.go` -- and a slot set to the same name as `model`
+resolves identically to an unset one, so the two cannot behave
+differently. The provider is whatever `RouteFor` names for that model, so
+a slot may live on another configured provider exactly as a fallback may.
+
+What the resolver deliberately does not answer is whether a feature is
+**on**. Filling the strong slot does not start the cascade (that is
+`escalate_after`), filling the advisor slot does not force consults (that
+is `advisor_mode`), and naming the cheap slot is what turns step routing
+on at all. `/features` prints both halves together for that reason: a
+filled strong slot with the cascade off says so rather than looking like
+a working cascade.
+
+The cheap slot has one special case the fallback makes worth stating:
+when it resolves to the session's own model, no call is routed. Routing a
+call from a model to itself changes nothing, and counting it as a route
+would put a line in `/stats` about work that never happened.
+
+From the terminal, `/model` is every slot: `/model` alone (or `/model
+<name>`) is the session's own model as before, `/model cheap`, `/model
+strong`, `/model advisor` and `/model vision` open the same searchable
+provider list for the slot named, and `/model <slot> off` empties one.
+An unset slot reads `cheap: unset (main: anthropic/claude-opus-5)`.
+
+### Turning the features on from the session
+
+Every key above is settable while a session runs, through `/config
+key=value` or through the two commands that group them:
+
+- `/features` lists the slots and the switches that use them --
+  `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
+  `stale-nudge` (`stale_check_nudge`) and the four decision consumers --
+  with what each is set to and what still stands in its way.
+  `/features <name> on|off` changes one.
+- `/jev` is the decisions block: see below.
+
+All of them are written to the config file and applied to the running
+session. A headless run has no session to type in, so `--set key=value`
+(repeatable) takes the same keys, for that run only and without touching
+the file: `janetcode -p '...' --set escalate_after=1 --set
+decisions.triage=true`. A key or value the file would be refused for is
+refused there too.
+
 ### Decisions (experimental, optional)
 
 The `decisions` block configures an optional second AI service —
@@ -380,7 +439,35 @@ whose responses always report the pinned version); point `base_url` at
 
 `model` must be a pinned version id or a `~typesafe/jev-*` slug; bare
 aliases like `jev-latest` are refused at load so a threshold cannot
-silently retune itself when the alias moves. The key is read from the
+silently retune itself when the alias moves -- and refused by `/jev
+model` and `--set decisions.model=` as well, so a file that will not load
+is never written in the first place.
+
+`"enabled": false` is the master switch `/jev off` writes: the block
+stays, the model and the consumers stay, and nothing is asked. A block
+with no `enabled` key is on, which is what every block written before the
+switch existed means.
+
+`/jev` is the whole block from the session: alone it reports whether it
+is on, which endpoint and pinned model it asks, which consumers are on
+and what the calls have cost so far; `/jev on|off` is the master switch;
+`/jev model` and `/jev provider` open a list; and `/jev
+triage|intake|route|outcome on|off` toggles one consumer. The client is
+rebuilt from the config on every change, so all of it takes effect in the
+session that typed it rather than the next one -- `/jev` says so, and
+says instead what is missing when there is no client (no key in the
+environment, or nothing switched on).
+
+The provider list is a list with one entry today: OpenRouter's decisions
+route, the one whose wire contract is verified live. TypeSafe's native
+host is still reached by setting `base_url` by hand. The model list is
+the `~typesafe/jev-latest` slug plus whatever you type, because nothing
+enumerates the service's versions: the endpoint has no model listing and
+the chat provider's `/api/v1/models` does not carry them.
+
+`JANETCODE_OFF=decisions` is above all of it. No command here can undo
+it, and `/jev` says so when it is set: an ablation a session could
+switch back on is not an ablation. The key is read from the
 environment named by `api_key_env` and never lives in the file. Each
 consumer is off until its own key is set; the block being present alone
 enables nothing.
