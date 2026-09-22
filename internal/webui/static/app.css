@@ -1416,7 +1416,7 @@ body.resizing .preview { transition: none !important; }
 /* ---- drawers: work panel + web preview --------------------------------- */
 .work, .preview {
   position: absolute;
-  top: 0;
+  top: 53px;
   right: 0;
   bottom: 0;
   background: var(--sidebar);
@@ -1428,6 +1428,26 @@ body.resizing .preview { transition: none !important; }
   transform: translateX(103%);
   transition: transform 0.24s cubic-bezier(0.32, 0.72, 0.35, 1);
   box-shadow: var(--shadow-pop);
+}
+/* Open drawers keep the conversation clear: the thread and composer
+   yield their width instead of sliding under the panel. Padding (not
+   margin) because both containers size off % min() widths that adapt
+   to the shrunken content box. Actual widths come from
+   --work-w-actual/--pv-w-actual, set by the resize handles. */
+.thread, .bottom {
+  transition: padding-right 0.24s cubic-bezier(0.32, 0.72, 0.35, 1);
+}
+.shell:not(.work-collapsed) .thread,
+.shell:not(.work-collapsed) .bottom {
+  padding-right: var(--work-w-actual, var(--work-w));
+}
+.shell.pv-open .thread,
+.shell.pv-open .bottom {
+  padding-right: var(--pv-w-actual, min(30rem, 92vw));
+}
+.shell.pv-open:not(.work-collapsed) .thread,
+.shell.pv-open:not(.work-collapsed) .bottom {
+  padding-right: calc(var(--work-w-actual, var(--work-w)) + var(--pv-w-actual, min(30rem, 92vw)));
 }
 .work { width: var(--work-w); }
 .preview { width: min(30rem, 92vw); z-index: 31; }
@@ -1891,7 +1911,16 @@ kbd {
     padding: 10px 12px 8px;
   }
   .shell:not(.nav-collapsed) .nav { transform: none; }
-  .work, .preview { width: min(100vw - 48px, 26rem); }
+  .work, .preview { top: 49px; width: min(100vw - 48px, 26rem); }
+  /* overlays on small screens: the thread has no width to yield */
+  .shell:not(.work-collapsed) .thread,
+  .shell:not(.work-collapsed) .bottom,
+  .shell.pv-open .thread,
+  .shell.pv-open .bottom,
+  .shell.pv-open:not(.work-collapsed) .thread,
+  .shell.pv-open:not(.work-collapsed) .bottom {
+    padding-right: 0;
+  }
   .nav-open { display: inline-flex; }
   .session-title, .git-pill, .cmd-kbd { display: none; }
   .composer-bar .model-btn { max-width: 8.5rem; }

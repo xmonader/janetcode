@@ -2424,25 +2424,37 @@
   }
   const navPanel = document.querySelector(".nav");
   const workPanel = document.getElementById("work");
+  // The open drawer yields the thread/composer width via these vars (see
+  // .shell rules in app.css); they track any drag-resize.
+  const setWorkVar = (w) => {
+    workPanel.style.width = w ? w + "px" : "";
+    if (w) shell.style.setProperty("--work-w-actual", w + "px");
+    else shell.style.removeProperty("--work-w-actual");
+  };
+  const setPvVar = (w) => {
+    pvPane.style.width = w ? w + "px" : "";
+    if (w) shell.style.setProperty("--pv-w-actual", w + "px");
+    else shell.style.removeProperty("--pv-w-actual");
+  };
   dragResize(document.getElementById("nav-resize"), 1,
     () => navPanel.getBoundingClientRect().width,
     (w) => document.documentElement.style.setProperty("--nav-w", (w || 268) + "px"),
     200, 440, "janetcode-nav-w");
   dragResize(document.getElementById("work-resize"), -1,
     () => workPanel.getBoundingClientRect().width,
-    (w) => { workPanel.style.width = w ? w + "px" : ""; },
+    setWorkVar,
     260, 640, "janetcode-work-w");
   dragResize(document.getElementById("pv-resize"), -1,
     () => pvPane.getBoundingClientRect().width,
-    (w) => { pvPane.style.width = w ? w + "px" : ""; },
+    setPvVar,
     320, 960, "janetcode-preview-w");
   try {
     const savedNav = parseInt(localStorage.getItem("janetcode-nav-w") || "", 10);
     if (savedNav >= 200 && savedNav <= 440) document.documentElement.style.setProperty("--nav-w", savedNav + "px");
     const savedWork = parseInt(localStorage.getItem("janetcode-work-w") || "", 10);
-    if (savedWork >= 260 && savedWork <= 640) workPanel.style.width = savedWork + "px";
+    if (savedWork >= 260 && savedWork <= 640) setWorkVar(savedWork);
     const savedPv = parseInt(localStorage.getItem("janetcode-preview-w") || "", 10);
-    if (savedPv >= 320 && savedPv <= 960) pvPane.style.width = savedPv + "px";
+    if (savedPv >= 320 && savedPv <= 960) setPvVar(savedPv);
   } catch (_) {}
   log.addEventListener("click", async (ev) => {
     const codecopy = ev.target.closest(".codecopy");

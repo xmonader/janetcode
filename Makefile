@@ -86,6 +86,32 @@ harness-bench-large: build
 	go build -o bin/harnessbench ./cmd/harnessbench
 	./bin/harnessbench --filter large --evals evals/large --out docs/benchmarks/harnesses/large --timeout 20m --janetcode bin/janetcode
 
+# Browser-level UI checks: boots the webui against a stub provider in a
+# scratch config and drives it with headless Chrome over CDP — toggles,
+# drag-resize, drawer stacking. Needs node >= 22 (global WebSocket) and
+# a chrome binary (CHROME=/path/to/chrome if not on PATH).
+UI_PORT ?= 18991
+CHROME ?= google-chrome
+ui-test: build
+	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode; \
+	printf '%s' '{"provider":"stub","model":"stub/stub-model","providers":{"stub":{"type":"openai","base_url":"http://127.0.0.1:9/v1","api_key":"sk-test","models":["stub-model"]}}}' > $$tmp/janetcode/config.json; \
+	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_PORT) >/dev/null 2>&1 & \
+	srv=$$!; \
+	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_PORT)/ && break; sleep 0.5; done; \
+	rm -rf /tmp/janetcode-chrome-cdp; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=/tmp/janetcode-chrome-cdp about:blank >/dev/null 2>&1 & \
+	chr=$$!; \
+	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/; \
+	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp /tmp/janetcode-chrome-cdp; exit $$rc
+
+# Screenshot the RUNNING webui (UI_URL) into ui-shots/ for visual review.
+ui-shot:
+	@mkdir -p ui-shots; rm -rf /tmp/janetcode-chrome-cdp; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=/tmp/janetcode-chrome-cdp about:blank >/dev/null 2>&1 & \
+	chr=$$!; \
+	node internal/webui/uitest/shot.mjs $(or $(UI_URL),http://127.0.0.1:8787/) ui-shots; \
+	rc=$$?; kill $$chr 2>/dev/null; wait $$chr 2>/dev/null; rm -rf /tmp/janetcode-chrome-cdp; exit $$rc
+
 clean:
 	rm -rf bin
 

@@ -1,0 +1,120 @@
+// Screenshot harness: boots the webui against a stub provider, feeds
+// synthetic SSE fixtures through a patched EventSource, and captures PNGs
+// of the states a user actually sees. Run: node shot.mjs <url> <outdir>
+// Requires a chrome with --remote-debugging-port=9223 (see make ui-shot).
+const APP = process.argv[2] || 'http://127.0.0.1:18991/';
+const OUT = process.argv[3] || '/tmp/ui-shots';
+const CDP_PORT = 9223;
+import { mkdirSync, writeFileSync } from 'fs';
+mkdirSync(OUT, { recursive: true });
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function newTab() {
+  for (let i = 0; i < 40; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${CDP_PORT}/json/new?about:blank`, { method: 'PUT' });
+      return (await r.json()).webSocketDebuggerUrl;
+    } catch (_) { await sleep(250); }
+  }
+  throw new Error('chrome not up');
+}
+
+const ws = new WebSocket(await newTab());
+await new Promise(r => ws.onopen = r);
+let seq = 0; const pending = new Map();
+ws.onmessage = (ev) => { const m = JSON.parse(ev.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
+const cmd = (method, params = {}) => new Promise((res) => { const id = ++seq; pending.set(id, res); ws.send(JSON.stringify({ id, method, params })); });
+const evaljs = async (expression) => {
+  const r = await cmd('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  if (r.result.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 400));
+  return r.result.result.value;
+};
+
+// Before app.js loads, swap EventSource for a fake one we can feed.
+await cmd('Page.enable');
+await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
+  window.__feed = [];
+  window.EventSource = class {
+    constructor(url) { this.url = url; window.__es = this; setTimeout(() => this.onopen && this.onopen(), 0); }
+    close() {}
+  };
+`});
+await cmd('Page.navigate', { url: APP });
+await sleep(2500);
+
+const GO = 'func Interpolate(v string, seen map[string]bool) (string, error) {\n\tif !strings.Contains(v, "%(") {\n\t\treturn v, nil\n\t}\n\treturn v, nil\n}';
+const ASSISTANT = [
+  'Here is the interpolation fix. The `INI.Parser` now resolves `%(key)s` references with cycle detection:',
+  '',
+  '```go',
+  GO,
+  '```',
+  '',
+  '**What changed:**',
+  '',
+  '1. `Interpolate` takes a `seen` set so `a=%(b)s / b=%(a)s` raises `ParseError` instead of looping',
+  '2. defaults fall back through the [repository map](https://example.com/docs)',
+  '',
+  '| stage | before | after |',
+  '|---|---|---|',
+  '| lookups | O(n²) | O(n) |',
+  '| cycles | loop | ParseError |',
+  '',
+  'Verification: `go test ./...` passes.',
+].join('\n');
+
+const FEED = [
+  { type: 'hello', hello: { cwd: '/home/xmonader/wspace/janetcode', model: 'qwen3.7-plus', provider: 'openrouter', session: 's1', title: 'Fix INI interpolation', version: 'dev', yolo: false, auto: false, edits: false, plan: false, readonly: false, mode: 'ask' } },
+  { type: 'entry', entry: { id: 'e1', kind: 'user', text: 'Fix the interpolation in the INI parser so %(key)s references resolve, with cycle detection.', at: new Date().toISOString() } },
+  { type: 'entry', entry: { id: 'e2', kind: 'thinking', text: 'The parser has an Interpolate method. Cycles need a seen set threaded through.', done: true } },
+  { type: 'entry', entry: { id: 'e3', kind: 'tool', name: 'read_file', summary: 'internal/inifile/parser.go', done: true, dur: '0.4s', output: 'func (p *Parser) Interpolate(v string) string {\n    return v\n}' } },
+  { type: 'entry', entry: { id: 'e4', kind: 'tool', name: 'edit_file', summary: 'internal/inifile/parser.go', preview: '@@ -120,3 +120,9 @@\n func (p *Parser) Interpolate(v string) string {\n-    return v\n+    return p.interpolate(v, "_DEFAULT", make(map[string]bool))\n+}\n+\n+func (p *Parser) interpolate(v, section string, seen map[string]bool) (string, error) {\n+    if seen == nil {\n+        seen = make(map[string]bool)\n+    }', done: true, dur: '1.2s' } },
+  { type: 'entry', entry: { id: 'e5', kind: 'tool', name: 'bash', summary: 'go test ./internal/inifile/', done: true, dur: '6.1s', output: 'ok  \tgithub.com/xmonader/janetcode/internal/inifile\t0.312s' } },
+  { type: 'entry', entry: { id: 'e6', kind: 'assistant', text: ASSISTANT, done: true, tok_in: 12034, tok_out: 812, ms: 21400, at: new Date().toISOString() } },
+  { type: 'entry', entry: { id: 'e7', kind: 'verdict', text: '✓ tests passed' } },
+  { type: 'status', status: { running: false, phase: '', ctx_pct: 34, queued: 0, yolo: false, auto: false, edits: false, plan: false, readonly: false, mode: 'ask', verbose: false, status: 'done in 21s', cost: '$0.0042' } },
+];
+
+async function shot(name) {
+  const r = await cmd('Page.captureScreenshot', { format: 'png' });
+  writeFileSync(`${OUT}/${name}.png`, Buffer.from(r.result.data, 'base64'));
+  console.log('shot', name);
+}
+const setTheme = (t) => evaljs(`(() => { localStorage.setItem('janetcode-theme', '${t}'); document.documentElement.dataset.theme = '${t}'; if (window.term) {} return 1; })()`);
+const setSize = async (w, h) => { await cmd('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }); await sleep(350); };
+
+// feed fixtures through the fake EventSource
+await evaljs(`(() => {
+  const es = window.__es;
+  const feed = ${JSON.stringify(FEED)};
+  for (const env of feed) es.onmessage({ data: JSON.stringify(env) });
+  return feed.length;
+})()`);
+await sleep(600);
+
+await setSize(1440, 900);
+await setTheme('dark');
+await shot('01-chat-dark');
+
+// permission card
+await evaljs(`document.getElementById('work-toggle').click()`);
+await sleep(450);
+await shot('02-drawer-open');
+
+// light theme
+await setTheme('light');
+await sleep(250);
+await shot('03-chat-light');
+await setTheme('dark');
+
+// mobile
+await setSize(390, 844);
+await evaljs(`document.getElementById('work-toggle').click()`);
+await sleep(400);
+await evaljs(`document.querySelector('.shell').classList.remove('nav-collapsed')`);
+await sleep(400);
+await shot('04-mobile-nav');
+
+ws.close();
+console.log('done ->', OUT);
+process.exit(0);
