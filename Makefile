@@ -14,6 +14,12 @@ install:
 test:
 	go test $(PKG)
 
+# Golden corpus for the web markdown renderer: security (no script /
+# javascript: hrefs), the inline-code pill regression, fences, tables,
+# streaming prefixes. Pure node, no browser.
+md-test:
+	node internal/webui/uitest/md_test.mjs
+
 race:
 	go test -race $(PKG)
 
@@ -32,7 +38,7 @@ lint:
 # and not another — bash_windows.go and its neighbours — is otherwise
 # found by whoever happens to run `make cross`, which is nobody, and
 # then by a user. `gofmt -l` prints and exits 0, so it is gated by hand.
-check: lint test
+check: lint test md-test
 	@test -z "$$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
 	GOOS=windows GOARCH=amd64 go vet $(PKG)
 	GOOS=windows GOARCH=amd64 go build $(PKG)

@@ -53,135 +53,14 @@
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     }[c]));
   }
-  // Code blocks keep their raw source here, keyed by a generated id on
-  // the Copy button — attribute-escaping megabytes of test output onto a
-  // DOM node is slower and leakier than a lookup.
-  const codeBlocks = new Map();
-  let codeSeq = 0;
 
   // highlight is a deliberately small tokenizer: comments, strings,
   // numbers and keywords, colored generically so one pass serves every
   // language the model writes. Everything it emits is escaped first; the
   // spans are markup, never source.
-  function highlight(src, lang) {
-    const comments = { js: "//", ts: "//", javascript: "//", typescript: "//", go: "//", rust: "//", java: "//", c: "//", cpp: "//", csharp: "//", swift: "//", kt: "//", kotlin: "//", scala: "//", php: "//", sh: "#", bash: "#", shell: "#", zsh: "#", py: "#", python: "#", ruby: "#", rb: "#", yaml: "#", yml: "#", tf: "#", hcl: "#", toml: "#" };
-    const c = (comments[(lang || "").toLowerCase()] || "#").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const kw = new Set(("break case catch class const continue default do else enum export extends finally for from function if import in instanceof interface let new of package private protected public return static super switch this throw try typeof var void while with yield async await def fn impl pub struct self mut ref match lambda pass raise global assert del elif except nonlocal as is and or not None True False print println int str bool float char double long short unsigned void null true false").split(" "));
-    const re = new RegExp(
-      "(" + c + "[^\\n]*)" +
-      "|('(?:[^'\\\\\\n]|\\\\.)*'|\"(?:[^\"\\\\\\n]|\\\\.)*\"|`(?:[^`\\\\]|\\\\.)*`)" +
-      "|\\b(0x[0-9a-fA-F]+|\\d+(?:\\.\\d+)?)\\b" +
-      "|\\b([A-Za-z_$][\\w$]*)\\b",
-      "g"
-    );
-    let out = "", last = 0;
-    for (let m; (m = re.exec(src));) {
-      out += esc(src.slice(last, m.index));
-      if (m[1]) out += `<span class="tc">${esc(m[1])}</span>`;
-      else if (m[2]) out += `<span class="ts">${esc(m[2])}</span>`;
-      else if (m[3]) out += `<span class="tn">${esc(m[3])}</span>`;
-      else out += kw.has(m[4]) ? `<span class="tk">${esc(m[4])}</span>` : esc(m[4]);
-      last = m.index + m[0].length;
-    }
-    return out + esc(src.slice(last));
-  }
 
-  function codeBlockHTML(lang, code, final) {
-    const bid = "cb" + ++codeSeq;
-    codeBlocks.set(bid, code);
-    // Streaming renders the growing block with the cheap tokenizer;
-    // finished blocks and tool output get the real highlighter.
-    const body = final ? hljsHighlight(code, lang) : highlight(code, lang);
-    const wrap = `<button type="button" class="codecopy" data-wrap="${bid}" title="Toggle word wrap">Wrap</button>`;
-    return (
-      `<div class="codeblock" data-lang="${esc(lang || "")}"><div class="codehead"><span>${esc(lang || "code")}</span>` +
-      `${wrap}<button type="button" class="codecopy" data-bid="${bid}" title="Copy code">Copy</button></div>` +
-      `<pre><code class="${lang ? "lang-" + esc(lang) : ""}">${body}</code></pre></div>`
-    );
-  }
 
-  // hljsHighlight is language-aware highlighting over the vendored
-  // highlight.js (BSD-3, offline). Known languages highlight properly;
-  // anything the build doesn't serve falls back to the small tokenizer,
-  // which is also what the streaming tail uses. Results are cached: the
-  // thread re-renders on every event, and re-highlighting a finished
-  // block per hover would be pure waste.
-  const hljsCache = new Map();
-  const HLJS_MAX = 300;
-  const HLJS_ALIAS = {
-    js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
-    ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",
-    py: "python", gyp: "python",
-    sh: "bash", shell: "bash", zsh: "bash", shellscript: "bash", dockerfile: "bash",
-    yml: "yaml", tf: "ini", hcl: "ini", toml: "ini",
-    rs: "rust", kt: "kotlin", kts: "kotlin", cs: "csharp",
-    golang: "go", rb: "ruby", pl: "perl",
-    html: "xml", htm: "xml", vue: "xml", svg: "xml",
-    mk: "makefile",
-  };
-  function hljsLang(lang) {
-    const name = HLJS_ALIAS[(lang || "").toLowerCase()] || String(lang || "").toLowerCase();
-    if (name && window.hljs && hljs.getLanguage(name)) return name;
-    return "";
-  }
-  function hljsHighlight(code, lang) {
-    const l = hljsLang(lang);
-    if (!l) return highlight(code, lang);
-    const key = l + " " + code;
-    let html = hljsCache.get(key);
-    if (html == null) {
-      if (hljsCache.size >= HLJS_MAX) hljsCache.delete(hljsCache.keys().next().value);
-      try {
-        html = hljs.highlight(code, { language: l }).value;
-      } catch (_) {
-        return highlight(code, lang);
-      }
-      hljsCache.set(key, html);
-    }
-    return html;
-  }
 
-  function md(src, final) {
-    const fences = [];
-    const park = (html) => {
-      fences.push(html);
-      return `\u0000${fences.length - 1}\u0000`;
-    };
-    let t = String(src ?? "").replace(/```(\w*)[^\S\n]*\n([\s\S]*?)```/g, (_, lang, code) =>
-      park(codeBlockHTML(lang, code.replace(/\n$/, ""), final))
-    );
-    t = t.replace(/((?:^\|.+\|\s*$\n?)+)/gm, (block) => {
-      const rows = block.trim().split("\n").map((r) =>
-        r.trim().replace(/^\||\|$/g, "").split("|").map((c) => esc(c.trim())));
-      if (rows.length < 2 || !/^[:\-\s|]+$/.test(block.trim().split("\n")[1].replace(/^\||\|$/g, ""))) {
-        return block;
-      }
-      const head = rows[0];
-      const body = rows.slice(2);
-      let html = `<table><thead><tr>${head.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
-      html += body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
-      return park(html + `</tbody></table>`);
-    });
-    t = esc(t);
-    t = t.replace(/^### (.+)$/gm, "<h3>$1</h3>");
-    t = t.replace(/^## (.+)$/gm, "<h2>$1</h2>");
-    t = t.replace(/^# (.+)$/gm, "<h1>$1</h1>");
-    t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    // Inline code never crosses a line boundary: with newlines allowed, one
-    // stray backtick (e.g. a fence split across streamed chunks) swallows
-    // the rest of the reply into a single collapsed "pill". A span whose
-    // pair is not on the same line stays a literal backtick — visible,
-    // but honest.
-    t = t.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-    t = t.replace(/^\d+\. (.+)$/gm, "<oli>$1</oli>");
-    t = t.replace(/(<oli>.*<\/oli>\n?)+/g, (m) => "<ol>" + m.replace(/<\/?oli>/g, (x) => (x === "<oli>" ? "<li>" : "</li>")) + "</ol>");
-    t = t.replace(/^\- (.+)$/gm, "<li>$1</li>");
-    t = t.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
-    t = t.replace(/\n{2,}/g, "</p><p>");
-    t = `<p>${t}</p>`;
-    return t.replace(/\u0000(\d+)\u0000/g, (_, i) => fences[Number(i)]);
-  }
   function changedSpan(line, other) {
     if (line === other) return [0, 0];
     const a = [...line], b = [...other];
@@ -318,20 +197,8 @@
   // outputHTML renders a tool result's body: highlighted when the tool
   // was reading a file whose language we know, plain otherwise. A long
   // output stays plain — the tokenizer is fast, but not on a megabyte.
-  function outputHTML(e) {
-    const lang = langOf(e.name || "", e.summary || "");
-    if (lang && e.output.length < 200_000) return hljsHighlight(e.output, lang);
-    return esc(e.output);
-  }
 
-  const CODE_EXT = /\.(py|go|js|mjs|ts|tsx|jsx|rs|java|c|h|cpp|hpp|cs|rb|php|sh|bash|sql|yaml|yml|json|toml|html|css|scss|lua|swift|kt|kts|scala)(\W|$)/;
 
-  function langOf(name, summary) {
-    const m = CODE_EXT.exec(summary || "");
-    if (m) return m[1] === "mjs" ? "js" : m[1];
-    if (name === "bash" || name === "shell" || name === "run") return "sh";
-    return "";
-  }
 
   function linkCards(text) {    const urls = [...new Set((String(text || "").match(/https?:\/\/[^\s)\]"'<>`]+/g) || []))]
       .filter((u) => { try { new URL(u); return true; } catch (_) { return false; } })
@@ -375,7 +242,7 @@
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Continue</button>` : "";
-      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md${clipped ? " clip" : ""}">${md(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
+      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) {
         lastReply = (e.text || "").slice(0, 200);
         drawMermaid(n);
@@ -409,7 +276,7 @@
       const bodyHidden = e.run_head && folded;
       let html = bar + `<div class="tool ${stCls}"${bodyHidden ? " hidden" : ""}><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
       if (open && e.preview) html += `<pre class="diff">${diffHTML(e.preview)}</pre>`;
-      if (open && e.output) html += `<pre class="out">${outputHTML(e)}</pre>`;
+      if (open && e.output) html += `<pre class="out">${JanetMD.renderOutput(e.name || "", e.summary || "", e.output)}</pre>`;
       html += `</div>`;
       n.innerHTML = html;
       const head = n.querySelector(".tool .head");
@@ -445,7 +312,7 @@
     for (const block of root.querySelectorAll('.codeblock[data-lang="mermaid"]')) {
       if (block.dataset.drawn) continue;
       const bid = block.querySelector("[data-bid]")?.dataset.bid;
-      const src = codeBlocks.get(bid);
+      const src = JanetMD.codeBlocks.get(bid);
       if (!src) continue;
       block.dataset.drawn = "1";
       try {
@@ -467,7 +334,7 @@
         btn.addEventListener("click", () => {
           if (pre.classList.contains("diagram")) {
             pre.className = "";
-            pre.innerHTML = `<code>${highlight(src, "")}</code>`;
+            pre.innerHTML = `<code>${JanetMD.highlight(src, "")}</code>`;
             btn.textContent = "Diagram";
           } else {
             pre.className = "diagram";
@@ -2459,7 +2326,7 @@
   log.addEventListener("click", async (ev) => {
     const codecopy = ev.target.closest(".codecopy");
     if (codecopy) {
-      const src = codeBlocks.get(codecopy.dataset.bid);
+      const src = JanetMD.codeBlocks.get(codecopy.dataset.bid);
       if (src != null) {
         try {
           await navigator.clipboard.writeText(src);
