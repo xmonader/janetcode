@@ -304,7 +304,10 @@ own test for every later run on that machine.
 The lesson for a task author is narrow and practical: **a gate step that
 fails for an environmental reason must fail in a way an unprivileged
 process cannot arrange.** A missing credential the harness does not hold
-works; a port below 1024 works; a named binary and a high port do not.
+works, and so does a TEST-NET-1 address (RFC 5737) that cannot be routed
+to; a named binary does not, a port in the ephemeral range does not, and
+a low port only works on a host where nothing already listens on it —
+this one had something on 81.
 
 A task's `check` is `"$EVAL_HIDDEN_GATE" "$EVAL_DIR"`, so the grade and
 the gate are the same judgement and "first-attempt pass" (the gate's
