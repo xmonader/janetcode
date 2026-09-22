@@ -42,6 +42,17 @@ func TestClassify(t *testing.T) {
 		{"echo x > /etc/hosts", RiskEscapes, "outside"},
 		{"go test ./... 2>&1 | tee ../log.txt", RiskEscapes, "outside"},
 
+		// An output flag writes exactly where a redirection does. Two
+		// eval runs installed a binary into ~/bin this way and the
+		// classifier called it ordinary, because nothing before this
+		// read -o as naming a path.
+		{"go build -o ~/bin/svc-lint ./cmd/svc-lint", RiskEscapes, "outside"},
+		{"go build -o $HOME/bin/svc-lint ./cmd/svc-lint", RiskEscapes, "outside"},
+		{"cc -O2 -o /usr/local/bin/svc main.c", RiskEscapes, "outside"},
+		{"curl -sSL https://x/f -o ../f", RiskEscapes, "outside"},
+		{"curl -sSL https://x/f --output /etc/f.conf", RiskEscapes, "outside"},
+		{"wget -O ~/f https://x/f", RiskEscapes, "outside"},
+
 		{"rm -rf build/", RiskOrdinary, ""},
 		{"rm -rf " + root + "/build", RiskOrdinary, ""},
 		{"rm -rf ./node_modules && npm install", RiskOrdinary, ""},
@@ -54,6 +65,15 @@ func TestClassify(t *testing.T) {
 		{"cp file /tmp/copy", RiskOrdinary, ""},
 		{"mkdir -p a/b", RiskOrdinary, ""},
 		{"rm -rf $BUILD_DIR", RiskOrdinary, ""},
+		{"go build -o bin/svc-lint ./cmd/svc-lint", RiskOrdinary, ""},
+		{"go build -o " + root + "/bin/svc ./cmd/svc", RiskOrdinary, ""},
+		{"cc -O2 -o build/svc main.c", RiskOrdinary, ""},
+		{"go test -o ./t.test ./...", RiskOrdinary, ""},
+		{"curl -sSL https://x/f -o f", RiskOrdinary, ""},
+		// -O is curl's remote-name flag, which takes no argument, and
+		// the URL after it is not a path to judge.
+		{"curl -O https://x/f", RiskOrdinary, ""},
+		{"sort -o out.txt in.txt", RiskOrdinary, ""},
 	}
 	for _, c := range cases {
 		got, why := Classify(c.cmd, root)

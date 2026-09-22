@@ -83,6 +83,52 @@ var mutators = map[string]bool{
 	"sed": true, "perl": true,
 }
 
+// outputFlags are the flags whose argument is a path the command writes,
+// per command. Only flags that certainly take a path are listed: curl's
+// -O takes none and wget's -O does, so guessing from the letter would
+// judge the URL after `curl -O https://…` as a file.
+var outputFlags = map[string][]string{
+	"go":      {"-o"},
+	"cc":      {"-o"},
+	"gcc":     {"-o"},
+	"g++":     {"-o"},
+	"clang":   {"-o"},
+	"clang++": {"-o"},
+	"c++":     {"-o"},
+	"rustc":   {"-o"},
+	"ld":      {"-o"},
+	"objcopy": {"-o"},
+	"curl":    {"-o", "--output"},
+	"wget":    {"-O", "--output-document"},
+	"sort":    {"-o"},
+	"gzip":    {"-o"},
+	"ffmpeg":  {"-o"},
+}
+
+// outputArg reads the path an output flag names, in either spelling the
+// flag takes: separated (`-o path`, and then i moves past it) or
+// attached (`-opath`, `--output=path`).
+func outputArg(toks []string, flags []string, i *int) (string, bool) {
+	tk := toks[*i]
+	for _, f := range flags {
+		switch {
+		case tk == f:
+			if *i+1 >= len(toks) {
+				return "", false
+			}
+			*i++
+			return toks[*i], true
+		case strings.HasPrefix(f, "--"):
+			if v, ok := strings.CutPrefix(tk, f+"="); ok {
+				return v, true
+			}
+		case len(tk) > len(f) && strings.HasPrefix(tk, f):
+			return tk[len(f):], true
+		}
+	}
+	return "", false
+}
+
 // Classify grades a command line run with root as the working directory.
 // The reason describes the first problem found.
 func Classify(command, root string) (Risk, string) {
@@ -251,6 +297,36 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 			}
 			if p, out := escapesResolved(abs, tk, root); out {
 				return RiskEscapes, toks[0] + " touches " + p + ", outside the workspace"
+			}
+		}
+	}
+	// An output flag names a write target as plainly as cp's second
+	// argument or a `>` does, and until this read it, `go build -o
+	// ~/bin/svc-lint` was graded ordinary — which is how two recorded
+	// eval runs installed a binary into the user's home without the
+	// guard ever looking. The flag lists are per command because -o is
+	// an output path for cc and a remote-name switch for curl.
+	if flags, ok := outputFlags[toks[0]]; ok {
+		for i := 1; i < len(toks); i++ {
+			tk, isOut := outputArg(toks, flags, &i)
+			if !isOut || tk == "" {
+				continue
+			}
+			if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
+				return RiskUnknown, "the working directory is unclear after cd, so writing " + tk + " cannot be judged"
+			}
+			abs, ok := resolvePathArg(tk, cwd)
+			if !ok {
+				if r, why := fuzzyTarget("write", tk, cwd, cwdKnown, root); r != RiskOrdinary {
+					return r, why
+				}
+				continue
+			}
+			if catastrophicTarget(abs) {
+				return RiskCatastrophic, toks[0] + " writes to " + abs
+			}
+			if p, out := escapesResolved(abs, tk, root); out {
+				return RiskEscapes, toks[0] + " writes to " + p + ", outside the workspace"
 			}
 		}
 	}
