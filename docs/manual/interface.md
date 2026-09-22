@@ -344,8 +344,36 @@ would destroy the machine (deleting `/` or the home directory, formatting,
 writing raw devices, piping a download into a shell, fork bombs, power-off)
 are refused outright, seen through `sudo`, `env`, `timeout`, `sh -c` and
 `eval` wrappers; commands that change files outside the working directory
-(`rm ../x`, `cp a ~/b`, `> /etc/hosts`) always ask. Everything else follows
-the permission mode.
+(`rm ../x`, `cp a ~/b`, `> /etc/hosts`, `go build -o ~/bin/x`, `curl -o ../f`)
+always ask. Everything else follows the permission mode.
+
+Auto-approve means "do not stop me for what would be allowed", never "skip
+the check". A guarded command is put in front of you under `--yolo`, an
+allow rule and a `pre_tool` hook alike, and the only thing that lets it
+through is an answer. A run with nobody to answer -- an eval, a headless
+run with no approver -- refuses it and tells the model why, so the next
+attempt changes the command rather than the machine.
+
+Whatever a tool reads, credentials are taken out of its result before
+anything sees it: a shell's whole environment, a `.env`, a 401 body
+quoting the header it rejected. Vendor key shapes, a bare `sk-` key, a
+value assigned to a variable whose name says key, token, secret or
+password, and `Authorization: Bearer` / `x-api-key` headers become
+`[redacted]`. The variable names and the surrounding lines stay, so the
+output is still readable, and the same redaction covers the model's
+context, what the interface shows, the session log on disk and an eval's
+recorded run. `"off": ["scrub"]` turns it off for a session that needs
+raw output.
+
+Model-run commands also never inherit the credentials themselves. A
+variable whose name contains `API_KEY`, `AUTH_TOKEN`, `API_TOKEN`,
+`SECRET_KEY` or `ACCESS_KEY` as whole `_`-separated words is dropped from
+the environment they run in, wherever in the name the phrase sits, so
+`DEEPSEEK_API_KEY_PERSONAL` goes the same way as `DEEPSEEK_API_KEY`.
+`GITHUB_TOKEN`, `NPM_TOKEN`, `CARGO_REGISTRY_TOKEN` and
+`AWS_ACCESS_KEY_ID` are kept, because `gh`, `npm publish`, `cargo` and
+`aws` need them; an MCP server's configured env is expanded after the
+scrub and is unaffected.
 
 `/undo` puts the work tree back to how it was before the last turn that
 changed anything, and takes that turn's messages out of the model's context
