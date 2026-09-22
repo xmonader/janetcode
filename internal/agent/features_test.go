@@ -3,6 +3,8 @@ package agent
 import (
 	"sync"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // The switch every consumer asks: off means no call is made at all, and
@@ -101,5 +103,39 @@ func TestZeroAgentHasEveryFeatureOff(t *testing.T) {
 		if a.DecisionsOn(c) || a.decisionsFor(c) != nil {
 			t.Fatalf("%s is on with nothing configured", c)
 		}
+	}
+}
+
+// The consumers, end to end: with the feature switched off mid-session,
+// the one that would have made a call makes none and the turn behaves
+// exactly as it did before the feature existed.
+func TestSwitchingDecisionsOffMakesNoCalls(t *testing.T) {
+	fd := &fakeDecisions{avail: true, res: triageResult(0.1, "environmental", 0.95)}
+	a := &Agent{}
+	a.SetDecisions(fd, true, false, false, false)
+	res := verify.Result{Failed: "go test ./...", Exit: 1, Output: "--- FAIL: TestX\n    x_test.go:9: want 2, got 3"}
+	if skip := a.triageFailure(t.Context(), res, func(Event) {}); !skip {
+		t.Fatal("a confident environmental verdict skips the repair round")
+	}
+	if fd.calls != 1 {
+		t.Fatalf("%d calls, want 1", fd.calls)
+	}
+	// /jev off: no client, so nothing is asked and the failure is sent
+	// back as it always was.
+	a.SetDecisions(nil, true, false, false, false)
+	if skip := a.triageFailure(t.Context(), res, func(Event) {}); skip {
+		t.Fatal("with the feature off the repair round must be spent")
+	}
+	if fd.calls != 1 {
+		t.Fatalf("%d calls after /jev off, want the same 1", fd.calls)
+	}
+	// And the kill switch, with the client back in place.
+	a.SetDecisions(fd, true, false, false, false)
+	a.Off = map[string]bool{"decisions": true}
+	if skip := a.triageFailure(t.Context(), res, func(Event) {}); skip {
+		t.Fatal("JANETCODE_OFF=decisions must leave the repair round alone")
+	}
+	if fd.calls != 1 {
+		t.Fatalf("%d calls under the kill switch, want the same 1", fd.calls)
 	}
 }
