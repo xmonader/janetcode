@@ -634,10 +634,13 @@ button:disabled { cursor: default; opacity: 0.55; }
 }
 .codeblock:hover .codecopy, .codecopy:focus-visible { opacity: 1; }
 .codecopy:hover { color: var(--blue); border-color: var(--blue-soft-border); background: var(--blue-soft); }
-.md .tk { color: var(--blue); font-weight: 500; }
-.md .ts { color: var(--ok); }
-.md .tc { color: var(--faint); font-style: italic; }
-.md .tn { color: var(--warn); }
+/* Highlighter token colors, global on purpose: the .tk/.ts/.tc/.tn spans
+   exist only inside highlight() output, which lands in assistant markdown,
+   tool results (.out) and the viewer — not just under .md. */
+.tk { color: var(--blue); font-weight: 500; }
+.ts { color: var(--ok); }
+.tc { color: var(--faint); font-style: italic; }
+.tn { color: var(--warn); }
 .diagram { font-family: var(--mono); font-size: 0.78rem; line-height: 1.25; white-space: pre; }
 
 /* message chrome: meta whisper + hover actions */
