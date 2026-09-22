@@ -1387,7 +1387,7 @@ pre.sheetbody {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 10px;
   cursor: col-resize;
   z-index: 6;
   touch-action: none;
@@ -1400,18 +1400,18 @@ pre.sheetbody {
   width: 2px;
   border-radius: 1px;
   background: var(--blue);
-  opacity: 0;
+  opacity: 0.14;
   transition: opacity 0.15s ease;
 }
-.drag-handle:hover::before { opacity: 0.45; }
+.drag-handle:hover::before { opacity: 0.5; }
 body.resizing { cursor: col-resize; user-select: none !important; }
 body.resizing .shell,
 body.resizing .work,
 body.resizing .preview { transition: none !important; }
 .nav > .drag-handle { right: 0; }
 .nav > .drag-handle::before { right: 3px; }
-.work > .drag-handle, .preview > .drag-handle { left: -4px; }
-.work > .drag-handle::before, .preview > .drag-handle::before { left: 3px; }
+.work > .drag-handle, .preview > .drag-handle { left: -5px; }
+.work > .drag-handle::before, .preview > .drag-handle::before { left: 4px; }
 
 /* ---- drawers: work panel + web preview --------------------------------- */
 .work, .preview {
