@@ -1263,30 +1263,40 @@
   }
   function placeSwitchMenu(anchor) {
     const r = anchor.getBoundingClientRect();
-    const width = 320;
+    const width = Math.min(320, window.innerWidth - 16);
     const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
-    const maxH = Math.min(360, window.innerHeight - 16);
-    let top = r.bottom + 6;
-    if (top + 200 > window.innerHeight) top = Math.max(8, r.top - maxH - 6);
+    const below = window.innerHeight - r.bottom;
+    const above = r.top;
+    const up = below < 220 && above > below;
+    switchMenu.classList.toggle("up", up);
     switchMenu.style.left = left + "px";
-    switchMenu.style.top = top + "px";
     switchMenu.style.width = width + "px";
-    switchMenu.style.maxHeight = maxH + "px";
+    if (up) {
+      switchMenu.style.top = "auto";
+      switchMenu.style.bottom = (window.innerHeight - r.top + 6) + "px";
+      switchMenu.style.maxHeight = Math.max(160, above - 12) + "px";
+    } else {
+      switchMenu.style.bottom = "auto";
+      switchMenu.style.top = (r.bottom + 6) + "px";
+      switchMenu.style.maxHeight = Math.max(160, below - 12) + "px";
+    }
   }
 
   async function openModelMenu() {
     switchMode = "model";
+    switchQ.value = "";
+    switchQ.placeholder = "Switch model…";
+    switchList.innerHTML = `<div class="menu-empty">Loading…</div>`;
+    placeSwitchMenu(modelBtn);
+    switchMenu.hidden = false;
+    switchQ.focus();
     try {
       modelGroups = (await (await fetch("/api/models")).json()).groups || [];
     } catch (_) {
       modelGroups = [];
     }
-    switchQ.value = "";
-    switchQ.placeholder = "Switch model…";
-    renderSwitchMenu("");
-    placeSwitchMenu(modelBtn);
-    switchMenu.hidden = false;
-    switchQ.focus();
+    if (switchMenu.hidden || switchMode !== "model") return;
+    renderSwitchMenu(switchQ.value);
   }
 
   function openEffortMenu() {
@@ -1727,6 +1737,7 @@
     chatView.hidden = currentView !== "chat";
     trajView.hidden = currentView !== "trajectory";
     document.getElementById("thread").hidden = currentView === "terminal";
+    document.querySelector(".col").classList.toggle("show-terminal", currentView === "terminal");
     if (currentView === "trajectory") refreshTrajectory();
     if (currentView === "terminal") {
       termView.hidden = false;
