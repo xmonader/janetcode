@@ -3,6 +3,7 @@
 package webui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -184,6 +186,10 @@ func displayAddr(a net.Addr) string {
 
 type server struct {
 	opts Options
+	// indexHTML is the page with the server's build stamped into the
+	// __janetUIBuild placeholder, so the page can tell when it is
+	// running JavaScript from an older binary (the server restarted).
+	indexHTML []byte
 	// life ends when Run's context does. Every turn, background command
 	// and subagent this server starts derives its context from it, so
 	// shutting the server down stops them rather than leaving them
@@ -347,6 +353,17 @@ func newServer(life context.Context, opts Options) *server {
 		subs:     map[chan envelope]struct{}{},
 		openedAt: time.Now(),
 	}
+	// Stamp the binary's build into the page. The value lands inside a
+	// JS string literal, so quote it like one — a version containing a
+	// quote or newline must not break out.
+	if raw, err := staticFS.ReadFile("static/index.html"); err == nil {
+		s.indexHTML = bytes.Replace(raw,
+			[]byte(`window.__janetUIBuild = "__JANET_UI_BUILD__";`),
+			[]byte("window.__janetUIBuild = "+strconv.Quote(opts.Version)+";"),
+			1)
+	} else {
+		s.indexHTML = []byte("(missing embedded index.html)")
+	}
 	// A server pointed at a session with history starts with that
 	// history on the thread — the way /resume rebuilds it — instead of a
 	// blank transcript until something new happens.
@@ -393,7 +410,8 @@ func (s *server) handler() http.Handler {
 			return
 		}
 		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFileFS(w, r, static, "index.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(s.indexHTML)
 	})
 	mux.HandleFunc("/events", s.events)
 	mux.HandleFunc("/api/state", s.state)

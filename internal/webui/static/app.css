@@ -944,6 +944,35 @@ pre.sheetbody {
 .turn-files .add { color: var(--ok); }
 .turn-files .del { color: var(--bad); }
 
+/* Stale-UI toast: the server restarted under a new build while this
+   page kept running the old JavaScript. */
+.reload-toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 0.5px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 8px 10px 8px 16px;
+  box-shadow: var(--shadow-pop);
+  font-size: 0.82rem;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.reload-toast button {
+  background: var(--blue);
+  color: var(--on-accent);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-weight: 600;
+}
+.reload-toast button:hover { background: var(--blue-deep); }
+
 /* ---- status + steering ------------------------------------------------- */
 .status {
   min-height: 1.25em;

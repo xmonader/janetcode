@@ -150,6 +150,14 @@ func TestIndexServesThePage(t *testing.T) {
 	if res.StatusCode != 200 || !bytes.Contains(body, []byte("janetcode")) {
 		t.Fatalf("status %d body %s", res.StatusCode, body[:min(200, len(body))])
 	}
+	// The page must carry the server's build stamped in (the stale-UI
+	// toast compares it against the hello event's version).
+	if !bytes.Contains(body, []byte(`window.__janetUIBuild = "test";`)) {
+		t.Fatalf("index.html missing stamped build: %s", body[:min(200, len(body))])
+	}
+	if bytes.Contains(body, []byte("__JANET_UI_BUILD__")) {
+		t.Fatal("index.html served with an unstamped build placeholder")
+	}
 	css, err := http.Get(ts.URL + "/static/app.css")
 	if err != nil {
 		t.Fatal(err)

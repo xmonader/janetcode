@@ -458,6 +458,12 @@
   }
   function applyHello(h) {
     if (!h) return;
+    // A different build than the page was served from means the server
+    // restarted with a new binary; this JavaScript is stale no matter
+    // how hard the user refreshes against the old process's memory.
+    if (window.__janetUIBuild && h.version && window.__janetUIBuild !== h.version) {
+      document.getElementById("reload-toast").hidden = false;
+    }
     modelLabel = [h.provider, h.model].filter(Boolean).join(" · ");
     paintModel();
     setModeChip(h.mode);
@@ -468,6 +474,9 @@
     if (leaf) document.getElementById("empty-lead").textContent = "What should we change in " + leaf + "?";
     loadSessions();
   }
+
+  const reloadBtn = document.getElementById("reload-btn");
+  if (reloadBtn) reloadBtn.addEventListener("click", () => location.reload());
 
   function applyStatus(st) {
     if (!st) return;

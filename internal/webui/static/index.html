@@ -12,6 +12,11 @@
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.themeChoice = t;
   document.documentElement.dataset.fontScale = localStorage.getItem("janetcode-font-scale") || "medium";
+  // Filled in by the server when it serves this page: the build the UI
+  // belongs to. The hello event carries the server's build; a mismatch
+  // means the server was restarted with a new binary and this page is
+  // running stale JavaScript.
+  window.__janetUIBuild = "__JANET_UI_BUILD__";
   addEventListener("DOMContentLoaded", function () {
     var sh = document.querySelector(".shell");
     if (!sh) return;
@@ -154,8 +159,12 @@
           <button type="submit">Send</button>
         </form>
       </div>
-      <p id="status" class="status"></p>
+        <p id="status" class="status"></p>
       <p id="steer-hint" class="steer-hint" hidden>Press <kbd>Enter</kbd> to queue · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to steer</p>
+      <div id="reload-toast" class="reload-toast" hidden>
+        <span>The server restarted — this page runs the old UI.</span>
+        <button type="button" id="reload-btn">Reload</button>
+      </div>
       <form id="composer">
         <div id="slash" class="slash" hidden></div>
         <div id="ac" class="ac" hidden></div>
