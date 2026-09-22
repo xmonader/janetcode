@@ -29,9 +29,70 @@ var secretPatterns = []struct {
 	{"a JSON web token", regexp.MustCompile(`\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}`)},
 }
 
+// genericKey is the vendor-agnostic form of the list above: sk- and then
+// enough opaque characters that it cannot be prose. Every provider that
+// copied OpenAI's prefix lands here, including the ones whose middle
+// segment nobody has seen yet (sk-sp-…, sk-fw-…). The \b matters: without
+// it `task-1234…` is an sk- key.
+var genericKey = regexp.MustCompile(`\bsk-[A-Za-z0-9_\-]{20,}`)
+
+// spanPattern is a shape where the name around the value is worth
+// keeping and only the value is the credential. group is the submatch
+// holding the value; ok is the extra test that keeps the net from
+// catching ordinary text.
+type spanPattern struct {
+	name  func(m []string) string
+	re    *regexp.Regexp
+	group int
+	ok    func(m []string) bool
+}
+
 // assignedSecret catches the shape rather than the vendor: a name that
 // says secret, assigned a long opaque value.
 var assignedSecret = regexp.MustCompile(`(?i)\b(?:api[_\- ]?key|secret[_\- ]?key|access[_\- ]?token|auth[_\- ]?token|password|passwd|client[_\- ]?secret)\b\s*[:=]\s*["']?([A-Za-z0-9_\-+/.]{20,})["']?`)
+
+// envAssign is one shell variable assignment: the shape a whole `env`
+// dump is made of. Whether it holds a credential is decided by the
+// name's words, not by how the value looks — a password is short and
+// pronounceable and still a password.
+var envAssign = regexp.MustCompile(`(?m)(?:^|[\s;&|(])(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=("[^"\n]{8,}?"|'[^'\n]{8,}?'|[^\s"'\n;&|]{8,})`)
+
+// authHeader and apiKeyHeader are the two ways a key travels in a
+// request the model pasted into a shell.
+var authHeader = regexp.MustCompile(`(?i)\b(?:proxy-)?authorization\s*:\s*(?:bearer|token|basic)\s+["']?([A-Za-z0-9_\-.=+/]{8,})`)
+var apiKeyHeader = regexp.MustCompile(`(?i)\b(?:x-api-key|x-auth-token|x-access-token|api-key)\s*:\s*["']?([^\s"'\n]{8,})`)
+
+// spanPatterns run after secretPatterns, in this order.
+var spanPatterns = []spanPattern{
+	{func(m []string) string { return "a secret assigned in " + firstWord(m[0]) }, assignedSecret, 1, func(m []string) bool { return looksRandom(m[1]) }},
+	{func(m []string) string { return "a credential in " + m[1] }, envAssign, 2, func(m []string) bool { return secretVarName(m[1]) && !pathValue(m[2]) }},
+	{func([]string) string { return "a bearer token" }, authHeader, 1, nil},
+	{func([]string) string { return "an API key header" }, apiKeyHeader, 1, nil},
+}
+
+// secretWords are the words that make a variable name a credential's
+// name. The match is on whole `_`-separated words, so DEEPSEEK_API_KEY_PERSONAL
+// is one and MONKEY is not.
+var secretWords = map[string]bool{
+	"KEY": true, "KEYS": true, "APIKEY": true, "TOKEN": true, "SECRET": true,
+	"PASSWORD": true, "PASSWD": true, "CREDENTIAL": true, "CREDENTIALS": true, "AUTH": true,
+}
+
+func secretVarName(name string) bool {
+	for _, w := range strings.Split(strings.ToUpper(name), "_") {
+		if secretWords[w] {
+			return true
+		}
+	}
+	return false
+}
+
+// pathValue keeps SSH_AUTH_SOCK and its relatives readable: a filesystem
+// path is where a credential lives, not the credential.
+func pathValue(v string) bool {
+	v = strings.Trim(v, `"'`)
+	return strings.HasPrefix(v, "/") || strings.HasPrefix(v, "./") || strings.HasPrefix(v, "~/")
+}
 
 // placeholders are the values people write instead of a secret; a
 // documented example is worth remembering, and refusing it teaches
@@ -40,17 +101,8 @@ var placeholders = []string{"xxx", "your", "example", "changeme", "redacted", "p
 
 // ScanSecret reports what looks like a credential in text, or "".
 func ScanSecret(text string) string {
-	for _, p := range secretPatterns {
-		if p.re.MatchString(text) {
-			return p.name
-		}
-	}
-	for _, m := range assignedSecret.FindAllStringSubmatch(text, -1) {
-		if !placeholder(m[1]) && looksRandom(m[1]) {
-			return "a secret assigned in " + firstWord(m[0])
-		}
-	}
-	return ""
+	_, _, what := redactSecrets(text)
+	return what
 }
 
 // RedactPlaceholder is what a redacted span is replaced with.
@@ -67,30 +119,73 @@ const RedactPlaceholder = "[redacted]"
 // assignment it redacts the value only, keeping the name that makes the
 // surrounding line readable.
 func RedactSecrets(text string) (string, int) {
-	n := 0
+	out, n, _ := redactSecrets(text)
+	return out, n
+}
+
+// redactSecrets is the one pass both entry points read: it rewrites the
+// text, counts the spans and names the first one. Sharing it is what
+// makes "ScanSecret finds nothing" and "RedactSecrets changes nothing"
+// the same statement rather than two lists that drift apart.
+func redactSecrets(text string) (string, int, string) {
+	n, what := 0, ""
 	for _, p := range secretPatterns {
 		text = p.re.ReplaceAllStringFunc(text, func(string) string {
 			n++
+			if what == "" {
+				what = p.name
+			}
 			return RedactPlaceholder
 		})
 	}
-	var b strings.Builder
-	last := 0
-	for _, m := range assignedSecret.FindAllStringSubmatchIndex(text, -1) {
-		vs, ve := m[2], m[3]
-		if vs < 0 || placeholder(text[vs:ve]) || !looksRandom(text[vs:ve]) {
-			continue
+	text = genericKey.ReplaceAllStringFunc(text, func(m string) string {
+		if placeholder(m) {
+			return m
 		}
-		b.WriteString(text[last:vs])
-		b.WriteString(RedactPlaceholder)
-		last = ve
 		n++
+		if what == "" {
+			what = "an API key"
+		}
+		return RedactPlaceholder
+	})
+	for _, p := range spanPatterns {
+		var b strings.Builder
+		last := 0
+		for _, idx := range p.re.FindAllStringSubmatchIndex(text, -1) {
+			vs, ve := idx[2*p.group], idx[2*p.group+1]
+			if vs < 0 {
+				continue
+			}
+			m := groups(text, idx)
+			if placeholder(m[p.group]) || (p.ok != nil && !p.ok(m)) {
+				continue
+			}
+			b.WriteString(text[last:vs])
+			b.WriteString(RedactPlaceholder)
+			last = ve
+			n++
+			if what == "" {
+				what = p.name(m)
+			}
+		}
+		if last > 0 {
+			b.WriteString(text[last:])
+			text = b.String()
+		}
 	}
-	if last == 0 {
-		return text, n
+	return text, n, what
+}
+
+// groups materialises one match's submatches from its index pairs, so a
+// pattern's ok and name can read the name beside the value.
+func groups(text string, idx []int) []string {
+	m := make([]string, len(idx)/2)
+	for i := range m {
+		if idx[2*i] >= 0 {
+			m[i] = text[idx[2*i]:idx[2*i+1]]
+		}
 	}
-	b.WriteString(text[last:])
-	return b.String(), n
+	return m
 }
 
 func placeholder(v string) bool {
