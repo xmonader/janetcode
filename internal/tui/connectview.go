@@ -128,6 +128,8 @@ func (m *model) connectView(height int) string {
 func (m *model) dialogTitle() string {
 	c := m.connect
 	switch {
+	case c.slot != "":
+		return "Choose the " + c.slot + " model"
 	case c.modelOnly:
 		return "Choose a model"
 	case c.step == stepPick:

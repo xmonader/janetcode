@@ -420,6 +420,11 @@ func (m *model) cmdVerbose(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdModel(text string, fields []string) (tea.Cmd, bool) {
+	// /model cheap|strong|advisor|vision picks one of the other slots
+	// through the same dialog; anything else is a model id, as before.
+	if cmd, open, handled := m.cmdModelSlot(fields); handled {
+		return cmd, open
+	}
 	if len(fields) < 2 {
 		if m.opts.Config == nil {
 			m.note("model: " + m.opts.Agent.Settings().Model + " (" + m.opts.Provider + ")")

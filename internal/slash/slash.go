@@ -81,7 +81,7 @@ var Commands = withIdle([]Command{
 	{Name: "/loop", Args: "[duration] [prompt|off|cancel id]", Help: "session-scoped repeating prompt; restored on resume of this session"},
 	{Name: "/settle", Args: "", Help: "mark this session done with (or active again); settled sessions list last in /resume"},
 	{Name: "/connect", Args: "", Help: "connect to a provider (preset or custom API) and pick a model"},
-	{Name: "/model", Args: "[name]", Help: "pick a model from a list, or set one by name"},
+	{Name: "/model", Args: "[name | cheap|strong|advisor|vision [name|off]]", Help: "pick a model from a list, or set one by name; a slot name picks the model that slot uses, and an unset slot is the session's own"},
 	{Name: "/effort", Args: "[tier|up|down]", Help: "how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it. ctrl+r cycles it"},
 	{Name: "/usage", Args: "", Help: "tokens and cost for this session"},
 	{Name: "/budget", Args: "[usd|off]", Help: "stop the session once it has spent this much; alone says what the ceiling is and what is left"},

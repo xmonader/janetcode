@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -120,6 +121,14 @@ func (m *model) completeModel(partial string) []command {
 	}
 	seen := map[string]bool{}
 	var out []command
+	// The slots come first: they are words, not ids, and a user who has
+	// never seen /model strong will not guess it from a list of models.
+	for _, s := range config.SlotNames {
+		if partial != "" && !strings.HasPrefix(s, strings.ToLower(partial)) {
+			continue
+		}
+		out = append(out, command{name: "/model " + s, help: m.slotLine(s)})
+	}
 	for _, n := range m.opts.Config.ProviderNames() {
 		p := m.opts.Config.Providers[n]
 		if p.Model == "" || seen[p.Model] {

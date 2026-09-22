@@ -54,6 +54,10 @@ type row struct {
 type connect struct {
 	step      connectStep
 	modelOnly bool // opened by /model: only the last step, esc closes
+	// slot names the model slot being filled (see slots.go) when the
+	// dialog was opened by /model <slot>. Empty is the session's own
+	// model, which is the only choice that switches the running agent.
+	slot      string
 	name      string
 	prov      config.Provider
 	field     textinput.Model
@@ -422,6 +426,10 @@ func (m *model) connectEnter() tea.Cmd {
 		}
 		if id == "" {
 			return m.fail("type a model id")
+		}
+		if c.slot != "" {
+			m.applySlotChoice(id)
+			return nil
 		}
 		m.applyConnect(id)
 	}
