@@ -18,7 +18,7 @@ const goalRoleTimeout = 15 * time.Second
 // the same side-query path as advisor (AdvisorModel when set). It never
 // replaces GoalContinuation; it prepends a short note or stays silent.
 func (a *Agent) goalRoleNote(ctx context.Context, g Goal) string {
-	if a == nil || g.Objective == "" || strings.TrimSpace(a.AdvisorModel) == "" {
+	if a == nil || g.Objective == "" || a.AdvisorModelName() == "" {
 		return ""
 	}
 	if ctx == nil || ctx.Err() != nil {
@@ -27,7 +27,7 @@ func (a *Agent) goalRoleNote(ctx context.Context, g Goal) string {
 	}
 	ctx, cancel := context.WithTimeout(ctx, goalRoleTimeout)
 	defer cancel()
-	model := strings.TrimSpace(a.AdvisorModel)
+	model := a.AdvisorModelName()
 	var (
 		sys, q, tag string
 	)

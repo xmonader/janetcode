@@ -46,12 +46,13 @@ func (a *Agent) advisorForcedEnabled() bool {
 	if a.Off["advisor"] {
 		return false
 	}
-	return strings.TrimSpace(a.AdvisorMode) == AdvisorAlways
+	mode, _ := a.advisorForcedSettings()
+	return mode == AdvisorAlways
 }
 
 // advisorForcedBudget is how many forced consults are left this turn.
 func (a *Agent) advisorForcedBudget() int {
-	cap := a.AdvisorMaxConsults
+	_, cap := a.advisorForcedSettings()
 	if cap <= 0 {
 		cap = advisorForcedCap
 	}

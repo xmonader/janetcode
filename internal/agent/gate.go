@@ -67,7 +67,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	// decision provider vetoed as environmental or flaky never reaches
 	// here, so a missing dependency does not buy a strong-model round.
 	// That veto is free -- it is the ordering, not a second call.
-	if g.rounds >= a.EscalateAfter {
+	if g.rounds >= a.EscalateRounds() {
 		a.escalate(fmt.Sprintf("the verification gate failed %d round(s)", g.rounds), emit)
 	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})

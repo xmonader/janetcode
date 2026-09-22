@@ -117,7 +117,7 @@ const intakeRouteDeadline = 700 * time.Millisecond
 // Whatever it collects is recorded here, which is also what stops
 // drainIntake recording it a second time at the end of the turn.
 func (a *Agent) awaitIntakeRouting(ctx context.Context) {
-	if !a.DecisionsIntakeRoute || a.intakeCh == nil {
+	if !a.DecisionsOn(DecisionRoute) || a.intakeCh == nil {
 		return
 	}
 	wait := intakeRouteDeadline
@@ -154,5 +154,5 @@ func (a *Agent) awaitIntakeRouting(ctx context.Context) {
 //
 // It is also false past the turn the classification was made for.
 func (a *Agent) intakeRoutedCheap() bool {
-	return a.DecisionsIntakeRoute && a.intakeRoute.Cheap && a.turnN == a.intakeRouteTurn
+	return a.DecisionsOn(DecisionRoute) && a.intakeRoute.Cheap && a.turnN == a.intakeRouteTurn
 }

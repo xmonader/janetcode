@@ -102,10 +102,11 @@ var SessionOutcomes = []string{"success", "partial", "failed", "abandoned"}
 // consolidation reads it as one more fact about a record that is
 // already written.
 func (a *Agent) ClassifySessionOutcome(ctx context.Context) {
-	if a.Decisions == nil || !a.DecisionsSessionOutcome || a.Off["decisions"] {
+	dp := a.decisionsFor(DecisionOutcome)
+	if dp == nil {
 		return
 	}
-	if a.Log == nil || !a.Decisions.Available() {
+	if a.Log == nil || !dp.Available() {
 		return
 	}
 	turns := AnnotateTurns(a.Log.Events())
@@ -113,7 +114,7 @@ func (a *Agent) ClassifySessionOutcome(ctx context.Context) {
 		return
 	}
 	start := time.Now()
-	res, err := a.Decisions.Evaluate(ctx, SessionOutcomeState(turns), SessionOutcomeQuestions())
+	res, err := dp.Evaluate(ctx, SessionOutcomeState(turns), SessionOutcomeQuestions())
 	took := time.Since(start)
 	cost, tokensOut := 0.0, 0
 	if res != nil {

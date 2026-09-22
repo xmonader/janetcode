@@ -91,13 +91,14 @@ type intakeOutcome struct {
 // The turn never waits on it: drainIntake collects whatever has arrived
 // by the end of the turn.
 func (a *Agent) startIntake(ctx context.Context, prompt string) {
-	if a.Decisions == nil || !a.DecisionsIntake || a.Off["decisions"] || prompt == "" {
+	dp := a.decisionsFor(DecisionIntake)
+	if dp == nil || prompt == "" {
 		return
 	}
 	if a.intakeCh != nil || a.intakeDone {
 		return // one classification per session, and it is already away
 	}
-	if !a.Decisions.Available() {
+	if !dp.Available() {
 		return
 	}
 	ch := make(chan intakeOutcome, 1)
@@ -110,7 +111,7 @@ func (a *Agent) startIntake(ctx context.Context, prompt string) {
 	state := IntakeState(prompt)
 	go func() {
 		start := time.Now()
-		res, err := a.Decisions.Evaluate(callCtx, state, IntakeQuestions())
+		res, err := dp.Evaluate(callCtx, state, IntakeQuestions())
 		ch <- intakeOutcome{res: res, err: err, took: time.Since(start)}
 	}()
 }
@@ -171,7 +172,7 @@ func (a *Agent) recordIntake(out intakeOutcome) {
 	// record can say what the answer was used for rather than only what it
 	// said. Routing off, or a late answer, leaves both fields empty.
 	route, acted := "", false
-	if a.DecisionsIntakeRoute {
+	if a.DecisionsOn(DecisionRoute) {
 		route = "default"
 		if a.intakeRoute.Cheap {
 			route, acted = "cheap", true

@@ -1,6 +1,7 @@
 package settingsapply
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -75,6 +76,22 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.StrongModel = "starting-model" },
 			func(a *agent.Agent) any { return a.StrongModel },
 			func(cfg *config.Config) any { return cfg.StrongModel }},
+		{"stale_check_nudge", "true",
+			func(a *agent.Agent) { a.StaleCheckNudge = false },
+			func(a *agent.Agent) any { return a.StaleNudgeOn() },
+			func(cfg *config.Config) any { return cfg.StaleCheckNudge }},
+		{"escalate_after", "3",
+			func(a *agent.Agent) { a.EscalateAfter = 1 },
+			func(a *agent.Agent) any { return a.EscalateRounds() },
+			func(cfg *config.Config) any { return cfg.EscalateAfter }},
+		{"advisor_mode", "always",
+			func(a *agent.Agent) { a.AdvisorMode = "off" },
+			func(a *agent.Agent) any { return a.AdvisorMode },
+			func(cfg *config.Config) any { return cfg.AdvisorMode }},
+		{"advisor_max_consults", "4",
+			func(a *agent.Agent) { a.AdvisorMaxConsults = 1 },
+			func(a *agent.Agent) any { return a.AdvisorMaxConsults },
+			func(cfg *config.Config) any { return cfg.AdvisorMaxConsults }},
 	}
 	// noAgentField are settable keys with nothing cached on Agent for
 	// Apply to update: each is read straight from *config.Config
@@ -91,6 +108,15 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"memory":        "read via cfg.AutoMemory() where memory extraction is scheduled",
 		"followup":      "read via cfg.FollowupEnabled() by the terminal after a turn",
 		"computer_use":  "read via cfg.ComputerUseEnabled() when MCP servers start",
+		"vision_model":  "no consumer yet: resolved through cfg.Slot wherever it is eventually read",
+	}
+	// The decisions block is wired as a whole rather than key by key
+	// (see Apply), so its keys are audited by TestDecisionsKeysRewire
+	// below instead of by a per-key live field.
+	for _, k := range config.SettableKeys {
+		if strings.HasPrefix(k, "decisions.") {
+			noAgentField[k] = "wired as a block by WireDecisions"
+		}
 	}
 
 	seen := map[string]bool{}
@@ -132,5 +158,71 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 				t.Errorf("after /config %s=%s, live agent field = %v, want %v", c.key, c.val, got, want)
 			}
 		})
+	}
+}
+
+// Every decisions key rewires the whole block on the live agent, because
+// its keys are not independent: a consumer switched on while the master
+// switch is off has to end up with no client, exactly as a restart would
+// leave it. With no key in the environment there is no client either way,
+// which is the case this test can check without one.
+func TestDecisionsKeysRewireTheBlock(t *testing.T) {
+	// The default key env, emptied: the machine running the test may
+	// well have a real one, and this case is the session that has none.
+	t.Setenv("OPENROUTER_API_KEY", "")
+	cfg := &config.Config{}
+	a := &agent.Agent{Tools: tool.NewRegistry()}
+	if _, err := Apply(cfg, a, "", "decisions.api_key_env", "JANETCODE_TEST_DECISIONS_KEY"); err == nil {
+		t.Fatal("api_key_env is not settable; the test is out of date")
+	}
+	if _, err := Apply(cfg, a, "", "decisions.triage", "on"); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Decisions.Triage {
+		t.Fatal("the key did not reach the config")
+	}
+	// No key in the environment: no client, so no consumer is on.
+	if a.DecisionsClient() || a.DecisionsOn(agent.DecisionTriage) {
+		t.Fatal("a keyless session must have no client and no consumer on")
+	}
+
+	// With a key the client appears and the consumer follows the config.
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+	if _, err := Apply(cfg, a, "", "decisions.intake", "on"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.DecisionsClient() || !a.DecisionsOn(agent.DecisionTriage) || !a.DecisionsOn(agent.DecisionIntake) {
+		t.Fatal("the block did not reach the agent")
+	}
+	// And the master switch takes the client away without forgetting the
+	// consumers in the file.
+	if _, err := Apply(cfg, a, "", "decisions.enabled", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if a.DecisionsClient() || a.DecisionsOn(agent.DecisionTriage) {
+		t.Fatal("/jev off must leave no client and no consumer on")
+	}
+	if !cfg.Decisions.Triage || !cfg.Decisions.Intake {
+		t.Fatal("switching off must not forget the consumer keys")
+	}
+	if _, err := Apply(cfg, a, "", "decisions.enabled", "on"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.DecisionsClient() || !a.DecisionsOn(agent.DecisionTriage) {
+		t.Fatal("/jev on must bring the client and the consumers back")
+	}
+}
+
+// The kill switch beats the configuration: with Off naming decisions,
+// no key can put a client on the agent.
+func TestDecisionsKillSwitchBeatsTheKeys(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+	cfg := &config.Config{}
+	a := &agent.Agent{Tools: tool.NewRegistry(), Off: map[string]bool{"decisions": true}}
+	if _, err := Apply(cfg, a, "", "decisions.triage", "on"); err != nil {
+		t.Fatal(err)
+	}
+	if a.DecisionsClient() || a.DecisionsOn(agent.DecisionTriage) {
+		t.Fatal("JANETCODE_OFF=decisions was overridden by /jev")
 	}
 }

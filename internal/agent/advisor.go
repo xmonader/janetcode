@@ -55,7 +55,7 @@ func (t *AdvisorTool) Run(ctx context.Context, input json.RawMessage) (string, e
 
 // Advise is the stuck-consult: no session system prompt, no tool schemas.
 func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
-	text, model, err := a.sideQuery(ctx, advisorSystem, question, strings.TrimSpace(a.AdvisorModel), 800)
+	text, model, err := a.sideQuery(ctx, advisorSystem, question, a.AdvisorModelName(), 800)
 	if err != nil {
 		return "", err
 	}

@@ -22,11 +22,25 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		return nil, err
 	}
 	if path != "" {
-		if err := config.UpdateKey(path, key, applied); err != nil {
+		// A key inside the decisions block writes the block: the file
+		// holds one object there, and ApplyKV has already merged the
+		// change into the loaded copy of it.
+		fileKey, value := key, applied
+		if strings.HasPrefix(key, "decisions.") {
+			fileKey, value = "decisions", cfg.Decisions
+		}
+		if err := config.UpdateKey(path, fileKey, value); err != nil {
 			return nil, fmt.Errorf("save config: %w", err)
 		}
 	}
 	if a == nil {
+		return applied, nil
+	}
+	// The decisions block is wired as a whole, because its keys are not
+	// independent: a consumer switched on with the master switch off has
+	// to end up with no client, exactly as a restart would leave it.
+	if strings.HasPrefix(key, "decisions.") {
+		WireDecisions(cfg, a, a.Off)
 		return applied, nil
 	}
 	switch key {
@@ -51,11 +65,21 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 	case "route_cheap":
 		a.SetRouteCheap(cfg.RouteCheap)
 	case "advisor_model":
-		a.AdvisorModel = cfg.AdvisorModel
+		a.SetAdvisorModel(cfg.AdvisorModel)
 	case "strong_model":
 		// Changing the slot invalidates the cached resolution, exactly as
 		// /config route_cheap does for the cheap one.
 		a.SetStrongModel(cfg.StrongModel)
+	case "vision_model":
+		// Nothing consumes the vision slot yet (see config.Config), so
+		// there is no live field to update: the choice is recorded and
+		// resolved through cfg.Slot wherever it is eventually read.
+	case "stale_check_nudge":
+		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
+	case "escalate_after":
+		a.SetEscalateAfter(cfg.EscalateAfter)
+	case "advisor_mode", "advisor_max_consults":
+		a.SetAdvisorMode(cfg.AdvisorMode, cfg.AdvisorMaxConsults)
 	case "sandbox":
 		// The key is the project's default profile, so setting it
 		// changes what a running sandbox enforces but does not turn one

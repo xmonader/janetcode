@@ -147,6 +147,7 @@ var configWhen = map[string][2]string{
 	"advisor_max_consults": {"forced advisor consults one turn may buy; 0 is two", "a forced advisor is worth its price at one consult a turn but not at five"},
 	"strong_model":         {"the strong slot of the cheap/default/strong trio: the model a turn escalates to when its verification gate keeps failing", "you want to run on a cheap model and buy the expensive one only for the turns that actually fail a real check"},
 	"escalate_after":       {"verification rounds the session's own model may fail before the rest of the turn runs on strong_model; 0 is off", "you are measuring or using the cascade and want to say how patient it is"},
+	"vision_model":         {"the slot for a model that reads images; empty is the session's own model", "you want the image slot recorded where the other slots are -- nothing consumes it yet, so an image pasted into a turn still rides on the session's model"},
 	"decisions":            {"optional TypeSafe Jev decision client for advisory triage of verification failures; states are sent to its API, scrubbed of credential-shaped text", "a failing verify gate sends the model back for environmental or flaky failures it cannot fix; off unless configured"},
 }
 

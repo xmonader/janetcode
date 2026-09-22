@@ -199,21 +199,22 @@ func triageAction(res *jev.Result) triageVerdict {
 // session however often the circuit re-opens after a failed probe: the
 // first notice already says the feature paused itself.
 func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(Event)) bool {
-	if a.Decisions == nil || !a.DecisionsTriage || a.Off["decisions"] {
+	dp := a.decisionsFor(DecisionTriage)
+	if dp == nil {
 		return false
 	}
-	if !a.Decisions.Available() {
+	if !dp.Available() {
 		return false
 	}
 	start := time.Now()
-	ans, err := a.Decisions.Evaluate(ctx, a.triageState(res), triageQuestions())
+	ans, err := dp.Evaluate(ctx, a.triageState(res), triageQuestions())
 	cost, tokensOut := 0.0, 0
 	if ans != nil {
 		cost, tokensOut = ans.Cost, ans.TokensOut
 	}
 	a.stats.decision(err != nil, time.Since(start), cost, tokensOut)
 	if err != nil {
-		if !a.Decisions.Available() && !a.decisionCircuitSeen {
+		if !dp.Available() && !a.decisionCircuitSeen {
 			a.decisionCircuitSeen = true
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: repeated errors, paused for %v and then retried once (%s)", jev.DefaultCooldown, err.Error())})
 		}
@@ -221,7 +222,7 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	}
 	// The circuit can also open on latency, after a call that succeeded:
 	// ten medians past a second is the service, not this session.
-	if !a.Decisions.Available() && !a.decisionCircuitSeen {
+	if !dp.Available() && !a.decisionCircuitSeen {
 		a.decisionCircuitSeen = true
 		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: median latency past %v over %d calls, paused for %v and then retried once", jev.LatencyOpenP50, jev.LatencyWindow, jev.DefaultCooldown)})
 	}

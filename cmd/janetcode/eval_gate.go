@@ -7,6 +7,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -81,13 +82,5 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	// measured arm once while the eval agent never set it, so an arm that
 	// turns it on in the config now actually gets it.
 	ag.StaleCheckNudge = cfg.StaleCheckNudge
-	cl, _ := decisionsClient(cfg, off)
-	if cl == nil {
-		return
-	}
-	ag.Decisions = cl
-	ag.DecisionsTriage = cfg.Decisions.Triage
-	ag.DecisionsIntake = cfg.Decisions.Intake
-	ag.DecisionsIntakeRoute = cfg.Decisions.IntakeRoute
-	ag.DecisionsSessionOutcome = cfg.Decisions.SessionOutcome
+	settingsapply.WireDecisions(cfg, ag, off)
 }

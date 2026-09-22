@@ -34,6 +34,15 @@ func (a *Agent) SetStrongModel(name string) {
 	a.escalateState.mu.Unlock()
 }
 
+// StrongModelName is StrongModel, safe to read while a turn runs: it is
+// read under the lock SetStrongModel takes, so /features and /model
+// changing the slot cannot race the turn goroutine asking for it.
+func (a *Agent) StrongModelName() string {
+	a.escalateState.mu.Lock()
+	defer a.escalateState.mu.Unlock()
+	return strings.TrimSpace(a.StrongModel)
+}
+
 // escalateState caches the one-time resolution of StrongModel, the same
 // way routeCheapState caches RouteCheap: a name that cannot be routed
 // turns escalation off for the session with one notice rather than
@@ -52,7 +61,7 @@ type escalateState struct {
 // slot is configured, a round count is set, and the behaviour is not
 // switched off.
 func (a *Agent) EscalateEnabled() bool {
-	return !a.Off["escalate"] && strings.TrimSpace(a.StrongModel) != "" && a.EscalateAfter > 0
+	return !a.Off["escalate"] && a.StrongModelName() != "" && a.EscalateRounds() > 0
 }
 
 // escalate turns the rest of the turn over to the strong slot. Repeated
@@ -69,7 +78,7 @@ func (a *Agent) escalate(why string, emit func(Event)) {
 	}
 	a.escalateState.mu.Unlock()
 	if first && emit != nil {
-		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("escalating to %s: %s", strings.TrimSpace(a.StrongModel), why)})
+		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("escalating to %s: %s", a.StrongModelName(), why)})
 	}
 }
 
@@ -94,7 +103,7 @@ func (a *Agent) endTurnEscalation() {
 // session with a single notice.
 func (a *Agent) resolveStrong(emit func(Event)) (llm.Provider, string, bool) {
 	s := a.Settings()
-	name := strings.TrimSpace(a.StrongModel)
+	name := a.StrongModelName()
 	a.escalateState.mu.Lock()
 	resolved, disabled, prov, model := a.escalateState.resolved, a.escalateState.disabled, a.escalateState.prov, a.escalateState.model
 	a.escalateState.mu.Unlock()

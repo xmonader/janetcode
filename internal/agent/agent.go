@@ -311,6 +311,11 @@ type Agent struct {
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).
 	settingsMu sync.Mutex
+	// featMu guards the feature knobs a front-end changes mid-session --
+	// the cascade's round count, the forced advisor, the stale-check
+	// nudge, the advisor slot, the decision provider and its consumers.
+	// See features.go for the setters and getters that hold it.
+	featMu sync.RWMutex
 	// Debug, when set, receives a timestamped line per event and model call.
 	Debug io.Writer
 
@@ -705,7 +710,7 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	// and bounded by the same one-correction-a-turn counter, because the
 	// expensive mistake here is nagging a turn that is genuinely finished
 	// into another round of model calls.
-	if a.StaleCheckNudge && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
+	if a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
 		a.appendHarnessText(outcome.StaleCheckNote())

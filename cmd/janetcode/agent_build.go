@@ -12,7 +12,6 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/impact"
-	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -20,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
@@ -575,49 +575,10 @@ func (b *agentBuilder) stepTurnHooks() error {
 // client is advisory by contract and nothing here can fail the build: a
 // missing key is a note on stderr and a session without the feature.
 func (b *agentBuilder) stepDecisions() error {
-	cl, keyless := decisionsClient(b.d.cfg, b.off)
-	if keyless {
+	if settingsapply.WireDecisions(b.d.cfg, b.ag, b.off) {
 		fmt.Fprintf(os.Stderr, "decisions: configured but %s is empty; off for this session\n", b.d.cfg.Decisions.KeyEnv())
 	}
-	if cl == nil {
-		return nil
-	}
-	b.ag.Decisions = cl
-	b.ag.DecisionsTriage = b.d.cfg.Decisions.Triage
-	b.ag.DecisionsIntake = b.d.cfg.Decisions.Intake
-	b.ag.DecisionsIntakeRoute = b.d.cfg.Decisions.IntakeRoute
-	b.ag.DecisionsSessionOutcome = b.d.cfg.Decisions.SessionOutcome
 	return nil
-}
-
-// decisionsClient composes the Jev client from the config's "decisions"
-// block, or returns nil when the block is absent, --off names
-// "decisions", or the key environment variable is empty (keyless is
-// true only in that last case, so the caller can say so once). It is the
-// single composition point: a real session and an eval run under
-// --eval-gate wire the identical client, including the scrubber.
-func decisionsClient(cfg *config.Config, off map[string]bool) (client *jev.Client, keyless bool) {
-	d := cfg.Decisions
-	if d == nil || off["decisions"] {
-		return nil, false
-	}
-	key := os.Getenv(d.KeyEnv())
-	if key == "" {
-		return nil, true
-	}
-	return &jev.Client{
-		BaseURL: d.BaseURL,
-		Key:     key,
-		Model:   d.Model,
-		Timeout: time.Duration(d.TimeoutMs) * time.Millisecond,
-		// The one scrubbing hook, at the wire so it covers every field
-		// of every consumer's state: each credential-shaped span goes
-		// out as "[redacted]" and the evidence around it survives.
-		Scrub: func(s string) string {
-			out, _ := memory.RedactSecrets(s)
-			return out
-		},
-	}, false
 }
 
 // stepUndo opens the session's undo ledger and the snapshot store behind
