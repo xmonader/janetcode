@@ -28,15 +28,17 @@ type command struct {
 
 // argCompleters lists the commands whose argument can be enumerated.
 var argCompleters = map[string]func(m *model, partial string) []command{
-	"/resume": (*model).completeSession,
-	"/model":  (*model).completeModel,
-	"/theme":  (*model).completeTheme,
-	"/forget": (*model).completeMemory,
-	"/undo":   (*model).completeUndo,
-	"/open":   (*model).completeFile,
-	"/diff":   (*model).completeFile,
-	"/agents": (*model).completeAgents,
-	"/jobs":   (*model).completeJobs,
+	"/features": (*model).completeFeatures,
+	"/jev":      (*model).completeJev,
+	"/resume":   (*model).completeSession,
+	"/model":    (*model).completeModel,
+	"/theme":    (*model).completeTheme,
+	"/forget":   (*model).completeMemory,
+	"/undo":     (*model).completeUndo,
+	"/open":     (*model).completeFile,
+	"/diff":     (*model).completeFile,
+	"/agents":   (*model).completeAgents,
+	"/jobs":     (*model).completeJobs,
 }
 
 // commands is the shared slash table with the terminal's completions.
@@ -147,7 +149,9 @@ var dispatch = map[string]cmdHandler{
 	"/connect": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.openConnect(stepPick), true
 	},
-	"/model": (*model).cmdModel,
+	"/model":    (*model).cmdModel,
+	"/features": (*model).cmdFeatures,
+	"/jev":      (*model).cmdJev,
 	"/mcp": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		if cmd := m.mcpCommand(fields[1:]); cmd != nil {
 			return cmd, true
@@ -643,4 +647,14 @@ func (m *model) cmdUsage(text string, fields []string) (tea.Cmd, bool) {
 	}
 	m.transcript.info(line)
 	return nil, false
+}
+
+func (m *model) cmdFeatures(text string, fields []string) (tea.Cmd, bool) {
+	m.featuresCommand(fields[1:])
+	return nil, false
+}
+
+func (m *model) cmdJev(text string, fields []string) (tea.Cmd, bool) {
+	cmd := m.jevCommand(fields[1:])
+	return cmd, cmd != nil
 }

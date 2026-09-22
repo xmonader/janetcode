@@ -92,6 +92,8 @@ var Commands = withIdle([]Command{
 	{Name: "/eval", Args: "keep [name] [--check cmd] [--base rev] [--self-contained]", Help: "keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project's verify.json"},
 	{Name: "/recipe", Args: "[list | show <name> | save <name> [--turn n] [k=v...] | run <name> [--dry-run] [k=v...]]", Help: "crystallise a turn's tool calls into a replayable program under .janetcode/recipes and run it later with no model call; a failed step hands over to the model"},
 	{Name: "/proof", Args: "[commit | push [remote] | fetch [remote]]", Help: "which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked (mutation score included when logged); attaches one from this session first if the commit (default HEAD) has none yet; push/fetch move notes to/from a remote, since they are local only until pushed"},
+	{Name: "/features", Args: "[name [on|off]]", Help: "the model slots and the features that use them -- the cascade, the forced advisor, the stale-check nudge and the decision consumers -- with what each one is set to; a name and on|off changes one and saves it"},
+	{Name: "/jev", Args: "[on|off|model|provider|triage|intake|route|outcome [on|off]]", Help: "the optional decision service: what it is set to, what it has cost, and which consumers are on; alone reports, on|off is the master switch, model and provider open a list"},
 	{Name: "/quit", Args: "", Help: "exit"},
 })
 

@@ -260,7 +260,9 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /cd [path]       (move this session's working directory; no argument says where it is)
 /ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
 /docker [container[:/path]|off]  (the same, in a running container)
-/connect   /model     /compact (summarise the context to free the window)
+/connect   /model [cheap|strong|advisor|vision [name|off]]  /compact (summarise the context to free the window)
+/features [name [on|off]]  (the model slots, the cascade, the forced advisor, the stale-check nudge and the decision consumers)
+/jev [on|off|model|provider|triage|intake|route|outcome [on|off]]  (the optional decision service)
 /compact-fast (also /compress-fast: prune old results and thinking, no summary call)
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
@@ -291,6 +293,33 @@ in the config, so cost estimates work without a `"prices"` entry and
 compaction runs at three quarters of the model's window (capped at 200k
 tokens) instead of the 80k default. Explicit `"prices"` and `compact_at`
 still win; Claude and GPT windows are known without a listing.
+
+A session has more than one model slot, and `/model` fills any of them.
+`/model` alone, or `/model <name>`, is the session's own model as it has
+always been; `/model cheap`, `/model strong`, `/model advisor` and
+`/model vision` open the very same list for the slot named, and
+`/model <slot> off` gives a slot back. An unset slot reads
+`cheap: unset (main: anthropic/claude-opus-5)`, because an empty slot is
+the session's model and not a hole. What each slot is for, and which
+feature has to be on before filling one changes anything, is in
+[Configuration](configuration.md) under "The model slots".
+
+`/features` is that second half: the cascade (`escalate`), the forced
+advisor (`advisor`), the stale-check nudge (`stale-nudge`) and the four
+decision consumers, each with what it is set to and what still stands in
+its way — a filled strong slot with `escalate` off says so rather than
+looking like a working cascade. `/features <name> on|off` changes one and
+saves it to the config file, and it takes effect in the running session.
+
+`/jev` is the decision service (see "Decisions" in Configuration): alone
+it reports whether it is on, which endpoint and pinned model it asks,
+which consumers are on and what the calls have cost this session.
+`/jev on` and `/jev off` are the master switch, `/jev model` and
+`/jev provider` open a list, and `/jev triage|intake|route|outcome on|off`
+toggles one consumer. All of it is written to the config file and applied
+to the running session — the client is rebuilt from the config on every
+change, so nothing here waits for a restart. `JANETCODE_OFF=decisions`
+still wins over every one of them, and `/jev` says so when it is set.
 
 `/effort` sets how hard the model thinks, without changing models:
 `low`, `medium`, `high`, `xhigh`, `max`, in that order, or `default` for
