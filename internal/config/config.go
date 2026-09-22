@@ -202,6 +202,13 @@ type Config struct {
 	// without being asked for. The trigger is the real check failing,
 	// never a judgement about how hard the request sounds.
 	EscalateAfter int `json:"escalate_after,omitempty"`
+	// VisionModel is the slot for a model that reads images. It is
+	// configurable and resolvable like every other slot (see slot.go),
+	// and nothing consumes it yet: an image pasted into a turn still
+	// rides on the session's own model. The slot exists so the choice
+	// is recorded where the others are rather than invented later
+	// somewhere else.
+	VisionModel string `json:"vision_model,omitempty"`
 	// AdvisorModel is the model the deferred advisor tool consults.
 	// Empty uses the session model. The tool is never on the always-on
 	// schema list.
