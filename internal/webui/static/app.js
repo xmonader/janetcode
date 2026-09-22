@@ -546,8 +546,6 @@
     paintModel();
     setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
-    const verEl = document.getElementById("nav-version");
-    if (verEl) verEl.textContent = h.version || "";
     if (h.title) curTitle = cleanTitle(h.title);
     paintTitle();
     const leaf = (h.cwd || "").replace(/\\/g, "/").split("/").filter(Boolean).pop();

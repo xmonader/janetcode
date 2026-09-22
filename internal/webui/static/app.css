@@ -160,7 +160,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   background: var(--sidebar);
   border-right: 0.5px solid var(--line);
   overflow: auto;
-  padding: 10px 12px 8px;
+  padding: 14px 12px 10px;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -168,12 +168,10 @@ button:disabled { cursor: default; opacity: 0.55; }
 .logo-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 44px;
+  height: 40px;
   flex: none;
-  padding: 0 2px;
-  margin-bottom: 6px;
+  padding: 0 6px;
+  margin-bottom: 10px;
 }
 .brand {
   display: inline-flex;
@@ -202,42 +200,42 @@ button:disabled { cursor: default; opacity: 0.55; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.nav-label {
-  margin: 10px 4px 5px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
+/* New session: the one action that starts everything — a quiet card,
+   accent only where the eye lands first (the plus). */
 .new-session {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
+  gap: 8px;
   height: 40px;
-  margin: 2px 0 4px;
+  margin: 0 0 8px;
   padding: 0 14px;
   border-radius: 12px;
-  background: var(--blue-soft);
-  border: 0.5px solid var(--blue-soft-border);
-  color: var(--blue);
+  background: var(--surface);
+  border: 0.5px solid var(--line);
+  color: var(--ink);
   font-size: 13.5px;
-  font-weight: 600;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  font-weight: 500;
+  box-shadow: var(--shadow-card);
+  transition: background 0.14s ease, border-color 0.14s ease;
 }
-.new-session:hover { background: var(--blue); border-color: var(--blue); color: var(--on-accent); }
-.new-plus { font-size: 16px; line-height: 1; font-weight: 400; }
-.current-session { margin: 0 0 2px; }
+.new-session:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.new-plus { font-size: 16px; line-height: 1; color: var(--blue); font-weight: 400; }
+/* The live conversation reads as the first row of the list: same shape,
+   a green pulse where the list has a hover, nothing more. */
+.current-session { margin: 0 0 6px; }
 .cur-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0.42rem 0.55rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 10px;
-  font-size: 0.86rem;
+  font-size: 0.87rem;
   color: var(--ink);
+  font-weight: 500;
+  background: var(--surface);
+  border: 0.5px solid var(--line);
+  box-shadow: var(--shadow-card);
 }
 .cur-dot {
   width: 7px;
@@ -245,7 +243,11 @@ button:disabled { cursor: default; opacity: 0.55; }
   border-radius: 50%;
   background: var(--ok);
   flex: none;
-  box-shadow: 0 0 0 3px var(--ok-soft);
+  animation: live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--ok-soft); }
+  50% { box-shadow: 0 0 0 5px transparent; }
 }
 .cur-label {
   flex: 1;
@@ -253,25 +255,24 @@ button:disabled { cursor: default; opacity: 0.55; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
 }
 .cur-live {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--ok);
   flex: none;
 }
 .session-filter {
   width: 100%;
-  margin: 2px 0 6px;
+  margin: 6px 0 6px;
   border: 0.5px solid transparent;
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--surface-2);
   color: var(--ink);
   font-size: 12.5px;
-  padding: 7px 12px;
+  padding: 7px 11px;
   outline: none;
   transition: border-color 0.14s ease, background 0.14s ease;
 }
@@ -279,9 +280,9 @@ button:disabled { cursor: default; opacity: 0.55; }
 .session-filter:focus { border-color: var(--blue-soft-border); background: var(--surface); }
 #sessions { list-style: none; margin: 0; padding: 0 0 8px; flex: 1; overflow: auto; min-height: 0; }
 #sessions li {
-  padding: 0.44rem 0.6rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 10px;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   color: var(--mute);
   border: 0.5px solid transparent;
   cursor: default;
@@ -289,17 +290,17 @@ button:disabled { cursor: default; opacity: 0.55; }
 }
 #sessions li[data-id] { cursor: pointer; }
 #sessions li:hover { background: var(--surface-2); color: var(--ink); }
-#sessions li.on { background: var(--surface-2); color: var(--ink); font-weight: 500; }
+#sessions li.on { background: var(--blue-soft); color: var(--blue); font-weight: 500; }
 #sessions li span:first-child {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#sessions .when { display: block; color: var(--faint); font-size: 0.7rem; margin-top: 1px; font-family: var(--mono); }
+#sessions .when { display: block; color: var(--faint); font-size: 0.68rem; margin-top: 2px; font-family: var(--mono); }
 #sessions .sess-group {
-  margin: 10px 0 3px;
-  padding: 0 0.6rem;
+  margin: 12px 0 4px;
+  padding: 0 0.65rem;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.07em;
@@ -318,7 +319,6 @@ button:disabled { cursor: default; opacity: 0.55; }
   flex: none;
 }
 .nav-foot .spacer { flex: 1; }
-.nav-version { font: 500 10.5px/1 var(--mono); color: var(--faint); padding: 0 6px; }
 
 /* collapsed rail: zero-width, everything inside hidden */
 .nav-collapsed .nav { visibility: hidden; border-right: 0; padding: 0; }
