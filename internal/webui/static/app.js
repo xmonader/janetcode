@@ -168,7 +168,12 @@
     t = t.replace(/^# (.+)$/gm, "<h1>$1</h1>");
     t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Inline code never crosses a line boundary: with newlines allowed, one
+    // stray backtick (e.g. a fence split across streamed chunks) swallows
+    // the rest of the reply into a single collapsed "pill". A span whose
+    // pair is not on the same line stays a literal backtick — visible,
+    // but honest.
+    t = t.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     t = t.replace(/^\d+\. (.+)$/gm, "<oli>$1</oli>");
     t = t.replace(/(<oli>.*<\/oli>\n?)+/g, (m) => "<ol>" + m.replace(/<\/?oli>/g, (x) => (x === "<oli>" ? "<li>" : "</li>")) + "</ol>");
     t = t.replace(/^\- (.+)$/gm, "<li>$1</li>");
