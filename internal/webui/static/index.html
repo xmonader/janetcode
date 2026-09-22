@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0d0d0d">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234a9eff'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' text-anchor='middle' fill='%230d0d0d'%3Ej%3C/text%3E%3C/svg%3E">
+<meta name="theme-color" content="#0d0d10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234d6bfe'/%3E%3Cstop offset='1' stop-color='%233d5ef0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' text-anchor='middle' fill='white'%3Ej%3C/text%3E%3C/svg%3E">
 <script>
 (function () {
   var t = localStorage.getItem("janetcode-theme") || "dark";
@@ -12,6 +12,12 @@
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.themeChoice = t;
   document.documentElement.dataset.fontScale = localStorage.getItem("janetcode-font-scale") || "medium";
+  addEventListener("DOMContentLoaded", function () {
+    var sh = document.querySelector(".shell");
+    if (!sh) return;
+    if (localStorage.getItem("janetcode-nav-collapsed") === "1") sh.classList.add("nav-collapsed");
+    if (localStorage.getItem("janetcode-work-collapsed") !== "") sh.classList.add("work-collapsed");
+  });
 })();
 </script>
 <title>janetcode</title>
@@ -35,11 +41,13 @@
     <p class="nav-label">This conversation</p>
     <div id="current-session" class="current-session" hidden></div>
     <p class="nav-label">History</p>
-    <input id="session-filter" class="session-filter" type="search" placeholder="Filter history…" aria-label="Filter past conversations">
+    <input id="session-filter" class="session-filter" type="search" placeholder="Search conversations" aria-label="Filter past conversations">
     <ul id="sessions"></ul>
     <div class="nav-foot">
       <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
       <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+      <span class="spacer"></span>
+      <span class="nav-version" id="nav-version"></span>
     </div>
   </aside>
 
@@ -51,6 +59,7 @@
         <button type="button" data-view="trajectory">Trajectory</button>
         <button type="button" data-view="terminal">Terminal</button>
       </nav>
+      <button type="button" id="model" class="model-btn" title="Switch model"></button>
       <span id="title" class="session-title"></span>
       <span class="top-right">
         <span id="git-pill" class="git-pill" hidden></span>
@@ -66,6 +75,7 @@
     <section class="thread" id="thread">
       <div class="column" id="chat-view">
         <div id="empty" class="empty">
+          <div class="empty-mark" aria-hidden="true">j</div>
           <p id="empty-lead">What should we change?</p>
           <p class="empty-sub">Describe the work below. Edits and commands will ask before they run.</p>
           <div class="chips">
@@ -156,81 +166,80 @@
         <div class="composer-bar">
           <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file">+</button>
           <input id="attach-file" type="file" multiple hidden>
-          <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands">⌘</button>
+          <button type="button" id="search-btn" title="Commands (Ctrl+K)" aria-label="Commands">⌘</button>
           <kbd class="cmd-kbd" title="Command palette">Ctrl K</kbd>
           <span id="mode-chip" class="mode-chip">ask</span>
           <span class="spacer"></span>
-          <button type="button" id="model" class="model-btn" title="Switch model"></button>
           <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop">■</button>
           <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send">↑</button>
         </div>
       </form>
       <p id="cwd" class="cwd-chip" title="Working directory"></p>
     </div>
+
+    <aside class="preview" id="preview">
+      <div class="pv-bar">
+        <input id="pv-url" type="url" placeholder="http://localhost:3000" autocomplete="off" spellcheck="false">
+        <button type="button" id="pv-refresh" class="icon-btn" title="Reload">↻</button>
+        <button type="button" id="pv-width" class="icon-btn" title="Toggle 390px width">▤</button>
+        <button type="button" id="pv-ext" class="icon-btn" title="Open in new tab">↗</button>
+        <button type="button" id="pv-close" class="icon-btn" title="Close preview">×</button>
+      </div>
+      <div class="pv-stage" id="pv-stage">
+        <div class="pv-empty" id="pv-empty">Enter a URL above to preview a running app.</div>
+        <iframe id="pv-frame" title="Web preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" hidden></iframe>
+      </div>
+    </aside>
+
+    <aside class="work" id="work">
+      <div class="work-tabs" role="tablist">
+        <button type="button" role="tab" data-pane="plan" class="on">Plan</button>
+        <button type="button" role="tab" data-pane="files">Changed files</button>
+        <button type="button" role="tab" data-pane="jobs">Background jobs</button>
+        <button type="button" role="tab" data-pane="agents">Subagents</button>
+        <button type="button" role="tab" data-pane="ptc">PTC</button>
+        <button type="button" role="tab" data-pane="session">This session</button>
+      </div>
+      <section class="work-pane" data-pane="plan">
+        <h2>Plan</h2>
+        <ul id="todos"><li class="quiet">Nothing on the list yet</li></ul>
+      </section>
+      <section class="work-pane" data-pane="files" hidden>
+        <h2>Changed files</h2>
+        <div class="file-actions">
+          <button type="button" id="undo-btn" hidden>Undo last turn</button>
+        </div>
+        <ul id="files"><li class="quiet">No files changed</li></ul>
+      </section>
+      <section class="work-pane" id="jobs-sec" data-pane="jobs" hidden>
+        <h2>Background jobs</h2>
+        <ul id="jobs"><li class="quiet">No jobs running</li></ul>
+      </section>
+      <section class="work-pane" id="agents-sec" data-pane="agents" hidden>
+        <h2>Subagents</h2>
+        <ul id="agents"><li class="quiet">No subagents yet</li></ul>
+      </section>
+      <section class="work-pane" data-pane="ptc" hidden>
+        <h2>PTC</h2>
+        <ul id="ptc"><li class="quiet">No scripts this session</li></ul>
+      </section>
+      <section class="work-pane spend" data-pane="session" hidden>
+        <h2>This session</h2>
+        <p id="ctx-line">Context —</p>
+        <p id="cost-line"></p>
+        <div class="switches">
+          <button type="button" data-cmd="/edits" id="mode-edits">Allow edits</button>
+          <button type="button" data-cmd="/auto" id="mode-auto">Auto</button>
+          <button type="button" data-cmd="/yolo" id="mode-yolo">Allow all tools</button>
+          <button type="button" data-cmd="/plan" id="mode-plan">Plan first</button>
+          <button type="button" data-cmd="/readonly" id="mode-ro">Read only</button>
+        </div>
+        <div class="switches">
+          <button type="button" id="notif-btn" title="Notify when a turn finishes while the tab is in the background">Notifications off</button>
+        </div>
+      </section>
+    </aside>
   </div>
-
-  <aside class="preview" id="preview" hidden>
-    <div class="pv-bar">
-      <input id="pv-url" type="url" placeholder="http://localhost:3000" autocomplete="off" spellcheck="false">
-      <button type="button" id="pv-refresh" class="icon-btn" title="Reload">↻</button>
-      <button type="button" id="pv-width" class="icon-btn" title="Toggle 390px width">▤</button>
-      <button type="button" id="pv-ext" class="icon-btn" title="Open in new tab">↗</button>
-      <button type="button" id="pv-close" class="icon-btn" title="Close preview">×</button>
-    </div>
-    <div class="pv-stage" id="pv-stage">
-      <div class="pv-empty" id="pv-empty">Enter a URL above to preview a running app.</div>
-      <iframe id="pv-frame" title="Web preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" hidden></iframe>
-    </div>
-  </aside>
-
-  <aside class="work" id="work">
-    <div class="work-tabs" role="tablist">
-      <button type="button" role="tab" data-pane="plan" class="on">Plan</button>
-      <button type="button" role="tab" data-pane="files">Changed files</button>
-      <button type="button" role="tab" data-pane="jobs">Background jobs</button>
-      <button type="button" role="tab" data-pane="agents">Subagents</button>
-      <button type="button" role="tab" data-pane="ptc">PTC</button>
-      <button type="button" role="tab" data-pane="session">This session</button>
-    </div>
-    <section class="work-pane" data-pane="plan">
-      <h2>Plan</h2>
-      <ul id="todos"><li class="quiet">Nothing on the list yet</li></ul>
-    </section>
-    <section class="work-pane" data-pane="files" hidden>
-      <h2>Changed files</h2>
-      <div class="file-actions">
-        <button type="button" id="undo-btn" hidden>Undo last turn</button>
-      </div>
-      <ul id="files"><li class="quiet">No files changed</li></ul>
-    </section>
-    <section class="work-pane" id="jobs-sec" data-pane="jobs" hidden>
-      <h2>Background jobs</h2>
-      <ul id="jobs"><li class="quiet">No jobs running</li></ul>
-    </section>
-    <section class="work-pane" id="agents-sec" data-pane="agents" hidden>
-      <h2>Subagents</h2>
-      <ul id="agents"><li class="quiet">No subagents yet</li></ul>
-    </section>
-    <section class="work-pane" data-pane="ptc" hidden>
-      <h2>PTC</h2>
-      <ul id="ptc"><li class="quiet">No scripts this session</li></ul>
-    </section>
-    <section class="work-pane spend" data-pane="session" hidden>
-      <h2>This session</h2>
-      <p id="ctx-line">Context —</p>
-      <p id="cost-line"></p>
-      <div class="switches">
-        <button type="button" data-cmd="/edits" id="mode-edits">Allow edits</button>
-        <button type="button" data-cmd="/auto" id="mode-auto">Auto</button>
-        <button type="button" data-cmd="/yolo" id="mode-yolo">Allow all tools</button>
-        <button type="button" data-cmd="/plan" id="mode-plan">Plan first</button>
-        <button type="button" data-cmd="/readonly" id="mode-ro">Read only</button>
-      </div>
-      <div class="switches">
-        <button type="button" id="notif-btn" title="Notify when a turn finishes while the tab is in the background">Notifications off</button>
-      </div>
-    </section>
-  </aside>
   </div>
 
   <div id="viewer" class="viewer" hidden>

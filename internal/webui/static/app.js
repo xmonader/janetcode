@@ -546,6 +546,8 @@
     paintModel();
     setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
+    const verEl = document.getElementById("nav-version");
+    if (verEl) verEl.textContent = h.version || "";
     if (h.title) curTitle = cleanTitle(h.title);
     paintTitle();
     const leaf = (h.cwd || "").replace(/\\/g, "/").split("/").filter(Boolean).pop();
@@ -558,7 +560,11 @@
     const prev = running;
     running = !!st.running;
     maybeNotify(prev, st);
-    document.getElementById("send").title = running ? "Queue behind the running turn" : "Send";
+    const sendBtn = document.getElementById("send");
+    sendBtn.title = running ? "Queue behind the running turn" : "Send";
+    // Kimi-style swap: while a turn runs the round button becomes the
+    // stop button; queueing still happens with Enter.
+    sendBtn.hidden = running;
     document.getElementById("stop").hidden = !running;
     const steerHint = document.getElementById("steer-hint");
     if (steerHint) steerHint.hidden = !running;
@@ -1759,15 +1765,15 @@
   function termTheme() {
     const dark = document.documentElement.dataset.theme === "dark";
     return dark ? {
-      background: "#121212",
-      foreground: "#ececec",
-      cursor: "#4a9eff",
-      selectionBackground: "#264f78",
+      background: "#101014",
+      foreground: "rgba(238,238,245,0.9)",
+      cursor: "#4d6bfe",
+      selectionBackground: "#2a2a35",
     } : {
       background: "#ffffff",
       foreground: "#1f2328",
-      cursor: "#1783ff",
-      selectionBackground: "#b6d6ff",
+      cursor: "#3b5bdb",
+      selectionBackground: "#d6defc",
     };
   }
   function fitTerm() {
@@ -2317,7 +2323,8 @@
     localStorage.setItem("janetcode-preview-url", url);
   }
   function pvOpen(open) {
-    pvPane.hidden = !open;
+    // The drawer slides on .shell.pv-open; hiding it with [hidden] would
+    // kill the transition, so the class is the whole story.
     shell.classList.toggle("pv-open", open);
     pvToggle.classList.toggle("on", open);
     localStorage.setItem("janetcode-preview-open", open ? "1" : "");

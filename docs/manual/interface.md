@@ -3,20 +3,23 @@
 Part of the [janetcode manual](README.md); the [README](../../README.md) has the short version.
 
 `janetcode --web` opens the session in a browser at
-`http://127.0.0.1:8787` (or `--web-addr`). The page is the same three-column
-session chrome DeepSeek Harness uses: a collapsible left rail (brand, a
-capsule **New session**, the session list), a conversation column with a
-centered transcript and a floating composer card, and a tabbed right panel
-(Plan, Changed files, Background jobs, Subagents, PTC, This session).
+`http://127.0.0.1:8787` (or `--web-addr`). The page follows the hosted-chat
+layout: a slim left rail (brand, **New session**, search, the session list
+grouped by day) and one centered conversation column with a hero composer.
+Janet's extra surfaces slide over the column as drawers: the tabbed session
+panel (Plan, Changed files, Background jobs, Subagents, PTC, This session)
+from the header's panel button, and a web preview for the running app.
 Click a subagent, job or PTC run to open its transcript, log tail or
-script in the page. Chat and
-Trajectory switch in the header the way DeepSeek Harness does: Chat is the
-conversation, Trajectory is the session event ledger (turns, tools,
-compaction, the critic) with a timing strip and a record inspector.
-The header also shows the session mode (ask, PLAN, AUTO, YOLO, EDITS, READ-ONLY).
+script in the page. Chat, Trajectory and Terminal switch in the header:
+Chat is the conversation, Trajectory is the session event ledger (turns, tools,
+compaction, the critic) with a timing strip and a record inspector, Terminal
+is a shell in the session's directory.
+The header also carries the model picker, the session mode (ask, PLAN, AUTO,
+YOLO, EDITS, READ-ONLY) and the effort tier.
 Allow-edits / auto / allow-all / plan-first / read-only live on the Session
-tab. You write in the composer; when a tool wants to change something, Allow
-once / Always this session / Remember / Deny are buttons. When the model
+tab. You write in the composer; when a tool wants to change something, the
+Allow once / Always this session / Remember / Deny card floats over the
+composer with a scrim. When the model
 asks a labeled question, the options (and Other) are answered on the
 page. Ctrl+K still searches slash commands. The server binds loopback
 unless you tell it otherwise — anyone who can reach the port can approve
@@ -39,11 +42,12 @@ couple of seconds: Claude Code present-participles ("Moonwalking…",
 "Don't panic…", "Constructing additional pylons…"); `--web` uses the same list.
 Tool names and retry countdowns stay literal. Mode changes, toggles and
 one-line acknowledgements (titled, forked, copied, sandbox, a loop armed)
-land here, not in the transcript. The input box
-is a reserved height (six lines, three in a short window) so the transcript
-above it does not move as you type; extra lines scroll inside the box. A
-permission prompt uses the reserved row above that box rather than
-replacing it, so the prompt stays put.
+land here, not in the transcript. The composer grows with
+what you type (up to nine lines) and the transcript above it holds its
+scroll. While a turn runs the round send button becomes the stop button;
+Enter queues behind the running turn, Ctrl+Enter steers it. A
+permission prompt floats as a card over the composer with a scrim, so the
+conversation behind it stays readable but inert until you answer.
 
 ```
 enter            send        ctrl+j / alt+enter   newline

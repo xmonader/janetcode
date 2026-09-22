@@ -756,7 +756,7 @@ func TestColorTokensUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tok := range []string{"--blue: #1783ff;", "--bg: #ffffff;", "--sidebar: #f9fbfc;"} {
+	for _, tok := range []string{"--blue: #3b5bdb;", "--bg: #ffffff;", "--sidebar: #f6f6f8;", "--blue: #4d6bfe;", "--bg: #0d0d10;"} {
 		if !bytes.Contains(css, []byte(tok)) {
 			t.Errorf("stylesheet lost %q", tok)
 		}
