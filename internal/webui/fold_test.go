@@ -88,6 +88,19 @@ func TestFoldActivityAssistantClosesTheRun(t *testing.T) {
 	}
 }
 
+func TestToolResultClearsTheToolPhase(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	call := agent.ToolCall{ID: "1", Name: "read_file", Input: json.RawMessage(`{"path":"main.go"}`)}
+	s.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	s.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: "package main"})
+	s.mu.Lock()
+	phase := s.phase
+	s.mu.Unlock()
+	if phase != "thinking" {
+		t.Fatalf("phase = %q, want thinking", phase)
+	}
+}
+
 func TestApplyStampsALiveRun(t *testing.T) {
 	s := newServer(context.Background(), Options{})
 	s.mu.Lock()

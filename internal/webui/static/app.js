@@ -310,6 +310,8 @@
     if (e.kind === "user") {
       n.className = "turn you";
       lastUserText = e.text || "";
+      if (!curTitle) paintTitle();
+      loadSessions();
       n.innerHTML = `<span class="lbl">You<button type="button" class="copy-btn msg-act" data-edit="${e.id}" title="Edit & resend">Edit</button></span><div class="bubble">${esc(e.text || "")}</div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
@@ -522,6 +524,15 @@
     btn.textContent = modelLabel + (effort ? " · " + effort : "");
     btn.title = btn.textContent || "Switch model";
   }
+  function clipLine(s) {
+    const line = String(s || "").split("\n")[0].trim();
+    return line.length > 80 ? line.slice(0, 79) + "…" : line;
+  }
+  function paintTitle() {
+    const shown = curTitle || clipLine(lastUserText);
+    document.getElementById("title").textContent = shown || "New conversation";
+    document.title = (shown ? shown + " — " : "") + "janetcode";
+  }
   function applyHello(h) {
     if (!h) return;
     modelLabel = [h.provider, h.model].filter(Boolean).join(" · ");
@@ -529,10 +540,9 @@
     setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
     if (h.title) curTitle = h.title;
-    document.getElementById("title").textContent = curTitle || "New conversation";
+    paintTitle();
     const leaf = (h.cwd || "").replace(/\\/g, "/").split("/").filter(Boolean).pop();
     if (leaf) document.getElementById("empty-lead").textContent = "What should we change in " + leaf + "?";
-    document.title = (curTitle ? curTitle + " — " : "") + "janetcode";
     loadSessions();
   }
 
@@ -1244,6 +1254,25 @@
   function closeSwitchMenu() {
     switchMenu.hidden = true;
   }
+  function placeSwitchMenu(anchor) {
+    if (switchMenu.parentElement !== document.body) document.body.appendChild(switchMenu);
+    const r = anchor.getBoundingClientRect();
+    const width = 320;
+    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+    switchMenu.style.position = "fixed";
+    switchMenu.style.right = "auto";
+    switchMenu.style.width = width + "px";
+    switchMenu.style.left = left + "px";
+    switchMenu.style.zIndex = "40";
+    const menuH = 280;
+    if (window.innerHeight - r.bottom > menuH + 12) {
+      switchMenu.style.top = (r.bottom + 6) + "px";
+      switchMenu.style.bottom = "auto";
+    } else {
+      switchMenu.style.top = "auto";
+      switchMenu.style.bottom = (window.innerHeight - r.top + 6) + "px";
+    }
+  }
 
   async function openModelMenu() {
     switchMode = "model";
@@ -1255,6 +1284,7 @@
     switchQ.value = "";
     switchQ.placeholder = "Switch model…";
     renderSwitchMenu("");
+    placeSwitchMenu(modelBtn);
     switchMenu.hidden = false;
     switchQ.focus();
   }
@@ -1264,6 +1294,7 @@
     switchQ.value = "";
     switchQ.placeholder = "Set effort…";
     renderSwitchMenu("");
+    placeSwitchMenu(effortChip);
     switchMenu.hidden = false;
     switchQ.focus();
   }
@@ -1430,9 +1461,11 @@
     const live = rows.find((r) => r.current);
     const curEl = document.getElementById("current-session");
     if (live) {
+      let label = (live.label || "").trim();
+      if (!label || label.startsWith("[") || label.startsWith("<")) label = clipLine(lastUserText) || "New conversation";
       curEl.innerHTML =
         `<div class="cur-row" title="The conversation open now">` +
-        `<span class="cur-dot"></span><span class="cur-label">${esc(live.prefix || "")}${esc(live.label)}</span>` +
+        `<span class="cur-dot"></span><span class="cur-label">${esc(live.prefix || "")}${esc(label)}</span>` +
         `<span class="cur-live">live</span></div>`;
       curEl.hidden = false;
     } else {
@@ -2220,9 +2253,9 @@
   }
   navToggle.addEventListener("click", () => setCollapsed("nav-collapsed", !shell.classList.contains("nav-collapsed")));
   workToggle.addEventListener("click", () => setCollapsed("work-collapsed", !shell.classList.contains("work-collapsed")));
-  // The rails are drawers: closed by default so the conversation owns
-  // the screen, and an explicit open/close persists across visits.
-  if (localStorage.getItem("janetcode-nav-collapsed") !== "") shell.classList.add("nav-collapsed");
+  // The work rail starts closed. The session rail starts open, and only
+  // stays shut when this browser was told to shut it.
+  if (localStorage.getItem("janetcode-nav-collapsed") === "1") shell.classList.add("nav-collapsed");
   if (localStorage.getItem("janetcode-work-collapsed") !== "") shell.classList.add("work-collapsed");
   document.querySelector(".work-tabs").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-pane]");

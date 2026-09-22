@@ -50,6 +50,7 @@ func (s *server) cd(arg string) {
 	}
 	s.setCwd(cd.Dir())
 	s.notice(status)
+	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
 	s.emitStatus()
 }
 

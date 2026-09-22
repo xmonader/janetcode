@@ -130,6 +130,10 @@ func (s *server) apply(ev agent.Event) {
 				e.Dur = textfmt.Duration(ev.Duration)
 			}
 		})
+		// The tool row already says it finished. Leaving the phase on the
+		// tool made the status line keep spinning that command while the
+		// model thought about the result.
+		s.setPhase("thinking")
 	case agent.EvTextBlockDone:
 		s.closeOpen()
 	case agent.EvTurnDone:

@@ -306,6 +306,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   border: 1px solid transparent;
   transition: background 0.12s ease;
 }
+#sessions li[data-id] { cursor: pointer; }
 #sessions li:hover { background: var(--surface-2); }
 #sessions li.on {
   background: var(--blue-soft);
