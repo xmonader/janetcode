@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -304,4 +305,44 @@ func TestFailureClassOptionsCoverTheMapping(t *testing.T) {
 		}
 		seen[desc] = true
 	}
+}
+
+// TestTriageEventCarriesItsState: a recorded gate failure is only worth
+// having if it can be replayed, and `--decisions-replay` scores rows of
+// {state, truth}. The first live triage arm produced nine correct
+// verdicts whose states could not be folded into the corpus, because the
+// event kept the answers and threw the question away.
+func TestTriageEventCarriesItsState(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}, Decisions: &stateFake{}, DecisionsTriage: true}
+	res := verify.Result{Failed: "go test ./...", Exit: 1, Output: "--- FAIL: TestX\n    x_test.go:9: want 2, got 3"}
+	a.triageFailure(context.Background(), res, func(Event) {})
+	var extra map[string]any
+	found := false
+	for _, e := range a.Log.Events() {
+		if e.Type != session.TypeDecision {
+			continue
+		}
+		if err := json.Unmarshal(e.Extra, &extra); err != nil {
+			t.Fatal(err)
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("no decision event was recorded")
+	}
+	state, _ := extra["state"].(string)
+	if !strings.Contains(state, "go test ./...") || !strings.Contains(state, "want 2, got 3") {
+		t.Fatalf("state = %q, want the failing check and its output", state)
+	}
+}
+
+// stateFake answers a triage question without a network.
+type stateFake struct{}
+
+func (stateFake) Available() bool { return true }
+func (stateFake) Evaluate(_ context.Context, _ string, _ []jev.Question) (*jev.Result, error) {
+	return &jev.Result{Model: "jev-1.13.0", Answers: map[string]jev.Answer{
+		"caused_by_change": {Kind: jev.Noul, Noul: 0.9},
+		"failure_class":    {Kind: jev.Choice, Choice: "patch_caused", Confidence: 0.9},
+	}}, nil
 }

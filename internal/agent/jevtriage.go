@@ -226,10 +226,17 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: median latency past %v over %d calls, paused for %v and then retried once", jev.LatencyOpenP50, jev.LatencyWindow, jev.DefaultCooldown)})
 	}
 	v := triageAction(ans)
+	// The state goes on the event too. Without it a recorded gate
+	// failure cannot be replayed: `--decisions-replay` scores a corpus of
+	// {state, truth} rows, and a run that logged only the answers leaves
+	// nothing to re-score when the questions change. It is the same
+	// string that was sent, so it is already scrubbed at the wire and
+	// carries nothing the gate event does not.
+	state := a.triageState(res)
 	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,
 		Name: "verify_triage", Extra: mustJSON(map[string]any{
-			"consumer": "verify_triage",
-			"model":    ans.Model, "tokens_in": ans.TokensIn, "tokens_out": ans.TokensOut,
+			"consumer": "verify_triage", "state": state,
+			"model": ans.Model, "tokens_in": ans.TokensIn, "tokens_out": ans.TokensOut,
 			"cost_usd": ans.Cost, "latency_ms": ans.Latency.Milliseconds(),
 			"questions": triageQuestions(),
 			"answers":   ans.Answers,
