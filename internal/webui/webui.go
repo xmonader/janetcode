@@ -421,6 +421,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/load", s.loadSession)
 	mux.HandleFunc("/api/upload", s.upload)
 	mux.HandleFunc("/api/complete", s.completeAPI)
+	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
 	return mux
 }
 
@@ -702,6 +703,7 @@ func (s *server) startTurn(text string) {
 
 func (s *server) finish(err error) {
 	next, elapsed := s.end(err != nil)
+	s.touchRuns()
 	switch {
 	case err == nil:
 		s.statusSet("done in " + textfmt.Duration(elapsed))

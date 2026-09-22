@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -37,6 +38,7 @@ type workspace struct {
 	Mode      string      `json:"mode"`
 	Terminals []termItem  `json:"terminals,omitempty"`
 	Ptc       []ptcItem   `json:"ptc,omitempty"`
+	Branch    string      `json:"branch,omitempty"`
 }
 
 type termItem struct {
@@ -56,6 +58,7 @@ type fileItem struct {
 	Tool string `json:"tool"`
 	Add  int    `json:"add"`
 	Del  int    `json:"del"`
+	Turn int    `json:"turn,omitempty"`
 }
 
 type jobItem struct {
@@ -143,7 +146,7 @@ func (s *server) workspace() workspace {
 		if s.cwd() != "" {
 			path = textfmt.RelTo(s.cwd(), path)
 		}
-		ws.Files = append(ws.Files, fileItem{Seq: c.Seq, Path: path, Tool: c.Tool, Add: add, Del: del})
+		ws.Files = append(ws.Files, fileItem{Seq: c.Seq, Path: path, Tool: c.Tool, Add: add, Del: del, Turn: c.Turn})
 	}
 	if s.opts.Jobs != nil {
 		for _, j := range s.opts.Jobs.List() {
@@ -184,6 +187,9 @@ func (s *server) workspace() workspace {
 	}
 	if usd, _, _, ok := ag.SessionCost(); ok {
 		ws.Cost = llm.FormatUSD(usd)
+	}
+	if b, ok := prompt.GitBranch(s.cwd()); ok && b != "" {
+		ws.Branch = b
 	}
 	est := ag.EstimateTokens()
 	if lim := ag.CompactThreshold(); lim > 0 {

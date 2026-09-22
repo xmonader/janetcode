@@ -38,6 +38,13 @@ type entry struct {
 	// views of their own (perf, usage): the same numbers Text would
 	// carry, but drawable.
 	Data any `json:"data,omitempty"`
+	// Run fields fold two or more tools in one turn into a single row.
+	// Run is the id of the first tool in the burst; RunHead is that row.
+	// RunLive keeps the burst open while the turn is still going.
+	Run      string `json:"run,omitempty"`
+	RunHead  bool   `json:"run_head,omitempty"`
+	RunLabel string `json:"run_label,omitempty"`
+	RunLive  bool   `json:"run_live,omitempty"`
 }
 
 func (s *server) sheet(title, body string) {
@@ -183,6 +190,9 @@ func (s *server) add(e entry) string {
 	cp := *p
 	s.mu.Unlock()
 	s.emitEntry(cp)
+	if cp.Kind == "tool" || cp.Kind == "user" || cp.Kind == "assistant" {
+		s.touchRuns()
+	}
 	return cp.ID
 }
 
@@ -216,6 +226,9 @@ func (s *server) update(id string, fn func(*entry)) {
 	s.mu.Unlock()
 	if found {
 		s.emitEntry(cp)
+		if cp.Kind == "tool" {
+			s.touchRuns()
+		}
 	}
 }
 
@@ -224,15 +237,20 @@ func (s *server) update(id string, fn func(*entry)) {
 func (s *server) appendText(kind, text string) {
 	s.mu.Lock()
 	var e *entry
+	created := false
 	if n := len(s.entries); n > 0 && s.entries[n-1].Kind == kind && !s.entries[n-1].Done {
 		e = s.entries[n-1]
 	} else {
 		e = s.addLocked(entry{Kind: kind})
+		created = true
 	}
 	e.Text += text
 	cp := *e
 	s.mu.Unlock()
 	s.emitEntry(cp)
+	if created && kind == "assistant" {
+		s.touchRuns()
+	}
 }
 
 // updateTool applies fn to the entry for this call, starting one when the
@@ -252,6 +270,7 @@ func (s *server) updateTool(call *agent.ToolCall, fn func(*entry)) entry {
 	cp := *e
 	s.mu.Unlock()
 	s.emitEntry(cp)
+	s.touchRuns()
 	return cp
 }
 
