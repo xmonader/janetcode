@@ -261,10 +261,11 @@ button:disabled { cursor: default; opacity: 0.55; }
 .nav-collapsed .new-session .cmd-kbd,
 .nav-collapsed .nav-label,
 .nav-collapsed .nav-cwd,
+.nav-collapsed .current-session,
 .nav-collapsed #sessions {
   display: none;
 }
-.nav-collapsed .nav { padding: 18px 10px 6px; align-items: center; }
+.nav-collapsed .nav { padding: 18px 10px 6px; align-items: center; overflow: hidden; }
 .nav-collapsed .logo-row { height: 36px; margin-bottom: 12px; justify-content: center; }
 .nav-collapsed .new-session {
   width: 36px;
