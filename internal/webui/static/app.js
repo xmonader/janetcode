@@ -86,25 +86,69 @@
     return out + esc(src.slice(last));
   }
 
-  function codeBlockHTML(lang, code) {
+  function codeBlockHTML(lang, code, final) {
     const bid = "cb" + ++codeSeq;
     codeBlocks.set(bid, code);
+    // Streaming renders the growing block with the cheap tokenizer;
+    // finished blocks and tool output get the real highlighter.
+    const body = final ? hljsHighlight(code, lang) : highlight(code, lang);
     const wrap = `<button type="button" class="codecopy" data-wrap="${bid}" title="Toggle word wrap">Wrap</button>`;
     return (
       `<div class="codeblock" data-lang="${esc(lang || "")}"><div class="codehead"><span>${esc(lang || "code")}</span>` +
       `${wrap}<button type="button" class="codecopy" data-bid="${bid}" title="Copy code">Copy</button></div>` +
-      `<pre><code class="${lang ? "lang-" + esc(lang) : ""}">${highlight(code, lang)}</code></pre></div>`
+      `<pre><code class="${lang ? "lang-" + esc(lang) : ""}">${body}</code></pre></div>`
     );
   }
 
-  function md(src) {
+  // hljsHighlight is language-aware highlighting over the vendored
+  // highlight.js (BSD-3, offline). Known languages highlight properly;
+  // anything the build doesn't serve falls back to the small tokenizer,
+  // which is also what the streaming tail uses. Results are cached: the
+  // thread re-renders on every event, and re-highlighting a finished
+  // block per hover would be pure waste.
+  const hljsCache = new Map();
+  const HLJS_MAX = 300;
+  const HLJS_ALIAS = {
+    js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+    ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",
+    py: "python", gyp: "python",
+    sh: "bash", shell: "bash", zsh: "bash", shellscript: "bash", dockerfile: "bash",
+    yml: "yaml", tf: "ini", hcl: "ini", toml: "ini",
+    rs: "rust", kt: "kotlin", kts: "kotlin", cs: "csharp",
+    golang: "go", rb: "ruby", pl: "perl",
+    html: "xml", htm: "xml", vue: "xml", svg: "xml",
+    mk: "makefile",
+  };
+  function hljsLang(lang) {
+    const name = HLJS_ALIAS[(lang || "").toLowerCase()] || String(lang || "").toLowerCase();
+    if (name && window.hljs && hljs.getLanguage(name)) return name;
+    return "";
+  }
+  function hljsHighlight(code, lang) {
+    const l = hljsLang(lang);
+    if (!l) return highlight(code, lang);
+    const key = l + " " + code;
+    let html = hljsCache.get(key);
+    if (html == null) {
+      if (hljsCache.size >= HLJS_MAX) hljsCache.delete(hljsCache.keys().next().value);
+      try {
+        html = hljs.highlight(code, { language: l }).value;
+      } catch (_) {
+        return highlight(code, lang);
+      }
+      hljsCache.set(key, html);
+    }
+    return html;
+  }
+
+  function md(src, final) {
     const fences = [];
     const park = (html) => {
       fences.push(html);
       return `\u0000${fences.length - 1}\u0000`;
     };
     let t = String(src ?? "").replace(/```(\w*)[^\S\n]*\n([\s\S]*?)```/g, (_, lang, code) =>
-      park(codeBlockHTML(lang, code.replace(/\n$/, "")))
+      park(codeBlockHTML(lang, code.replace(/\n$/, ""), final))
     );
     t = t.replace(/((?:^\|.+\|\s*$\n?)+)/gm, (block) => {
       const rows = block.trim().split("\n").map((r) =>
@@ -271,7 +315,7 @@
   // output stays plain — the tokenizer is fast, but not on a megabyte.
   function outputHTML(e) {
     const lang = langOf(e.name || "", e.summary || "");
-    if (lang && e.output.length < 200_000) return highlight(e.output, lang);
+    if (lang && e.output.length < 200_000) return hljsHighlight(e.output, lang);
     return esc(e.output);
   }
 
@@ -326,7 +370,7 @@
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Continue</button>` : "";
-      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md${clipped ? " clip" : ""}">${md(e.text || "")}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
+      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md${clipped ? " clip" : ""}">${md(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) {
         lastReply = (e.text || "").slice(0, 200);
         drawMermaid(n);

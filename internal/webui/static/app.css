@@ -49,6 +49,7 @@
   --code-bg: rgba(19, 20, 26, 0.05);
   --pre-bg: #f6f6f9;
   --pre-ink: #23252d;
+  --violet: #7c3aed;
   --bubble-bg: #ececf1;
   --diff-add-bg: rgba(22, 196, 86, 0.22);
   --diff-del-bg: rgba(255, 56, 73, 0.22);
@@ -93,6 +94,7 @@ html[data-theme="dark"] {
   --code-bg: rgba(238, 238, 245, 0.09);
   --pre-bg: #131318;
   --pre-ink: rgba(238, 238, 245, 0.88);
+  --violet: #c4a1f7;
   --bubble-bg: #26262e;
   --diff-add-bg: rgba(63, 185, 80, 0.18);
   --diff-del-bg: rgba(240, 86, 77, 0.18);
@@ -641,6 +643,18 @@ button:disabled { cursor: default; opacity: 0.55; }
 .ts { color: var(--ok); }
 .tc { color: var(--faint); font-style: italic; }
 .tn { color: var(--warn); }
+/* highlight.js theme on the design tokens. The hljs- classes exist only
+   inside highlight.js output (chat fences, tool results). */
+.hljs-keyword, .hljs-literal, .hljs-selector-tag, .hljs-doctag, .hljs-tag { color: var(--blue); font-weight: 500; }
+.hljs-string, .hljs-regexp, .hljs-addition { color: var(--ok); }
+.hljs-comment, .hljs-quote { color: var(--faint); font-style: italic; }
+.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-link { color: var(--warn); }
+.hljs-title, .hljs-name, .hljs-section, .hljs-function, .hljs-selector-id, .hljs-selector-class, .hljs-selector-attr, .hljs-selector-pseudo { color: var(--violet); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-type, .hljs-params, .hljs-built_in, .hljs-class, .hljs-meta, .hljs-subst { color: var(--ink); }
+.hljs-operator, .hljs-punctuation { color: var(--mute); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+.hljs-deletion { color: var(--bad); }
 .diagram { font-family: var(--mono); font-size: 0.78rem; line-height: 1.25; white-space: pre; }
 
 /* message chrome: meta whisper + hover actions */
