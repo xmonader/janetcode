@@ -33,7 +33,10 @@ func TestSettableKeysMatchTheTable(t *testing.T) {
 func TestEverySettableKeyRefusesJunk(t *testing.T) {
 	// Keys whose value is an opaque name this package cannot check: a
 	// model id, a route, a theme. They are validated where they are used.
-	free := map[string]bool{"route_cheap": true, "advisor_model": true, "strong_model": true, "theme": true, "model": true}
+	free := map[string]bool{
+		"route_cheap": true, "advisor_model": true, "strong_model": true,
+		"vision_model": true, "theme": true, "model": true,
+	}
 	for _, k := range SettableKeys {
 		if free[k] {
 			continue
@@ -100,5 +103,91 @@ func TestApplyKVEffort(t *testing.T) {
 	}
 	if _, err := ApplyKV(cfg, "effort", ""); err != nil || cfg.Effort != "" {
 		t.Fatalf("empty is the provider's own default: %v, %q", err, cfg.Effort)
+	}
+}
+
+// The decisions keys build the block when there is none, and what they
+// build has to survive the next load: a block without a pinned model is
+// ErrBadConfig, so /jev on cannot write one.
+func TestApplyKVBuildsAValidDecisionsBlock(t *testing.T) {
+	cfg := &Config{}
+	if _, err := ApplyKV(cfg, "decisions.triage", "on"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Decisions == nil || !cfg.Decisions.Triage {
+		t.Fatalf("triage did not land: %+v", cfg.Decisions)
+	}
+	if err := cfg.Decisions.Validate(); err != nil {
+		t.Fatalf("the block /config wrote does not load: %v", err)
+	}
+	if !cfg.Decisions.On() {
+		t.Fatal("a block with no enabled key is on")
+	}
+	if _, err := ApplyKV(cfg, "decisions.enabled", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Decisions.On() || cfg.Decisions.ConsumerOn("triage") {
+		t.Fatal("the master switch must take the consumers with it")
+	}
+	if !cfg.Decisions.Triage {
+		t.Fatal("switching off must not forget which consumers were on")
+	}
+}
+
+func TestApplyKVDecisionsRefusesWhatLoadWouldRefuse(t *testing.T) {
+	cfg := &Config{}
+	for _, tc := range []struct{ key, val string }{
+		{"decisions.model", "jev-latest"},
+		{"decisions.model", "jev-1.13"},
+		{"decisions.timeout_ms", "3000"},
+		{"decisions.timeout_ms", "-1"},
+		{"decisions.endpoint", "typesafe"},
+		{"decisions.triage", "maybe"},
+	} {
+		if _, err := ApplyKV(cfg, tc.key, tc.val); err == nil {
+			t.Errorf("%s=%s was accepted", tc.key, tc.val)
+		}
+	}
+	for _, tc := range []struct{ key, val string }{
+		{"decisions.model", "jev-1.13.0"},
+		{"decisions.model", "~typesafe/jev-latest"},
+		{"decisions.timeout_ms", "2000"},
+		{"decisions.endpoint", "openrouter"},
+	} {
+		if _, err := ApplyKV(cfg, tc.key, tc.val); err != nil {
+			t.Errorf("%s=%s: %v", tc.key, tc.val, err)
+		}
+	}
+	if cfg.Decisions.BaseURL != DecisionEndpoints[0].BaseURL || cfg.Decisions.KeyEnv() != DecisionEndpoints[0].KeyEnv {
+		t.Fatalf("the endpoint did not land: %+v", cfg.Decisions)
+	}
+	if got := cfg.Decisions.EndpointName(); got != "openrouter" {
+		t.Fatalf("endpoint reads back as %q", got)
+	}
+}
+
+// The feature keys the slots exist for.
+func TestApplyKVFeatureKeys(t *testing.T) {
+	cfg := &Config{}
+	if _, err := ApplyKV(cfg, "escalate_after", "2"); err != nil || cfg.EscalateAfter != 2 {
+		t.Fatalf("escalate_after: %v, %d", err, cfg.EscalateAfter)
+	}
+	if _, err := ApplyKV(cfg, "escalate_after", "0"); err != nil || cfg.EscalateAfter != 0 {
+		t.Fatalf("zero is off: %v, %d", err, cfg.EscalateAfter)
+	}
+	if _, err := ApplyKV(cfg, "escalate_after", "-1"); err == nil {
+		t.Fatal("a negative round count was accepted")
+	}
+	if _, err := ApplyKV(cfg, "stale_check_nudge", "on"); err != nil || !cfg.StaleCheckNudge {
+		t.Fatalf("stale_check_nudge: %v, %v", err, cfg.StaleCheckNudge)
+	}
+	if _, err := ApplyKV(cfg, "advisor_mode", "always"); err != nil || cfg.AdvisorMode != "always" {
+		t.Fatalf("advisor_mode: %v, %q", err, cfg.AdvisorMode)
+	}
+	if _, err := ApplyKV(cfg, "advisor_mode", "sometimes"); err == nil {
+		t.Fatal("sometimes is not a mode")
+	}
+	if _, err := ApplyKV(cfg, "vision_model", "claude-opus-5"); err != nil || cfg.VisionModel != "claude-opus-5" {
+		t.Fatalf("vision_model: %v, %q", err, cfg.VisionModel)
 	}
 }

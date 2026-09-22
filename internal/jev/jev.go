@@ -33,6 +33,12 @@ import (
 // and is selected by pointing base_url at it.
 const DefaultBaseURL = "https://openrouter.ai"
 
+// DefaultModel is the slug a front-end offers when nobody has named a
+// version: the one the wire contract is verified against. It is a slug
+// and not an alias — the service resolves it and every answer reports
+// the pinned version it actually ran — so PinnedModel accepts it.
+const DefaultModel = "~typesafe/jev-latest"
+
 // DefaultTimeout bounds one decision call. Jev's value is cheap
 // immediacy; past MaxTimeout the answer is not worth waiting for.
 const (

@@ -5,7 +5,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -73,6 +75,66 @@ var setters = map[string]setter{
 	"route_cheap":   stringKey(func(c *Config) *string { return &c.RouteCheap }),
 	"advisor_model": stringKey(func(c *Config) *string { return &c.AdvisorModel }),
 	"strong_model":  stringKey(func(c *Config) *string { return &c.StrongModel }),
+	"vision_model":  stringKey(func(c *Config) *string { return &c.VisionModel }),
+
+	// The features the slots exist for. Each was configurable in the
+	// file and nowhere else, which made "is the cascade on?" a question
+	// only a restart could answer.
+	"stale_check_nudge": boolKey(func(c *Config) *bool { return &c.StaleCheckNudge }),
+	// Zero is off for both of these: a cascade that has not been asked
+	// for is not a cascade with a budget of nothing.
+	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),
+	"advisor_max_consults": countKey("advisor_max_consults", func(c *Config) *int { return &c.AdvisorMaxConsults }),
+	"advisor_mode": func(c *Config, val string) (any, error) {
+		switch val {
+		case "", "off", "always":
+			c.AdvisorMode = val
+			return val, nil
+		}
+		return nil, fmt.Errorf("advisor_mode wants off or always")
+	},
+
+	// The decisions block. Setting any of these on a config that has no
+	// block writes one, pinned to the default slug, because a block
+	// without a model is refused at the next load.
+	"decisions.enabled": decisionsKey(func(d *DecisionsConfig, val string) (any, error) {
+		b, err := parseBool(val)
+		if err != nil {
+			return nil, err
+		}
+		d.Enabled = &b
+		return b, nil
+	}),
+	"decisions.model": decisionsKey(func(d *DecisionsConfig, val string) (any, error) {
+		// Refused here as well as at load, for the reason effort and
+		// theme are: a model the loader will reject would be written to
+		// the file and refuse to start the next session.
+		if !jev.PinnedModel(val) {
+			return nil, fmt.Errorf("decisions.model %q is not a pinned version (want jev-X.Y.Z or a ~typesafe/jev-* slug)", val)
+		}
+		d.Model = val
+		return val, nil
+	}),
+	"decisions.endpoint": decisionsKey(func(d *DecisionsConfig, val string) (any, error) {
+		e, ok := FindDecisionEndpoint(val)
+		if !ok {
+			return nil, fmt.Errorf("decisions.endpoint wants one of %s", strings.Join(DecisionEndpointNames(), ", "))
+		}
+		d.BaseURL, d.APIKeyEnv = e.BaseURL, e.KeyEnv
+		return e.Name, nil
+	}),
+	"decisions.timeout_ms": decisionsKey(func(d *DecisionsConfig, val string) (any, error) {
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 || n > int(jev.MaxTimeout/time.Millisecond) {
+			return nil, fmt.Errorf("decisions.timeout_ms wants 0 for the default, or at most %d", jev.MaxTimeout/time.Millisecond)
+		}
+		d.TimeoutMs = n
+		return n, nil
+	}),
+	"decisions.triage":          consumerKey("triage"),
+	"decisions.intake":          consumerKey("intake"),
+	"decisions.intake_route":    consumerKey("route"),
+	"decisions.session_outcome": consumerKey("outcome"),
 
 	"theme": func(c *Config, val string) (any, error) {
 		// Refused here as well as at load, for the same reason effort is:
@@ -122,6 +184,57 @@ func boolPtr(field func(*Config) **bool) setter {
 		*field(c) = &b
 		return b, nil
 	}
+}
+
+// boolKey builds a setter for a plain bool field: one where off is a
+// decision rather than the absence of one, so there is no third state.
+func boolKey(field func(*Config) *bool) setter {
+	return func(c *Config, val string) (any, error) {
+		b, err := parseBool(val)
+		if err != nil {
+			return nil, err
+		}
+		*field(c) = b
+		return b, nil
+	}
+}
+
+// countKey builds a setter for an int field where zero means off and a
+// negative number means nothing at all.
+func countKey(name string, field func(*Config) *int) setter {
+	return func(c *Config, val string) (any, error) {
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("%s wants zero (off) or a positive integer", name)
+		}
+		*field(c) = n
+		return n, nil
+	}
+}
+
+// decisionsKey builds a setter for a key inside the decisions block,
+// creating the block when there is none. A block with no model is
+// refused at load, so a block this makes is pinned to the default slug
+// -- the same one a picker offers.
+func decisionsKey(set func(*DecisionsConfig, string) (any, error)) setter {
+	return func(c *Config, val string) (any, error) {
+		if c.Decisions == nil {
+			c.Decisions = &DecisionsConfig{Model: jev.DefaultModel}
+		}
+		return set(c.Decisions, val)
+	}
+}
+
+// consumerKey builds a setter for one decisions consumer flag.
+func consumerKey(name string) setter {
+	return decisionsKey(func(d *DecisionsConfig, val string) (any, error) {
+		b, err := parseBool(val)
+		if err != nil {
+			return nil, err
+		}
+		*decisionConsumers[name].field(d) = b
+		return b, nil
+	})
 }
 
 // intKey builds a setter for an int field. positive refuses zero and

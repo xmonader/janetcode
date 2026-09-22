@@ -224,6 +224,13 @@ type Config struct {
 // is advisory: no answer it produces can permit, refuse or edit — the
 // deterministic guards never read it.
 type DecisionsConfig struct {
+	// Enabled is the master switch /jev on|off writes. Nil is on, so a
+	// block written before the switch existed behaves exactly as it did:
+	// present means available, and each consumer is still off until its
+	// own key says so. False turns the whole feature off without
+	// forgetting the model, the endpoint or which consumers were on.
+	// JANETCODE_OFF=decisions overrides it either way.
+	Enabled *bool `json:"enabled,omitempty"`
 	// BaseURL is the API endpoint; empty is TypeSafe's. A gateway or a
 	// test server goes here. http is accepted only for loopback.
 	BaseURL string `json:"base_url,omitempty"`
@@ -292,6 +299,13 @@ func (d *DecisionsConfig) Validate() error {
 		}
 	}
 	return nil
+}
+
+// On reports whether the decisions feature is available at all: a block
+// that exists and has not been switched off. It says nothing about the
+// consumers, each of which has its own key.
+func (d *DecisionsConfig) On() bool {
+	return d != nil && (d.Enabled == nil || *d.Enabled)
 }
 
 // KeyEnv is the environment variable the key is read from. The default
