@@ -1690,7 +1690,7 @@
     return dark ? {
       background: "#101014",
       foreground: "rgba(238,238,245,0.9)",
-      cursor: "#4d6bfe",
+      cursor: "#4563ee",
       selectionBackground: "#2a2a35",
     } : {
       background: "#ffffff",
