@@ -58,7 +58,7 @@
   --mono: "SF Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --nav-w: 260px;
   --work-w: 300px;
-  --rail-w: 52px;
+  --rail-w: 64px;
   --chat-w: 44rem;
 }
 html[data-theme="dark"] {
@@ -120,9 +120,9 @@ body {
   grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--work-w);
   transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.shell.nav-collapsed { grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--work-w); }
+.shell.nav-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--work-w); }
 .shell.work-collapsed { grid-template-columns: var(--nav-w) minmax(0, 1fr) 0; }
-.shell.nav-collapsed.work-collapsed { grid-template-columns: var(--rail-w) minmax(0, 1fr) 0; }
+.shell.nav-collapsed.work-collapsed { grid-template-columns: 0 minmax(0, 1fr) 0; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: 0.55; }
@@ -265,17 +265,38 @@ button:disabled { cursor: default; opacity: 0.55; }
 .nav-collapsed #sessions {
   display: none;
 }
-.nav-collapsed .nav { padding: 18px 10px 6px; align-items: center; overflow: hidden; }
-.nav-collapsed .logo-row { height: 36px; margin-bottom: 12px; justify-content: center; }
-.nav-collapsed .new-session {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  margin: 0 0 12px;
-  border-color: transparent;
-  background: transparent;
+.nav-collapsed .nav {
+  padding: 12px 0 10px;
+  align-items: center;
+  overflow: hidden;
 }
-.nav-collapsed .nav-foot { justify-content: center; }
+.nav-collapsed .logo-row {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  width: 100%;
+  gap: 2px;
+  margin: 0 0 8px;
+}
+.nav-collapsed .brand { justify-content: center; }
+.nav-collapsed .new-session {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border-radius: 8px;
+  border: 0.5px solid var(--line);
+  background: var(--surface);
+  color: var(--blue);
+}
+.nav-collapsed .new-session:hover { background: var(--surface-2); color: var(--blue); border-color: var(--line-strong); }
+.nav-collapsed .nav-foot {
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
 #sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: auto; min-height: 0; }
 #sessions li {
   padding: 0.45rem 0.55rem;
@@ -403,7 +424,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .icon-btn:hover { color: var(--ink); background: var(--surface-2); }
 
 .shell.pv-open { grid-template-columns: var(--nav-w) minmax(0, 1fr) minmax(26rem, 44rem); }
-.shell.pv-open.nav-collapsed { grid-template-columns: var(--rail-w) minmax(0, 1fr) minmax(26rem, 44rem); }
+.shell.pv-open.nav-collapsed { grid-template-columns: 0 minmax(0, 1fr) minmax(26rem, 44rem); }
 .shell.pv-open .work { display: none; }
 .work-collapsed .work { visibility: hidden; pointer-events: none; }
 
@@ -1798,7 +1819,7 @@ pre.sheetbody { background: var(--pre-bg); }
   border-color: var(--blue);
 }
 .nav-collapsed .new-session {
-  background: transparent;
+  background: var(--surface);
   color: var(--blue);
 }
 #sessions li.on {
@@ -1948,13 +1969,6 @@ pre.sheetbody { background: var(--pre-bg); }
 /* Status line, quieter. */
 .status { font-size: 0.78rem; }
 
-/* The collapsed rail is just icons: no button chrome on the new-session
-   square. (The accent treatment above re-asserts it otherwise.) */
-.nav-collapsed .new-session {
-  background: transparent;
-  border-color: transparent;
-  color: var(--blue);
-}
 .nav-collapsed .new-session:hover { background: var(--surface-2); }
 .nav-collapsed .session-filter { display: none; }
 
@@ -2162,8 +2176,7 @@ body { font-size: 14px; }
 /* User bubble: their 18px neutral pill. */
 .you .bubble { border-radius: 20px; }
 
-/* Collapsed rail keeps its quiet new-session. */
-.nav-collapsed .new-session { color: var(--blue); }
+.nav-collapsed .new-session { color: var(--blue); background: var(--surface); border-color: var(--line); }
 
 /* ---- scrollbars and breathing room ----------------------------------
    The old selectors styled .thread, which never scrolls, so every real
@@ -2360,6 +2373,12 @@ html, body { overflow-x: hidden; }
 @keyframes skel { to { background-position: -200% 0; } }
 
 .nav-open { display: none; }
+.nav-collapsed .nav-open { display: inline-flex; }
+.nav-collapsed .nav {
+  visibility: hidden;
+  border: 0;
+  padding: 0;
+}
 
 /* One narrow-screen rule. The rail is a drawer; chat and the composer
    stay in the single column. An earlier query used to set the rail to
