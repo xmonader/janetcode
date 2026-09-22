@@ -2099,3 +2099,90 @@ $0.0135) and is *not* better on first-attempt gate pass. On this set the
 two tiers are not two tiers. The slot stays with `qwen/qwen3.7-plus`,
 which is where the previous round left it, and the honest reason is that
 this set cannot separate them rather than that it confirmed them.
+
+### The arms, and triage's first live data
+
+One discriminating task (`94`) plus the two controls, three runs a cell,
+900 s, one binary, `--eval-jobs 2`, all non-Jev flags identical between
+(c) and (e). Base tier `z-ai/glm-5.3-flash`; strong slot and advisor
+`qwen/qwen3.7-plus`.
+
+| arm | final pass | gate failures / run | repair rounds / run | escalations / run | $ per solved |
+|---|---:|---:|---:|---:|---:|
+| (a) cheap solo | **8/9** | 1.89 [0.78, 3.22] | 1.33 | 0 | $0.0371 |
+| (c) + cascade | 7/9 | 1.22 [0.56, 2.00] | 1.11 | **0.78** | $0.0453 |
+| (e) + cascade + triage | 6/9 | 1.00 [0.44, 1.67] | 0.67 | 0.33 | $0.0379 |
+| (d) advisor always (task 94 only) | **3/3** | 1.33 | 1.33 | 0 | $0.0322 |
+
+**The cascade fires.** Seven escalations, every one reading `escalating to
+qwen/qwen3.7-plus: the verification gate failed 1 round(s)`. The
+gate-failure trigger, shipped two rounds ago and untested live ever
+since, is tested now. It did not buy a pass: (c) is 7/9 against (a)'s
+8/9 and costs 22% more a solved task, at n=9 with intervals that overlap
+everything.
+
+**(d) beats (a) on the one task that discriminates** — 3/3 against 2/3,
+at $0.0322 a solved task against (a)'s $0.0317 on the same task. That is
+the first positive advisor signal this repository has had. It is n=3.
+`advisor_mode: gated` was **not** written: the thresholds it needs come
+from a by-construction corpus of "did the advisor change the outcome",
+and three runs is not that corpus.
+
+**Triage, at last, on real gate failures: 9 of 9 correct, by
+construction.**
+
+| truth by construction | rows | class | p(caused) | confidence | skipped |
+|---|---:|---|---:|---:|---:|
+| held-out failure on code the model wrote (`94`) | 6 | `patch_caused` ×6 | 0.75–0.83 | 0.52–0.80 | **0** |
+| environmental control (`97`, absent credential) | 3 | `environmental` ×3 | 0.04 | 0.99 | **3** |
+
+Zero costly skips and zero missed skips. Latency p50 ~325 ms, 0 errors,
+$0.000041 a call — 9 calls cost $0.00037 across the arm.
+
+**Jev's marginal contribution, isolated.** It is the veto, and it is
+measurable here for the first time. On the environmental control:
+
+| arm | gate failures / run | repair rounds / run | escalations / run | cost / run | wall / run |
+|---|---:|---:|---:|---:|---:|
+| (a) cheap solo | 4.67 | 3.00 | — | $0.0537 | 483 s |
+| (c) + cascade | 1.33 | 1.33 | 1.00 | $0.0099 | 50 s |
+| (e) + cascade + triage | 1.00 | **0.00** | **0.00** | **$0.0017** | 80 s |
+
+Without triage the cheap model spends its whole repair budget on a
+failure no code change can fix, and the cascade spends a strong-model
+round on it as well. With triage the round is not spent and the cascade
+never reaches the trigger, because the veto is the *ordering* rather than
+a second question. Three of three, at $0.000034 a call. Against that,
+the same consumer bought nothing on the real failures — it said
+`patch_caused` six times out of six, which is correct and is also what
+the harness would have done with no call at all.
+
+So the honest summary of Jev's marginal contribution on this set: **zero
+on the patch-caused path, and the whole of the environmental path.** The
+question of whether FULL reaches near-(b) pass at near-(a) cost cannot be
+answered: with one discriminating task and three runs a cell, (a), (c)
+and (e) differ by one or two passes and every interval contains every
+other arm.
+
+### What went wrong, recorded
+
+Three things this round would have hidden if they had not been caught:
+
+1. **The first (e) arm was void.** `decisions.model` was set to
+   `~typesafe/jev-1.13-20260917`, which 404s on OpenRouter — the pinned
+   version is served as `typesafe/jev-1.13-…` and asked for as
+   `~typesafe/jev-latest`. Every triage call failed, `triageFailure`
+   returned false silently, and the arm looked exactly like an arm with
+   triage off. `eval.Result.Decisions` now carries calls, errors, acted,
+   latency and cost, so a dead provider is visible in the result file.
+2. **The recorded rows could not be folded into
+   `docs/benchmarks/decisions/triage.jsonl`.** The decision event kept
+   the questions and the answers and threw the *state* away, and a replay
+   corpus is rows of {state, truth}. The state is now recorded on the
+   event; the 35 hand-built rows stand alone for one more round, and the
+   hand-built-versus-recorded re-baseline is the first thing the next
+   round can do without spending anything.
+3. **An eval run is not sandboxed, and two runs proved it** by fixing the
+   environment instead of the code: one compiled a binary into
+   `~/bin/svc-lint`, one bound the port the control's README named. See
+   `docs/manual/evals.md`, "An eval run is not sandboxed".
