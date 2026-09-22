@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -497,7 +498,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if checkingCommit {
 		commitPreHead = a.headForCommitCheck(ctx)
 	}
-	out, images, err := runSafely(ctx, t, u.Input)
+	out, images, err := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
@@ -590,6 +591,30 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		images = nil
 	}
 	return out, images, isErr, nil
+}
+
+// runSafely is the one gate every tool result passes through, and so
+// the one place credentials can be taken out of it. What a tool read —
+// a shell's whole environment, a .env, a 401 body quoting the header it
+// rejected — flows from here into the model's context, the tool-result
+// event every front-end and the Jev wire render, the session log on
+// disk and an eval's recorded output. Redacting downstream would mean
+// finding all of those and never missing the next one; redacting here
+// means the plaintext never leaves this function. The variable names
+// and the surrounding lines survive (see memory.RedactSecrets), so the
+// model still reads the output it asked for, minus the key.
+func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, images []llm.Block, err error) {
+	out, images, err = runSafely(ctx, t, input)
+	if a.Off["scrub"] {
+		return out, images, err
+	}
+	out, _ = memory.RedactSecrets(out)
+	if err != nil {
+		if red, n := memory.RedactSecrets(err.Error()); n > 0 {
+			err = errors.New(red)
+		}
+	}
+	return out, images, err
 }
 
 func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, images []llm.Block, err error) {
@@ -699,7 +724,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		pend = a.before(t, u.Input)
 	}
 	start := time.Now()
-	out, _, runErr := runSafely(ctx, t, u.Input)
+	out, _, runErr := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	isErr := runErr != nil
 	if isErr {
