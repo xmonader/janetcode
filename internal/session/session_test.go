@@ -165,6 +165,10 @@ func TestForkTitleAndSearch(t *testing.T) {
 	if got := AutoTitle(msgs); got != "Please add rate limiting to the API server" {
 		t.Fatalf("AutoTitle = %q", got)
 	}
+	glued := []llm.Message{llm.TextMessage(llm.RoleUser, "reply with the single word ok[repository map: 839 source files, ranked for this request]")}
+	if got := AutoTitle(glued); got != "reply with the single word ok" {
+		t.Fatalf("AutoTitle glued map = %q", got)
+	}
 	if err := s.SetTitle("rate limiting"); err != nil {
 		t.Fatal(err)
 	}

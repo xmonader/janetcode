@@ -443,7 +443,7 @@ func (s *server) hello() helloPayload {
 	}
 	if s.sess() != nil {
 		h.Session = s.sess().Meta.ID
-		h.Title = s.sess().Meta.Title
+		h.Title = session.CleanTitle(s.sess().Meta.Title)
 	}
 	return h
 }

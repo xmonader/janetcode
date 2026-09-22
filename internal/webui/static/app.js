@@ -38,6 +38,7 @@
   const openAnswers = new Set();
   const openRuns = new Set();
   const openFileCards = new Set();
+  let selectedAgent = "";
   let running = false;
   let pending = null;
   let commands = [];
@@ -524,12 +525,18 @@
     btn.textContent = modelLabel + (effort ? " · " + effort : "");
     btn.title = btn.textContent || "Switch model";
   }
+  function cleanTitle(s) {
+    let t = String(s || "");
+    const i = t.search(/\[(repository map:|harness\])/i);
+    if (i >= 0) t = t.slice(0, i);
+    return t.trim();
+  }
   function clipLine(s) {
-    const line = String(s || "").split("\n")[0].trim();
+    const line = cleanTitle(String(s || "").split("\n")[0]);
     return line.length > 80 ? line.slice(0, 79) + "…" : line;
   }
   function paintTitle() {
-    const shown = curTitle || clipLine(lastUserText);
+    const shown = cleanTitle(curTitle) || clipLine(lastUserText);
     document.getElementById("title").textContent = shown || "New conversation";
     document.title = (shown ? shown + " — " : "") + "janetcode";
   }
@@ -539,7 +546,7 @@
     paintModel();
     setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
-    if (h.title) curTitle = h.title;
+    if (h.title) curTitle = cleanTitle(h.title);
     paintTitle();
     const leaf = (h.cwd || "").replace(/\\/g, "/").split("/").filter(Boolean).pop();
     if (leaf) document.getElementById("empty-lead").textContent = "What should we change in " + leaf + "?";
@@ -1255,23 +1262,16 @@
     switchMenu.hidden = true;
   }
   function placeSwitchMenu(anchor) {
-    if (switchMenu.parentElement !== document.body) document.body.appendChild(switchMenu);
     const r = anchor.getBoundingClientRect();
     const width = 320;
     const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
-    switchMenu.style.position = "fixed";
-    switchMenu.style.right = "auto";
-    switchMenu.style.width = width + "px";
+    const maxH = Math.min(360, window.innerHeight - 16);
+    let top = r.bottom + 6;
+    if (top + 200 > window.innerHeight) top = Math.max(8, r.top - maxH - 6);
     switchMenu.style.left = left + "px";
-    switchMenu.style.zIndex = "40";
-    const menuH = 280;
-    if (window.innerHeight - r.bottom > menuH + 12) {
-      switchMenu.style.top = (r.bottom + 6) + "px";
-      switchMenu.style.bottom = "auto";
-    } else {
-      switchMenu.style.top = "auto";
-      switchMenu.style.bottom = (window.innerHeight - r.top + 6) + "px";
-    }
+    switchMenu.style.top = top + "px";
+    switchMenu.style.width = width + "px";
+    switchMenu.style.maxHeight = maxH + "px";
   }
 
   async function openModelMenu() {
@@ -1399,7 +1399,7 @@
       const agentsEl = document.getElementById("agents");
       if (ws.agents && ws.agents.length) {
         agentsEl.innerHTML = ws.agents.map((a) =>
-          `<li class="agent ${a.done ? "done" : "running"}" data-agent="${esc(a.id)}" title="Open transcript"><span class="a-id">${esc(a.id)}</span> ${esc(a.desc || "")}` +
+          `<li class="agent ${a.done ? "done" : "running"}${a.id === selectedAgent ? " on" : ""}" data-agent="${esc(a.id)}" title="Open transcript"><span class="a-id">${esc(a.id)}</span> ${esc(a.desc || "")}` +
           (!a.done && a.last ? `<span class="a-last">${esc(a.last)}</span>` : "") + `</li>`
         ).join("");
       } else agentsEl.innerHTML = `<li class="quiet">No subagents yet</li>`;
@@ -1461,7 +1461,7 @@
     const live = rows.find((r) => r.current);
     const curEl = document.getElementById("current-session");
     if (live) {
-      let label = (live.label || "").trim();
+      let label = cleanTitle(live.label || "");
       if (!label || label.startsWith("[") || label.startsWith("<")) label = clipLine(lastUserText) || "New conversation";
       curEl.innerHTML =
         `<div class="cur-row" title="The conversation open now">` +
@@ -1545,6 +1545,8 @@
   document.getElementById("agents").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-agent]");
     if (!li) return;
+    selectedAgent = li.dataset.agent;
+    document.querySelectorAll("#agents li[data-agent]").forEach((row) => row.classList.toggle("on", row.dataset.agent === selectedAgent));
     const data = await (await fetch("/api/agent?id=" + encodeURIComponent(li.dataset.agent))).json();
     showDetail(data.id + " · " + (data.desc || ""), data.text || "", false);
   });
@@ -1627,6 +1629,7 @@
     document.documentElement.dataset.themeChoice = choice;
     const dark = choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    if (term) term.options.theme = termTheme();
     drawTheme();
     document.querySelectorAll("#theme-seg [data-theme]").forEach((b) => b.classList.toggle("on", b.dataset.theme === choice));
   }
@@ -1723,10 +1726,12 @@
     document.querySelectorAll("#view-ring [data-view]").forEach((b) => b.classList.toggle("on", b === btn));
     chatView.hidden = currentView !== "chat";
     trajView.hidden = currentView !== "trajectory";
+    document.getElementById("thread").hidden = currentView === "terminal";
     if (currentView === "trajectory") refreshTrajectory();
     if (currentView === "terminal") {
       termView.hidden = false;
       ensureTerminal();
+      requestAnimationFrame(() => fitTerm());
     } else {
       termView.hidden = true;
     }
@@ -1738,29 +1743,52 @@
   // clean only if the socket actually dropped.
   const termView = document.getElementById("terminal");
   let term = null;
+  let termFit = null;
   let termWS = null;
   function termTheme() {
-    const cs = getComputedStyle(document.documentElement);
-    return {
-      background: cs.getPropertyValue("--bg").trim() || "#121212",
-      foreground: cs.getPropertyValue("--ink").trim() || "#eee",
-      cursor: cs.getPropertyValue("--blue").trim() || "#1a88ff",
-      selectionBackground: (cs.getPropertyValue("--blue-soft").trim() || "#333"),
+    const dark = document.documentElement.dataset.theme === "dark";
+    return dark ? {
+      background: "#121212",
+      foreground: "#ececec",
+      cursor: "#4a9eff",
+      selectionBackground: "#264f78",
+    } : {
+      background: "#ffffff",
+      foreground: "#1f2328",
+      cursor: "#1783ff",
+      selectionBackground: "#b6d6ff",
     };
   }
+  function fitTerm() {
+    if (!termFit || termView.clientHeight < 40) return;
+    termFit.fit();
+    if (termWS && termWS.readyState === WebSocket.OPEN) {
+      termWS.send(JSON.stringify({ type: "resize", rows: term.rows, cols: term.cols }));
+    }
+  }
   function ensureTerminal() {
-    if (term) {
-      if (termWS && termWS.readyState === WebSocket.OPEN) return;
+    if (term && termWS && termWS.readyState === WebSocket.OPEN) {
+      term.options.theme = termTheme();
+      fitTerm();
+      return;
     }
     if (term) {
       term.dispose();
       term = null;
+      termFit = null;
     }
-    term = new Terminal({ fontFamily: "var(--mono)", fontSize: 13.5, cursorBlink: true, theme: termTheme() });
-    const fit = new FitAddon.FitAddon();
-    term.loadAddon(fit);
+    // xterm measures an actual family. A CSS variable name makes the cell
+    // width disagree with the glyphs, so a prompt and an ls land on one row.
+    term = new Terminal({
+      fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+      fontSize: 14,
+      lineHeight: 1.2,
+      cursorBlink: true,
+      theme: termTheme(),
+    });
+    termFit = new FitAddon.FitAddon();
+    term.loadAddon(termFit);
     term.open(termView);
-    fit.fit();
     const proto = location.protocol === "https:" ? "wss" : "ws";
     termWS = new WebSocket(`${proto}://${location.host}/api/term`);
     termWS.onmessage = (ev) => {
@@ -1770,15 +1798,10 @@
       } catch (_) {}
     };
     termWS.onopen = () => {
-      const sendSize = () => termWS.readyState === WebSocket.OPEN && termWS.send(JSON.stringify({ type: "resize", rows: term.rows, cols: term.cols }));
-      sendSize();
       term.onData((d) => termWS.readyState === WebSocket.OPEN && termWS.send(JSON.stringify({ type: "in", data: d })));
-      new ResizeObserver(() => {
-        if (termView.clientHeight > 0) {
-          fit.fit();
-          sendSize();
-        }
-      }).observe(termView);
+      document.fonts.ready.then(fitTerm);
+      fitTerm();
+      new ResizeObserver(() => fitTerm()).observe(termView);
     };
   }
 

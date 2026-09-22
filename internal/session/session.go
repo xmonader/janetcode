@@ -404,6 +404,18 @@ func (s *Session) Label() string {
 	return s.Meta.ID
 }
 
+// CleanTitle drops harness text that got glued onto a person's words.
+// A repository map appended on the same line turned "reply with the
+// single word ok" into "reply with the single word ok[repository map: 839".
+func CleanTitle(s string) string {
+	for _, mark := range []string{"[repository map:", "[harness]"} {
+		if i := strings.Index(s, mark); i >= 0 {
+			s = s[:i]
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
 // AutoTitle derives a title from the first user message: its first line,
 // trimmed to a few words. It is the fallback when no model wrote one.
 // syntheticPrefixes open the user messages janetcode writes on the
@@ -442,7 +454,7 @@ func AutoTitle(msgs []llm.Message) string {
 		if m.Role != llm.RoleUser {
 			continue
 		}
-		t := strings.TrimSpace(m.Text())
+		t := CleanTitle(strings.TrimSpace(m.Text()))
 		if t == "" || Synthetic(t) {
 			continue
 		}

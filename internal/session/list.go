@@ -97,8 +97,8 @@ type Info struct {
 // Label is the title when set, else the preview, else the id.
 func (in Info) Label() string {
 	switch {
-	case in.Meta.Title != "":
-		return in.Meta.Title
+	case CleanTitle(in.Meta.Title) != "":
+		return CleanTitle(in.Meta.Title)
 	case in.Preview != "":
 		return in.Preview
 	}

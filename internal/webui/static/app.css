@@ -1266,6 +1266,11 @@ button, .chip, .icon-btn, .traj-row, #sessions li[data-id], .link-card {
 #agents .agent { font-size: 0.82rem; }
 #agents .a-id { font-family: var(--mono); font-size: 0.72rem; color: var(--faint); }
 #agents .agent.running .a-id { color: var(--blue); }
+#agents li.on {
+  background: var(--blue-soft);
+  box-shadow: inset 2px 0 0 var(--blue);
+}
+#agents li.on .a-id { color: var(--blue); font-weight: 600; }
 #agents .a-last { display: block; color: var(--mute); font-family: var(--mono); font-size: 0.72rem; margin-top: 1px; }
 .spend p { margin: 0.25rem 0; font-size: 0.88rem; color: var(--mute); }
 .switches { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.55rem; }
@@ -1536,18 +1541,16 @@ button, .chip, .icon-btn, .traj-row, #sessions li[data-id], .link-card {
 }
 .model-btn:hover, .effort-chip:hover { background: var(--surface-2); cursor: pointer; }
 .menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  position: fixed;
   width: 20rem;
+  max-height: min(360px, calc(100vh - 16px));
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow-pop);
-  z-index: 30;
-  overflow: hidden;
+  z-index: 40;
+  overflow: auto;
 }
-header.top { position: relative; }
 .menu-q {
   width: 100%;
   border: 0;
@@ -2427,19 +2430,21 @@ html, body { overflow-x: hidden; }
 .terminal {
   flex: 1;
   min-height: 0;
-  padding: 14px 18px;
+  margin: 12px 16px;
   background: var(--bg);
+  display: flex;
+  flex-direction: column;
 }
 .terminal .xterm {
+  flex: 1;
+  min-height: 0;
   height: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 0.5px solid var(--line);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--bg);
 }
-
-.terminal { display: flex; flex-direction: column; }
-.terminal .xterm { flex: 1; height: auto; min-height: 0; }
+.terminal .xterm-viewport { border-radius: 12px; }
 
 /* Activity runs, turn files, composer menus, settings. */
 .run-bar {
