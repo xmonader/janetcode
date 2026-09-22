@@ -232,3 +232,26 @@ func TestRouteStepSameProviderRoutesRegardlessOfContextSize(t *testing.T) {
 type errStub string
 
 func (e errStub) Error() string { return string(e) }
+
+// A cheap slot filled with the session's own model is the fallback said
+// out loud, not a route: switching a call from a model to itself changes
+// nothing, and counting it as a route would put a line in /stats about
+// work that never happened.
+func TestRouteStepDoesNotRouteToTheSessionsOwnModel(t *testing.T) {
+	a := routableAgent(true)
+	a.SetRouteCheap(a.Settings().Model)
+	if _, _, ok := a.routeStep(func(Event) {}); ok {
+		t.Fatal("cheap == main must not route")
+	}
+	// Case is not the difference between two models either.
+	a.SetRouteCheap(strings.ToUpper(a.Settings().Model))
+	if _, _, ok := a.routeStep(func(Event) {}); ok {
+		t.Fatal("cheap == main must not route whatever the case")
+	}
+	// And a genuinely different name still routes, so the guard is the
+	// equality and nothing else.
+	a.SetRouteCheap("cheap-model")
+	if _, model, ok := a.routeStep(func(Event) {}); !ok || model != "cheap-model" {
+		t.Fatalf("a different cheap model must still route: ok=%v model=%q", ok, model)
+	}
+}

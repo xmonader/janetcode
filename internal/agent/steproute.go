@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"strings"
+
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/shell"
 )
@@ -198,6 +200,14 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 // caller sends the call to Model exactly as it would with the feature off.
 func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
 	if a.Off["routing"] || a.RouteCheapName() == "" || !a.routingAllowed() {
+		return nil, "", false
+	}
+	// The cheap slot filled with the session's own model is the slot
+	// resolver's fallback written out by hand (see config.SlotIsMain),
+	// and routing a call from a model to itself changes nothing while
+	// counting as a route and printing a line about one. So it is not a
+	// route: the call goes where it was going anyway.
+	if strings.EqualFold(a.RouteCheapName(), a.Settings().Model) {
 		return nil, "", false
 	}
 	// The first call of a turn has no step behind it to judge, so it stays
