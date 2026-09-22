@@ -34,6 +34,10 @@
   const nodes = new Map();
   const latest = new Map();
   const openTools = new Set();
+  const openThoughts = new Set();
+  const openAnswers = new Set();
+  const openRuns = new Set();
+  const openFileCards = new Set();
   let running = false;
   let pending = null;
   let commands = [];
@@ -84,9 +88,10 @@
   function codeBlockHTML(lang, code) {
     const bid = "cb" + ++codeSeq;
     codeBlocks.set(bid, code);
+    const wrap = `<button type="button" class="codecopy" data-wrap="${bid}" title="Toggle word wrap">Wrap</button>`;
     return (
-      `<div class="codeblock"><div class="codehead"><span>${esc(lang || "code")}</span>` +
-      `<button type="button" class="codecopy" data-bid="${bid}" title="Copy code">Copy</button></div>` +
+      `<div class="codeblock" data-lang="${esc(lang || "")}"><div class="codehead"><span>${esc(lang || "code")}</span>` +
+      `${wrap}<button type="button" class="codecopy" data-bid="${bid}" title="Copy code">Copy</button></div>` +
       `<pre><code class="${lang ? "lang-" + esc(lang) : ""}">${highlight(code, lang)}</code></pre></div>`
     );
   }
@@ -127,13 +132,71 @@
     t = `<p>${t}</p>`;
     return t.replace(/\u0000(\d+)\u0000/g, (_, i) => fences[Number(i)]);
   }
+  function changedSpan(line, other) {
+    if (line === other) return [0, 0];
+    const a = [...line], b = [...other];
+    let indent = 0;
+    while (indent < a.length && (a[indent] === " " || a[indent] === "\t")) indent++;
+    let p = indent;
+    while (p < a.length && p < b.length && a[p] === b[p]) p++;
+    let s = 0;
+    while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    const word = (ch) => /[A-Za-z0-9_]/.test(ch) || (ch && ch.codePointAt(0) > 127);
+    while (p > indent && word(a[p - 1])) p--;
+    while (s > 0 && s < a.length - p && word(a[a.length - s])) s--;
+    if (p >= a.length - s) return [0, 0];
+    return [p, a.length - s];
+  }
+  function markSpan(text, other, cls) {
+    const [from, to] = changedSpan(text, other);
+    if (from >= to) return esc(text);
+    const a = [...text];
+    return esc(a.slice(0, from).join("")) + `<span class="mark">${esc(a.slice(from, to).join(""))}</span>` + esc(a.slice(to).join(""));
+  }
   function diffHTML(src) {
-    return String(src ?? "").split("\n").map((l) => {
-      if (l.startsWith("+") && !l.startsWith("+++")) return `<span class="add">${esc(l)}</span>`;
-      if (l.startsWith("-") && !l.startsWith("---")) return `<span class="del">${esc(l)}</span>`;
-      if (l.startsWith("@@")) return `<span class="hunk">${esc(l)}</span>`;
-      return esc(l);
-    }).join("\n");
+    const lines = String(src ?? "").split("\n");
+    if (!lines.some((l) => l.startsWith("@@"))) {
+      return lines.map((l) => {
+        if (l.startsWith("+") && !l.startsWith("+++")) return `<span class="add">${esc(l)}</span>`;
+        if (l.startsWith("-") && !l.startsWith("---")) return `<span class="del">${esc(l)}</span>`;
+        return esc(l);
+      }).join("\n");
+    }
+    const out = [];
+    let newN = 1, oldN = 1, prevEnd = 0, hunkStart = false;
+    const gw = String(Math.max(lines.length, 1)).length;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      const h = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l);
+      if (h) {
+        oldN = Number(h[1]);
+        newN = Number(h[2]);
+        if (hunkStart && newN - prevEnd > 0) {
+          out.push(`<span class="gap">${esc(" ".repeat(gw + 2) + "… " + (newN - prevEnd) + " unchanged lines")}</span>`);
+        }
+        hunkStart = true;
+        continue;
+      }
+      if (l.startsWith("+++") || l.startsWith("---") || l.startsWith("diff ") || l.startsWith("index ")) continue;
+      const kind = l[0];
+      const text = l.slice(1);
+      let n = newN;
+      let cls = "";
+      if (kind === "+") { cls = "add"; n = newN; newN++; }
+      else if (kind === "-") { cls = "del"; n = oldN; oldN++; }
+      else if (kind === " " || kind === undefined) { n = newN; oldN++; newN++; }
+      else { out.push(esc(l)); continue; }
+      let body = esc(text);
+      if (kind === "-" && lines[i + 1] && lines[i + 1][0] === "+" && lines[i + 2] && lines[i + 2][0] !== "+" && (i === 0 || lines[i - 1][0] !== "-")) {
+        body = markSpan(text, lines[i + 1].slice(1));
+      } else if (kind === "+" && i > 0 && lines[i - 1][0] === "-" && (!lines[i + 1] || lines[i + 1][0] !== "+")) {
+        body = markSpan(text, lines[i - 1].slice(1));
+      }
+      const gutter = String(n).padStart(gw, " ");
+      out.push(`<span class="${cls}"><span class="ln">${esc(gutter)} │ </span>${kind === "+" || kind === "-" ? kind : " "}${body}</span>`);
+      if (kind !== "-") prevEnd = newN;
+    }
+    return out.join("\n");
   }
   // scroller is what actually scrolls: the chat column. (.thread is
   // overflow:hidden — it sized the column once and stick/follow used to
@@ -257,28 +320,48 @@
       if (e.tok_in || e.tok_out) meta.push("↑" + fmtTok(e.tok_in) + " ↓" + fmtTok(e.tok_out));
       if (e.ms) meta.push(fmtDur(e.ms));
       const metaRow = meta.length && e.done ? `<div class="msg-meta">${esc(meta.join(" · "))}</div>` : "";
-      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md">${md(e.text || "")}${e.done ? "" : "▍"}</div>${metaRow}${e.done ? linkCards(e.text) : ""}`;
-      if (e.done) lastReply = (e.text || "").slice(0, 200);
+      const long = e.done && (e.text || "").length > 1800;
+      const clipped = long && !openAnswers.has(e.id);
+      const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Continue</button>` : "";
+      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md${clipped ? " clip" : ""}">${md(e.text || "")}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
+      if (e.done) {
+        lastReply = (e.text || "").slice(0, 200);
+        drawMermaid(n);
+      }
     } else if (e.kind === "thinking") {
       n.className = "turn thought";
+      n.dataset.thought = e.id;
       const raw = (e.text || "").trim();
       if (!raw && !e.done) {
         n.innerHTML = `<span class="lbl">${esc(lastFlavor || "Thinking")}</span>`;
+      } else if (e.done && !openThoughts.has(e.id)) {
+        const line = (raw.split("\n")[0] || "").slice(0, 160);
+        n.innerHTML = `<span class="lbl">Thought <span class="chev">›</span></span>${esc(line)}`;
+      } else if (e.done) {
+        n.innerHTML = `<span class="lbl">Thought <span class="chev">⌄</span></span><pre class="thought-body">${esc(raw)}</pre>`;
       } else {
         const lines = raw.split("\n");
-        n.innerHTML = `<span class="lbl">${e.done ? "Thought" : "Thinking"}</span>${esc(e.done ? (lines[0] || "").slice(0, 160) : lines.slice(-2).join(" "))}`;
+        n.innerHTML = `<span class="lbl">Thinking</span>${esc(lines.slice(-2).join(" "))}`;
       }
     } else if (e.kind === "tool") {
-      n.className = "turn";
+      const folded = !!(e.run && !e.run_live && !openRuns.has(e.run));
+      n.className = "turn" + (e.run && !e.run_head ? " run-child" : "");
+      n.hidden = !!(e.run && !e.run_head && folded);
       const st = e.denied ? "Declined" : e.error ? "Failed" : e.done ? "Done" : e.running ? "Running" : "Queued";
       const stCls = "st-" + st.toLowerCase();
       const open = openTools.has(e.id);
-      let html = `<div class="tool ${stCls}"><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
+      let bar = "";
+      if (e.run_head) {
+        bar = `<button type="button" class="run-bar${/failed/.test(e.run_label || "") ? " bad" : ""}" data-run="${esc(e.run)}"><span class="chev">${folded ? "›" : "⌄"}</span><span>${esc(e.run_label || "")}</span></button>`;
+      }
+      const bodyHidden = e.run_head && folded;
+      let html = bar + `<div class="tool ${stCls}"${bodyHidden ? " hidden" : ""}><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
       if (open && e.preview) html += `<pre class="diff">${diffHTML(e.preview)}</pre>`;
       if (open && e.output) html += `<pre class="out">${outputHTML(e)}</pre>`;
       html += `</div>`;
       n.innerHTML = html;
-      n.querySelector(".head").onclick = () => {
+      const head = n.querySelector(".tool .head");
+      if (head) head.onclick = () => {
         if (openTools.has(e.id)) openTools.delete(e.id);
         else openTools.add(e.id);
         render(latest.get(e.id));
@@ -306,9 +389,143 @@
     paintToLatest();
   }
 
+  async function drawMermaid(root) {
+    for (const block of root.querySelectorAll('.codeblock[data-lang="mermaid"]')) {
+      if (block.dataset.drawn) continue;
+      const bid = block.querySelector("[data-bid]")?.dataset.bid;
+      const src = codeBlocks.get(bid);
+      if (!src) continue;
+      block.dataset.drawn = "1";
+      try {
+        const res = await fetch("/api/mermaid", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ src }),
+        });
+        const data = await res.json();
+        if (!data.ok || !data.lines || !data.lines.length) continue;
+        const pre = block.querySelector("pre");
+        const diagram = data.lines.join("\n");
+        pre.className = "diagram";
+        pre.textContent = diagram;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "codecopy";
+        btn.textContent = "Source";
+        btn.addEventListener("click", () => {
+          if (pre.classList.contains("diagram")) {
+            pre.className = "";
+            pre.innerHTML = `<code>${highlight(src, "")}</code>`;
+            btn.textContent = "Diagram";
+          } else {
+            pre.className = "diagram";
+            pre.textContent = diagram;
+            btn.textContent = "Source";
+          }
+        });
+        block.querySelector(".codehead").appendChild(btn);
+      } catch (_) {}
+    }
+  }
+
+  log.addEventListener("click", async (ev) => {
+    const wrap = ev.target.closest("[data-wrap]");
+    if (wrap) {
+      const pre = wrap.closest(".codeblock")?.querySelector("pre");
+      if (pre) pre.style.whiteSpace = pre.style.whiteSpace === "pre-wrap" ? "pre" : "pre-wrap";
+      return;
+    }
+    const more = ev.target.closest("[data-more]");
+    if (more) {
+      openAnswers.add(more.dataset.more);
+      render(latest.get(more.dataset.more));
+      return;
+    }
+    const runBtn = ev.target.closest("[data-run]");
+    if (runBtn) {
+      const id = runBtn.dataset.run;
+      if (openRuns.has(id)) openRuns.delete(id); else openRuns.add(id);
+      latest.forEach((e) => { if (e.run === id) render(e); });
+      return;
+    }
+    const thought = ev.target.closest("[data-thought]");
+    if (thought && latest.get(thought.dataset.thought)?.done) {
+      const id = thought.dataset.thought;
+      if (openThoughts.has(id)) openThoughts.delete(id); else openThoughts.add(id);
+      render(latest.get(id));
+      return;
+    }
+    const filesMore = ev.target.closest("[data-files]");
+    if (filesMore) {
+      const t = filesMore.dataset.files;
+      if (openFileCards.has(t)) openFileCards.delete(t); else openFileCards.add(t);
+      if (lastWorkspace) paintTurnFiles(lastWorkspace.files);
+      return;
+    }
+    const fileLi = ev.target.closest(".turn-files li[data-seq]");
+    if (fileLi) {
+      const data = await (await fetch("/api/change?n=" + fileLi.dataset.seq)).json();
+      showDetail(data.path || "", data.diff || "", true);
+    }
+  });
+
+  let lastWorkspace = null;
+  function paintTurnFiles(files) {
+    log.querySelectorAll(".turn-files").forEach((n) => n.remove());
+    if (!files || !files.length) return;
+    const byTurn = new Map();
+    for (const f of files) {
+      const t = f.turn || 0;
+      if (!byTurn.has(t)) byTurn.set(t, []);
+      byTurn.get(t).push(f);
+    }
+    const users = [...log.querySelectorAll("article.turn.you")];
+    for (const [turn, list] of byTurn) {
+      const card = document.createElement("div");
+      card.innerHTML = fileCardHTML(turn, list);
+      const node = card.firstElementChild;
+      const anchor = users[turn - 1];
+      if (!anchor) { log.appendChild(node); continue; }
+      let after = anchor;
+      let n = anchor.nextElementSibling;
+      const nextUser = users[turn] || null;
+      while (n && n !== nextUser) { after = n; n = n.nextElementSibling; }
+      after.insertAdjacentElement("afterend", node);
+    }
+  }
+  function fileCardHTML(turn, list) {
+    const open = openFileCards.has(String(turn));
+    const shown = open ? list : list.slice(0, 3);
+    let add = 0, del = 0;
+    for (const f of list) { add += f.add || 0; del += f.del || 0; }
+    const rows = shown.map((f) =>
+      `<li data-seq="${f.seq}"><span>${esc(f.path)}</span><span><span class="add">+${f.add || 0}</span> <span class="del">−${f.del || 0}</span></span></li>`
+    ).join("");
+    const rest = !open && list.length > 3 ? `<li class="more" data-files="${turn}">${list.length - 3} more files</li>` : "";
+    return `<div class="turn-files" data-turn-files="${turn}"><header><span>${list.length} file${list.length === 1 ? "" : "s"} changed</span><span><span class="add">+${add}</span> <span class="del">−${del}</span></span></header>${rows}${rest}</div>`;
+  }
+  function paintGit(ws) {
+    const el = document.getElementById("git-pill");
+    if (!el) return;
+    const files = (ws && ws.files) || [];
+    let add = 0, del = 0;
+    for (const f of files) { add += f.add || 0; del += f.del || 0; }
+    if (!ws || (!ws.branch && !add && !del)) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = `${esc(ws.branch || "git")}` + (add || del ? ` <span class="add">+${add}</span> <span class="del">−${del}</span>` : "");
+  }
+
+  let modelLabel = "";
+  function paintModel() {
+    const effort = document.getElementById("effort-chip")?.dataset.effort || "";
+    const btn = document.getElementById("model");
+    btn.textContent = modelLabel + (effort ? " · " + effort : "");
+    btn.title = btn.textContent || "Switch model";
+  }
   function applyHello(h) {
     if (!h) return;
-    document.getElementById("model").textContent = [h.provider, h.model].filter(Boolean).join(" · ");
+    modelLabel = [h.provider, h.model].filter(Boolean).join(" · ");
+    paintModel();
     setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
     if (h.title) curTitle = h.title;
@@ -326,6 +543,8 @@
     maybeNotify(prev, st);
     document.getElementById("send").title = running ? "Queue behind the running turn" : "Send";
     document.getElementById("stop").hidden = !running;
+    const steerHint = document.getElementById("steer-hint");
+    if (steerHint) steerHint.hidden = !running;
     const bits = [];
     if (st.running) bits.push((st.phase || "Working") + (st.elapsed ? " · " + st.elapsed : ""));
     else if (st.status) bits.push(st.status);
@@ -372,7 +591,9 @@
     const chip = document.getElementById("effort-chip");
     if (!chip) return;
     chip.hidden = false;
+    chip.dataset.effort = effort || "";
     chip.textContent = effort ? "effort " + effort : "effort";
+    paintModel();
   }
 
   function showAsk(p) {
@@ -476,6 +697,10 @@
         log.innerHTML = "";
         nodes.clear();
         latest.clear();
+        openTools.clear();
+        openThoughts.clear();
+        openAnswers.clear();
+        openRuns.clear();
         empty.hidden = false;
         curTitle = "";
         lastPrompt = "";
@@ -496,15 +721,39 @@
     return r.ok;
   }
 
+  const chips = [];
+  const chipsEl = document.getElementById("chips");
+  function paintChips() {
+    if (!chips.length) { chipsEl.hidden = true; chipsEl.innerHTML = ""; return; }
+    chipsEl.hidden = false;
+    chipsEl.innerHTML = chips.map((p, i) =>
+      `<span class="file-chip">${esc(p.split("/").pop())}<button type="button" data-chip="${i}" aria-label="Remove">×</button></span>`
+    ).join("");
+  }
+  chipsEl.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-chip]");
+    if (!b) return;
+    chips.splice(Number(b.dataset.chip), 1);
+    paintChips();
+  });
+  function composedText() {
+    const typed = input.value.trim();
+    const mentions = chips.map((p) => "@" + p).join(" ");
+    return [mentions, typed].filter(Boolean).join("\n");
+  }
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const text = input.value.trim();
+    if (!slashEl.hidden) { acceptSlash(); return; }
+    const text = composedText();
     if (!text) return;
     if (!text.startsWith("/")) lastPrompt = text;
     histPush(text);
     input.value = "";
+    chips.length = 0;
+    paintChips();
     resize();
     acHide();
+    hideSlash();
     await post("/api/prompt", { text });
   });
 
@@ -534,9 +783,10 @@
   }
   function acHide() { ac.hidden = true; acItems = []; acStart = -1; }
   function acDraw() {
-    ac.innerHTML = acItems.map((p, i) =>
-      `<div class="${i === acIdx ? "on" : ""}" data-i="${i}">${esc(p)}</div>`
-    ).join("") || `<div class="ac-hint">no matches</div>`;
+    ac.innerHTML = acItems.map((p, i) => {
+      const dir = p.endsWith("/");
+      return `<div class="${i === acIdx ? "on" : ""}" data-i="${i}">${dir ? "▸ " : ""}${esc(p)}</div>`;
+    }).join("") || `<div class="ac-hint">no matches</div>`;
   }
   async function acRefresh() {
     const w = acWord();
@@ -566,6 +816,8 @@
   }
   input.addEventListener("input", () => {
     resize();
+    slashIdx = 0;
+    drawSlash();
     clearTimeout(acTimer);
     acTimer = setTimeout(acRefresh, 120);
   });
@@ -583,12 +835,82 @@
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 140) + "px";
   }
+  const slashEl = document.getElementById("slash");
+  let slashItems = [];
+  let slashIdx = 0;
+  function hideSlash() { slashEl.hidden = true; slashItems = []; }
+  function slashQuery() {
+    const v = input.value;
+    if (!v.startsWith("/") || /[\s\n]/.test(v)) return null;
+    return v.toLowerCase();
+  }
+  function drawSlash() {
+    const q = slashQuery();
+    if (q == null) { hideSlash(); return; }
+    acHide();
+    slashItems = commands.filter((c) => {
+      const n = (c.name || "").toLowerCase();
+      if (!q || q === "/") return true;
+      if (n.startsWith(q)) return true;
+      let i = 0;
+      const bare = q.slice(1);
+      for (const ch of n.slice(1)) if (ch === bare[i] && ++i === bare.length) return true;
+      return (c.help || "").toLowerCase().includes(bare);
+    }).slice(0, 8);
+    slashIdx = Math.min(slashIdx, Math.max(slashItems.length - 1, 0));
+    if (!slashItems.length) { hideSlash(); return; }
+    slashEl.hidden = false;
+    slashEl.innerHTML = slashItems.map((c, i) =>
+      `<div class="${i === slashIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help || "")}</span></div>`
+    ).join("");
+  }
+  async function acceptSlash() {
+    const c = slashItems[slashIdx];
+    hideSlash();
+    if (!c) return;
+    if (c.args) {
+      input.value = c.name + " ";
+      input.focus();
+      resize();
+      return;
+    }
+    input.value = "";
+    resize();
+    await post("/api/command", { text: c.name });
+  }
+  slashEl.addEventListener("click", async (ev) => {
+    const row = ev.target.closest("[data-i]");
+    if (!row) return;
+    slashIdx = Number(row.dataset.i);
+    await acceptSlash();
+  });
+
   input.addEventListener("keydown", async (ev) => {
     if (!ac.hidden) {
       if (ev.key === "ArrowDown") { ev.preventDefault(); acIdx = Math.min(acIdx + 1, acItems.length - 1); acDraw(); return; }
       if (ev.key === "ArrowUp") { ev.preventDefault(); acIdx = Math.max(acIdx - 1, 0); acDraw(); return; }
       if (ev.key === "Enter" || ev.key === "Tab") { ev.preventDefault(); acAccept(); return; }
       if (ev.key === "Escape") { ev.preventDefault(); acHide(); return; }
+    }
+    if (!slashEl.hidden) {
+      if (ev.key === "ArrowDown") { ev.preventDefault(); slashIdx = Math.min(slashIdx + 1, slashItems.length - 1); drawSlash(); return; }
+      if (ev.key === "ArrowUp") { ev.preventDefault(); slashIdx = Math.max(slashIdx - 1, 0); drawSlash(); return; }
+      if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); await acceptSlash(); return; }
+      if (ev.key === "Escape") { ev.preventDefault(); hideSlash(); return; }
+    }
+    if (ev.key === "Enter" && !ev.shiftKey && (ev.ctrlKey || ev.metaKey) && running) {
+      ev.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      resize();
+      await post("/api/steer", { text });
+      return;
+    }
+    if (ev.key === "Backspace" && input.value === "" && chips.length) {
+      chips.pop();
+      paintChips();
+      return;
     }
     if (ev.key === "Enter" && !ev.shiftKey) {
       ev.preventDefault();
@@ -662,6 +984,14 @@
   document.getElementById("help-btn").addEventListener("click", openHelp);
   document.getElementById("help-close").addEventListener("click", closeHelp);
   document.addEventListener("keydown", (ev) => {
+    if (settingsEl && !settingsEl.hidden) {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        settingsEl.hidden = true;
+      }
+      return;
+    }
     if (!helpEl.hidden) {
       if (ev.key === "Escape" || (ev.shiftKey && ev.key === "?")) {
         ev.preventDefault();
@@ -824,6 +1154,27 @@
       : `<div class="empty-pal">No commands match</div>`;
   }
   document.getElementById("search-btn").addEventListener("click", openPalette);
+  const attachInput = document.getElementById("attach-file");
+  async function uploadFiles(list) {
+    if (!list || !list.length) return;
+    const fd = new FormData();
+    for (const f of list) fd.append("files", f);
+    const r = await fetch("/api/upload", { method: "POST", body: fd });
+    if (!r.ok) { statusEl.textContent = (await r.text()) || r.statusText; return; }
+    const data = await r.json();
+    for (const p of data.paths || []) chips.push(p);
+    paintChips();
+  }
+  document.getElementById("attach-btn").addEventListener("click", () => attachInput.click());
+  attachInput.addEventListener("change", () => { uploadFiles(attachInput.files); attachInput.value = ""; });
+  form.addEventListener("dragover", (ev) => ev.preventDefault());
+  form.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) uploadFiles(ev.dataTransfer.files);
+  });
+  document.addEventListener("click", (ev) => {
+    if (!slashEl.hidden && !ev.target.closest("#composer")) hideSlash();
+  });
   document.addEventListener("keydown", (ev) => {
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
       ev.preventDefault();
@@ -1045,6 +1396,9 @@
       document.getElementById("mode-plan").classList.toggle("on", !!ws.plan);
       document.getElementById("mode-ro").classList.toggle("on", !!ws.readonly);
       setModeChip(ws.mode);
+      lastWorkspace = ws;
+      paintGit(ws);
+      paintTurnFiles(ws.files);
     } catch (_) {}
   }
 
@@ -1130,6 +1484,9 @@
       nodes.clear();
       latest.clear();
       openTools.clear();
+      openThoughts.clear();
+      openAnswers.clear();
+      openRuns.clear();
       if (window.matchMedia("(max-width: 960px)").matches && !shell.classList.contains("nav-collapsed")) {
         setCollapsed("nav-collapsed", true);
       }
@@ -1179,6 +1536,10 @@
       log.innerHTML = "";
       nodes.clear();
       latest.clear();
+      openTools.clear();
+      openThoughts.clear();
+      openAnswers.clear();
+      openRuns.clear();
       empty.hidden = false;
       refreshWorkspace();
       loadSessions();
@@ -1228,13 +1589,79 @@
   const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");
   function drawTheme() { themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; }
-  themeBtn.addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem("janetcode-theme", next);
+  function applyThemeChoice(choice) {
+    localStorage.setItem("janetcode-theme", choice);
+    document.documentElement.dataset.themeChoice = choice;
+    const dark = choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
     drawTheme();
+    document.querySelectorAll("#theme-seg [data-theme]").forEach((b) => b.classList.toggle("on", b.dataset.theme === choice));
+  }
+  themeBtn.addEventListener("click", () => {
+    applyThemeChoice(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
   });
   drawTheme();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (document.documentElement.dataset.themeChoice === "system") applyThemeChoice("system");
+  });
+  const settingsEl = document.getElementById("settings");
+  let soundOn = localStorage.getItem("janetcode-sound") === "1";
+  function paintSound() {
+    const b = document.getElementById("sound-btn");
+    if (b) b.textContent = soundOn ? "Sound on" : "Sound off";
+  }
+  function ding() {
+    if (!soundOn) return;
+    try {
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = 880;
+      o.connect(g);
+      g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.04, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      o.start();
+      o.stop(ctx.currentTime + 0.13);
+    } catch (_) {}
+  }
+  function openSettings() {
+    settingsEl.hidden = false;
+    applyThemeChoice(document.documentElement.dataset.themeChoice || "dark");
+    const fs = document.documentElement.dataset.fontScale || "medium";
+    document.querySelectorAll("#font-seg [data-font]").forEach((b) => b.classList.toggle("on", b.dataset.font === fs));
+    paintSound();
+  }
+  document.getElementById("settings-btn").addEventListener("click", openSettings);
+  document.getElementById("settings-close").addEventListener("click", () => { settingsEl.hidden = true; });
+  document.getElementById("theme-seg").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-theme]");
+    if (b) applyThemeChoice(b.dataset.theme);
+  });
+  document.getElementById("font-seg").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-font]");
+    if (!b) return;
+    document.documentElement.dataset.fontScale = b.dataset.font;
+    localStorage.setItem("janetcode-font-scale", b.dataset.font);
+    document.querySelectorAll("#font-seg [data-font]").forEach((x) => x.classList.toggle("on", x === b));
+  });
+  document.getElementById("sound-btn").addEventListener("click", () => {
+    soundOn = !soundOn;
+    localStorage.setItem("janetcode-sound", soundOn ? "1" : "");
+    paintSound();
+    if (soundOn) ding();
+  });
+  paintSound();
+  document.getElementById("mode-chip").addEventListener("click", () => {
+    setCollapsed("work-collapsed", false);
+    document.querySelector('.work-tabs [data-pane="session"]')?.click();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && ev.key.toLowerCase() === "o") {
+      ev.preventDefault();
+      document.getElementById("new-chat").click();
+    }
+  });
 
   document.getElementById("empty").addEventListener("click", (ev) => {
     const chip = ev.target.closest(".chip");
@@ -1960,7 +2387,9 @@
   });
   drawNotif();
   function maybeNotify(prevRunning, st) {
-    if (!notifyOn || !prevRunning || st.running || !document.hidden) return;
+    if (!prevRunning || st.running || !document.hidden) return;
+    if (soundOn) ding();
+    if (!notifyOn) return;
     const title = document.getElementById("title").textContent || "janetcode";
     const body = lastReply ? lastReply.split("\n")[0].slice(0, 120) : (st.status || "Turn finished");
     try { new Notification("janetcode · " + title, { body }); } catch (_) {}

@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0d0d0d">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234a9eff'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' text-anchor='middle' fill='%230d0d0d'%3Ej%3C/text%3E%3C/svg%3E">
-<script>document.documentElement.dataset.theme = localStorage.getItem("janetcode-theme") || "dark";</script>
+<script>
+(function () {
+  var t = localStorage.getItem("janetcode-theme") || "dark";
+  var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  document.documentElement.dataset.themeChoice = t;
+  document.documentElement.dataset.fontScale = localStorage.getItem("janetcode-font-scale") || "medium";
+})();
+</script>
 <title>janetcode</title>
 <link rel="stylesheet" href="/static/vendor/xterm.min.css">
 <link rel="stylesheet" href="/static/app.css">
@@ -20,9 +28,10 @@
       </span>
       <button type="button" id="nav-toggle" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar">☰</button>
     </div>
-    <button type="button" id="new-chat" class="new-session">
+    <button type="button" id="new-chat" class="new-session" title="New session (Ctrl+Shift+O)">
       <span class="new-plus" aria-hidden="true">+</span>
       <span class="new-session-label">New session</span>
+      <kbd class="cmd-kbd">Ctrl Shift O</kbd>
     </button>
     <p class="nav-label">This conversation</p>
     <div id="current-session" class="current-session" hidden></div>
@@ -30,6 +39,7 @@
     <input id="session-filter" class="session-filter" type="search" placeholder="Filter history…" aria-label="Filter past conversations">
     <ul id="sessions"></ul>
     <div class="nav-foot">
+      <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
       <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
     </div>
   </aside>
@@ -44,6 +54,7 @@
       </nav>
       <span id="title" class="session-title"></span>
       <span class="top-right">
+        <span id="git-pill" class="git-pill" hidden></span>
         <span id="ctx-chip" class="ctx-chip" title="Context window used" hidden></span>
         <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
         <span id="conn" class="conn" title="Live connection">Live</span>
@@ -141,11 +152,17 @@
         </form>
       </div>
       <p id="status" class="status"></p>
+      <p id="steer-hint" class="steer-hint" hidden>Press <kbd>Enter</kbd> to queue · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to steer</p>
       <form id="composer">
+        <div id="slash" class="slash" hidden></div>
         <div id="ac" class="ac" hidden></div>
+        <div id="chips" class="chips-row" hidden></div>
         <textarea id="input" rows="1" placeholder="What should we do next?"></textarea>
         <div class="composer-bar">
+          <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file">+</button>
+          <input id="attach-file" type="file" multiple hidden>
           <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands">⌘</button>
+          <kbd class="cmd-kbd" title="Command palette">Ctrl K</kbd>
           <span id="mode-chip" class="mode-chip">ask</span>
           <span class="spacer"></span>
           <button type="button" id="model" class="model-btn" title="Switch model"></button>
@@ -231,6 +248,34 @@
     </div>
   </div>
 
+  <div id="settings" class="help" hidden>
+    <div class="help-card settings-card">
+      <header>
+        <strong>Settings</strong>
+        <button type="button" id="settings-close" class="icon-btn" title="Close (Esc)">×</button>
+      </header>
+      <section>
+        <h3>Appearance</h3>
+        <div class="seg" id="theme-seg">
+          <button type="button" data-theme="light">Moon bright</button>
+          <button type="button" data-theme="dark">Moon dark</button>
+          <button type="button" data-theme="system">System</button>
+        </div>
+        <h3>Font size</h3>
+        <div class="seg" id="font-seg">
+          <button type="button" data-font="small">S</button>
+          <button type="button" data-font="medium">M</button>
+          <button type="button" data-font="large">L</button>
+          <button type="button" data-font="xlarge">XL</button>
+        </div>
+        <h3>Notifications</h3>
+        <div class="seg">
+          <button type="button" id="sound-btn">Sound off</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
   <div id="help" class="help" hidden>
     <div class="help-card">
       <header>
@@ -242,9 +287,14 @@
           <h3>Keyboard</h3>
           <dl>
             <dt><kbd>Enter</kbd> / <kbd>⇧ Enter</kbd></dt><dd>send / new line</dd>
+            <dt><kbd>Enter</kbd> while running</dt><dd>queue the prompt</dd>
+            <dt><kbd>Ctrl Enter</kbd></dt><dd>steer the running turn</dd>
             <dt><kbd>Ctrl K</kbd></dt><dd>command palette</dd>
+            <dt><kbd>/</kbd> in the composer</dt><dd>slash menu</dd>
+            <dt><kbd>@</kbd></dt><dd>mention a file</dd>
+            <dt><kbd>Ctrl Shift O</kbd></dt><dd>new session</dd>
             <dt><kbd>?</kbd></dt><dd>this sheet</dd>
-            <dt><kbd>/</kbd></dt><dd>search the trajectory ledger</dd>
+            <dt><kbd>/</kbd> outside the composer</dt><dd>search the trajectory ledger</dd>
             <dt><kbd>j</kbd> <kbd>k</kbd> · <kbd>g</kbd> <kbd>G</kbd></dt><dd>scroll · jump to ends</dd>
             <dt><kbd>Esc</kbd></dt><dd>stop the turn · close what is open</dd>
           </dl>
@@ -259,7 +309,7 @@
           </dl>
           <h3>Worth knowing</h3>
           <dl>
-            <dt><code>/</code> commands</dt><dd>the palette lists them; the model knows the rest</dd>
+            <dt><code>/</code> commands</dt><dd>type / in the composer, or open the palette</dd>
             <dt>Permissions</dt><dd>ask → auto → plan → allow-all, under the composer and in the panel</dd>
           </dl>
         </section>

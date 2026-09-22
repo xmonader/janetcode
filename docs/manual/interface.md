@@ -178,9 +178,20 @@ whole transcript) swaps every diagram in the last turn for the mermaid
 source it was drawn from, and ctrl+o again draws them back. A faint line
 under each diagram says so.
 
-`--web` renders markdown in the browser, where a mermaid block is a code
-block and stays one: the web UI makes no external requests, and a
-mermaid library would be one.
+`--web` draws the same subset. The page posts the fence to the server,
+which uses this package and returns the box drawing; anything the
+terminal would leave as source stays a code block. No diagram library
+is loaded in the browser.
+
+On the web, two or more tools between a prompt and the answer fold into
+one row (`Made 2 edits · Ran 1 command`). Click it to open the calls.
+A turn that changed files shows a card with the line counts. A long
+answer clips behind Continue. Enter while a turn is running queues the
+next prompt; Ctrl+Enter steers the one in flight. `/` in the composer
+opens the command menu, `@` mentions a file, and `+` attaches one.
+The header shows the git branch and the session's `+N −M`. Settings
+(the gear in the rail) sets Moon bright, Moon dark or System, the font
+size, and a sound when a turn finishes in a background tab.
 
 ## The terminal takes part
 
