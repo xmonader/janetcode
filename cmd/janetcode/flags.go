@@ -92,6 +92,9 @@ type options struct {
 	bg                  bool
 	// addDir collects --add-dir, which is repeatable.
 	addDir stringList
+	// sets collects --set key=value, repeatable: the config keys /config
+	// sets in a session, for the run that has no session to type in.
+	sets stringList
 }
 
 // newFlagSet declares janetcode's flags and returns the set together with
@@ -192,5 +195,6 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.StringVar(&o.webAddr, "web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
 	fs.BoolVar(&o.bg, "bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>")
 	fs.Var(&o.addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
+	fs.Var(&o.sets, "set", "set a config key for this run, e.g. --set escalate_after=1 --set decisions.triage=true (repeatable). The keys are the ones /config takes, including the model slots and the decisions block; nothing is written to the config file. --inspect config lists them")
 	return fs, o
 }

@@ -26,6 +26,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one (including one started with `--bg`) |
 | `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume` |
 | `--add-dir <path>` | extra local directory file tools may read and edit this session (repeatable) |
+| `--set <key>=<value>` | set a config key for this run only, repeatable: the keys `/config` takes, including the model slots (`route_cheap`, `strong_model`, `advisor_model`, `vision_model`), the features that use them (`escalate_after`, `advisor_mode`, `stale_check_nudge`) and the decisions block (`decisions.enabled`, `decisions.model`, `decisions.endpoint`, `decisions.triage`, …). Nothing is written to the config file, and a key or value the file would be refused for is refused here |
 | `--replay <session>` | re-run a saved session against the current code, with the model's replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key |
 | `--what-if <session>` | counterfactual replay: see [What if: replaying a session with one thing changed](sessions.md#what-if-replaying-a-session-with-one-thing-changed) |
 | `--from-turn <n>` | with `--what-if`: the first turn (1-based) to run live instead of from the recording |

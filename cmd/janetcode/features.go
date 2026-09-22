@@ -92,6 +92,7 @@ var flagWhen = map[string]string{
 	"web-addr":               "the default loopback port is taken, or you are deliberately binding off loopback",
 	"bg":                     "a prompt you want to keep running after this terminal is gone; reopen with --resume",
 	"add-dir":                "a sibling tree or generated directory the file tools should be allowed to touch this session",
+	"set":                    "a run with nobody to type /config in it still needs a config key changed: a benchmark arm that turns the cascade or a decision consumer on, without editing the file every other run reads",
 	"recipe":                 "a turn's tool calls worked and you want to rerun them from a script or CI with no model call and no tokens",
 	"what-if":                "a fix landed and you want to know what a different model, a disabled behaviour or a different prompt would have done from that point on, without redoing the turns that already worked",
 	"from-turn":              "--what-if needs to know which turn is the one being changed",

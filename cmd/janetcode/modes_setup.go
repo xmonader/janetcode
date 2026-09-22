@@ -48,6 +48,24 @@ func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 		if o.compactAt > 0 {
 			cfg.CompactAt = o.compactAt
 		}
+		// --set is /config for a run with nobody to type in it: the same
+		// catalogue, the same parsing and the same validation, applied to
+		// the loaded config and never written back to the file.
+		for _, kv := range o.sets {
+			key, val, ok := strings.Cut(kv, "=")
+			if !ok {
+				return cfg, needsConnect, fmt.Errorf("--set wants key=value, got %q", kv)
+			}
+			if _, e := config.ApplyKV(cfg, strings.TrimSpace(key), strings.TrimSpace(val)); e != nil {
+				return cfg, needsConnect, fmt.Errorf("--set %s: %w", key, e)
+			}
+		}
+		// A decisions block reached through --set is validated the same
+		// way the file's is, so a run cannot start on one the next load
+		// would refuse.
+		if e := cfg.Decisions.Validate(); e != nil {
+			return cfg, needsConnect, e
+		}
 	}
 	return cfg, needsConnect, err
 }
