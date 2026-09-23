@@ -122,7 +122,7 @@
             <button type="button" class="chip" data-q="Refactor the ugliest function you can find">Refactor something ugly</button>
           </div>
         </div>
-        <div id="log"></div>
+        <div id="log" role="log" aria-label="Conversation" aria-live="off"></div>
       </div>
       <div id="trajectory" class="trajectory" hidden>
         <div class="traj-bar">
@@ -168,7 +168,7 @@
     <button type="button" id="to-latest" class="to-latest" hidden title="Jump to the latest" aria-label="Jump to the latest"><svg class="i" aria-hidden="true"><use href="#i-arrow-down"/></svg></button>
     <div class="dock">
     <div class="bottom">
-      <div id="ask" class="ask" hidden>
+      <div id="ask" class="ask" role="alertdialog" aria-labelledby="ask-line" aria-describedby="ask-impact" tabindex="-1" hidden>
         <p id="ask-line"></p>
         <p id="ask-rule" hidden></p>
         <p id="ask-rungs" hidden>
@@ -204,7 +204,7 @@
         <div id="slash" class="slash" hidden></div>
         <div id="ac" class="ac" hidden></div>
         <div id="chips" class="chips-row" hidden></div>
-        <textarea id="input" rows="1" placeholder="What should we do next?"></textarea>
+        <textarea id="input" rows="1" placeholder="What should we do next?" aria-label="Message"></textarea>
         <div class="composer-bar">
           <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-paperclip"/></svg></button>
           <input id="attach-file" type="file" multiple hidden>
@@ -392,10 +392,14 @@
     </form>
   </div>
 
-  <div id="palette" class="palette" hidden>
-    <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off">
+  <div id="palette" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+    <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off" aria-label="Search commands">
     <div id="palette-list"></div>
   </div>
+<!-- One polite voice for what a screen reader should hear: an approval,
+       a finished turn. The conversation itself streams token by token and
+       is not live, or it would be read out a word at a time. -->
+  <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 <script src="/static/vendor/xterm.min.js"></script>
 <script src="/static/vendor/addon-fit.min.js"></script>
 <script src="/static/vendor/highlight.min.js"></script>

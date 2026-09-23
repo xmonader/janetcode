@@ -127,7 +127,7 @@ ui-firstrun: build
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9225 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
 	node internal/webui/uitest/firstrun.mjs http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ 9225 18994 $$tmp/janetcode/config.json; \
-	rc=$$?; [ $$rc = 0 ] || cat $$tmp/server.log; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp; exit $$rc
+	rc=$$?; [ $$rc = 0 ] || cat $$tmp/server.log; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
 
 # Visual regression gate: boots the webui like ui-test, shoots every state
 # shot.mjs knows (fed from a fake event stream, so the pixels are the same

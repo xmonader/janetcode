@@ -203,6 +203,85 @@ const cwdShown = await evaljs(`(() => { window.__es.onmessage({ data: JSON.strin
 check('long cwd keeps the project end', cwdShown.text === '…/dog/proj/py-bug' && cwdShown.title.endsWith('/py-bug'), JSON.stringify(cwdShown));
 check('session times are not set in monospace', await evaljs(`(() => { const d = document.createElement('span'); d.className = 'when'; document.getElementById('sessions').appendChild(d); const f = getComputedStyle(d).fontFamily; d.remove(); return !/Mono|monospace/.test(f); })()`));
 
+// 17. keyboard and screen reader. Every control a pointer can use has a
+// name a screen reader can say, and Tab reaches the ones a session needs.
+const unnamed = await evaljs(`(() => {
+  const vis = (el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
+  const nameOf = (el) => {
+    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
+    const by = el.getAttribute('aria-labelledby');
+    if (by) return by.split(' ').map(id => document.getElementById(id)?.textContent || '').join(' ').trim();
+    if (el.labels && el.labels.length) return [...el.labels].map(l => l.textContent).join(' ').trim();
+    return (el.textContent || '').trim() || el.getAttribute('title') || '';
+  };
+  return [...document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=tab]')]
+    .filter(vis).filter(el => !nameOf(el)).map(el => el.id || el.className || el.tagName).slice(0, 12);
+})()`);
+check('every visible control has an accessible name', unnamed.length === 0, JSON.stringify(unnamed));
+const landmarks = await evaljs(`(() => ({
+  log: document.getElementById('log').getAttribute('role'),
+  announcer: document.getElementById('sr-announce')?.getAttribute('aria-live'),
+  ask: document.getElementById('ask').getAttribute('role'),
+  palette: document.getElementById('palette').getAttribute('role'),
+  paletteLabel: document.getElementById('palette').getAttribute('aria-label'),
+}))()`);
+check('the conversation is a log, announced through one polite live region', landmarks.log === 'log' && landmarks.announcer === 'polite', JSON.stringify(landmarks));
+check('the approval card and the palette are labelled dialogs', landmarks.ask === 'alertdialog' && landmarks.palette === 'dialog' && !!landmarks.paletteLabel, JSON.stringify(landmarks));
+
+// Tab from the top of the page: the composer, send, the model, the
+// palette, settings and help must all be reachable, each with a visible
+// focus ring.
+await evaljs(`document.activeElement && document.activeElement.blur(); document.body.focus(); 1`);
+const reached = new Set();
+let ringless = [];
+for (let i = 0; i < 90; i++) {
+  await cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  const f = await evaljs(`(() => { const a = document.activeElement; if (!a || a === document.body) return null; const cs = getComputedStyle(a); return { id: a.id || a.getAttribute('aria-label') || a.className, ring: (cs.outlineStyle !== 'none' && cs.outlineWidth !== '0px') || cs.boxShadow !== 'none' || a.tagName === 'TEXTAREA' }; })()`);
+  if (!f) continue;
+  reached.add(f.id);
+  if (!f.ring) ringless.push(f.id);
+}
+const need = ['input', 'send', 'model', 'search-btn', 'settings-btn', 'help-btn'];
+const missing = need.filter(id => !reached.has(id));
+check('Tab reaches the composer, send, model, palette, settings and help', missing.length === 0, 'missing ' + JSON.stringify(missing));
+ringless = [...new Set(ringless)];
+check('every control Tab lands on shows where focus is', ringless.length === 0, JSON.stringify(ringless.slice(0, 10)));
+
+// A dialog opened from the keyboard takes focus, and Escape gives it back
+// to the composer.
+await evaljs(`document.getElementById('input').focus(); 1`);
+await cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'k', code: 'KeyK', modifiers: 2, windowsVirtualKeyCode: 75 });
+await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'k', code: 'KeyK', modifiers: 2, windowsVirtualKeyCode: 75 });
+await sleep(200);
+const palOpen = await evaljs(`!document.getElementById('palette').hidden && document.activeElement.id === 'palette-q'`);
+await cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+await sleep(200);
+const palBack = await evaljs(`document.getElementById('palette').hidden && document.activeElement.id === 'input'`);
+check('Ctrl+K opens the palette with focus in it; Escape returns to the composer', palOpen && palBack, JSON.stringify({ palOpen, palBack }));
+
+// An approval is announced and takes focus — to the card, never to
+// Allow, so a stray Enter approves nothing — unless the user is typing.
+const perm = (summary) => evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: { name: 'bash', summary: '${summary}', preview: '${summary}' } }) }); return 1; })()`);
+await evaljs(`(() => { const t = document.getElementById('input'); t.value = ''; t.focus(); return 1; })()`);
+await perm('make test');
+await sleep(300);
+const askFocus = await evaljs(`({ on: document.activeElement.id, said: document.getElementById('sr-announce')?.textContent || '' })`);
+check('an approval is announced and takes focus to the card, not to Allow', askFocus.on === 'ask' && /Approval needed/.test(askFocus.said) && /make test/.test(askFocus.said), JSON.stringify(askFocus));
+await evaljs(`document.getElementById('ask').hidden = true; 1`);
+await evaljs(`(() => { const t = document.getElementById('input'); t.value = 'half a thought'; t.focus(); return 1; })()`);
+await perm('make lint');
+await sleep(300);
+check('…but not away from a half-typed message', await evaljs(`document.activeElement.id === 'input' && document.getElementById('input').value === 'half a thought'`));
+await evaljs(`document.getElementById('ask').hidden = true; document.getElementById('input').value = ''; 1`);
+
+// A finished turn is announced once, not token by token.
+await evaljs(`(() => { const es = window.__es; es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: true, phase: 'Writing', mode: 'ask' } }) }); es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', status: 'done in 4s' } }) }); return 1; })()`);
+await sleep(300);
+const doneSaid = await evaljs(`document.getElementById('sr-announce')?.textContent || ''`);
+check('a finished turn is announced', /done in 4s/.test(doneSaid), JSON.stringify(doneSaid));
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');

@@ -308,6 +308,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 }
 .session-filter::placeholder { color: var(--faint); }
 .session-filter:focus { border-color: var(--blue-soft-border); background: var(--surface); }
+.session-filter:focus-visible { box-shadow: 0 0 0 3px var(--blue-soft); }
 #sessions { list-style: none; margin: 0; padding: 0 0 8px; flex: 1; overflow: auto; min-height: 0; }
 #sessions li {
   padding: 0.5rem 0.65rem;
@@ -2106,3 +2107,6 @@ kbd {
 .cx-actions { align-items: center; margin-top: 0.2rem; }
 .cx-actions .spacer { flex: 1; }
 #model.unconnected { color: var(--warn); font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ask:focus { outline: none; }
+.ask:focus-visible { box-shadow: var(--shadow-pop), 0 0 0 3px var(--blue-soft); }

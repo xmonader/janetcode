@@ -554,6 +554,7 @@
     if (!st) return;
     const prev = running;
     running = !!st.running;
+    if (prev && !running) announce(st.status || "Done");
     maybeNotify(prev, st);
     const sendBtn = document.getElementById("send");
     sendBtn.title = running ? "Queue behind the running turn" : "Send";
@@ -617,12 +618,31 @@
     paintModel();
   }
 
+  // announce says something once through the polite live region. The
+  // text is cleared first so the same words twice are read twice.
+  const srAnnounce = document.getElementById("sr-announce");
+  function announce(text) {
+    if (!srAnnounce || !text) return;
+    srAnnounce.textContent = "";
+    setTimeout(() => { srAnnounce.textContent = text; }, 30);
+  }
+
   function showAsk(p) {
+    const was = ask.hidden ? null : pending;
     pending = p && p.name ? p : null;
     ask.hidden = !pending;
     if (!pending) return;
     markUnseen();
     askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
+    // A new request, not the same one sent again on a reconnect.
+    const same = was && was.name === p.name && was.summary === p.summary && was.preview === p.preview;
+    if (!same) {
+      announce("Approval needed. " + askLine.textContent + (p.impact ? " " + p.impact : ""));
+      // Focus goes to the card, not to Allow: a stray Enter must not
+      // approve a command. It stays put while the user is typing.
+      const typing = document.activeElement === input && input.value.trim() !== "";
+      if (!typing) ask.focus();
+    }
     showRungs(p);
     // The rung picker already names the rule; a "rule:" line above it
     // said the same thing twice.
