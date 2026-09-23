@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -148,12 +149,13 @@ func TestWireEvalGateWithoutAKeyWiresNoProvider(t *testing.T) {
 
 // fakeEvalDecisions is a DecisionProvider that answers without a
 // network: a confident environmental verdict, which is the answer that
-// skips a repair round.
-type fakeEvalDecisions struct{ calls int }
+// skips a repair round. Intake asks from its own goroutine while triage
+// asks from the turn's, so the count is atomic.
+type fakeEvalDecisions struct{ calls atomic.Int32 }
 
 func (f *fakeEvalDecisions) Available() bool { return true }
 func (f *fakeEvalDecisions) Evaluate(ctx context.Context, state string, qs []jev.Question) (*jev.Result, error) {
-	f.calls++
+	f.calls.Add(1)
 	return &jev.Result{Model: "jev-1.13.0", TokensIn: 430, TokensOut: 73, Cost: 0.00001806,
 		Answers: map[string]jev.Answer{
 			"caused_by_change": {Kind: jev.Noul, Noul: 0.1},
@@ -206,7 +208,7 @@ func TestEvalGateFailureReachesTriage(t *testing.T) {
 		}
 	}
 	if triaged != 1 {
-		t.Fatalf("verify_triage decisions = %d (provider calls %d), want 1: the gate failure never reached triageFailure", triaged, fd.calls)
+		t.Fatalf("verify_triage decisions = %d (provider calls %d), want 1: the gate failure never reached triageFailure", triaged, fd.calls.Load())
 	}
 	joined := strings.Join(notices, "\n")
 	if !strings.Contains(joined, "repair round not spent") {
