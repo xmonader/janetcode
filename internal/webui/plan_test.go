@@ -179,3 +179,26 @@ func TestWebPlanTurnWritesThePlanFile(t *testing.T) {
 		t.Fatalf("plan file = %q", body)
 	}
 }
+
+// TestFinishedTurnTitlesTheSession: the web UI never titled a session,
+// so the rail named the live one by its id ("20260923-170327-2bb8ad").
+// The first prompt titles it once the first turn ends, as headless does,
+// and a title the user set is left alone.
+func TestFinishedTurnTitlesTheSession(t *testing.T) {
+	done := &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "Fixed."), StopReason: llm.StopEndTurn}
+	s, _ := planServer(t, done, done)
+	s.startTurn("Some tests in this repo are failing. Find out why and fix the code.")
+	waitFor(t, func() bool { return s.sess().Label() != s.sess().Meta.ID })
+	if got := s.sess().Label(); !strings.HasPrefix(got, "Some tests in this repo are failing") {
+		t.Fatalf("title = %q", got)
+	}
+	waitFor(t, func() bool { s.mu.Lock(); defer s.mu.Unlock(); return !s.running })
+	if err := s.sess().SetTitle("mine"); err != nil {
+		t.Fatal(err)
+	}
+	s.startTurn("and another thing")
+	waitFor(t, func() bool { s.mu.Lock(); defer s.mu.Unlock(); return !s.running })
+	if got := s.sess().Label(); got != "mine" {
+		t.Fatalf("a set title was replaced: %q", got)
+	}
+}

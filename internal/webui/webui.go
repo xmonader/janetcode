@@ -734,6 +734,9 @@ func (s *server) finish(err error) {
 		s.statusSet("error")
 	}
 	s.emitStatus()
+	if err == nil {
+		s.titleFromFirstPrompt()
+	}
 	if next != "" {
 		s.startTurn(next)
 		return
@@ -747,6 +750,26 @@ func (s *server) finish(err error) {
 			s.startTurn(cont)
 		}
 	}
+}
+
+// titleFromFirstPrompt names an untitled session after its first prompt
+// once a turn has finished, as headless mode does. Without it the rail
+// named the live session by its id. No model call: it is free, instant,
+// and cannot fail in a way the user sees.
+func (s *server) titleFromFirstPrompt() {
+	sess := s.sess()
+	if sess == nil || s.opts.Agent == nil || sess.Label() != sess.Meta.ID {
+		return
+	}
+	t := session.AutoTitle(s.opts.Agent.MessagesSnapshot())
+	if t == "" {
+		return
+	}
+	if err := sess.SetTitle(t); err != nil {
+		s.errf("could not save the title: %v", err)
+		return
+	}
+	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
 }
 
 func (s *server) steer(w http.ResponseWriter, r *http.Request) {
