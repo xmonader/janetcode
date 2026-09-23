@@ -48,6 +48,9 @@
   let palItems = [];
   let lastReply = "";
   let lastUserText = "";
+  // The conversation's first prompt names it until the server titles it,
+  // as the rail does; the latest prompt renamed the header every turn.
+  let firstUserText = "";
   let lastFlavor = "";
 
   function esc(s) {
@@ -238,6 +241,7 @@
     if (e.kind === "user") {
       n.className = "turn you";
       lastUserText = e.text || "";
+      if (!firstUserText) firstUserText = lastUserText;
       if (!curTitle) paintTitle();
       loadSessions();
       n.innerHTML = `<div class="bubble">${esc(e.text || "")}</div><div class="msg-actions">` +
@@ -473,7 +477,7 @@
     return line.length > 80 ? line.slice(0, 79) + "…" : line;
   }
   function paintTitle() {
-    const shown = cleanTitle(curTitle) || clipLine(lastUserText);
+    const shown = cleanTitle(curTitle) || clipLine(firstUserText);
     document.getElementById("title").textContent = shown || "New conversation";
     document.title = (shown ? shown + " — " : "") + "janetcode";
   }
@@ -674,6 +678,7 @@
         openRuns.clear();
         empty.hidden = false;
         curTitle = "";
+        firstUserText = "";
         lastPrompt = "";
         break;
       case "notice":
@@ -1449,7 +1454,7 @@
     const curEl = document.getElementById("current-session");
     if (live) {
       let label = cleanTitle(live.label || "");
-      if (!label || label.startsWith("[") || label.startsWith("<")) label = clipLine(lastUserText) || "New conversation";
+      if (!label || label.startsWith("[") || label.startsWith("<")) label = clipLine(firstUserText) || "New conversation";
       curEl.innerHTML =
         `<div class="cur-row" title="The conversation open now">` +
         `<span class="cur-dot"></span><span class="cur-label">${esc(live.prefix || "")}${esc(label)}</span>` +
