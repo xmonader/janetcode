@@ -250,7 +250,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   transition: background 0.14s ease, border-color 0.14s ease;
 }
 .new-session:hover { background: var(--surface-2); border-color: var(--line-strong); }
-.new-plus { font-size: 16px; line-height: 1; color: var(--blue); font-weight: 400; }
+.new-plus { display: inline-flex; font-size: 15px; color: var(--mute); }
 /* The live conversation reads as the first row of the list: same shape,
    a green pulse where the list has a hover, nothing more. */
 .current-session { margin: 0 0 6px; }
@@ -1451,10 +1451,13 @@ pre.sheetbody {
   width: 2px;
   border-radius: 1px;
   background: var(--blue);
-  opacity: 0.14;
+  opacity: 0;
   transition: opacity 0.15s ease;
 }
-.drag-handle:hover::before { opacity: 0.5; }
+/* Invisible until the pointer finds it: the col-resize cursor is the
+   affordance, the accent line confirms it. A resting line read as a
+   second border beside the panel's own. */
+.drag-handle:hover::before, body.resizing .drag-handle::before { opacity: 0.6; }
 body.resizing { cursor: col-resize; user-select: none !important; }
 body.resizing .shell,
 body.resizing .work,
@@ -1477,8 +1480,16 @@ body.resizing .preview { transition: none !important; }
   min-height: 0;
   z-index: 30;
   transform: translateX(103%);
-  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0.35, 1);
-  box-shadow: var(--shadow-pop);
+  visibility: hidden;
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0.35, 1), visibility 0s linear 0.24s;
+}
+/* Open drawers dock beside the thread (it yields their width), so they
+   need no shadow; closed ones are hidden outright so neither their edge
+   nor their controls leak into view or into the tab order. */
+.shell:not(.work-collapsed) .work,
+.shell.pv-open .preview {
+  visibility: visible;
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0.35, 1), visibility 0s;
 }
 /* Open drawers keep the conversation clear: the thread and composer
    yield their width instead of sliding under the panel. Padding (not
@@ -1504,35 +1515,34 @@ body.resizing .preview { transition: none !important; }
 .shell.pv-open .preview { transform: none; }
 .work-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 10px 10px 0;
+  gap: 0;
+  padding: 0 8px;
+  height: 44px;
+  align-items: stretch;
   border-bottom: 0.5px solid var(--line);
   flex: none;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.work-tabs::-webkit-scrollbar { display: none; }
 .work-tabs button {
+  flex: none;
   background: transparent;
-  border-radius: 9px 9px 0 0;
   color: var(--mute);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
-  padding: 8px 10px;
-  transition: color 0.12s ease, background 0.12s ease;
+  padding: 0 9px;
+  white-space: nowrap;
+  transition: color 0.12s ease, box-shadow 0.12s ease;
 }
-.work-tabs button:hover { color: var(--ink); background: var(--surface-2); }
-.work-tabs button.on { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--blue); }
-.work-pane { flex: 1; overflow: auto; padding: 12px 14px 16px; }
-.work h2 {
-  margin: 0 0 0.55rem;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
+.work-tabs button:hover { color: var(--ink); }
+.work-tabs button.on { color: var(--ink); box-shadow: inset 0 -2px 0 var(--blue); }
+.work-pane { flex: 1; overflow: auto; padding: 14px 16px 16px; }
+/* The tab already names the pane; the heading stays for screen readers. */
+.work h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .work ul { list-style: none; margin: 0; padding: 0; }
 .work li { padding: 0.32rem 0; color: var(--mute); font-size: 0.85rem; }
-.quiet { color: var(--faint); font-style: italic; font-size: 0.85rem; }
+.quiet { color: var(--faint); font-size: 0.85rem; }
 #todos li { display: flex; gap: 0.5rem; align-items: baseline; }
 #todos li::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--line-strong); flex: none; align-self: center; }
 #todos li.quiet::before { display: none; }
@@ -1961,7 +1971,16 @@ kbd {
     padding: 10px 12px 8px;
   }
   .shell:not(.nav-collapsed) .nav { transform: none; }
-  .work, .preview { top: 49px; width: min(100vw - 48px, 26rem); }
+  /* The rail overlays the thread here: dim it, and a tap on the dim
+     closes the rail (app.js listens for clicks on the shell itself). */
+  .shell:not(.nav-collapsed)::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: var(--overlay);
+  }
+  .work, .preview { top: 49px; width: min(100vw - 48px, 26rem); box-shadow: var(--shadow-pop); }
   /* overlays on small screens: the thread has no width to yield */
   .shell:not(.work-collapsed) .thread,
   .shell.pv-open .thread,

@@ -2214,15 +2214,25 @@
 
   const navToggle = document.getElementById("nav-toggle");
   const workToggle = document.getElementById("work-toggle");
+  const narrow = window.matchMedia("(max-width: 960px)");
   function setCollapsed(cls, on) {
     shell.classList.toggle(cls, on);
+    // On a narrow screen the rail is a transient overlay; opening or
+    // closing it there says nothing about the desktop layout.
+    if (cls === "nav-collapsed" && narrow.matches) return;
     localStorage.setItem("janetcode-" + cls, on ? "1" : "");
   }
+  shell.addEventListener("click", (ev) => {
+    if (ev.target === shell && narrow.matches) setCollapsed("nav-collapsed", true);
+  });
+  narrow.addEventListener("change", () => {
+    shell.classList.toggle("nav-collapsed", narrow.matches || localStorage.getItem("janetcode-nav-collapsed") === "1");
+  });
   navToggle.addEventListener("click", () => setCollapsed("nav-collapsed", !shell.classList.contains("nav-collapsed")));
   workToggle.addEventListener("click", () => setCollapsed("work-collapsed", !shell.classList.contains("work-collapsed")));
   // The work rail starts closed. The session rail starts open, and only
   // stays shut when this browser was told to shut it.
-  if (localStorage.getItem("janetcode-nav-collapsed") === "1") shell.classList.add("nav-collapsed");
+  if (localStorage.getItem("janetcode-nav-collapsed") === "1" || narrow.matches) shell.classList.add("nav-collapsed");
   if (localStorage.getItem("janetcode-work-collapsed") !== "") shell.classList.add("work-collapsed");
   document.querySelector(".work-tabs").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-pane]");

@@ -20,7 +20,7 @@
   addEventListener("DOMContentLoaded", function () {
     var sh = document.querySelector(".shell");
     if (!sh) return;
-    if (localStorage.getItem("janetcode-nav-collapsed") === "1") sh.classList.add("nav-collapsed");
+    if (localStorage.getItem("janetcode-nav-collapsed") === "1" || matchMedia("(max-width: 960px)").matches) sh.classList.add("nav-collapsed");
     if (localStorage.getItem("janetcode-work-collapsed") !== "") sh.classList.add("work-collapsed");
   });
 })();
