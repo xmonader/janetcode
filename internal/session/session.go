@@ -394,6 +394,14 @@ func (s *Session) SetTitle(title string) error {
 	return s.UpdateMeta(func(m *Meta) { m.Title = strings.TrimSpace(title) })
 }
 
+// Title is the session's title, "" when it has none. Read it through
+// here, not Meta.Title, from any goroutine but the one that sets it.
+func (s *Session) Title() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Meta.Title
+}
+
 // Label is the title, or the id when there is none.
 func (s *Session) Label() string {
 	s.mu.Lock()

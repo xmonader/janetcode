@@ -79,7 +79,7 @@ func (s *server) goal(arg string) {
 		if len(paused) > 0 {
 			s.notice(agent.PausedNote(paused))
 		}
-		if s.sess().Meta.Title == "" {
+		if s.sess().Title() == "" {
 			_ = s.sess().SetTitle(textfmt.Clip(arg, 60))
 		}
 		s.goalRound()
