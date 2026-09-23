@@ -741,7 +741,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   margin-top: 0.45rem;
   background: var(--surface);
   border: 0.5px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.28rem 0.85rem;
   color: var(--mute);
   font-size: 0.78rem;
@@ -887,7 +887,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   color: var(--mute);
   background: var(--surface-2);
   border: 0.5px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.32rem 0.75rem;
   display: inline-block;
 }
@@ -904,7 +904,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   margin-left: 0.6rem;
   background: transparent;
   border: 0.5px solid var(--bad-border);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.14rem 0.6rem;
   font-size: 0.72rem;
   color: var(--bad);
@@ -1389,8 +1389,17 @@ pre.sheetbody {
   border: 0.5px solid var(--line-strong);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow-pop);
-  z-index: 40;
+  z-index: 41;
   overflow: hidden;
+}
+/* The palette is modal: dim what it floats over. */
+body:has(#palette:not([hidden]))::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--overlay);
+  pointer-events: none;
 }
 #palette-q {
   width: 100%;
@@ -1597,7 +1606,7 @@ body.resizing .preview { transition: none !important; }
 #undo-btn {
   background: var(--surface);
   border: 0.5px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.32rem 0.7rem;
   font-size: 0.78rem;
   color: var(--mute);
@@ -1620,7 +1629,7 @@ body.resizing .preview { transition: none !important; }
   color: var(--mute);
   font-size: 0.74rem;
   padding: 0.3rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 8px;
   transition: all 0.14s ease;
 }
 .switches button:hover { border-color: var(--line-strong); color: var(--ink); }
@@ -1640,7 +1649,7 @@ body.resizing .preview { transition: none !important; }
   min-width: 0;
   background: var(--surface-2);
   border: 0.5px solid transparent;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.4rem 0.8rem;
   font-family: var(--mono);
   font-size: 0.76rem;
@@ -1688,7 +1697,7 @@ body.resizing .preview { transition: none !important; }
 #viewer-path { font-family: var(--mono); font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #viewer-close {
   background: var(--surface-2);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.3rem 0.75rem;
   font-size: 0.78rem;
   color: var(--mute);
@@ -1762,19 +1771,23 @@ kbd {
   border-radius: 5px;
   padding: 1px 6px;
 }
-.seg { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 1rem; }
+/* Segmented control: one track, the choice raised out of it. */
+.seg { display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 1.1rem; border-radius: 9px; background: var(--surface-2); }
 .seg button {
-  border: 0.5px solid var(--line);
-  background: var(--surface);
-  border-radius: 999px;
-  padding: 0.32rem 0.8rem;
+  background: transparent;
+  border-radius: 7px;
+  height: 28px;
+  padding: 0 0.9rem;
   color: var(--mute);
   font-size: 0.8rem;
-  transition: all 0.13s ease;
+  font-weight: 500;
+  transition: background 0.13s ease, color 0.13s ease;
 }
-.seg button.on { border-color: var(--blue-soft-border); background: var(--blue-soft); color: var(--blue); font-weight: 600; }
-.settings-card section { padding: 0.2rem 0.2rem 0.6rem; }
-.settings-card h3 { margin: 0.9rem 0 0.35rem; font-size: 0.76rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card), 0 1px 2px rgba(0, 0, 0, 0.12); }
+.settings-card { width: min(26rem, 92vw); }
+.settings-card section { padding: 18px 20px 4px; display: flex; flex-direction: column; align-items: flex-start; }
+.settings-card h3 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--mute); }
 
 /* ---- trajectory view ---------------------------------------------------- */
 .trajectory {
@@ -1794,13 +1807,13 @@ kbd {
 .traj-modes {
   display: flex;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: 9px;
   background: var(--surface-2);
 }
 .traj-modes button {
   border: 0;
   background: transparent;
-  border-radius: 999px;
+  border-radius: 7px;
   color: var(--mute);
   font-size: 11.5px;
   font-weight: 500;
@@ -1811,7 +1824,7 @@ kbd {
   flex: 1;
   max-width: 24rem;
   border: 0.5px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--ink);
   font-size: 12px;
@@ -1928,7 +1941,7 @@ kbd {
 }
 .traj-inspect header button {
   background: var(--surface-2);
-  border-radius: 999px;
+  border-radius: 7px;
   padding: 3px 10px;
   font-size: 11px;
   color: var(--mute);

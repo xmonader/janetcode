@@ -132,6 +132,23 @@ await shot('05-permission');
 await evaljs(`(() => { document.getElementById('ask').hidden = true; window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', ctx_pct: 36, status: 'done in 21s' } }) }); return 1; })()`);
 await sleep(300);
 
+// sheets and views: settings, help, palette, trajectory
+const hideAll = `['settings','help','palette'].forEach(id => document.getElementById(id).hidden = true)`;
+await evaljs(`document.getElementById('settings-btn').click(); 1`);
+await sleep(300);
+await shot('06-settings');
+await evaljs(`${hideAll}; document.getElementById('help-btn').click(); 1`);
+await sleep(300);
+await shot('07-help');
+await evaljs(`${hideAll}; document.getElementById('search-btn').click(); 1`);
+await sleep(300);
+await shot('08-palette');
+await evaljs(`${hideAll}; document.querySelector('[data-view=trajectory]').click(); 1`);
+await sleep(500);
+await shot('09-trajectory');
+await evaljs(`document.querySelector('[data-view=chat]').click(); 1`);
+await sleep(300);
+
 // mobile
 await setSize(390, 844);
 await evaljs(`document.getElementById('work-toggle').click()`);
