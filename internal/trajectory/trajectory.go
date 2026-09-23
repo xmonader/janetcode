@@ -115,6 +115,15 @@ type Record struct {
 	Tool   string
 	Intent string
 	Model  string
+	// Slot, Route and RouteWhy are the routing evidence for a model
+	// call (see session.Event.Slot and friends): which slot served it,
+	// what kind of detour it was — "route", "escalate", "fallback" —
+	// and the reason in the policy's own words. Empty on main calls,
+	// which are not a route, and on every record that is not a model
+	// call.
+	Slot     string
+	Route    string
+	RouteWhy string
 
 	Started  time.Time
 	Duration time.Duration

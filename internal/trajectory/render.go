@@ -183,6 +183,12 @@ func Content(r Record) string {
 		parts = append(parts, r.Preview)
 	}
 	body := strings.Join(parts, " · ")
+	// A model call that left the session's own model says so up front:
+	// the reader should see the detour on the line, not have to open
+	// the inspector to learn the call answered somewhere else.
+	if r.Kind == KindMessage && r.Route != "" {
+		body = "↪ " + r.Slot + " · " + body
+	}
 	switch {
 	case r.Denied:
 		body += " → refused"
@@ -278,6 +284,19 @@ func Inspect(l Ledger, index int) string {
 		sb.WriteString("  · " + r.Model)
 	}
 	sb.WriteString("\n")
+	if r.Route != "" {
+		// The routing evidence, in the policy's own words: which slot,
+		// and why the call was trusted to it. Main calls never reach
+		// this line — no detour, nothing to explain.
+		fmt.Fprintf(&sb, "route    ↪ %s", r.Slot)
+		if r.Model != "" {
+			fmt.Fprintf(&sb, " (%s)", r.Model)
+		}
+		if r.RouteWhy != "" {
+			fmt.Fprintf(&sb, " — %s", r.RouteWhy)
+		}
+		sb.WriteString("\n")
+	}
 	switch {
 	case r.Denied:
 		sb.WriteString("status   refused by the harness; nothing ran\n")
@@ -403,7 +422,8 @@ func haystack(r Record) string {
 	var b strings.Builder
 	for _, s := range []string{
 		"turn " + strconv.Itoa(r.Turn), "step " + strconv.Itoa(r.Step), string(r.Kind),
-		r.Text, r.Preview, r.Result, r.Tool, r.Intent, r.Model, r.CallID, r.Detail, r.Output,
+		r.Text, r.Preview, r.Result, r.Tool, r.Intent, r.Model,
+		r.Slot, r.Route, r.RouteWhy, r.CallID, r.Detail, r.Output,
 	} {
 		b.WriteString(s)
 		b.WriteByte('\n')

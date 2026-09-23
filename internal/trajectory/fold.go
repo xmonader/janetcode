@@ -73,6 +73,7 @@ func Fold(events []session.Event) Ledger {
 			body := messageText(e)
 			r := Record{Seq: e.Seq, Turn: e.Turn, Step: e.Step, Kind: KindMessage,
 				Preview: preview(body), Output: body, Model: e.Model,
+				Slot: e.Slot, Route: e.Route, RouteWhy: e.RouteWhy,
 				Usage:  usageOf(e.Usage),
 				TTFT:   time.Duration(e.TTFTMs) * time.Millisecond,
 				Decode: time.Duration(e.DecodeMs) * time.Millisecond,

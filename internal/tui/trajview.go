@@ -230,7 +230,7 @@ func atoi(s string) int { n, _ := strconv.Atoi(s); return n }
 
 func trajSearchKey(r trajectory.Record) string {
 	var b strings.Builder
-	for _, s := range []string{r.Text, r.Preview, r.Result, r.Tool, r.Intent, r.Model, r.Detail, r.Output} {
+	for _, s := range []string{r.Text, r.Preview, r.Result, r.Tool, r.Intent, r.Model, r.Slot, r.Route, r.RouteWhy, r.Detail, r.Output} {
 		b.WriteString(s)
 		b.WriteByte('\n')
 	}

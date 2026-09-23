@@ -42,6 +42,9 @@ type trajRecord struct {
 	Tool     string     `json:"tool,omitempty"`
 	Intent   string     `json:"intent,omitempty"`
 	Model    string     `json:"model,omitempty"`
+	Slot     string     `json:"slot,omitempty"`
+	Route    string     `json:"route,omitempty"`
+	RouteWhy string     `json:"route_why,omitempty"`
 	Started  int64      `json:"started_ms,omitempty"`
 	Duration int64      `json:"duration_ms,omitempty"`
 	TTFT     int64      `json:"ttft_ms,omitempty"`
@@ -92,21 +95,24 @@ func trajRecords(rs []trajectory.Record, full bool) []trajRecord {
 	out := make([]trajRecord, 0, len(rs))
 	for _, r := range rs {
 		rec := trajRecord{
-			Index:   r.Index,
-			Seq:     r.Seq,
-			Turn:    r.Turn,
-			Step:    r.Step,
-			Kind:    string(r.Kind),
-			Tag:     r.Kind.Tag(),
-			Text:    r.Text,
-			Preview: r.Preview,
-			Result:  r.Result,
-			Error:   r.IsError,
-			Denied:  r.Denied,
-			Running: r.Running,
-			Tool:    r.Tool,
-			Intent:  r.Intent,
-			Model:   r.Model,
+			Index:    r.Index,
+			Seq:      r.Seq,
+			Turn:     r.Turn,
+			Step:     r.Step,
+			Kind:     string(r.Kind),
+			Tag:      r.Kind.Tag(),
+			Text:     r.Text,
+			Preview:  r.Preview,
+			Result:   r.Result,
+			Error:    r.IsError,
+			Denied:   r.Denied,
+			Running:  r.Running,
+			Tool:     r.Tool,
+			Intent:   r.Intent,
+			Model:    r.Model,
+			Slot:     r.Slot,
+			Route:    r.Route,
+			RouteWhy: r.RouteWhy,
 		}
 		if !r.Started.IsZero() {
 			rec.Started = r.Started.UnixMilli()

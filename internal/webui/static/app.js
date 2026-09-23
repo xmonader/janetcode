@@ -2105,6 +2105,9 @@
     if (r.text) parts.push(r.text);
     if (r.preview) parts.push(r.preview);
     let body = parts.join(" · ");
+    // A model call that left the session's own model says so up front,
+    // the same words the terminal ledger prints (↪ cheap · …).
+    if (r.kind === "message" && r.route) body = "↪ " + r.slot + " · " + body;
     if (r.denied) body += " → refused" + (r.result ? ": " + r.result : "");
     else if (r.running) body += " → …";
     else if (r.kind === "tool" && !r.result) body += " → (no output)";
@@ -2131,7 +2134,7 @@
     const words = q.split(/\s+/);
     const set = new Set();
     for (const r of traj.records) {
-      const hay = [r.text, r.preview, r.result, r.tool, r.intent, r.model, r.kind, "turn " + r.turn, "step " + r.step]
+      const hay = [r.text, r.preview, r.result, r.tool, r.intent, r.model, r.slot, r.route, r.route_why, r.kind, "turn " + r.turn, "step " + r.step]
         .join("\n")
         .toLowerCase();
       if (words.every((w) => hay.includes(w))) set.add(r.index);
@@ -2442,6 +2445,7 @@
       else if (d.running) facts.push("never answered");
       else if (d.error) facts.push("failed");
       if (d.model) facts.push(d.model);
+      if (d.route) facts.push("↪ " + d.slot + (d.route_why ? " — " + d.route_why : ""));
       if (d.duration_ms) facts.push(fmtDur(d.duration_ms));
       if (d.ttft_ms || d.decode_ms) {
         let split = "first token " + fmtDur(d.ttft_ms) + " · decoded " + fmtDur(d.decode_ms);
