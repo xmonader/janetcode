@@ -57,7 +57,7 @@ func TestForPhaseDressesThinking(t *testing.T) {
 	}
 }
 
-func TestPhraseMixesVerbsAndWitty(t *testing.T) {
+func TestPhraseShowsVerbsNotWittyLines(t *testing.T) {
 	if len(witty) < 50 {
 		t.Fatalf("witty list too small: %d", len(witty))
 	}
@@ -66,7 +66,7 @@ func TestPhraseMixesVerbsAndWitty(t *testing.T) {
 	}
 	started := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 	sawVerb, sawWitty := false, false
-	n := len(verbs) + len(witty)
+	n := 3 * (len(verbs) + len(witty))
 	for i := 0; i < n; i++ {
 		got := Phrase(started.Add(time.Duration(i)*Interval), started)
 		if !Known(got) {
@@ -84,8 +84,8 @@ func TestPhraseMixesVerbsAndWitty(t *testing.T) {
 			}
 		}
 	}
-	if !sawVerb || !sawWitty {
-		t.Fatalf("pool missed a source: verb=%v witty=%v", sawVerb, sawWitty)
+	if !sawVerb || sawWitty {
+		t.Fatalf("verb=%v (want true) witty=%v (want false)", sawVerb, sawWitty)
 	}
 }
 

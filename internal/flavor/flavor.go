@@ -51,11 +51,14 @@ var verbs = []string{
 	"Whisking", "Wibbling", "Wrangling", "Zesting", "Zigzagging",
 }
 
-// pool is every phrase Phrase rotates through: the verbs, then the witty
-// lines.
-var pool = append(append([]string(nil), verbs...), witty...)
+// pool is every phrase Phrase rotates through: the verbs only. The witty
+// lines ("My other loading screen is even funnier.") narrate a loading
+// screen at someone waiting on real work, and after a few minutes of a
+// long turn they read as a toy; they stay Known so older recordings of
+// the status line still parse, but they are no longer shown.
+var pool = append([]string(nil), verbs...)
 
-// Phrase picks from the mixed pool: Claude verbs and Qwen loading lines.
+// Phrase picks from the pool.
 // started seeds the first pick so consecutive turns do not all open on
 // the same phrase; elapsed time walks the pool.
 func Phrase(at, started time.Time) string {
@@ -78,8 +81,8 @@ func ForPhase(phase string, at, started time.Time) string {
 // phrases, fixed at build time), and there is no invalidation because
 // the pool is a constant of the binary.
 var known = sync.OnceValue(func() map[string]bool {
-	m := make(map[string]bool, 3*len(pool))
-	for _, p := range pool {
+	m := make(map[string]bool, 3*(len(verbs)+len(witty)))
+	for _, p := range append(append([]string(nil), verbs...), witty...) {
 		p = strings.TrimSpace(p)
 		m[p], m[dress(p)], m[trimEllipsis(p)] = true, true, true
 	}
