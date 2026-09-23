@@ -102,6 +102,23 @@ await grow(5);
 await sleep(150);
 check('pinned thread follows again', (await gap()) < 2, `gap=${await gap()}`);
 
+// 8b. live thinking is a short window anchored to its newest line, not a
+// two-line fragment: the last line is on screen, the first scrolled off.
+const live = await evaljs(`(() => {
+  const n = document.createElement('div'); n.className = 'turn thought';
+  const lines = Array.from({length: 20}, (_, i) => 'thinking line ' + i).join('\\n');
+  n.innerHTML = '<span class="lbl">Thinking</span><div class="thought-live"><pre class="thought-body"></pre></div>';
+  n.querySelector('pre').textContent = lines;
+  document.getElementById('log').appendChild(n);
+  const box = n.querySelector('.thought-live').getBoundingClientRect();
+  const pre = n.querySelector('pre').getBoundingClientRect();
+  const lh = parseFloat(getComputedStyle(n.querySelector('pre')).lineHeight) || 16;
+  const r = { boxH: box.height, lh, lastVisible: Math.abs(pre.bottom - box.bottom) < 1, firstHidden: pre.top < box.top - lh };
+  n.remove();
+  return r;
+})()`);
+check('live thinking shows its newest lines', live.lastVisible && live.firstHidden && live.boxH > 3 * live.lh && live.boxH < 8 * live.lh, JSON.stringify(live));
+
 // 9. scrolling up unpins: further growth leaves the reader where they are
 await evaljs(`(() => { const el = document.getElementById('chat-view'); el.scrollTop = 200; el.dispatchEvent(new Event('scroll')); return 1; })()`);
 await sleep(100);

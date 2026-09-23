@@ -263,8 +263,9 @@
       } else if (e.done) {
         n.innerHTML = `<span class="lbl">Thought <span class="chev">${icon("chevron-down")}</span></span><pre class="thought-body">${esc(raw)}</pre>`;
       } else {
-        const lines = raw.split("\n");
-        n.innerHTML = `<span class="lbl">Thinking</span>${esc(lines.slice(-2).join(" "))}`;
+        // The whole stream in a short window pinned to its newest line, so
+        // it reads as text arriving rather than a fragment that jumps.
+        n.innerHTML = `<span class="lbl">Thinking</span><div class="thought-live"><pre class="thought-body">${esc(raw)}</pre></div>`;
       }
     } else if (e.kind === "tool") {
       const folded = !!(e.run && !e.run_live && !openRuns.has(e.run));
