@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/agent"
 )
 
 // A bare "." a model emits between tool calls is not an answer: it must
@@ -44,5 +46,29 @@ func TestBashRowDropsTheWorkspaceCd(t *testing.T) {
 	raw, _ := json.Marshal(map[string]string{"command": "cd sub && make"})
 	if got := summarizeInput("bash", string(raw), 80, cwd); got != "cd sub && make" {
 		t.Errorf("a cd elsewhere is part of the command: %q", got)
+	}
+}
+
+// A thought that follows a finished thought, with nothing between (the
+// stray "." that separated them is dropped), is one thought going on.
+func TestAdjacentThoughtsMergeInTheTranscript(t *testing.T) {
+	tr := newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvThinking, Text: "first idea"})
+	assistantSaid(tr, ".")
+	tr.apply(agent.Event{Kind: agent.EvThinking, Text: "second idea"})
+	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	var thoughts []string
+	for _, e := range tr.entries {
+		if e.kind == entryThinking {
+			thoughts = append(thoughts, e.text)
+		}
+	}
+	if len(thoughts) != 1 || thoughts[0] != "first idea\n\nsecond idea" {
+		t.Fatalf("thoughts = %q", thoughts)
+	}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &agent.ToolCall{ID: "c1", Name: "bash"}})
+	tr.apply(agent.Event{Kind: agent.EvThinking, Text: "after the tool"})
+	if last := tr.entries[len(tr.entries)-1]; last.kind != entryThinking || last.text != "after the tool" {
+		t.Fatalf("a tool between thoughts must keep them apart: %+v", last)
 	}
 }

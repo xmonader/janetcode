@@ -225,6 +225,13 @@ func (t *transcript) apply(ev agent.Event) {
 		e.text += ev.Text
 	case agent.EvThinking:
 		e := t.last(entryThinking)
+		if n := len(t.entries); e == nil && n > 0 && t.entries[n-1].kind == entryThinking && strings.TrimSpace(t.entries[n-1].text) != "" {
+			// A thought straight after a finished thought is the same
+			// thought going on: one block, not a stack of them.
+			e = t.entries[n-1]
+			e.done = false
+			e.text = strings.TrimRight(e.text, "\n") + "\n\n"
+		}
 		if e == nil {
 			e = t.add(&entry{kind: entryThinking, started: time.Now()})
 		}
