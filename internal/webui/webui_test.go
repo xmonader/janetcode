@@ -1350,3 +1350,25 @@ func TestTerminalBridgeRunsAShellInTheSessionDirectory(t *testing.T) {
 		t.Fatalf("the shell is not in the session directory; got %q", buf)
 	}
 }
+
+// TestWebStatusNamesStreamingWrite: while a write_file's arguments
+// stream, the status line names the file and how much has arrived —
+// what the TUI shows — instead of a rotating filler word for a minute.
+func TestWebStatusNamesStreamingWrite(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.running = true
+	call := &agent.ToolCall{ID: "c1", Name: "write_file"}
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: call})
+	if got := s.statusNow().Phase; got != "preparing write_file" {
+		t.Fatalf("start phase = %q", got)
+	}
+	call.Input = json.RawMessage(`{"path": "main.go", "content": "package main\n\nfunc main() {\n`)
+	s.apply(agent.Event{Kind: agent.EvToolInput, Call: call})
+	if got := s.statusNow().Phase; !strings.HasPrefix(got, "write_file main.go · writing 4 lines") {
+		t.Fatalf("streaming phase = %q", got)
+	}
+	s.apply(agent.Event{Kind: agent.EvText, Text: "Done."})
+	if got := s.statusNow().Phase; got != "writing" {
+		t.Fatalf("text phase = %q", got)
+	}
+}

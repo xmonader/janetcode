@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type entry struct {
@@ -83,12 +84,23 @@ func (s *server) apply(ev agent.Event) {
 	switch ev.Kind {
 	case agent.EvText:
 		s.appendText("assistant", ev.Text)
+		s.setPhaseIfChanged("writing")
 	case agent.EvThinking:
 		s.appendText("thinking", ev.Text)
 	case agent.EvToolStart:
 		s.closeOpen()
 		s.add(entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
+		s.setPhaseIfChanged("preparing " + ev.Call.Name)
 	case agent.EvToolInput:
+		// The status line says what is being written and how much, as the
+		// TUI's does — a large write_file streams for a minute, and a
+		// rotating filler word in the meantime tells the reader nothing.
+		if ev.Call != nil {
+			cwd := s.cwd()
+			if sum := tool.StreamingSummary(ev.Call.Name, string(ev.Call.Input), func(p string) string { return textfmt.RelTo(cwd, p) }); sum != "" && sum != "…" {
+				s.setStreamingPhase(ev.Call.Name + " " + sum)
+			}
+		}
 		// Arguments stream in a fragment at a time. This used to
 		// re-summarise the summary — which parses as nothing, so it left
 		// the summary alone — and never sent the result either way. The
@@ -178,6 +190,34 @@ func (s *server) apply(ev agent.Event) {
 func (s *server) setPhase(phase string) {
 	s.mu.Lock()
 	s.phase = phase
+	s.mu.Unlock()
+	s.emitStatus()
+}
+
+// setPhaseIfChanged is setPhase for events that repeat per streamed
+// chunk: the page hears only about a change.
+func (s *server) setPhaseIfChanged(phase string) {
+	s.mu.Lock()
+	same := s.phase == phase
+	s.phase = phase
+	s.mu.Unlock()
+	if !same {
+		s.emitStatus()
+	}
+}
+
+// streamingPhaseEvery bounds how often a streaming progress phase ("main.go
+// · writing 40 lines so far") is sent: every fragment changes it, and
+// each status costs a token estimate and a broadcast.
+const streamingPhaseEvery = 250 * time.Millisecond
+
+func (s *server) setStreamingPhase(phase string) {
+	s.mu.Lock()
+	if s.phase == phase || time.Since(s.phaseAt) < streamingPhaseEvery {
+		s.mu.Unlock()
+		return
+	}
+	s.phase, s.phaseAt = phase, time.Now()
 	s.mu.Unlock()
 	s.emitStatus()
 }

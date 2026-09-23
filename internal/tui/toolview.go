@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -180,46 +179,11 @@ func (t *transcript) finishTool(e *entry, body string, o renderOpts) string {
 	return applyToolChrome(body, toolIcon(t.styles, e, o), toolElapsed(t.styles, e, o))
 }
 
-// streamingSummary describes a tool call whose input is still arriving:
-// the path, once the model has written it, and how much content so far.
+// streamingSummary is tool.StreamingSummary with the transcript's path
+// shortening (relative under cwd, ~ for home).
 func streamingSummary(name, partial, cwd string) string {
-	path := ""
-	if m := partialPathRe.FindStringSubmatch(partial); m != nil {
-		path = relTo(cwd, m[1])
-	}
-	switch name {
-	case "write_file", "edit_file":
-		if path == "" {
-			return "…"
-		}
-		body := partial
-		if i := strings.Index(partial, `"content"`); i >= 0 {
-			body = partial[i:]
-		} else if i := strings.Index(partial, `"new_string"`); i >= 0 {
-			body = partial[i:]
-		} else if i := strings.Index(partial, `"edits"`); i >= 0 {
-			body = partial[i:]
-		} else {
-			return path
-		}
-		lines := strings.Count(body, `\n`) + 1
-		verb := "writing"
-		if name == "edit_file" {
-			verb = "editing"
-		}
-		return fmt.Sprintf("%s · %s %d lines (%s) so far", path, verb, lines, textfmt.Bytes(int64(len(body))))
-	case "bash":
-		if m := partialCommandRe.FindStringSubmatch(partial); m != nil {
-			return truncateLine(strings.ReplaceAll(m[1], `\n`, " ⏎ "), 80) + "…"
-		}
-	}
-	return ""
+	return tool.StreamingSummary(name, partial, func(p string) string { return relTo(cwd, p) })
 }
-
-var (
-	partialPathRe    = regexp.MustCompile(`"path"\s*:\s*"((?:[^"\\]|\\.)*)"`)
-	partialCommandRe = regexp.MustCompile(`"command"\s*:\s*"((?:[^"\\]|\\.)*)`)
-)
 
 // isAttachNote reports a notice about what the harness attached to the
 // request: skills, recalled memory, the repository map.

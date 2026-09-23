@@ -204,6 +204,7 @@ type server struct {
 	nextID  int
 	running bool
 	phase   string
+	phaseAt time.Time // when a streaming phase was last sent, for throttling
 	started time.Time
 	cancel  context.CancelFunc
 	queued  []string
