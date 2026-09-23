@@ -9,9 +9,8 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type entryKind int
@@ -270,23 +269,8 @@ func (t *transcript) apply(ev agent.Event) {
 		e.done = true
 		e.ended = time.Now()
 		t.flashUntil = e.ended.Add(flashFor)
-		e.output = ev.Output
-		e.isError = ev.IsError
-		if ev.Duration > 0 {
-			e.dur = textfmt.Duration(ev.Duration)
-		}
-		if e.call.Name == "bash" {
-			// The bash tool reports a non-zero exit in its output, not as
-			// an error, so a failing test run drew a green ✓. The row says
-			// how the command ended; the "[exit code N]" line was for the
-			// model.
-			code, failed := tool.CommandFailed(shell.CommandOf(string(e.call.Input)), ev.Output)
-			e.output = tool.WithoutExitLine(ev.Output)
-			if failed {
-				e.isError = true
-				e.dur = strings.TrimSuffix(fmt.Sprintf("exit %d · %s", code, e.dur), " · ")
-			}
-		}
+		end := present.EndOf(e.call.Name, string(e.call.Input), ev.Output, ev.IsError, ev.Duration)
+		e.output, e.isError, e.dur = end.Output, end.Failed, end.Label
 	case agent.EvDiscard:
 		t.dropOpen()
 	case agent.EvTextBlockDone:

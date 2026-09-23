@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/present"
-	"github.com/xmonader/janetcode/internal/shell"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
@@ -141,23 +140,13 @@ func (s *server) apply(ev agent.Event) {
 			}
 			e.Running = false
 			e.Done = true
-			e.Output = ev.Output
-			e.Error = ev.IsError
+			input := ""
+			if ev.Call != nil {
+				input = string(ev.Call.Input)
+			}
+			end := present.EndOf(e.Name, input, ev.Output, ev.IsError, ev.Duration)
+			e.Output, e.Error, e.Dur = end.Output, end.Failed, end.Label
 			e.Denied = ev.Denied
-			if ev.Duration > 0 {
-				e.Dur = textfmt.Duration(ev.Duration)
-			}
-			if e.Name == "bash" && ev.Call != nil {
-				// The bash tool reports a non-zero exit in its output, not
-				// as an error: a red test run read "Done". The row says
-				// how it ended; the "[exit code N]" line was for the model.
-				code, failed := tool.CommandFailed(shell.CommandOf(string(ev.Call.Input)), ev.Output)
-				e.Output = tool.WithoutExitLine(ev.Output)
-				if failed {
-					e.Error = true
-					e.Dur = strings.TrimSuffix(fmt.Sprintf("exit %d · %s", code, e.Dur), " · ")
-				}
-			}
 		})
 		// The tool row already says it finished. Leaving the phase on the
 		// tool made the status line keep spinning that command while the
