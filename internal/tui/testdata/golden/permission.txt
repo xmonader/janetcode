@@ -1,0 +1,30 @@
+   ◆ janetcode fake/m                                                                  /home/u/proj
+  janetcode test · working in /home/u/proj
+  edits and commands ask first · y allow · a always · n deny · esc denies · c cancels · /help
+  @file attaches · !cmd runs and shares the output · /undo reverts a bad change
+
+  ❯ clean the build and rebuild
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ask · ● approval needed                                                   ctx ▱▱▱▱▱▱▱▱▱▱ 0/80k 0%
+    allow bash rm -rf build && make -j8 all
+  ╭────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │❯ y allow once   a always for bash this session   n deny (and say why)   c cancel the turn      │
+  ╰────────────────────────────────────────────────────────────────────────────────────────────────╯

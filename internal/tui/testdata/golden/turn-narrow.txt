@@ -1,0 +1,60 @@
+ ◆ janetcode fake/m                            /home/u/proj
+janetcode test · working in /home/u/proj
+edits and commands ask first · y allow · a always · n deny
+· esc denies · c cancels · /help
+@file attaches · !cmd runs and shares the output · /undo
+reverts a bad change
+
+❯ Some tests in this repo are failing. Find out why and
+  fix the code, not the tests.
+
+· thought: The holiday tests fail. add_business_days never
+looks at the holidays set.
+
+✓ read_file dates.py
+  1    from datetime import date, timedelta
+  2
+  3    def add_business_days(start, n,
+  holidays=frozenset()):
+
+✗ bash python -m pytest -q exit 1
+  ..FFF
+  FAILED test_dates.py::test_skips_holiday
+  3 failed, 2 passed in 0.01s
+
+✓ edit_file dates.py
+  15 │ -        if d.weekday() < 5:
+  15 │ +        if d.weekday() < 5 and d not in holidays:
+  Edited dates.py (1 replacement, +1 -1 lines)
+
+✓ bash python -m pytest -q
+  .....
+  5 passed in 0.01s
+
+  Fixed. add_business_days counted holidays as working
+  days:
+
+    if d.weekday() < 5 and d not in holidays:
+  All 5 tests pass now.
+
+✓ verified: 1 file edited; tests that had been failing now
+pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ask · ✓ verified · done in 1m42s · in 69k · out 3.… ctx 0%
+
+╭──────────────────────────────────────────────────────────╮
+│❯ Ask for a change or a fix · / for commands              │
+╰──────────────────────────────────────────────────────────╯

@@ -1,0 +1,24 @@
+   ◆ janetcode fake/m                                                                  /home/u/proj
+  janetcode test · working in /home/u/proj
+  edits and commands ask first · y allow · a always · n deny · esc denies · c cancels · /help
+  @file attaches · !cmd runs and shares the output · /undo reverts a bad change
+
+  ❯ say hi
+
+  ✗ Authentication failed (HTTP 401): Unauthorized. Check the API key for dashscope with /connect.
+
+
+
+
+
+
+
+
+
+
+
+  ask · ready                                                             ctx ▱▱▱▱▱▱▱▱▱▱ 104/80k 0%
+
+  ╭────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │❯ Ask for a change, a fix, or an explanation… · / for commands                                  │
+  ╰────────────────────────────────────────────────────────────────────────────────────────────────╯
