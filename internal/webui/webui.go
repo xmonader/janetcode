@@ -1028,6 +1028,11 @@ func dropRedundantCd(cmd, cwd string) string {
 func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
+		// An MCP body that is not an object (a bare string token, an
+		// array) is still theirs: describe its shape, never quote it.
+		if strings.HasPrefix(name, "mcp__") {
+			return mcpShape(raw)
+		}
 		return textfmt.Clip(raw, max)
 	}
 	// MCP tools are third-party code, and their argument values often
@@ -1071,4 +1076,20 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 		}
 	}
 	return textfmt.Clip(raw, max)
+}
+
+// mcpShape names what an MCP call's non-object arguments are without
+// saying what they contain, as the terminal does.
+func mcpShape(raw string) string {
+	var v any
+	if json.Unmarshal([]byte(raw), &v) != nil {
+		return "(arguments are not valid JSON)"
+	}
+	switch v.(type) {
+	case []any:
+		return "(json array)"
+	case string:
+		return "(json string)"
+	}
+	return "(json value)"
 }

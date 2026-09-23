@@ -1571,3 +1571,19 @@ func TestFailingCommandRowSaysSo(t *testing.T) {
 		t.Fatalf("a search that found nothing is not a failure: %+v", *none)
 	}
 }
+
+// An MCP call whose arguments are not a JSON object was summarised as
+// the raw arguments: a bare token string went to the browser verbatim.
+func TestMCPSummaryNeverQuotesNonObjectArguments(t *testing.T) {
+	for raw, want := range map[string]string{
+		`"sk-live-abc123"`:                        "(json string)",
+		`["sk-live-abc123"]`:                      "(json array)",
+		`sk-live-abc123 not json`:                 "(arguments are not valid JSON)",
+		`{"api_key":"sk-live-abc123","repo":"x"}`: "{api_key, repo}",
+	} {
+		got := summarizeInput("mcp__github__call", raw, 200, "/p")
+		if got != want || strings.Contains(got, "sk-live") {
+			t.Errorf("%s → %q, want %q", raw, got, want)
+		}
+	}
+}
