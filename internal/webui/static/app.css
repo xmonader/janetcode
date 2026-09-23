@@ -370,7 +370,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .nav-open { display: none; }
 .session-title {
   color: var(--mute);
-  font-size: 0.82rem;
+  font-size: 13px;
   font-weight: 500;
   min-width: 0;
   overflow: hidden;
@@ -382,47 +382,55 @@ button:disabled { cursor: default; opacity: 0.55; }
   display: inline-flex;
   flex: none;
   gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
+  padding: 2px;
+  border-radius: 9px;
   background: var(--surface-2);
 }
 .view-ring button {
   background: transparent;
-  border-radius: 999px;
+  border-radius: 7px;
   color: var(--mute);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
-  padding: 4px 12px;
+  height: 26px;
+  padding: 0 11px;
   transition: background 0.13s ease, color 0.13s ease;
 }
 .view-ring button:hover { color: var(--ink); }
-.view-ring button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-card); }
+.view-ring button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card), 0 1px 2px rgba(0, 0, 0, 0.12); }
 .top-right {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  gap: 2px;
+  flex: none;
 }
-.git-pill {
-  font: 500 11.5px/1 var(--mono);
+/* Header status: one shape for every readout — 28px tall, sans,
+   tabular figures, an icon where one says more than a word. */
+.git-pill, .ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font: 500 12px/1 var(--sans);
+  font-variant-numeric: tabular-nums;
   color: var(--mute);
   white-space: nowrap;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: var(--surface-2);
 }
 .git-pill .add { color: var(--ok); }
 .git-pill .del { color: var(--bad); }
-.ctx-chip {
-  font: 500 11.5px/1 var(--mono);
-  color: var(--faint);
-  white-space: nowrap;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: var(--surface-2);
+.ctx-chip .ring {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: conic-gradient(currentColor calc(var(--p) * 1%), var(--line-strong) 0);
+  -webkit-mask: radial-gradient(circle, transparent 3.5px, #000 4px);
+  mask: radial-gradient(circle, transparent 3.5px, #000 4px);
 }
 .ctx-chip.hot { color: var(--warn); }
+.top-sep { width: 1px; height: 18px; background: var(--line-strong); margin: 0 6px; }
 .mode-chip {
   flex: none;
   font-size: 11px;
@@ -436,7 +444,18 @@ button:disabled { cursor: default; opacity: 0.55; }
   border: 0;
 }
 .mode-chip[data-mode="ask"] { text-transform: none; letter-spacing: 0; font-weight: 500; }
-.effort-chip { text-transform: none; letter-spacing: 0; font-weight: 500; cursor: pointer; }
+.effort-chip {
+  text-transform: none;
+  letter-spacing: 0;
+  font: 500 12px/1 var(--sans);
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.effort-chip:hover { background: var(--surface-2); color: var(--ink); }
 .mode-chip[data-mode="YOLO"] { background: var(--bad-soft); color: var(--bad); }
 .mode-chip[data-mode="AUTO"],
 .mode-chip[data-mode="EDITS"] { background: var(--ok-soft); color: var(--ok); }
@@ -446,7 +465,9 @@ button:disabled { cursor: default; opacity: 0.55; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
   color: var(--mute);
   white-space: nowrap;
 }
@@ -464,10 +485,10 @@ button:disabled { cursor: default; opacity: 0.55; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 8px;
   color: var(--mute);
   font-size: 15px;
   line-height: 1;
@@ -1166,7 +1187,6 @@ pre.sheetbody {
   transition: background 0.12s ease, color 0.12s ease;
 }
 .cmd-btn:hover { background: var(--surface-2); color: var(--ink); }
-.cmd-kbd { font-size: 0.64rem; color: var(--faint); font-family: var(--mono); white-space: nowrap; margin-left: 1px; }
 #search-btn {
   border: 0;
   padding: 0;
@@ -1184,19 +1204,24 @@ pre.sheetbody {
 #search-btn:hover { background: var(--surface-2); color: var(--ink); }
 #mode-chip { cursor: default; }
 .model-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-block;
+  height: 30px;
+  line-height: 29px;
   background: transparent;
-  border: 0.5px solid var(--line);
-  border-radius: 999px;
-  color: var(--mute);
-  font-family: var(--mono);
-  font-size: 0.74rem;
-  padding: 0.3rem 0.7rem;
-  max-width: 240px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  font: 500 12.5px/1 var(--sans);
+  padding: 0 8px 0 10px;
+  max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
 }
+.model-prov { color: var(--mute); }
 .model-btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface-2); }
 .send-btn, #send {
   width: 36px;
@@ -1993,13 +2018,22 @@ kbd {
     padding-right: var(--gutter);
   }
   .nav-open { display: inline-flex; }
-  .session-title, .git-pill, .cmd-kbd { display: none; }
+  .session-title, .git-pill { display: none; }
   .composer-bar .model-btn { max-width: 8.5rem; }
   :root { --gutter: 12px; }
   .bottom { padding-bottom: 10px; }
-  .top { gap: 8px; padding: 8px 10px; min-height: 48px; }
+  .top { gap: 6px; padding: 8px 10px; min-height: 48px; }
   #chat-view { padding-top: 18px; }
   .findbar { width: 94vw; }
   .to-latest { right: 14px; }
   .help-cols { grid-template-columns: 1fr; }
+}
+/* Phones: the header keeps what a thumb needs — rail, view, model,
+   panel. The rest lives in the palette and the session panel. */
+@media (max-width: 600px) {
+  .ctx-chip, .effort-chip, .top-sep, #export-btn, #help-btn, #preview-toggle { display: none !important; }
+  .conn:not(.off) { display: none; }
+  .view-ring button { padding: 0 7px; font-size: 12px; }
+  .model-btn { max-width: none; }
+  .model-prov { display: none; }
 }

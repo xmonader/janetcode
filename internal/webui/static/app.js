@@ -439,10 +439,13 @@
   }
 
   let modelLabel = "";
+  let modelProvider = "";
   function paintModel() {
     const effort = document.getElementById("effort-chip")?.dataset.effort || "";
     const btn = document.getElementById("model");
-    btn.textContent = modelLabel + (effort ? " · " + effort : "");
+    const model = modelLabel.slice(modelProvider ? modelProvider.length + 3 : 0);
+    // The provider is the part a narrow header can drop.
+    btn.innerHTML = (modelProvider ? `<span class="model-prov">${esc(modelProvider)} · </span>` : "") + esc(model + (effort ? " · " + effort : ""));
     btn.title = btn.textContent || "Switch model";
   }
   function cleanTitle(s) {
@@ -469,6 +472,7 @@
       document.getElementById("reload-toast").hidden = false;
     }
     modelLabel = [h.provider, h.model].filter(Boolean).join(" · ");
+    modelProvider = h.provider && h.model ? h.provider : "";
     paintModel();
     setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
@@ -1358,7 +1362,8 @@
       const chip = document.getElementById("ctx-chip");
       if (ws.ctx_pct) {
         chip.hidden = false;
-        chip.textContent = ws.ctx_pct + "% ctx";
+        chip.innerHTML = `<span class="ring" style="--p:${Math.min(100, Math.max(0, ws.ctx_pct))}"></span>${ws.ctx_pct}%`;
+        chip.title = "Context window " + ws.ctx_pct + "% used" + (ws.ctx_label ? " (" + ws.ctx_label + ")" : "");
         chip.classList.toggle("hot", ws.ctx_pct >= 80);
       } else {
         chip.hidden = true;
@@ -2477,7 +2482,7 @@
 
   const conn = document.getElementById("conn");
   const es = new EventSource("/events");
-  es.onopen = () => { conn.classList.remove("off"); conn.textContent = "Live"; conn.title = "Live connection"; };
+  es.onopen = () => { conn.classList.remove("off"); conn.textContent = ""; conn.title = "Connected"; };
   es.onerror = () => { conn.classList.add("off"); conn.textContent = "Reconnecting"; conn.title = "Connection lost, retrying"; };
   es.onmessage = (ev) => { try { handle(JSON.parse(ev.data)); } catch (_) {} };
 })();
