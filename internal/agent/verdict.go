@@ -546,47 +546,47 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	case o.Edited == 0 && o.Ran == 0:
 		o.Verdict, o.Why = VerdictNoChanges, "nothing here edited code"
 	case o.Edited == 0:
-		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("nothing was edited; %d check(s) ran", o.Ran)
+		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("nothing was edited; %s ran", textfmt.Plural(o.Ran, "check"))
 	case docsOnly(edited):
 		// A README or a licence has nothing a test could exercise; warning
 		// that the edit was "not demonstrated" is noise the user learns
 		// to ignore, and then ignores when it matters.
-		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("only documentation was edited (%d file(s)); nothing to test", o.Edited)
+		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("only documentation was edited (%s); nothing to test", textfmt.Plural(o.Edited, "file"))
 	case o.Failed > 0 && acceptWriting && len(testsTouched) == o.Edited:
 		o.Verdict = VerdictTestsWritten
-		o.Why = fmt.Sprintf("%d acceptance test file(s) written and failing as expected until the implementation exists", o.Edited)
+		o.Why = fmt.Sprintf("%s written and failing as expected until the implementation exists", textfmt.Plural(o.Edited, "acceptance test file"))
 	case o.Failed > 0:
 		o.Verdict = VerdictCheckFailed
-		o.Why = fmt.Sprintf("%d file(s) edited and a check came back red", o.Edited)
+		o.Why = fmt.Sprintf("%s edited and a check came back red", textfmt.Plural(o.Edited, "file"))
 	case o.Ran == 0 && !ranTheCode:
 		o.Verdict = VerdictUnverified
-		o.Why = fmt.Sprintf("%d file(s) edited and nothing was run against them", o.Edited)
+		o.Why = fmt.Sprintf("%s edited and nothing was run against them", textfmt.Plural(o.Edited, "file"))
 	case o.Ran == 0:
 		o.Verdict = VerdictNotDemonstrated
-		o.Why = fmt.Sprintf("%d file(s) edited and the code was run, but nothing asserted the result", o.Edited)
+		o.Why = fmt.Sprintf("%s edited and the code was run, but nothing asserted the result", textfmt.Plural(o.Edited, "file"))
 	case ranTests && len(o.TestsEdited) > 0:
 		// Green, but the suite that produced it was changed in the same
 		// turn, so it shows the tests as they now stand pass — not that
 		// the behaviour they used to check is intact.
 		o.Verdict = VerdictSelfChecked
-		o.Why = fmt.Sprintf("%d file(s) edited and tests passed, but %s changed in the same turn", o.Edited, strings.Join(o.TestsEdited, ", "))
+		o.Why = fmt.Sprintf("%s edited and tests passed, but %s changed in the same turn", textfmt.Plural(o.Edited, "file"), strings.Join(o.TestsEdited, ", "))
 	case ranTests && o.Flipped:
 		o.Verdict = VerdictVerified
-		o.Why = fmt.Sprintf("%d file(s) edited; tests that had been failing now pass", o.Edited)
+		o.Why = fmt.Sprintf("%s edited; tests that had been failing now pass", textfmt.Plural(o.Edited, "file"))
 	case ranTests:
 		o.Verdict = VerdictVerified
-		o.Why = fmt.Sprintf("%d file(s) edited and tests ran and passed afterwards", o.Edited)
+		o.Why = fmt.Sprintf("%s edited and tests ran and passed afterwards", textfmt.Plural(o.Edited, "file"))
 	case selfAsserted:
 		// Assertions the model wrote and ran in the same turn passed.
 		// Weaker than the project's own tests, stronger than "it ran".
 		o.Verdict = VerdictSelfChecked
-		o.Why = fmt.Sprintf("%d file(s) edited and assertions written in the same turn passed; nothing already in the project checked it", o.Edited)
+		o.Why = fmt.Sprintf("%s edited and assertions written in the same turn passed; nothing already in the project checked it", textfmt.Plural(o.Edited, "file"))
 	case foundNothing:
 		o.Verdict = VerdictVacuous
 		o.Why = "a check passed having found no tests to run, so it shows nothing"
 	default:
 		o.Verdict = VerdictNotDemonstrated
-		o.Why = fmt.Sprintf("%d file(s) edited and %d check(s) passed, but no test was exercised — it compiles, which is not the same as working", o.Edited, o.Passed)
+		o.Why = fmt.Sprintf("%s edited and %s passed, but no test was exercised — it compiles, which is not the same as working", textfmt.Plural(o.Edited, "file"), textfmt.Plural(o.Passed, "check"))
 	}
 	if lastText != "" && claimRe.MatchString(lastText) {
 		if m := claimRe.FindString(lastText); m != "" {

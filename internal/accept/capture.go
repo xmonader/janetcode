@@ -2,6 +2,7 @@ package accept
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"regexp"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func (m *Mode) Capture(text string, nudged *bool, verifyCommands []string) (noti
 			m.meta.Proposed = cmd
 			m.meta.Phase = session.AcceptProposed
 			m.persist()
-			return fmt.Sprintf("accept: %d test file(s) proposed · verifies with: %s · review, then /accept approve", len(m.meta.Files), m.meta.Proposed), ""
+			return fmt.Sprintf("accept: %s proposed · verifies with: %s · review, then /accept approve", textfmt.Plural(len(m.meta.Files), "test file"), m.meta.Proposed), ""
 		}
 		// Captured something, but it is not usable as one literal shell
 		// command as stated — empty once any wrapping backticks/quotes
