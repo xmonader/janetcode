@@ -1478,3 +1478,28 @@ func TestWebProviderErrorSaysWhatToDo(t *testing.T) {
 		t.Fatalf("error row = %q", last.Text)
 	}
 }
+
+// TestRetryWaitCountsDown: "retrying 2/2 · rate limited · in 3s" sat still
+// on the page while the turn's clock ran past it ("in 3s · 4.5s"). The
+// wait counts down from when the phase was set, as it does in the TUI.
+func TestRetryWaitCountsDown(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.mu.Lock()
+	s.running = true
+	s.mu.Unlock()
+	s.setPhase("retrying 2/2 · rate limited · in 3s")
+	if got := s.statusNow().Phase; got != "retrying 2/2 · rate limited · in 3s" {
+		t.Fatalf("fresh = %q", got)
+	}
+	s.mu.Lock()
+	s.phaseSince = s.phaseSince.Add(-2100 * time.Millisecond)
+	s.mu.Unlock()
+	if got := s.statusNow().Phase; got != "retrying 2/2 · rate limited · in 1s" {
+		t.Fatalf("after 2.1s = %q", got)
+	}
+	// Setting the same phase again does not restart the clock.
+	s.setPhase("retrying 2/2 · rate limited · in 3s")
+	if got := s.statusNow().Phase; got != "retrying 2/2 · rate limited · in 1s" {
+		t.Fatalf("re-sent = %q", got)
+	}
+}

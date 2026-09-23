@@ -205,13 +205,16 @@ type server struct {
 	running bool
 	phase   string
 	phaseAt time.Time // when a streaming phase was last sent, for throttling
-	started time.Time
-	cancel  context.CancelFunc
-	queued  []string
-	pending *permReq
-	asking  *askReq
-	status  string
-	verbose bool
+	// phaseSince is when phase last changed, so a wait it names ("in 3s")
+	// can count down instead of sitting still.
+	phaseSince time.Time
+	started    time.Time
+	cancel     context.CancelFunc
+	queued     []string
+	pending    *permReq
+	asking     *askReq
+	status     string
+	verbose    bool
 	// openedAt is when this server came up, which is what /perf reports
 	// the in-turn time as a share of: the rest of it is the user
 	// reading and typing, and that is not the harness being slow.
@@ -647,7 +650,7 @@ func (s *server) begin(phase string) (context.Context, bool) {
 		return nil, false
 	}
 	s.running = true
-	s.phase = phase
+	s.setPhaseLocked(phase)
 	s.started = time.Now()
 	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
@@ -682,7 +685,7 @@ func (s *server) idle() time.Duration {
 
 func (s *server) idleLocked() time.Duration {
 	s.running = false
-	s.phase = ""
+	s.setPhaseLocked("")
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
@@ -754,6 +757,15 @@ func (s *server) finish(err error) {
 			s.startTurn(cont)
 		}
 	}
+}
+
+// setPhaseLocked sets what the turn is doing, noting when it changed.
+// Called with mu held.
+func (s *server) setPhaseLocked(phase string) {
+	if phase != s.phase {
+		s.phaseSince = time.Now()
+	}
+	s.phase = phase
 }
 
 // webRemedies are the page's words for the fixes a provider failure calls
@@ -868,17 +880,18 @@ func (s *server) runShell(cmdline string) {
 // computed without holding the lock the turn needs. Every open page asks
 // for this twice a second.
 type sessionState struct {
-	running bool
-	phase   string
-	queued  int
-	status  string
-	verbose bool
-	started time.Time
+	running    bool
+	phase      string
+	phaseSince time.Time
+	queued     int
+	status     string
+	verbose    bool
+	started    time.Time
 }
 
 func (s *server) stateLocked() sessionState {
 	return sessionState{
-		running: s.running, phase: s.phase, queued: len(s.queued),
+		running: s.running, phase: s.phase, phaseSince: s.phaseSince, queued: len(s.queued),
 		status: s.status, verbose: s.verbose, started: s.started,
 	}
 }
@@ -891,9 +904,13 @@ func (s *server) statusNow() statusPayload {
 }
 
 func (s *server) statusOf(f sessionState) statusPayload {
+	phase := f.phase
+	if prefix, wait, ok := textfmt.SplitCountdown(phase); ok {
+		phase = textfmt.Countdown(prefix, f.phaseSince.Add(wait), time.Now())
+	}
 	st := statusPayload{
 		Running: f.running,
-		Phase:   flavor.ForPhase(f.phase, time.Now(), f.started),
+		Phase:   flavor.ForPhase(phase, time.Now(), f.started),
 		Queued:  f.queued,
 		Status:  f.status,
 		Verbose: f.verbose,

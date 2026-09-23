@@ -192,7 +192,7 @@ func (s *server) apply(ev agent.Event) {
 // setPhase records what the session is doing and tells the page.
 func (s *server) setPhase(phase string) {
 	s.mu.Lock()
-	s.phase = phase
+	s.setPhaseLocked(phase)
 	s.mu.Unlock()
 	s.emitStatus()
 }
@@ -202,7 +202,7 @@ func (s *server) setPhase(phase string) {
 func (s *server) setPhaseIfChanged(phase string) {
 	s.mu.Lock()
 	same := s.phase == phase
-	s.phase = phase
+	s.setPhaseLocked(phase)
 	s.mu.Unlock()
 	if !same {
 		s.emitStatus()
@@ -220,7 +220,8 @@ func (s *server) setStreamingPhase(phase string) {
 		s.mu.Unlock()
 		return
 	}
-	s.phase, s.phaseAt = phase, time.Now()
+	s.setPhaseLocked(phase)
+	s.phaseAt = time.Now()
 	s.mu.Unlock()
 	s.emitStatus()
 }

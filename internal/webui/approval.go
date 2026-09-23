@@ -118,7 +118,7 @@ func (s *server) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, 
 	reply := make(chan []agent.Answer, 1)
 	s.mu.Lock()
 	s.asking = &askReq{questions: qs, reply: reply}
-	s.phase = "waiting for your answer"
+	s.setPhaseLocked("waiting for your answer")
 	s.mu.Unlock()
 	s.emit(envelope{Type: "question", Questions: qs})
 	s.emitStatus()
@@ -179,7 +179,7 @@ func (s *server) ApproveWithRule(ctx context.Context, call agent.ToolCall) (agen
 	reply := make(chan verdict, 1)
 	s.mu.Lock()
 	s.pending = &permReq{call: call, reply: reply}
-	s.phase = "waiting for your approval"
+	s.setPhaseLocked("waiting for your approval")
 	s.mu.Unlock()
 	p := s.permOf(call)
 	s.emit(envelope{Type: "permission", Perm: &p})
