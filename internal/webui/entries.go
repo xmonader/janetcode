@@ -3,6 +3,7 @@ package webui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/shell"
 	"strconv"
 	"strings"
 	"time"
@@ -143,6 +144,17 @@ func (s *server) apply(ev agent.Event) {
 			e.Denied = ev.Denied
 			if ev.Duration > 0 {
 				e.Dur = textfmt.Duration(ev.Duration)
+			}
+			if e.Name == "bash" && ev.Call != nil {
+				// The bash tool reports a non-zero exit in its output, not
+				// as an error: a red test run read "Done". The row says
+				// how it ended; the "[exit code N]" line was for the model.
+				code, failed := tool.CommandFailed(shell.CommandOf(string(ev.Call.Input)), ev.Output)
+				e.Output = tool.WithoutExitLine(ev.Output)
+				if failed {
+					e.Error = true
+					e.Dur = strings.TrimSuffix(fmt.Sprintf("exit %d · %s", code, e.Dur), " · ")
+				}
 			}
 		})
 		// The tool row already says it finished. Leaving the phase on the

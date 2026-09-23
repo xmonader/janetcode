@@ -1548,3 +1548,26 @@ func TestAdjacentThoughtsMerge(t *testing.T) {
 		t.Fatalf("last = %+v", *last)
 	}
 }
+
+// TestFailingCommandRowSaysSo: the bash tool reports a non-zero exit in
+// its output, so a red test run showed "Done" with "[exit code 1]" at the
+// bottom of its output. The row says Failed and the exit code; the marker
+// line, which is for the model, is not shown.
+func TestFailingCommandRowSaysSo(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	call := &agent.ToolCall{ID: "c1", Name: "bash", Input: json.RawMessage(`{"command":"pytest -q"}`)}
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: call})
+	s.apply(agent.Event{Kind: agent.EvToolResult, Call: call, Output: "3 failed, 2 passed\n[exit code 1]"})
+	grep := &agent.ToolCall{ID: "c2", Name: "bash", Input: json.RawMessage(`{"command":"grep -n nope a.go"}`)}
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: grep})
+	s.apply(agent.Event{Kind: agent.EvToolResult, Call: grep, Output: "\n[exit code 1] no lines matched; for this command that is an answer, not a failure"})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	red, none := s.entries[len(s.entries)-2], s.entries[len(s.entries)-1]
+	if !red.Error || red.Output != "3 failed, 2 passed" || !strings.HasPrefix(red.Dur, "exit 1") {
+		t.Fatalf("red run = %+v", *red)
+	}
+	if none.Error || none.Output != "no lines matched" {
+		t.Fatalf("a search that found nothing is not a failure: %+v", *none)
+	}
+}
