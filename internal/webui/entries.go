@@ -285,9 +285,20 @@ func (s *server) update(id string, fn func(*entry)) {
 func (s *server) appendText(kind, text string) {
 	s.mu.Lock()
 	var e *entry
+	var gone []entry
 	created := false
 	if n := len(s.entries); n > 0 && s.entries[n-1].Kind == kind && !s.entries[n-1].Done {
 		e = s.entries[n-1]
+	} else if prev, noise := s.thoughtToContinueLocked(kind); prev != nil {
+		// A thought after a thought, with nothing but a stray "." between,
+		// is the same thought going on: one row, not a stack of them.
+		for _, x := range noise {
+			gone = append(gone, entry{ID: x.ID, Kind: x.Kind, Gone: true})
+		}
+		s.entries = s.entries[:len(s.entries)-len(noise)]
+		e = prev
+		e.Done = false
+		e.Text = strings.TrimRight(e.Text, "\n") + "\n\n"
 	} else {
 		e = s.addLocked(entry{Kind: kind})
 		created = true
@@ -295,10 +306,35 @@ func (s *server) appendText(kind, text string) {
 	e.Text += text
 	cp := *e
 	s.mu.Unlock()
+	for _, g := range gone {
+		s.emitEntry(g)
+	}
 	s.emitEntry(cp)
 	if created && kind == "assistant" {
 		s.touchRuns()
 	}
+}
+
+// thoughtToContinueLocked is the finished thought a new thinking block
+// continues, and the punctuation-only answers after it that would be
+// dropped, when the thread ends in exactly that. Called with mu held.
+func (s *server) thoughtToContinueLocked(kind string) (*entry, []*entry) {
+	if kind != "thinking" {
+		return nil, nil
+	}
+	var noise []*entry
+	for i := len(s.entries) - 1; i >= 0; i-- {
+		e := s.entries[i]
+		switch {
+		case e.Kind == "thinking" && strings.TrimSpace(e.Text) != "":
+			return e, noise
+		case e.Kind == "assistant" && e.Done && textfmt.PunctuationOnly(e.Text):
+			noise = append(noise, e)
+		default:
+			return nil, nil
+		}
+	}
+	return nil, nil
 }
 
 // updateTool applies fn to the entry for this call, starting one when the

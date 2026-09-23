@@ -1512,3 +1512,39 @@ func TestRetryWaitCountsDown(t *testing.T) {
 		t.Fatalf("re-sent = %q", got)
 	}
 }
+
+// TestAdjacentThoughtsMerge: steps with nothing between them but a
+// model's stray "." left four "Thought" rows stacked on the page, each
+// opening "The user asked me to…". A thought that follows a thought is
+// the same thought going on.
+func TestAdjacentThoughtsMerge(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.apply(agent.Event{Kind: agent.EvThinking, Text: "first idea"})
+	s.apply(agent.Event{Kind: agent.EvText, Text: ".\n\n"})
+	s.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	s.apply(agent.Event{Kind: agent.EvThinking, Text: "second idea"})
+	s.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	s.mu.Lock()
+	var thoughts []entry
+	for _, e := range s.entries {
+		if e.Kind == "thinking" {
+			thoughts = append(thoughts, *e)
+		}
+		if e.Kind == "assistant" {
+			t.Fatalf("the stray %q was kept between thoughts", e.Text)
+		}
+	}
+	s.mu.Unlock()
+	if len(thoughts) != 1 || thoughts[0].Text != "first idea\n\nsecond idea" {
+		t.Fatalf("thoughts = %+v", thoughts)
+	}
+	// A tool call between two thoughts keeps them apart: the order of
+	// thinking and doing is the story of the turn.
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: &agent.ToolCall{ID: "c1", Name: "bash"}})
+	s.apply(agent.Event{Kind: agent.EvThinking, Text: "after the tool"})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if last := s.entries[len(s.entries)-1]; last.Kind != "thinking" || last.Text != "after the tool" {
+		t.Fatalf("last = %+v", *last)
+	}
+}
