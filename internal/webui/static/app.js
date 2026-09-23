@@ -476,11 +476,25 @@
     const line = cleanTitle(String(s || "").split("\n")[0]);
     return line.length > 80 ? line.slice(0, 79) + "…" : line;
   }
+  // A turn that finished (or stopped to ask) while the tab was in the
+  // background marks the tab title until the user looks — no permission
+  // prompt needed, unlike a desktop notification.
+  let unseen = false;
   function paintTitle() {
     const shown = cleanTitle(curTitle) || clipLine(firstUserText);
     document.getElementById("title").textContent = shown || "New conversation";
-    document.title = (shown ? shown + " — " : "") + "janetcode";
+    document.title = (unseen ? "● " : "") + (shown ? shown + " — " : "") + "janetcode";
   }
+  function markUnseen() {
+    if (!document.hidden || unseen) return;
+    unseen = true;
+    paintTitle();
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !unseen) return;
+    unseen = false;
+    paintTitle();
+  });
   function applyHello(h) {
     if (!h) return;
     // A different build than the page was served from means the server
@@ -575,6 +589,7 @@
     pending = p && p.name ? p : null;
     ask.hidden = !pending;
     if (!pending) return;
+    markUnseen();
     askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
     askRule.hidden = !p.rule;
     if (p.rule) askRule.textContent = "rule: " + p.rule + (p.learned ? "  ·  " + p.learned : "");
@@ -2517,6 +2532,7 @@
   drawNotif();
   function maybeNotify(prevRunning, st) {
     if (!prevRunning || st.running || !document.hidden) return;
+    markUnseen();
     if (soundOn) ding();
     if (!notifyOn) return;
     const title = document.getElementById("title").textContent || "janetcode";

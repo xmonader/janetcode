@@ -162,6 +162,21 @@ await sleep(300);
 check('tap outside closes phone rail', await evaljs(`document.querySelector('.shell').classList.contains('nav-collapsed')`));
 check('phone rail state not persisted', await evaljs(`localStorage.getItem('janetcode-nav-collapsed') === ''`));
 
+// 13. a turn that ends while the tab is in the background marks the tab
+// title, and looking at the tab clears it. The stub provider refuses the
+// connection, so the turn ends fast — in an error, which still ends it.
+await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+await evaljs(`location.reload(); 1`);
+await sleep(2000);
+await evaljs(`(() => { window.__hidden = false; Object.defineProperty(document, 'hidden', { configurable: true, get: () => window.__hidden }); return 1; })()`);
+await evaljs(`(() => { window.__hidden = true; const t = document.getElementById('input'); t.value = 'hello'; t.dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('send').click(); return 1; })()`);
+let badged = false;
+for (let i = 0; i < 40 && !badged; i++) { await sleep(500); badged = await evaljs(`document.title.startsWith('● ')`); }
+check('background turn end badges the tab title', badged, await evaljs(`document.title`));
+await evaljs(`(() => { window.__hidden = false; document.dispatchEvent(new Event('visibilitychange')); return 1; })()`);
+await sleep(100);
+check('looking at the tab clears the badge', await evaljs(`!document.title.startsWith('●')`), await evaljs(`document.title`));
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');
