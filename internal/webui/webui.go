@@ -447,7 +447,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/upload", s.upload)
 	mux.HandleFunc("/api/complete", s.completeAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
-	return mux
+	return s.guard(mux)
 }
 
 func (s *server) hello() helloPayload {
