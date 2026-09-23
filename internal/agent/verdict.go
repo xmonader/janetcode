@@ -28,6 +28,10 @@ import (
 // let a turn finish wedges more work than it saves, and the user can see
 // the verdict and decide.
 
+// FlippedWhy ends the reason of a verified turn whose tests had been red
+// in an earlier turn: a real fix, not a first build going green.
+const FlippedWhy = "tests that had been failing now pass"
+
 // Verdict is the outcome of one turn's changes.
 type Verdict string
 
@@ -572,7 +576,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		o.Why = fmt.Sprintf("%s edited and tests passed, but %s changed in the same turn", textfmt.Plural(o.Edited, "file"), strings.Join(o.TestsEdited, ", "))
 	case ranTests && o.Flipped:
 		o.Verdict = VerdictVerified
-		o.Why = fmt.Sprintf("%s edited; tests that had been failing now pass", textfmt.Plural(o.Edited, "file"))
+		o.Why = fmt.Sprintf("%s edited; %s", textfmt.Plural(o.Edited, "file"), FlippedWhy)
 	case ranTests:
 		o.Verdict = VerdictVerified
 		o.Why = fmt.Sprintf("%s edited and tests ran and passed afterwards", textfmt.Plural(o.Edited, "file"))

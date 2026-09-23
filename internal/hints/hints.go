@@ -396,7 +396,7 @@ func Rules() []Rule {
 			ID: "eval-keep", Feature: "/eval", Use: "/eval keep",
 			When: func(s *State) bool { return s.VerifiedAfterFailure },
 			Text: func(_ *State) string {
-				return "that turn made a failing check pass — /eval keep <name> turns this session into a regression eval that janetcode --eval replays later"
+				return "that turn fixed tests that had been failing — /eval keep <name> saves it as a check janetcode --eval can re-run, so the fix stays fixed"
 			},
 		},
 		{

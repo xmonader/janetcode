@@ -569,7 +569,12 @@ func TestAVerifiedTurnOffersEvalKeep(t *testing.T) {
 	if v := plain(h.m.View()); strings.Contains(v, "/eval keep") {
 		t.Fatalf("an unverified turn offered /eval keep:\n%s", v)
 	}
-	h.m.applyEvent(agent.Event{Kind: agent.EvVerdict, Text: "✓ verified: go test ./... failed earlier and passes now"})
+	// A new project's first build going green is not a fix to keep.
+	h.m.applyEvent(agent.Event{Kind: agent.EvVerdict, Text: "✓ verified: 2 files edited and tests ran and passed afterwards"})
+	if v := plain(h.m.View()); strings.Contains(v, "/eval keep") {
+		t.Fatalf("a first green build offered /eval keep:\n%s", v)
+	}
+	h.m.applyEvent(agent.Event{Kind: agent.EvVerdict, Text: "✓ verified: 1 file edited; " + agent.FlippedWhy})
 	if v := plain(h.m.View()); !strings.Contains(v, "/eval keep <name>") {
 		t.Fatalf("a verified turn did not offer /eval keep:\n%s", v)
 	}

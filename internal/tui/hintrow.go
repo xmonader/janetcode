@@ -231,7 +231,10 @@ func (m *model) observeEvent(ev agent.Event) {
 		m.observeTurnDone()
 		return
 	case agent.EvVerdict:
-		if !ev.IsError && verdictWord(ev.Text) == string(agent.VerdictVerified) {
+		// A fix of something that had been failing, not any green turn: a
+		// first build of a new project going green is not a regression
+		// worth keeping, and the tip read as jargon there.
+		if !ev.IsError && verdictWord(ev.Text) == string(agent.VerdictVerified) && strings.Contains(ev.Text, agent.FlippedWhy) {
 			m.noteHint(func(s *hints.State) { s.VerifiedAfterFailure = true })
 		}
 		return
