@@ -351,7 +351,7 @@ type GoalStatus struct{ Parent *Agent }
 
 func (*GoalStatus) Name() string { return "goal_status" }
 func (*GoalStatus) Description() string {
-	return "Mark the current session goal complete or blocked. Call this when the objective is done, or when you cannot proceed (include a short reason)."
+	return "Mark the active session goal complete or blocked. Only for a goal the user set with /goal (the harness names it in the prompt as 'the goal'); an ordinary request needs no call to finish — just answer. Call it when that goal's objective is done, or when you cannot proceed (include a short reason)."
 }
 func (*GoalStatus) Mutating() bool { return false }
 func (*GoalStatus) Schema() json.RawMessage {
@@ -387,7 +387,10 @@ func (g *GoalStatus) Run(_ context.Context, input json.RawMessage) (string, erro
 			}
 			return msg + ". There is nothing left to mark; do not call goal_status again for it.", nil
 		}
-		return "", fmt.Errorf("no active goal")
+		// No goal was ever set: the model finished an ordinary request
+		// and reached for this to sign off. An error here showed as a
+		// failed step and set it answering the whole request again.
+		return "No goal is set in this session, so there is nothing to mark. Finish with your answer; do not call goal_status.", nil
 	}
 	phase := GoalComplete
 	if in.Status == GoalBlocked || in.Status == "blocked" {

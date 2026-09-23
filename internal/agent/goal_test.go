@@ -165,11 +165,18 @@ func TestFormatGoalsIncludesReason(t *testing.T) {
 	}
 }
 
-func TestGoalStatusWithNoGoalAtAllStillErrors(t *testing.T) {
+func TestGoalStatusWithNoGoalTellsTheModelToJustAnswer(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
 	tl := &GoalStatus{Parent: a}
-	if _, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`)); err == nil {
-		t.Fatal("marking a goal that was never created should be an error")
+	out, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`))
+	if err != nil {
+		t.Fatalf("a stray goal_status call must not show as a failed tool: %v", err)
+	}
+	if !strings.Contains(out, "No goal is set") || !strings.Contains(out, "do not call goal_status") {
+		t.Fatalf("out = %q", out)
+	}
+	if len(FoldGoals(a.Log.Events())) != 0 {
+		t.Fatal("a stray call must not create a goal")
 	}
 }
 
