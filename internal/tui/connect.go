@@ -268,6 +268,10 @@ func (m *model) connectConfig(model string) *config.Config {
 	return &cfg
 }
 
+// connectRemedies word a failure's advice for the dialog on screen: the
+// key is the step before, the models are the list.
+var connectRemedies = llm.Remedies{Key: "and paste it again", Model: "from the list"}
+
 func (m *model) handleModels(msg modelsMsg) {
 	c := m.connect
 	if c == nil || c.step != stepModel || msg.gen != c.gen {
@@ -276,7 +280,18 @@ func (m *model) handleModels(msg modelsMsg) {
 	c.loading = false
 	switch {
 	case msg.err != nil:
-		c.loadErr = "could not list models: " + msg.err.Error()
+		x := llm.Explain(msg.err, c.name, connectRemedies)
+		if !x.Retry && x.Headline == "Authentication failed" {
+			// The key was just refused. Letting the user go on to type a
+			// model id only moves the same failure to their first prompt;
+			// back to the key, with the provider's reason. The refused
+			// key is dropped so the step does not offer to keep it.
+			c.prov.SetKeys(nil)
+			m.enterStep(stepKeys)
+			m.fail(x.String())
+			return
+		}
+		c.loadErr = "could not list models: " + x.String()
 	case len(msg.models) == 0:
 		c.loadErr = "the server lists no models"
 	default:

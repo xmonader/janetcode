@@ -128,4 +128,3 @@ func stableFrame(s string) string {
 	}
 	return strings.Join(out, "\n") + "\n"
 }
-

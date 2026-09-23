@@ -1493,3 +1493,44 @@ func TestGoalRoundsBudgetAndExhaustionInTheUI(t *testing.T) {
 		t.Fatalf("after /goal rounds 4 = %+v", g)
 	}
 }
+
+// TestConnectRejectedKeyGoesBackToTheKey: a 401 on the model list left the
+// dialog on the model step saying "could not list models: Unauthorized"
+// and let the user type a model id, so the rejected key failed again on
+// their first prompt. The dialog goes back to the key and says why.
+func TestConnectRejectedKeyGoesBackToTheKey(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = nil
+	cfg := &config.Config{Provider: "anthropic", Providers: map[string]config.Provider{"anthropic": {Type: "anthropic"}}}
+	lister := &listing{err: errors.New("Unauthorized (HTTP 401)")}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return lister, nil })
+	if v := plain(h.m.View()); !strings.Contains(v, "not connected · /connect picks a provider") || strings.Contains(v, "ready") {
+		t.Fatalf("an unconnected session's status line:\n%s", v)
+	}
+	h.keys("/connect")
+	h.enter()
+	h.keys("openai")
+	h.enter()
+	h.enter() // keep the preset URL
+	h.keys("sk-wrong")
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter}) // runs the model fetch
+	c := h.m.connect
+	if c == nil || c.step != stepKeys {
+		t.Fatalf("a rejected key should return to the key step: %+v", c)
+	}
+	v := plain(h.m.View())
+	if !strings.Contains(v, "Authentication failed (HTTP 401)") || !strings.Contains(v, "paste it again") {
+		t.Fatalf("view:\n%s", v)
+	}
+	if len(c.prov.Keys()) != 0 || strings.Contains(v, "leave empty to keep") {
+		t.Fatalf("the refused key is offered again: keys %v\n%s", c.prov.Keys(), v)
+	}
+	// A good key from here goes on to the models.
+	lister.err = nil
+	lister.models = []llm.ModelInfo{{ID: "gpt-6"}}
+	h.keys("sk-right")
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
+	if h.m.connect.step != stepModel || len(h.m.connect.models) != 1 {
+		t.Fatalf("step %d models %d", h.m.connect.step, len(h.m.connect.models))
+	}
+}

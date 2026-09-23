@@ -277,6 +277,10 @@ func (m *model) statusView() string {
 		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText()+" · "+el+hint)
 	case m.status != "":
 		left = m.styles.dim.Render(m.status)
+	case m.opts.Agent.Settings().Provider == nil:
+		// "ready" with nothing to send to was a promise the next
+		// prompt broke.
+		left = m.styles.warn.Render("not connected · /connect picks a provider")
 	default:
 		left = m.styles.faint.Render("ready")
 	}

@@ -94,7 +94,14 @@ func (m *model) connectView(height int) string {
 	add(m.styles.accent.Render("› ") + c.field.View())
 	add(m.styles.faint.Render(strings.Repeat("─", inner)))
 	if c.problem != "" {
-		add(m.styles.err.Render("✗ " + c.problem))
+		// Wrapped, not cut: the end of a failure is what to do about it.
+		for i, l := range strings.Split(lipgloss.NewStyle().Width(inner-2).Render(c.problem), "\n") {
+			prefix := "  "
+			if i == 0 {
+				prefix = "✗ "
+			}
+			add(m.styles.err.Render(prefix + strings.TrimRight(l, " ")))
+		}
 	}
 	switch c.step {
 	case stepPick, stepModel:
@@ -192,7 +199,9 @@ func (m *model) listLines(inner, budget int) []string {
 		case c.step == stepModel && c.loading:
 			out = append(out, "  "+m.styles.dim.Render(m.spinner.View()+" fetching models from "+hostOf(c.prov.BaseURL)+"…"))
 		case c.step == stepModel && c.loadErr != "":
-			out = append(out, "  "+m.styles.warn.Render(truncateLine(c.loadErr, inner-2)))
+			for _, l := range strings.Split(lipgloss.NewStyle().Width(inner-2).Render(c.loadErr), "\n") {
+				out = append(out, "  "+m.styles.warn.Render(strings.TrimRight(l, " ")))
+			}
 			out = append(out, "  "+m.styles.dim.Render("type the model id and press enter"))
 		case c.field.Value() != "":
 			out = append(out, "  "+m.styles.dim.Render("nothing matches"))
