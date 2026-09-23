@@ -370,6 +370,8 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	failedBefore := map[string]bool{}
 	var lastText string
 	testsEdited := map[string]bool{}
+	// Every test file written this turn, added to or changed.
+	testsTouched := map[string]bool{}
 	// Files written for the first time in this turn: what they hold is
 	// this turn's work, not something that was already there.
 	createdHere := map[string]bool{}
@@ -436,17 +438,23 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		case editTool(e.Name) && !e.IsError:
 			if p := argPathOf(e.Arguments); p != "" {
 				edited[p] = true
+				if e.Name == "write_file" && strings.HasPrefix(e.Output, "Created ") {
+					createdHere[p] = true
+				}
 				if isTestFile(p) {
-					testsEdited[p] = true
+					testsTouched[p] = true
+					// A test added — a new file, or new cases around the
+					// ones already there — raises the bar; only a change
+					// to lines that were there before can lower it.
+					if !createdHere[p] && !additiveEdit(e.Name, e.Arguments) {
+						testsEdited[p] = true
+					}
 				}
 			} else {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
 			lastEditSeq = e.Seq
 			if d := gamingDelta(e.Name, e.Arguments); d.Path != "" {
-				if e.Name == "write_file" && strings.HasPrefix(e.Output, "Created ") {
-					createdHere[d.Path] = true
-				}
 				d.Created = createdHere[d.Path]
 				deltas = append(deltas, d)
 			}
@@ -544,7 +552,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		// that the edit was "not demonstrated" is noise the user learns
 		// to ignore, and then ignores when it matters.
 		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("only documentation was edited (%d file(s)); nothing to test", o.Edited)
-	case o.Failed > 0 && acceptWriting && len(o.TestsEdited) == o.Edited:
+	case o.Failed > 0 && acceptWriting && len(testsTouched) == o.Edited:
 		o.Verdict = VerdictTestsWritten
 		o.Why = fmt.Sprintf("%d acceptance test file(s) written and failing as expected until the implementation exists", o.Edited)
 	case o.Failed > 0:
@@ -697,6 +705,49 @@ func gamingDelta(name, arguments string) gaming.Delta {
 		}
 	}
 	return d
+}
+
+// additiveEdit reports whether an edit_file call only added text: every
+// replacement keeps the text it found. A write over an existing file, a
+// line-range edit or an insertion with nothing located cannot be told
+// apart from a rewrite, so they count as changes.
+func additiveEdit(name, arguments string) bool {
+	if name != "edit_file" {
+		return false
+	}
+	var in struct {
+		oneEditArgs
+		Edits []oneEditArgs `json:"edits"`
+	}
+	if json.Unmarshal([]byte(arguments), &in) != nil {
+		return false
+	}
+	edits := in.Edits
+	if in.Old != "" || in.byLine() {
+		edits = append(edits, in.oneEditArgs)
+	}
+	if len(edits) == 0 {
+		return false
+	}
+	for _, e := range edits {
+		if e.byLine() || e.Old == "" || !strings.Contains(e.New, e.Old) {
+			return false
+		}
+	}
+	return true
+}
+
+type oneEditArgs struct {
+	Old        string `json:"old_string"`
+	New        string `json:"new_string"`
+	From       int    `json:"from_line"`
+	To         int    `json:"to_line"`
+	FromAnchor string `json:"from_anchor"`
+	ToAnchor   string `json:"to_anchor"`
+}
+
+func (e oneEditArgs) byLine() bool {
+	return e.From > 0 || e.To > 0 || e.FromAnchor != "" || e.ToAnchor != ""
 }
 
 func argPathOf(arguments string) string {

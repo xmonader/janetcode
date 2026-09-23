@@ -707,3 +707,47 @@ func TestAMultiLineCheckIsRecordedWhole(t *testing.T) {
 		t.Fatalf("single line = %q", got)
 	}
 }
+
+// Adding tests is the healthy workflow — a new project's first suite, or
+// "add the feature and a test for it" — and must not be flagged the way
+// changing an existing test is. Only an edit that rewrites or removes
+// lines already in a test file makes the green self-checked.
+func TestAddingTestsIsNotSelfChecked(t *testing.T) {
+	pass := result(1, "bash", `{"command":"cargo test"}`, "test result: ok. 3 passed; 0 failed\n[exit code 0]", false)
+	cases := []struct {
+		name   string
+		events []session.Event
+		want   Verdict
+	}{
+		{"a test file created this turn", []session.Event{
+			result(1, "write_file", `{"path":"src/lib.rs","content":"pub fn f() {}"}`, "Created src/lib.rs (1 lines)", false),
+			result(1, "write_file", `{"path":"tests/it_test.rs","content":"#[test] fn t() {}"}`, "Created tests/it_test.rs (1 lines)", false),
+			pass,
+		}, VerdictVerified},
+		{"a test appended to an existing file", []session.Event{
+			result(1, "edit_file", `{"path":"src/lib.rs","old_string":"a","new_string":"b"}`, "ok", false),
+			result(1, "edit_file", `{"path":"tests/it_test.rs","old_string":"fn t() {}","new_string":"fn t() {}\n#[test] fn json() {}"}`, "ok", false),
+			pass,
+		}, VerdictVerified},
+		{"an existing assertion rewritten", []session.Event{
+			result(1, "edit_file", `{"path":"src/lib.rs","old_string":"a","new_string":"b"}`, "ok", false),
+			result(1, "edit_file", `{"path":"tests/it_test.rs","old_string":"assert_eq!(f(), 2)","new_string":"assert_eq!(f(), 3)"}`, "ok", false),
+			pass,
+		}, VerdictSelfChecked},
+		{"a test file overwritten wholesale", []session.Event{
+			result(1, "edit_file", `{"path":"src/lib.rs","old_string":"a","new_string":"b"}`, "ok", false),
+			result(1, "write_file", `{"path":"tests/it_test.rs","content":"#[test] fn t() {}"}`, "Wrote tests/it_test.rs (1 lines)", false),
+			pass,
+		}, VerdictSelfChecked},
+		{"a test replaced by line range", []session.Event{
+			result(1, "edit_file", `{"path":"src/lib.rs","old_string":"a","new_string":"b"}`, "ok", false),
+			result(1, "edit_file", `{"path":"tests/it_test.rs","from_line":3,"to_line":4,"new_string":"x"}`, "ok", false),
+			pass,
+		}, VerdictSelfChecked},
+	}
+	for _, c := range cases {
+		if got := FoldOutcome(c.events, 1); got.Verdict != c.want {
+			t.Errorf("%s: verdict %q, want %q (%s)", c.name, got.Verdict, c.want, got.Why)
+		}
+	}
+}
