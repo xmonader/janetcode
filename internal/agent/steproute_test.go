@@ -97,14 +97,14 @@ func routableAgent(sameProvider bool) *Agent {
 func TestRouteStepFirstCallOfTurnNeverRoutes(t *testing.T) {
 	a := routableAgent(true)
 	a.stepN = 1
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("the first model call of a turn must stay on Model")
 	}
 }
 
 func TestRouteStepRoutesAMechanicalStreak(t *testing.T) {
 	a := routableAgent(true)
-	prov, model, ok := a.routeStep(func(Event) {})
+	prov, model, _, ok := a.routeStep(func(Event) {})
 	if !ok {
 		t.Fatal("a clean mechanical previous step should route")
 	}
@@ -119,7 +119,7 @@ func TestRouteStepRoutesAMechanicalStreak(t *testing.T) {
 func TestRouteStepDoesNotRouteAfterAFailure(t *testing.T) {
 	a := routableAgent(true)
 	a.stepRoute.prevMechanical = false // the previous step had a failed or non-mechanical call
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a step following a failure or a non-mechanical call must not route")
 	}
 }
@@ -127,13 +127,13 @@ func TestRouteStepDoesNotRouteAfterAFailure(t *testing.T) {
 func TestRouteStepDoesNotRouteAfterAGateFailure(t *testing.T) {
 	a := routableAgent(true)
 	a.stepRoute.taint("a verification check failed and was sent back")
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a turn tainted by a gate failure must stay on Model for the rest of the turn")
 	}
 	// Tainted for the *rest* of the turn, not just the very next call: a
 	// later mechanical streak must not un-taint it.
 	a.stepRoute.prevMechanical = true
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a later mechanical step must not clear an earlier taint")
 	}
 }
@@ -144,7 +144,7 @@ func TestRouteStepDoesNotRouteAfterUserSteering(t *testing.T) {
 	a.steer = []string{"do it differently"}
 	a.deliverSteering(emit)
 	_ = evs
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a turn the user steered must stay on Model")
 	}
 }
@@ -152,7 +152,7 @@ func TestRouteStepDoesNotRouteAfterUserSteering(t *testing.T) {
 func TestRouteStepDoesNotRouteAfterACriticWarning(t *testing.T) {
 	a := routableAgent(true)
 	a.warned = true
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a turn the critic warned about must stay on Model")
 	}
 }
@@ -160,7 +160,7 @@ func TestRouteStepDoesNotRouteAfterACriticWarning(t *testing.T) {
 func TestRouteStepNeverRoutesInPlanMode(t *testing.T) {
 	a := routableAgent(true)
 	a.PlanMode = true
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("plan mode must never route")
 	}
 }
@@ -168,7 +168,7 @@ func TestRouteStepNeverRoutesInPlanMode(t *testing.T) {
 func TestRouteStepOffByDefault(t *testing.T) {
 	a := routableAgent(true)
 	a.RouteCheap = ""
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("an empty RouteCheap must never route")
 	}
 }
@@ -179,7 +179,7 @@ func TestRouteStepUnresolvableModelDisablesForTheSession(t *testing.T) {
 		return nil, "", errStub("no provider serves it")
 	}
 	evs, emit := collect()
-	if _, _, ok := a.routeStep(emit); ok {
+	if _, _, _, ok := a.routeStep(emit); ok {
 		t.Fatal("a model nothing can route must not route")
 	}
 	found := false
@@ -198,7 +198,7 @@ func TestRouteStepUnresolvableModelDisablesForTheSession(t *testing.T) {
 		t.Fatal("Route should not be called again once disabled")
 		return nil, "", nil
 	}
-	if _, _, ok := a.routeStep(emit); ok {
+	if _, _, _, ok := a.routeStep(emit); ok {
 		t.Fatal("still should not route")
 	}
 	if len(*evs) != 0 {
@@ -211,12 +211,12 @@ func TestRouteStepUnresolvableModelDisablesForTheSession(t *testing.T) {
 // same-provider route is trusted regardless of size.
 func TestRouteStepCacheRuleGatesCrossProviderOnContextSize(t *testing.T) {
 	a := routableAgent(false) // cheap model lives on a different provider
-	if _, _, ok := a.routeStep(func(Event) {}); !ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); !ok {
 		t.Fatal("a small conversation should route across providers")
 	}
 	// Force EstimateTokens over the threshold with a long message.
 	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, strings.Repeat("word ", routeCheapSmallContext)))
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a large conversation must not switch providers")
 	}
 }
@@ -224,7 +224,7 @@ func TestRouteStepCacheRuleGatesCrossProviderOnContextSize(t *testing.T) {
 func TestRouteStepSameProviderRoutesRegardlessOfContextSize(t *testing.T) {
 	a := routableAgent(true)
 	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, strings.Repeat("word ", routeCheapSmallContext)))
-	if _, _, ok := a.routeStep(func(Event) {}); !ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); !ok {
 		t.Fatal("a same-provider route should not care how large the conversation is")
 	}
 }
@@ -240,18 +240,18 @@ func (e errStub) Error() string { return string(e) }
 func TestRouteStepDoesNotRouteToTheSessionsOwnModel(t *testing.T) {
 	a := routableAgent(true)
 	a.SetRouteCheap(a.Settings().Model)
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("cheap == main must not route")
 	}
 	// Case is not the difference between two models either.
 	a.SetRouteCheap(strings.ToUpper(a.Settings().Model))
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("cheap == main must not route whatever the case")
 	}
 	// And a genuinely different name still routes, so the guard is the
 	// equality and nothing else.
 	a.SetRouteCheap("cheap-model")
-	if _, model, ok := a.routeStep(func(Event) {}); !ok || model != "cheap-model" {
+	if _, model, _, ok := a.routeStep(func(Event) {}); !ok || model != "cheap-model" {
 		t.Fatalf("a different cheap model must still route: ok=%v model=%q", ok, model)
 	}
 }

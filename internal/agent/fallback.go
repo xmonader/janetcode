@@ -122,7 +122,7 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 		emit(Event{Kind: EvDiscard})
 		emit(Event{Kind: EvNotice, Text: textfmt.FirstLine(cause.Error(), 70) + " · falling back to " + model})
 		emit(Event{Kind: EvPhase, Text: "falling back to " + model})
-		resp, err := a.callOn(ctx, prov, model, emit)
+		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "fallback", kind: "fallback", why: textfmt.FirstLine(cause.Error(), 70)}, emit)
 		if err == nil {
 			a.stats.fellBack()
 			a.UpdateSettings(func(s *Settings) { s.Provider, s.Model = prov, model })

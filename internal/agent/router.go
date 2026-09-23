@@ -60,8 +60,16 @@ type modelRouter struct {
 	// lastCallModel is the model that answered the most recent call --
 	// Model on an ordinary step, a fallback's model, or RouteCheap when
 	// the step router sent it there -- so the assistant event logged for
-	// it can say which (see session.Event.Model).
-	lastCallModel string
+	// it can say which (see session.Event.Model). The lastCallSlot,
+	// lastCallProvider, lastCallRoute and lastCallWhy beside it are the
+	// same call's routing evidence: which slot, which provider, what
+	// kind of detour (route/escalate/fallback) and the reason in the
+	// policy's own words (see session.Event.Slot and friends).
+	lastCallModel    string
+	lastCallSlot     string
+	lastCallProvider string
+	lastCallRoute    string
+	lastCallWhy      string
 	// lastTTFT and lastDecode split the most recent call into waiting
 	// for the provider to start and the provider generating. A single
 	// duration cannot tell a queued call from a long answer, and they

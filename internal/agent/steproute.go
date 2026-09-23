@@ -195,12 +195,14 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 }
 
 // routeStep decides, for the call about to be made, whether it goes to
-// RouteCheap instead of Model. It reports the provider and resolved model
-// name to use and whether routing applies at all; when it does not, the
-// caller sends the call to Model exactly as it would with the feature off.
-func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
-	if a.Off["routing"] || a.RouteCheapName() == "" || !a.routingAllowed() {
-		return nil, "", false
+// RouteCheap instead of Model. It reports the provider, the resolved
+// model name, and the reason in the policy's own words — which branch
+// of the policy said yes — plus whether routing applies at all; when it
+// does not, the caller sends the call to Model exactly as it would with
+// the feature off.
+func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, string, bool) {
+	if a.RoutingOff() || a.RouteCheapName() == "" || !a.routingAllowed() {
+		return nil, "", "", false
 	}
 	// The cheap slot filled with the session's own model is the slot
 	// resolver's fallback written out by hand (see config.SlotIsMain),
@@ -208,7 +210,7 @@ func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
 	// counting as a route and printing a line about one. So it is not a
 	// route: the call goes where it was going anyway.
 	if strings.EqualFold(a.RouteCheapName(), a.Settings().Model) {
-		return nil, "", false
+		return nil, "", "", false
 	}
 	// The first call of a turn has no step behind it to judge, so it stays
 	// on the session's model — unless the intake consumer has classified
@@ -219,20 +221,23 @@ func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
 	// still has to follow a mechanical step.
 	first := a.stepN <= 1
 	if first && !a.intakeRoutedCheap() {
-		return nil, "", false
+		return nil, "", "", false
 	}
 	if a.stepRoute.tainted || a.warned {
-		return nil, "", false
+		return nil, "", "", false
 	}
 	if !first && !a.stepRoute.prevMechanical {
-		return nil, "", false
+		return nil, "", "", false
 	}
 	prov, model, sameProvider, ok := a.modelRouter.resolveCheap(a.Settings().Provider, emit)
 	if !ok {
-		return nil, "", false
+		return nil, "", "", false
 	}
 	if !sameProvider && a.EstimateTokens() > routeCheapSmallContext {
-		return nil, "", false
+		return nil, "", "", false
 	}
-	return prov, model, true
+	if first {
+		return prov, model, "intake classified the prompt as small and read-only", true
+	}
+	return prov, model, "the previous step was a clean, mechanical batch", true
 }

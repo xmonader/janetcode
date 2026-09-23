@@ -12,6 +12,19 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
+// callRoute is the routing evidence for one callOn: which slot the
+// model came from ("main" for the session's own), what kind of detour
+// it was — "route" for a cheap step, "escalate" for the failure
+// cascade, "fallback" after a provider failure, "" for no detour — and
+// the reason in the policy's own words. callOn stamps it on the agent
+// beside lastCallModel when the call succeeds, and recordReply logs it
+// on the assistant event (see session.Event.Slot and friends).
+type callRoute struct {
+	slot string
+	kind string
+	why  string
+}
+
 // call sends the conversation to the session's model, or, when the
 // step-routing policy allows it, to RouteCheap instead (see steproute.go).
 // A routed call that fails outright falls back to Model for this one call
@@ -23,7 +36,8 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	// A turn that has already failed its own verification has no business
 	// dipping to a cheaper tier, so the cascade is asked first.
 	if prov, model, ok := a.escalateStep(emit); ok {
-		resp, err := a.callOn(ctx, prov, model, emit)
+		why, _ := a.escalated()
+		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "strong", kind: "escalate", why: why}, emit)
 		if err == nil {
 			return resp, nil
 		}
@@ -31,8 +45,8 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 			return nil, err
 		}
 		emit(Event{Kind: EvNotice, Text: "escalated call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
-	} else if prov, model, ok := a.routeStep(emit); ok {
-		resp, err := a.callOn(ctx, prov, model, emit)
+	} else if prov, model, why, ok := a.routeStep(emit); ok {
+		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "cheap", kind: "route", why: why}, emit)
 		if err == nil {
 			a.stats.routed()
 			return resp, nil
@@ -43,7 +57,7 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		emit(Event{Kind: EvNotice, Text: "routed call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
 		a.stepRoute.taint("a routed call failed")
 	}
-	resp, err := a.callOn(ctx, s.Provider, s.Model, emit)
+	resp, err := a.callOn(ctx, s.Provider, s.Model, callRoute{slot: "main"}, emit)
 	if err == nil {
 		return resp, nil
 	}
@@ -64,7 +78,7 @@ func isTokenDelta(e llm.Event) bool {
 	return false
 }
 
-func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emit func(Event)) (*llm.Response, error) {
+func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt callRoute, emit func(Event)) (*llm.Response, error) {
 	start := time.Now()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
 	// firstToken is when the provider produced anything at all. A call
@@ -113,6 +127,13 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 	a.stats.firstToken(model, a.lastTTFT)
 	if err == nil {
 		a.lastCallModel = model
+		a.lastCallSlot = rt.slot
+		a.lastCallRoute = rt.kind
+		a.lastCallWhy = rt.why
+		a.lastCallProvider = ""
+		if prov != nil {
+			a.lastCallProvider = prov.Name()
+		}
 	}
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()

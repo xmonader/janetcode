@@ -77,7 +77,7 @@ func routableRoutedAgent(cheap bool) *Agent {
 
 func TestRouteStepFirstCallRoutesOnlyOnAnIntakeRoute(t *testing.T) {
 	a := routableRoutedAgent(true)
-	prov, model, ok := a.routeStep(func(Event) {})
+	prov, model, _, ok := a.routeStep(func(Event) {})
 	if !ok || model != "cheap-model" || prov == nil {
 		t.Fatalf("an intake-routed first call should route: ok=%v model=%q", ok, model)
 	}
@@ -85,12 +85,12 @@ func TestRouteStepFirstCallRoutesOnlyOnAnIntakeRoute(t *testing.T) {
 	// first call is refused exactly as it was before the feature.
 	off := routableRoutedAgent(true)
 	off.DecisionsIntakeRoute = false
-	if _, _, ok := off.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := off.routeStep(func(Event) {}); ok {
 		t.Fatal("intake routing off must leave the first call on Model")
 	}
 	// And a classification that did not clear the gate is no route.
 	no := routableRoutedAgent(false)
-	if _, _, ok := no.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := no.routeStep(func(Event) {}); ok {
 		t.Fatal("a classification that did not clear the gate must not route")
 	}
 }
@@ -101,17 +101,17 @@ func TestRouteStepFirstCallRoutesOnlyOnAnIntakeRoute(t *testing.T) {
 func TestIntakeRouteRelaxesOnlyTheFirstCall(t *testing.T) {
 	a := routableRoutedAgent(true)
 	a.stepN = 2
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("a later call with no mechanical step behind it must not route")
 	}
 	tainted := routableRoutedAgent(true)
 	tainted.stepRoute.taint("a write")
-	if _, _, ok := tainted.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := tainted.routeStep(func(Event) {}); ok {
 		t.Fatal("a tainted turn must not route, first call or not")
 	}
 	later := routableRoutedAgent(true)
 	later.turnN = 1
-	if _, _, ok := later.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := later.routeStep(func(Event) {}); ok {
 		t.Fatal("a later turn was never classified and must not route")
 	}
 }

@@ -124,8 +124,21 @@ type Event struct {
 	// failure, or the experimental step router's RouteCheap (see
 	// internal/agent/steproute.go) when the step was routed there. Empty
 	// on every event that is not one model call.
-	Model string          `json:"model,omitempty"`
-	Extra json.RawMessage `json:"extra,omitempty"`
+	Model string `json:"model,omitempty"`
+	// Slot, Provider, Route and RouteWhy are the routing evidence for
+	// the same call: which slot the model came from ("main", or
+	// "cheap"/"strong" when a detour fired), which provider served it,
+	// what kind of detour it was — "route" for a cheap-step route,
+	// "escalate" for the failure cascade, "fallback" after a provider
+	// failure — and the reason in the policy's own words. Empty on a
+	// call the session's own model answered, which is reported as no
+	// route: a slot that resolves to the main model never gets this far
+	// (routeStep refuses it), so its calls read exactly like main's.
+	Slot     string          `json:"slot,omitempty"`
+	Provider string          `json:"provider,omitempty"`
+	Route    string          `json:"route,omitempty"`
+	RouteWhy string          `json:"route_why,omitempty"`
+	Extra    json.RawMessage `json:"extra,omitempty"`
 }
 
 // live returns the indexes of the surface events that still reach the

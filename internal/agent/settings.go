@@ -66,6 +66,32 @@ func (a *Agent) settingsLocked() Settings {
 	}
 }
 
+// RoutingOff reports whether step routing is vetoed for this session
+// (/routing off). It takes settingsMu, the same lock ToggleOff writes
+// under, so a toggle cannot land in the middle of the turn goroutine's
+// read in routeStep.
+func (a *Agent) RoutingOff() bool {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.Off["routing"]
+}
+
+// ToggleOff flips one ablation switch and reports the new state, so a
+// front-end can veto a named behaviour for the rest of the session
+// without a rebuild. Only the switch this pair guards — "routing" —
+// is read under the lock at runtime (routeStep via RoutingOff); the
+// other Off entries are written before the first turn and read after
+// it, so plain map reads elsewhere stay safe.
+func (a *Agent) ToggleOff(name string) bool {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	if a.Off == nil {
+		a.Off = map[string]bool{}
+	}
+	a.Off[name] = !a.Off[name]
+	return a.Off[name]
+}
+
 // UpdateSettings changes the live settings atomically: change sees the
 // current values and every field it sets takes effect together, so a mode
 // switch that turns one flag on and two off is never observed half done.

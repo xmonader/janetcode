@@ -125,7 +125,7 @@ func TestOffImpactSkipsTheReachLine(t *testing.T) {
 func TestOffRoutingNeverLeavesModel(t *testing.T) {
 	a := routableAgent(true)
 	a.Off = map[string]bool{"routing": true}
-	if _, _, ok := a.routeStep(func(Event) {}); ok {
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("routeStep routed with routing off")
 	}
 }

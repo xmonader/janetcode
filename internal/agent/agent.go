@@ -608,6 +608,7 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	u := resp.Usage
 	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true,
 		Message: &msg, Usage: &u, Model: a.lastCallModel,
+		Slot: a.lastCallSlot, Provider: a.lastCallProvider, Route: a.lastCallRoute, RouteWhy: a.lastCallWhy,
 		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds()})
 	emit(Event{Kind: EvTextBlockDone})
 	// The ceiling is asked about here, while the call just paid for
