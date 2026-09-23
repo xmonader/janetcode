@@ -721,6 +721,10 @@ func (s *server) startTurn(text string) {
 }
 
 func (s *server) finish(err error) {
+	// A turn that failed never sent EvTurnDone, so rows it had open —
+	// the thinking placeholder, half an answer — stayed live above the
+	// error card. Close them whatever the outcome.
+	s.closeOpen()
 	next, elapsed := s.end(err != nil)
 	s.touchRuns()
 	switch {

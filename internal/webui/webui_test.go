@@ -1439,3 +1439,26 @@ func TestDroppedPlaceholderTellsThePage(t *testing.T) {
 		}
 	}
 }
+
+// TestFailedTurnClosesItsOpenRows: a turn that ended in an error (a 401,
+// a 429 that ran out of retries) left its "thinking" placeholder live
+// above the error card, still reading "retrying 2/2 · in 3s".
+func TestFailedTurnClosesItsOpenRows(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.mu.Lock()
+	s.running = true
+	s.mu.Unlock()
+	s.apply(agent.Event{Kind: agent.EvThinking, Text: ""})
+	s.apply(agent.Event{Kind: agent.EvText, Text: "half an ans"})
+	s.finish(errors.New("Unauthorized (HTTP 401)"))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if (e.Kind == "thinking" || e.Kind == "assistant") && !e.Done {
+			t.Fatalf("a %s row is still open after the turn failed: %+v", e.Kind, *e)
+		}
+		if e.Kind == "thinking" {
+			t.Fatalf("the empty placeholder was kept: %+v", *e)
+		}
+	}
+}
