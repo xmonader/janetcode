@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -15,44 +16,94 @@ type Remedies struct {
 	Model string
 }
 
-// FriendlyError turns a provider failure into one shape:
+// Explanation is a provider failure explained in parts, so each front end can
+// lay it out its own way: the headline says what failed in a few words,
+// Next is the one thing to try, Code is what you would search for, and
+// Reason is the provider's own words with the harness's plumbing taken
+// out. Headline is empty when the error is not one this recognises; then
+// Reason is the error as it came.
+type Explanation struct {
+	Headline string `json:"headline,omitempty"`
+	Next     string `json:"next,omitempty"`
+	Code     string `json:"code,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	// Retry reports whether sending the same request again can help. A
+	// rejected key or a missing model fails the same way until the user
+	// changes something, so offering a retry there is a button that lies.
+	Retry bool `json:"retry"`
+}
+
+// String is the failure on one line:
 //
-//	Headline (code): why. What to do.
-//
-// The headline says what failed in three words, the code is what you
-// would search for, the reason is the provider's own words, and the last
-// sentence is the one thing to try. A bare Go error is none of those.
-// Anything unrecognised is passed through rather than dressed up.
-func FriendlyError(err error, provider string, how Remedies) string {
-	s := strings.TrimSpace(err.Error())
-	l := strings.ToLower(s)
-	shape := func(head, code, todo string) string {
-		if code != "" {
-			head += " (" + code + ")"
-		}
-		why := strings.TrimRight(s, ".")
-		return head + ": " + why + ". " + todo
+//	Headline (code): reason. Next.
+func (f Explanation) String() string {
+	if f.Headline == "" {
+		return f.Reason
 	}
+	s := f.Headline
+	if f.Code != "" {
+		s += " (" + f.Code + ")"
+	}
+	if f.Reason != "" {
+		s += ": " + strings.TrimRight(f.Reason, ".")
+	}
+	return s + ". " + f.Next
+}
+
+// Explain sorts a provider failure into what failed and what to do.
+func Explain(err error, provider string, how Remedies) Explanation {
+	raw := strings.TrimSpace(err.Error())
+	l := strings.ToLower(raw)
+	f := Explanation{Code: errorCode(l), Reason: reasonOf(raw), Retry: true}
 	switch {
 	case strings.Contains(l, "connection refused") || strings.Contains(l, "no such host") || strings.Contains(l, "dial tcp"):
-		return shape("cannot reach the API", errorCode(l), "Check the base URL for provider "+provider+" "+how.Key+", and your network.")
+		f.Headline, f.Next = "Cannot reach the API", fmt.Sprintf("Check the base URL for %s %s, and your network.", provider, how.Key)
 	case strings.Contains(l, "http 401") || strings.Contains(l, "http 403") || strings.Contains(l, "authentication") || strings.Contains(l, "invalid x-api-key") || strings.Contains(l, "incorrect api key"):
-		return shape("authentication failed", errorCode(l), "Check the API key for provider "+provider+" "+how.Key+".")
+		f.Headline, f.Next, f.Retry = "Authentication failed", fmt.Sprintf("Check the API key for %s %s.", provider, how.Key), false
 	case strings.Contains(l, "http 429") || strings.Contains(l, "rate limit") || strings.Contains(l, "quota"):
-		return shape("rate limited or out of quota", errorCode(l), "Wait and resend, or switch model "+how.Model+".")
+		f.Headline, f.Next = "Rate limited", "Wait a moment and resend, or switch model "+how.Model+"."
+		if PermanentLimit(l) {
+			f.Headline, f.Next, f.Retry = "Out of quota", "Top up the account for "+provider+", or switch model "+how.Model+".", false
+		}
 	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"),
 		strings.Contains(l, "http 400") && strings.Contains(l, "model"):
-		return shape("model not available", errorCode(l), "Pick another "+how.Model+".")
+		f.Headline, f.Next, f.Retry = "Model not available", "Pick another "+how.Model+".", false
 	case strings.Contains(l, "stream stalled"):
-		return shape("the model stopped sending", errorCode(l), "Resend it; raise stream_idle_timeout or stream_max_duration in the config if it keeps happening on long answers.")
+		f.Headline, f.Next = "The model stopped sending", "Resend it. If long answers keep stalling, raise stream_idle_timeout in the config."
+		f.Reason = ""
 	case Truncated(err) || strings.Contains(l, "stream ended without") || strings.Contains(l, "unexpected eof"):
-		return shape("the connection dropped mid-answer", "cut off", "Resend it; if it keeps happening the provider or a proxy is closing long responses.")
+		// The raw text is the harness's own ("stream ended without
+		// finish_reason"): it names a field of a wire format, not a cause.
+		f.Headline, f.Next, f.Code, f.Reason = "The connection dropped mid-answer", "Resend it. If it keeps happening, a proxy may be closing long responses.", "", ""
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
-		return shape("the request timed out", errorCode(l), "Resend it; if it keeps happening the model may be overloaded.")
+		f.Headline, f.Next = "The request timed out", "Resend it. If it keeps happening, the model may be overloaded."
 	case strings.Contains(l, "http 5"):
-		return shape("the provider failed", errorCode(l), "Resend it; the failure is on their side.")
+		f.Headline, f.Next = "The provider failed", "Resend it; the failure is on their side."
+	default:
+		f.Code, f.Reason = "", raw
 	}
-	return s
+	return f
+}
+
+// internalPrefix is the "openai: " or "anthropic: " a client puts in front
+// of its errors: the reader already knows which provider they are using.
+var internalPrefix = regexp.MustCompile(`^(?:openai|anthropic|gemini|llm|openrouter):\s*`)
+
+// statusSuffix is the " (HTTP 401)" the providers' errors end in; the code
+// is already said in the headline.
+var statusSuffix = regexp.MustCompile(`\s*\(HTTP \d{3}\)\s*$`)
+
+// statusPrefix is the same code at the front: "http 404: model not found".
+var statusPrefix = regexp.MustCompile(`(?i)^(?:http|status) \d{3}:\s*`)
+
+// reasonOf is the provider's words without the harness's plumbing. A
+// reason that is only a restatement of the status ("Unauthorized") is
+// kept: it is short, and it is what a search would find.
+func reasonOf(raw string) string {
+	s := internalPrefix.ReplaceAllString(raw, "")
+	s = statusSuffix.ReplaceAllString(s, "")
+	s = statusPrefix.ReplaceAllString(s, "")
+	return strings.TrimSpace(s)
 }
 
 // errorCode is the short thing you would search for: the HTTP status when
@@ -61,15 +112,13 @@ var httpStatusRe = regexp.MustCompile(`(?:http |status |code )(\d{3})`)
 
 func errorCode(l string) string {
 	if m := httpStatusRe.FindStringSubmatch(l); m != nil {
-		return "http " + m[1]
+		return "HTTP " + m[1]
 	}
 	switch {
 	case strings.Contains(l, "no such host"):
-		return "dns"
+		return "DNS"
 	case strings.Contains(l, "connection refused"):
 		return "refused"
-	case strings.Contains(l, "stream stalled"):
-		return "stalled stream"
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
 		return "timeout"
 	}

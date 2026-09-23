@@ -737,7 +737,8 @@ func (s *server) finish(err error) {
 		s.add(entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
 		s.statusSet("cancelled")
 	default:
-		s.add(entry{Kind: "error", Text: llm.FriendlyError(err, s.opts.Provider, webRemedies), Error: true})
+		x := llm.Explain(err, s.opts.Provider, webRemedies)
+		s.add(entry{Kind: "error", Text: x.String(), Data: x, Error: true})
 		s.statusSet("error")
 	}
 	s.emitStatus()

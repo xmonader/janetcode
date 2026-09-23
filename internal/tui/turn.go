@@ -280,7 +280,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	case msg.err != nil:
 		m.transcript.dropEmptyTrailing()
 		m.transcript.abortUnfinished("the turn ended before this call returned")
-		m.transcript.errorf("%s", llm.FriendlyError(msg.err, m.opts.Provider, tuiRemedies))
+		m.transcript.errorf("%s", llm.Explain(msg.err, m.opts.Provider, tuiRemedies).String())
 		m.status = "error"
 	case compacting:
 		m.status = "compacted in " + elapsed

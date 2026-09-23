@@ -1473,9 +1473,15 @@ func TestWebProviderErrorSaysWhatToDo(t *testing.T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	last := s.entries[len(s.entries)-1]
-	if last.Kind != "error" || !strings.HasPrefix(last.Text, "authentication failed (http 401): Unauthorized (HTTP 401).") ||
+	if last.Kind != "error" || !strings.HasPrefix(last.Text, "Authentication failed (HTTP 401): Unauthorized.") ||
 		!strings.Contains(last.Text, "dashscope") || !strings.Contains(last.Text, "--doctor") || strings.Contains(last.Text, "/connect") {
 		t.Fatalf("error row = %q", last.Text)
+	}
+	// The page lays the parts out itself, and offers no retry: the same
+	// key fails the same way until it is changed.
+	x, ok := last.Data.(llm.Explanation)
+	if !ok || x.Headline != "Authentication failed" || x.Retry {
+		t.Fatalf("error data = %#v", last.Data)
 	}
 }
 

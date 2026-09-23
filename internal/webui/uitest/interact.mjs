@@ -189,6 +189,14 @@ check('rule picker shown without a duplicate rule line', withPicker.picker && !w
 const noPicker = await ask({ name: 'edit_file', summary: 'a.go', rule: 'edit_file' });
 check('rule line shown when there is no picker', !noPicker.picker && noPicker.rule && noPicker.text.includes('edit_file'), JSON.stringify(noPicker));
 
+// 15. a provider failure is laid out as what failed, what to do and the
+// code; a failure a retry cannot fix offers no Retry button.
+const errCard = (x) => evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'e-' + Math.random(), kind: 'error', error: true, text: 'x', data: ${JSON.stringify(x)} } }) }); const n = [...document.querySelectorAll('.turn.err')].pop(); return { head: n.querySelector('.err-head')?.firstChild?.textContent, next: n.querySelector('.err-next')?.textContent, meta: n.querySelector('.err-meta')?.textContent, retry: !!n.querySelector('.retry-btn') }; })()`);
+await evaljs(`(() => { const t = document.getElementById('input'); t.value = 'hi'; return 1; })()`);
+const auth = await errCard({ headline: 'Authentication failed', next: 'Check the API key for fake in the config file.', code: 'HTTP 401', reason: 'Unauthorized', retry: false });
+check('error card reads headline, next step, code', auth.head === 'Authentication failed' && auth.next.startsWith('Check the API key') && auth.meta === 'HTTP 401 · Unauthorized', JSON.stringify(auth));
+check('no Retry where a retry cannot help', !auth.retry, JSON.stringify(auth));
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');

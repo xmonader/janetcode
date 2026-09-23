@@ -8,45 +8,55 @@ import (
 
 var tuiRemedies = Remedies{Key: "with /connect", Model: "with /model"}
 
-// TestErrorMessageShape: every provider failure reads the same way —
-// Headline (code): why. What to do.
-func TestErrorMessageShape(t *testing.T) {
+// TestExplainSortsFailures: every provider failure reads the same way —
+// Headline (code): reason. Next. — with the code said once, no harness
+// plumbing in the reason, and a retry offered only where it can help.
+func TestExplainSortsFailures(t *testing.T) {
 	cases := []struct {
-		err              error
-		head, code, todo string
+		err   error
+		want  string
+		retry bool
 	}{
-		{errors.New("Post \"https://x/v1\": dial tcp 10.0.0.1:443: connect: connection refused"), "cannot reach the API", "refused", "/connect"},
-		{errors.New("http 401: invalid x-api-key"), "authentication failed", "http 401", "/connect"},
-		{errors.New("Unauthorized (HTTP 401)"), "authentication failed", "http 401", "/connect"},
-		{errors.New("http 429: rate limit exceeded"), "rate limited or out of quota", "http 429", "/model"},
-		{errors.New("http 404: model not found"), "model not available", "http 404", "/model"},
-		{errors.New("context deadline exceeded"), "the request timed out", "timeout", "Resend"},
-		{errors.New("http 503: upstream unavailable"), "the provider failed", "http 503", "Resend"},
-		{Truncate(errors.New("openai: stream ended without finish_reason")), "the connection dropped mid-answer", "cut off", "Resend"},
+		{errors.New("Post \"https://x/v1\": dial tcp 10.0.0.1:443: connect: connection refused"),
+			"Cannot reach the API (refused): Post \"https://x/v1\": dial tcp 10.0.0.1:443: connect: connection refused. Check the base URL for openai with /connect, and your network.", true},
+		{errors.New("Unauthorized (HTTP 401)"),
+			"Authentication failed (HTTP 401): Unauthorized. Check the API key for openai with /connect.", false},
+		{errors.New("openai: http 403: invalid x-api-key"),
+			"Authentication failed (HTTP 403): invalid x-api-key. Check the API key for openai with /connect.", false},
+		{errors.New("Rate limit exceeded: 60 requests per minute (HTTP 429)"),
+			"Rate limited (HTTP 429): Rate limit exceeded: 60 requests per minute. Wait a moment and resend, or switch model with /model.", true},
+		{errors.New("http 404: model not found"),
+			"Model not available (HTTP 404): model not found. Pick another with /model.", false},
+		{errors.New("context deadline exceeded"),
+			"The request timed out (timeout): context deadline exceeded. Resend it. If it keeps happening, the model may be overloaded.", true},
+		{errors.New("upstream unavailable (HTTP 503)"),
+			"The provider failed (HTTP 503): upstream unavailable. Resend it; the failure is on their side.", true},
+		{Truncate(errors.New("openai: stream ended without finish_reason")),
+			"The connection dropped mid-answer. Resend it. If it keeps happening, a proxy may be closing long responses.", true},
 	}
 	for _, c := range cases {
-		got := FriendlyError(c.err, "openai", tuiRemedies)
-		if !strings.HasPrefix(got, c.head+" ("+c.code+"): ") {
-			t.Errorf("%q\n  got %q\n want it to start %q", c.err, got, c.head+" ("+c.code+"): ")
+		f := Explain(c.err, "openai", tuiRemedies)
+		if got := f.String(); got != c.want {
+			t.Errorf("%q\n  got  %q\n want %q", c.err, got, c.want)
 		}
-		if !strings.HasSuffix(got, ".") || !strings.Contains(got, c.todo) {
-			t.Errorf("%q gave no advice: %q", c.err, got)
+		if f.Retry != c.retry {
+			t.Errorf("%q: retry = %v, want %v", c.err, f.Retry, c.retry)
 		}
-		// The provider's own words survive between the two.
-		if !strings.Contains(got, strings.TrimSpace(c.err.Error())) {
-			t.Errorf("%q lost the reason: %q", c.err, got)
+		if strings.Count(strings.ToLower(f.String()), "http ") > 1 {
+			t.Errorf("%q says its code twice: %q", c.err, f.String())
 		}
 	}
-	if got := FriendlyError(errors.New("something odd"), "openai", tuiRemedies); got != "something odd" {
-		t.Errorf("unrecognised error = %q", got)
+	// Anything unrecognised is passed through rather than dressed up.
+	if f := Explain(errors.New("something odd"), "openai", tuiRemedies); f.String() != "something odd" || f.Headline != "" {
+		t.Errorf("unrecognised error = %+v", f)
 	}
 }
 
 // The advice names only what the reader's front end has: the web page
 // has no /connect, so a key failure there must not send them to it.
-func TestErrorAdviceUsesTheFrontEndsRemedy(t *testing.T) {
+func TestExplainUsesTheFrontEndsRemedy(t *testing.T) {
 	web := Remedies{Key: "in the config file (janetcode --doctor shows which key each provider has)", Model: "with the model picker"}
-	got := FriendlyError(errors.New("Unauthorized (HTTP 401)"), "dashscope", web)
+	got := Explain(errors.New("Unauthorized (HTTP 401)"), "dashscope", web).String()
 	if strings.Contains(got, "/connect") || !strings.Contains(got, "--doctor") || !strings.Contains(got, "dashscope") {
 		t.Fatalf("got %q", got)
 	}

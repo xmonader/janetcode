@@ -916,6 +916,9 @@ button:disabled { cursor: default; opacity: 0.55; }
   border-radius: var(--radius);
   padding: 0.6rem 0.9rem;
 }
+.err-head { font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.err-next { color: var(--ink); margin-top: 0.2rem; }
+.err-meta { color: var(--mute); font-family: var(--mono); font-size: 0.74rem; margin-top: 0.35rem; overflow-wrap: anywhere; }
 .retry-btn {
   margin-left: 0.6rem;
   background: transparent;

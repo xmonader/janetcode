@@ -318,7 +318,17 @@
       n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="act copy-btn sheet-copy" data-copy="${e.id}" title="Copy output" aria-label="Copy output">${icon("copy")}</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;
     } else if (e.kind === "error") {
       n.className = "turn err";
-      n.innerHTML = esc(e.text || "") + (lastPrompt ? ` <button type="button" class="retry-btn" data-retry="1">Retry</button>` : "");
+      const x = e.data && e.data.headline ? e.data : null;
+      // Retry only where sending the same thing again can help: a
+      // rejected key or a missing model fails the same way every time.
+      const retry = lastPrompt && (!x || x.retry) ? `<button type="button" class="retry-btn" data-retry="1">Retry</button>` : "";
+      if (x) {
+        const meta = [x.code, x.reason].filter(Boolean).join(" · ");
+        n.innerHTML = `<div class="err-head">${esc(x.headline)}${retry}</div><div class="err-next">${esc(x.next || "")}</div>` +
+          (meta ? `<div class="err-meta">${esc(meta)}</div>` : "");
+      } else {
+        n.innerHTML = esc(e.text || "") + (retry ? " " + retry : "");
+      }
     } else if (e.kind === "verdict") {
       n.className = "turn verdict" + ((e.text || "").startsWith("✓") ? " ok" : "");
       n.textContent = e.text || "";

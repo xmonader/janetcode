@@ -334,7 +334,7 @@ func TestErrorRendering(t *testing.T) {
 	h.enter()
 	h.pump(func() bool { return !h.m.turn.running })
 	v := plain(h.m.View())
-	if !strings.Contains(v, "✗ cannot reach the API") {
+	if !strings.Contains(v, "✗ Cannot reach the API") {
 		t.Fatalf("error not shown:\n%s", v)
 	}
 	// Every continuation line of the error is indented two columns under
@@ -342,7 +342,7 @@ func TestErrorRendering(t *testing.T) {
 	var seen, indented int
 	for _, l := range strings.Split(v, "\n") {
 		switch {
-		case strings.HasPrefix(l, "✗ cannot reach the API"):
+		case strings.HasPrefix(l, "✗ Cannot reach the API"):
 			seen++
 		case strings.Contains(l, "check the base URL") || strings.Contains(l, "connection refused"):
 			seen++
