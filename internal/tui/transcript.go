@@ -340,6 +340,12 @@ func (t *transcript) closeOpen() {
 			t.entries = append(t.entries[:i], t.entries[i+1:]...)
 			continue
 		}
+		if e.kind == entryAssistant && !e.done && textfmt.PunctuationOnly(e.text) {
+			// Some models emit a bare "." between tool calls; a lone dot
+			// in the transcript reads as a broken answer.
+			t.entries = append(t.entries[:i], t.entries[i+1:]...)
+			continue
+		}
 		if e.kind == entryAssistant || e.kind == entryThinking {
 			if !e.done {
 				e.done = true

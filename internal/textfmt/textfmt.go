@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -251,4 +252,16 @@ func TruncateTo(s string, max int) string {
 		tail--
 	}
 	return s[:head] + fmt.Sprintf("\n... [%d bytes omitted; the output continues] ...\n", len(s)-head-tail) + s[len(s)-tail:]
+}
+
+// PunctuationOnly reports whether s holds nothing but punctuation and
+// space — the bare "." some models emit between tool calls. Symbols such
+// as emoji are content, not punctuation.
+func PunctuationOnly(s string) bool {
+	for _, r := range s {
+		if !unicode.IsPunct(r) && !unicode.IsSpace(r) {
+			return false
+		}
+	}
+	return true
 }

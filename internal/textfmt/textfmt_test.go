@@ -253,3 +253,16 @@ func TestSquashAndSplitCSV(t *testing.T) {
 		t.Errorf("HeadingLine with no cap = %q", got)
 	}
 }
+
+func TestPunctuationOnly(t *testing.T) {
+	for _, s := range []string{"", ".", ".\n\n", " : ", "...", "—"} {
+		if !PunctuationOnly(s) {
+			t.Errorf("%q should be punctuation only", s)
+		}
+	}
+	for _, s := range []string{"ok", "42", "👍", ". done", "中文"} {
+		if PunctuationOnly(s) {
+			t.Errorf("%q has content", s)
+		}
+	}
+}
