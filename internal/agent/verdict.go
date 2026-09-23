@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -252,6 +253,32 @@ func ranEdited(cmd string, edited map[string]bool) bool {
 // The pattern itself lives in package tool (see project.IsTestFile), shared
 // with internal/impact.
 func isTestFile(path string) bool { return project.IsTestFile(path) }
+
+// docsOnly reports whether every file edited is prose: markdown, rst,
+// asciidoc, or a licence-style file. Plain .txt is left out on purpose —
+// requirements.txt and CMakeLists.txt are build inputs.
+func docsOnly(edited map[string]bool) bool {
+	for p := range edited {
+		if !isDocFile(p) {
+			return false
+		}
+	}
+	return len(edited) > 0
+}
+
+func isDocFile(path string) bool {
+	base := filepath.Base(path)
+	switch strings.ToLower(filepath.Ext(base)) {
+	case ".md", ".markdown", ".rst", ".adoc":
+		return true
+	}
+	stem := strings.ToUpper(strings.TrimSuffix(base, filepath.Ext(base)))
+	switch stem {
+	case "LICENSE", "LICENCE", "COPYING", "NOTICE", "AUTHORS", "CHANGELOG":
+		return true
+	}
+	return false
+}
 
 // claimRe matches an assertion a check could have demonstrated. It is
 // deliberately narrow: a claim about tests, builds or verification, not
@@ -508,6 +535,11 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		o.Verdict, o.Why = VerdictNoChanges, "nothing here edited code"
 	case o.Edited == 0:
 		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("nothing was edited; %d check(s) ran", o.Ran)
+	case docsOnly(edited):
+		// A README or a licence has nothing a test could exercise; warning
+		// that the edit was "not demonstrated" is noise the user learns
+		// to ignore, and then ignores when it matters.
+		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("only documentation was edited (%d file(s)); nothing to test", o.Edited)
 	case o.Failed > 0 && acceptWriting && len(o.TestsEdited) == o.Edited:
 		o.Verdict = VerdictTestsWritten
 		o.Why = fmt.Sprintf("%d acceptance test file(s) written and failing as expected until the implementation exists", o.Edited)

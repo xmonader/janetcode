@@ -59,6 +59,21 @@ func TestVerdicts(t *testing.T) {
 			result(1, "bash", test, "ok  example.com/x\n[exit code 0]", false),
 		}, VerdictVerified},
 
+		{"only the README was edited, and a build ran", []session.Event{
+			result(1, "edit_file", `{"path":"README.md"}`, "ok", false),
+			result(1, "bash", `{"command":"go build ./..."}`, "\n[exit code 0]", false),
+		}, VerdictNoChanges},
+		{"only docs were edited, nothing ran", []session.Event{
+			result(1, "write_file", `{"path":"docs/usage.rst"}`, "ok", false),
+			result(1, "edit_file", `{"path":"LICENSE"}`, "ok", false),
+		}, VerdictNoChanges},
+		{"a doc and code were edited, nothing ran", []session.Event{
+			result(1, "edit_file", `{"path":"README.md"}`, "ok", false),
+			result(1, "edit_file", edit, "ok", false),
+		}, VerdictUnverified},
+		{"requirements.txt is not documentation", []session.Event{
+			result(1, "edit_file", `{"path":"requirements.txt"}`, "ok", false),
+		}, VerdictUnverified},
 		{"check ran but nothing was edited", []session.Event{
 			result(1, "bash", test, "ok\n[exit code 0]", false),
 		}, VerdictNoChanges},
