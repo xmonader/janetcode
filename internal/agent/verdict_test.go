@@ -751,3 +751,39 @@ func TestAddingTestsIsNotSelfChecked(t *testing.T) {
 		}
 	}
 }
+
+// "Tests are failing, fix it" is usually one turn: the model runs the
+// suite, sees it red, fixes the code, runs it green. That is the
+// strongest evidence there is and must be named as a flip, not only
+// when the red run happened in an earlier turn.
+func TestRedThenGreenInOneTurnIsAFlip(t *testing.T) {
+	test := `{"command":"python -m pytest -q"}`
+	o := FoldOutcome([]session.Event{
+		result(1, "bash", test, "3 failed, 2 passed in 0.01s\n[exit code 1]", true),
+		result(1, "edit_file", `{"path":"dates.py","old_string":"a","new_string":"b"}`, "ok", false),
+		{Type: session.TypeToolResult, Turn: 1, CallID: "c2", Name: "bash", Arguments: test, Output: "5 passed in 0.01s\n[exit code 0]"},
+	}, 1)
+	if o.Verdict != VerdictVerified || !o.Flipped || !strings.Contains(o.Why, FlippedWhy) {
+		t.Fatalf("verdict = %q flipped=%v (%s)", o.Verdict, o.Flipped, o.Why)
+	}
+	// Green, then edited, then green again flipped nothing.
+	o = FoldOutcome([]session.Event{
+		result(1, "bash", test, "5 passed\n[exit code 0]", false),
+		result(1, "edit_file", `{"path":"dates.py","old_string":"a","new_string":"b"}`, "ok", false),
+		{Type: session.TypeToolResult, Turn: 1, CallID: "c2", Name: "bash", Arguments: test, Output: "5 passed\n[exit code 0]"},
+	}, 1)
+	if o.Flipped {
+		t.Fatalf("a suite that was never red flipped: %s", o.Why)
+	}
+	// Red only because of this turn's own edit — a new project that did
+	// not compile at first — was not failing before, so it is no fix.
+	o = FoldOutcome([]session.Event{
+		result(1, "write_file", `{"path":"cache.go","content":"package c"}`, "Created cache.go (1 lines)", false),
+		result(1, "bash", test, "FAILED\n[exit code 1]", true),
+		result(1, "edit_file", `{"path":"cache.go","old_string":"a","new_string":"b"}`, "ok", false),
+		{Type: session.TypeToolResult, Turn: 1, CallID: "c2", Name: "bash", Arguments: test, Output: "5 passed\n[exit code 0]"},
+	}, 1)
+	if o.Flipped {
+		t.Fatalf("the turn's own breakage, repaired, counted as a fix: %s", o.Why)
+	}
+}

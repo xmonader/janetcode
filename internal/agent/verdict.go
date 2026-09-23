@@ -372,6 +372,11 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	// Commands that failed earlier in the session, so a pass now is a
 	// flip rather than a state that was already green.
 	failedBefore := map[string]bool{}
+	// Checks that came back red in this turn before anything was edited:
+	// failing when the turn found them, so run red, fix, run green is a
+	// fix. Red after the turn's own edits is its own breakage repaired.
+	redHere := map[string]bool{}
+	editedYet := false
 	var lastText string
 	testsEdited := map[string]bool{}
 	// Every test file written this turn, added to or changed.
@@ -421,6 +426,9 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				}
 				continue
 			}
+			if e.IsError && !editedYet {
+				redHere[cmd] = true
+			}
 			see(cmd, checkRun{isErr: e.IsError, output: e.Output, gate: e.Source})
 			lastCheckSeq = e.Seq
 			continue
@@ -458,6 +466,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
 			lastEditSeq = e.Seq
+			editedYet = true
 			if d := gamingDelta(e.Name, e.Arguments); d.Path != "" {
 				d.Created = createdHere[d.Path]
 				deltas = append(deltas, d)
@@ -468,6 +477,9 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				isErr bool
 			}{cmd, runFailed(e)})
 			if check && !neverRan(e) {
+				if runFailed(e) && !editedYet {
+					redHere[cmd] = true
+				}
 				see(cmd, checkRun{isErr: runFailed(e), output: e.Output})
 				lastCheckSeq = e.Seq
 			}
@@ -524,7 +536,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		case inlineAssertRe.MatchString(cmd):
 			selfAsserted = true
 		}
-		if failedBefore[cmd] {
+		if failedBefore[cmd] || redHere[cmd] {
 			o.Flipped = true
 		}
 	}
