@@ -61,6 +61,7 @@ var commandWhen = map[string]string{
 	"/forget":       "a remembered fact has gone stale or was wrong",
 	"/yolo":         "a long batch of work you have already decided to trust",
 	"/auto":         "you trust in-workspace edits and read-only commands but still want to see the rest",
+	"/routing":      "a route fires you do not trust, or a turn must stay on one model to the end",
 	"/edits":        "you trust the file changes but still want to see every command before it runs",
 	"/sandbox":      "you want bash isolated in a sandbox profile without retargeting file tools",
 	"/review":       "you want two subagents to read the current diff before you commit",
