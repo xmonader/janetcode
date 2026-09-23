@@ -1720,7 +1720,7 @@
     // xterm measures an actual family. A CSS variable name makes the cell
     // width disagree with the glyphs, so a prompt and an ls land on one row.
     term = new Terminal({
-      fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
       fontSize: 14,
       lineHeight: 1.2,
       cursorBlink: true,
