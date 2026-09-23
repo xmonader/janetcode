@@ -398,7 +398,11 @@ func (s *server) closeOpen() {
 	var closed []entry
 	for i := len(s.entries) - 1; i >= 0; i-- {
 		e := s.entries[i]
-		if e.Kind == "thinking" && !e.Done && strings.TrimSpace(e.Text) == "" {
+		// An empty thought, or an answer that is only punctuation (a
+		// model's stray "." between tool calls), is not kept: the
+		// terminal drops it at the same point, and the page used to keep
+		// the row and hide it in JavaScript.
+		if !e.Done && ((e.Kind == "thinking" && strings.TrimSpace(e.Text) == "") || (e.Kind == "assistant" && textfmt.PunctuationOnly(e.Text))) {
 			s.entries = append(s.entries[:i], s.entries[i+1:]...)
 			closed = append(closed, entry{ID: e.ID, Kind: e.Kind, Gone: true})
 			continue

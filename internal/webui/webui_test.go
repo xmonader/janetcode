@@ -1632,3 +1632,24 @@ func TestPhaseWordingMatchesTheTerminal(t *testing.T) {
 		t.Fatalf("running phase = %q", got)
 	}
 }
+
+// A stray "." between tool calls is dropped when it closes, as the
+// terminal drops it; the page no longer has to hide it.
+func TestPunctuationOnlyAnswerIsDropped(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.apply(agent.Event{Kind: agent.EvText, Text: "."})
+	s.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	s.apply(agent.Event{Kind: agent.EvText, Text: "Done: 3 files."})
+	s.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var texts []string
+	for _, e := range s.entries {
+		if e.Kind == "assistant" {
+			texts = append(texts, e.Text)
+		}
+	}
+	if len(texts) != 1 || texts[0] != "Done: 3 files." {
+		t.Fatalf("answers = %q", texts)
+	}
+}

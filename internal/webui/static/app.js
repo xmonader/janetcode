@@ -249,7 +249,6 @@
         `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button></div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
-      n.hidden = !!e.done && JanetMD.isNoise(e.text);
       const copyBtn = `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy reply" aria-label="Copy reply">${icon("copy")}</button>`;
       const regenBtn = lastUserText ? `<button type="button" class="act" data-regen="1" title="Ask again" aria-label="Ask again">${icon("refresh")}</button>` : "";
       const meta = [];
@@ -2054,18 +2053,9 @@
     } catch (_) {}
   }
 
-  function fmtTok(n) {
-    if (!n) return "";
-    return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
-  }
-
-  function fmtDur(ms) {
-    if (!ms || ms <= 0) return "";
-    if (ms < 1000) return Math.round(ms) + "ms";
-    const s = ms / 1000;
-    if (s < 60) return (s >= 10 ? Math.round(s) : s.toFixed(1)) + "s";
-    return Math.floor(s / 60) + "m" + Math.round(s % 60) + "s";
-  }
+  // The terminal's number formats (format.js, checked against Go's).
+  const fmtTok = JanetFmt.tokens;
+  const fmtDur = JanetFmt.duration;
 
   // Content is the row without the gutter: what it did, and for a tool
   // what came back — the same words the terminal ledger prints.

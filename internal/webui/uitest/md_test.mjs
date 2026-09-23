@@ -17,7 +17,8 @@ globalThis.hljs = hlmod.default || hlmod;
 const mdi = require(join(here, '../static/vendor/markdown-it.min.js'));
 globalThis.markdownit = mdi.default || mdi;
 
-const { render, renderOutput, isNoise } = require(join(here, '../static/markdown.js'));
+const { render, renderOutput } = require(join(here, '../static/markdown.js'));
+const fmt = require(join(here, '../static/format.js'));
 
 let pass = 0, fail = 0;
 const bad = [];
@@ -26,9 +27,10 @@ function check(name, cond, extra = '') {
   else { fail++; bad.push(`${name}${extra ? ' — ' + extra : ''}`); }
 }
 
-// --- a punctuation-only message is noise, anything with content is not ----
-for (const t of ['.', '.\n\n', ' : ', '', '...', '—']) check(`noise ${JSON.stringify(t)}`, isNoise(t));
-for (const t of ['ok', '42', '👍', '. done', '中文']) check(`not noise ${JSON.stringify(t)}`, !isNoise(t));
+// --- numbers read as the terminal prints them (Go's table) ----------------
+const table = JSON.parse(readFileSync(join(here, '../../textfmt/testdata/format.json'), 'utf8'));
+for (const [ms, want] of table.duration_ms) check(`duration ${ms}ms`, fmt.durationExact(ms) === want, `got ${fmt.durationExact(ms)} want ${want}`);
+for (const [n, want] of table.tokens) check(`tokens ${n}`, fmt.tokensExact(n) === want, `got ${fmt.tokensExact(n)} want ${want}`);
 
 // --- security: nothing executable may survive -----------------------------
 const hostile = [
