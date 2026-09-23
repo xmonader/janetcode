@@ -41,6 +41,10 @@ await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
 `});
 await cmd('Page.navigate', { url: APP });
 await sleep(2500);
+await cmd('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+await evaljs(`(() => { localStorage.setItem('janetcode-theme', 'dark'); document.documentElement.dataset.theme = 'dark'; return 1; })()`);
+await sleep(300);
+await cmd('Page.captureScreenshot', { format: 'png' }).then(r => { writeFileSync(`${OUT}/00-empty.png`, Buffer.from(r.result.data, 'base64')); console.log('shot 00-empty'); });
 
 const GO = 'func Interpolate(v string, seen map[string]bool) (string, error) {\n\tif !strings.Contains(v, "%(") {\n\t\treturn v, nil\n\t}\n\treturn v, nil\n}';
 const ASSISTANT = [
@@ -87,6 +91,9 @@ const setSize = async (w, h) => { await cmd('Emulation.setDeviceMetricsOverride'
 await evaljs(`(() => {
   const es = window.__es;
   const feed = ${JSON.stringify(FEED)};
+  // The page compares the hello's build against the one it was served
+  // with; match it so the stale-UI toast stays out of the shots.
+  feed[0].hello.version = window.__janetUIBuild;
   for (const env of feed) es.onmessage({ data: JSON.stringify(env) });
   return feed.length;
 })()`);
@@ -95,6 +102,10 @@ await sleep(600);
 await setSize(1440, 900);
 await setTheme('dark');
 await shot('01-chat-dark');
+await evaljs(`document.getElementById('chat-view').scrollTop = 0; 1`);
+await sleep(300);
+await shot('01b-chat-top');
+await evaljs(`(() => { const v = document.getElementById('chat-view'); v.scrollTop = v.scrollHeight; return 1; })()`);
 
 // permission card
 await evaljs(`document.getElementById('work-toggle').click()`);
@@ -107,10 +118,25 @@ await sleep(250);
 await shot('03-chat-light');
 await setTheme('dark');
 
+// running turn with a permission card up
+await evaljs(`(() => {
+  const es = window.__es;
+  const send = (env) => es.onmessage({ data: JSON.stringify(env) });
+  send({ type: 'status', status: { running: true, phase: 'tool', ctx_pct: 36, mode: 'ask', status: 'running bash' } });
+  send({ type: 'entry', entry: { id: 'e8', kind: 'tool', name: 'bash', summary: 'rm -rf build && make', done: false } });
+  send({ type: 'permission', permission: { name: 'bash', summary: 'rm -rf build && make', rule: 'bash(rm -rf build*)', impact: 'deletes build/ (214 files)', preview: 'rm -rf build && make' } });
+  return 1;
+})()`);
+await sleep(500);
+await shot('05-permission');
+await evaljs(`(() => { document.getElementById('ask').hidden = true; window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', ctx_pct: 36, status: 'done in 21s' } }) }); return 1; })()`);
+await sleep(300);
+
 // mobile
 await setSize(390, 844);
 await evaljs(`document.getElementById('work-toggle').click()`);
 await sleep(400);
+await shot('04a-mobile-chat');
 await evaljs(`document.querySelector('.shell').classList.remove('nav-collapsed')`);
 await sleep(400);
 await shot('04-mobile-nav');
