@@ -734,7 +734,7 @@ func (s *server) finish(err error) {
 		s.add(entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
 		s.statusSet("cancelled")
 	default:
-		s.add(entry{Kind: "error", Text: err.Error(), Error: true})
+		s.add(entry{Kind: "error", Text: llm.FriendlyError(err, s.opts.Provider, webRemedies), Error: true})
 		s.statusSet("error")
 	}
 	s.emitStatus()
@@ -754,6 +754,13 @@ func (s *server) finish(err error) {
 			s.startTurn(cont)
 		}
 	}
+}
+
+// webRemedies are the page's words for the fixes a provider failure calls
+// for. It has no /connect; the key lives in the config file.
+var webRemedies = llm.Remedies{
+	Key:   "in the config file (janetcode --doctor shows which key each provider has)",
+	Model: "with the model picker",
 }
 
 // titleFromFirstPrompt names an untitled session after its first prompt

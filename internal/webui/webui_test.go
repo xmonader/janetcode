@@ -1462,3 +1462,19 @@ func TestFailedTurnClosesItsOpenRows(t *testing.T) {
 		}
 	}
 }
+
+// TestWebProviderErrorSaysWhatToDo: the page showed "Unauthorized (HTTP
+// 401)" and nothing else, while the terminal said which key to check and
+// how. It shows the same headline, reason and next step now, in words
+// that fit the page — it has no /connect.
+func TestWebProviderErrorSaysWhatToDo(t *testing.T) {
+	s := newServer(context.Background(), Options{Provider: "dashscope"})
+	s.finish(errors.New("Unauthorized (HTTP 401)"))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	last := s.entries[len(s.entries)-1]
+	if last.Kind != "error" || !strings.HasPrefix(last.Text, "authentication failed (http 401): Unauthorized (HTTP 401).") ||
+		!strings.Contains(last.Text, "dashscope") || !strings.Contains(last.Text, "--doctor") || strings.Contains(last.Text, "/connect") {
+		t.Fatalf("error row = %q", last.Text)
+	}
+}
