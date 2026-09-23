@@ -2,6 +2,8 @@ package tool
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -207,4 +209,48 @@ func exitNote(command string, exit int) string {
 		return fmt.Sprintf("\n[exit code 1] %s; for this command that is an answer, not a failure", m)
 	}
 	return fmt.Sprintf("\n[exit code %d]", exit)
+}
+
+// exitLineRe is the "[exit code N]" line exitNote appends, with whatever
+// note follows the code on the same line.
+var exitLineRe = regexp.MustCompile(`(?m)^\[exit code (\d+)\] ?(.*)$`)
+
+// CommandFailed reads a bash result's last exit line: the code, and
+// whether it is a failure. No line means the command exited 0. Exit 1
+// from a search that found nothing is an answer, not a failure — the
+// same reading the verdict makes, so the row and the verdict agree.
+func CommandFailed(command, output string) (code int, failed bool) {
+	m := exitLineRe.FindAllStringSubmatch(output, -1)
+	if len(m) == 0 {
+		return 0, false
+	}
+	code, _ = strconv.Atoi(m[len(m)-1][1])
+	return code, code != 0 && NoMatchMeaning(command, code) == ""
+}
+
+// WithoutExitLine is a bash result for display: the trailing "[exit code
+// N]" marker is for the model, and the row already says how the command
+// ended. A note the marker carried ("no lines matched") is kept.
+func WithoutExitLine(output string) string {
+	t := strings.TrimRight(output, "\n")
+	i := strings.LastIndex(t, "[exit code ")
+	if i < 0 || (i > 0 && t[i-1] != '\n') {
+		return output
+	}
+	m := exitLineRe.FindStringSubmatch(t[i:])
+	if m == nil || len(m[0]) != len(t)-i {
+		return output
+	}
+	note := m[2]
+	if j := strings.Index(note, ";"); j >= 0 {
+		note = note[:j]
+	}
+	rest := strings.TrimRight(t[:i], "\n")
+	switch {
+	case note == "":
+		return rest
+	case rest == "":
+		return note
+	}
+	return rest + "\n" + note
 }
