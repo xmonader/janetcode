@@ -115,6 +115,26 @@ ui-test: build
 	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/; \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp /tmp/janetcode-chrome-cdp; exit $$rc
 
+# Visual regression gate: boots the webui like ui-test, shoots every state
+# shot.mjs knows (fed from a fake event stream, so the pixels are the same
+# every run), and compares each with internal/webui/uitest/baseline/.
+# A changed state fails and leaves a .diff.png beside the new shot.
+# make ui-visual UPDATE=1 accepts the new shots as the baseline.
+UI_VISUAL_PORT ?= 18992
+ui-visual: build
+	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode $$tmp/shots; \
+	printf '%s' '{"provider":"stub","model":"stub/stub-model","providers":{"stub":{"type":"openai","base_url":"http://127.0.0.1:9/v1","api_key":"sk-test","models":["stub-model"]}}}' > $$tmp/janetcode/config.json; \
+	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_VISUAL_PORT) >/dev/null 2>&1 & \
+	srv=$$!; \
+	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_VISUAL_PORT)/ && break; sleep 0.5; done; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1440,900 --remote-debugging-port=9224 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	chr=$$!; \
+	node internal/webui/uitest/shot.mjs http://127.0.0.1:$(UI_VISUAL_PORT)/ $$tmp/shots 9224 >/dev/null && \
+	node internal/webui/uitest/shotdiff.mjs 9224 $$tmp/shots internal/webui/uitest/baseline $(if $(UPDATE),--update); \
+	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; \
+	if [ $$rc -ne 0 ]; then mkdir -p ui-shots && cp $$tmp/shots/* ui-shots/ && echo "new shots and diffs copied to ui-shots/"; fi; \
+	rm -rf $$tmp 2>/dev/null; exit $$rc
+
 # Screenshot the RUNNING webui (UI_URL) into ui-shots/ for visual review.
 ui-shot:
 	@mkdir -p ui-shots; rm -rf /tmp/janetcode-chrome-cdp; \
