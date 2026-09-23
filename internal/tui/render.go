@@ -307,6 +307,13 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 		// out up front was thrown away on every hit, so a message holding
 		// a mermaid block re-parsed and re-laid it out on every frame of
 		// the stream.
+		// Blocks were separated by a blank line in the source and are on
+		// screen too. The renderer's own margins were uneven (a code block
+		// padded above, nothing below), so a paragraph after a code block
+		// sat right against it; each block is trimmed and the gap is ours.
+		if i > 0 {
+			sb.WriteString("\n")
+		}
 		if i < len(e.chunks) && e.chunks[i].src == src && e.chunks[i].width == width &&
 			e.chunks[i].expanded == expanded && e.chunks[i].partial == partial {
 			sb.WriteString(e.chunks[i].out)
@@ -323,7 +330,7 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 				out = lipgloss.NewStyle().Width(width - 2).Render(src)
 			}
 		}
-		out = strings.Trim(out, "\n") + "\n"
+		out = trimBlankLines(out) + "\n"
 		if i < len(e.chunks) {
 			e.chunks[i] = mdChunk{src, out, width, expanded, partial}
 		} else {
@@ -667,4 +674,19 @@ func truncateLine(s string, max int) string {
 
 func indent(s, prefix string) string {
 	return prefix + strings.ReplaceAll(s, "\n", "\n"+prefix)
+}
+
+// trimBlankLines drops the lines at either end of a rendered block that
+// show nothing: the renderer pads its margins with styled spaces, which a
+// plain Trim of newlines leaves in place.
+func trimBlankLines(out string) string {
+	lines := strings.Split(out, "\n")
+	blank := func(l string) bool { return strings.TrimSpace(ansi.Strip(l)) == "" }
+	for len(lines) > 0 && blank(lines[0]) {
+		lines = lines[1:]
+	}
+	for len(lines) > 0 && blank(lines[len(lines)-1]) {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n")
 }

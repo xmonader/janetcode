@@ -35,11 +35,11 @@ looks at the holidays set.
   days:
 
     if d.weekday() < 5 and d not in holidays:
+
   All 5 tests pass now.
 
 ✓ verified: 1 file edited; tests that had been failing now
 pass
-
 
 
 
