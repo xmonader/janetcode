@@ -177,6 +177,18 @@ await evaljs(`(() => { window.__hidden = false; document.dispatchEvent(new Event
 await sleep(100);
 check('looking at the tab clears the badge', await evaljs(`!document.title.startsWith('●')`), await evaljs(`document.title`));
 
+// 14. a permission card with a rule picker does not also print the rule
+// on a line of its own; one without a picker still names the rule.
+await cmd('Page.enable');
+await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const ES = window.EventSource; window.EventSource = function (u) { const e = new ES(u); window.__es = e; return e; }; window.EventSource.prototype = ES.prototype; })()` });
+await evaljs(`location.reload(); 1`);
+await sleep(2000);
+const ask = (perm) => evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: ${JSON.stringify(perm)} }) }); const r = document.getElementById('ask-rule'); return { rule: !r.hidden, text: r.textContent, picker: !document.getElementById('ask-rungs').hidden }; })()`);
+const withPicker = await ask({ name: 'bash', summary: 'python -m pytest', rule: 'bash(python *)', rungs: [{ rule: 'bash(python -m pytest *)' }, { rule: 'bash(python *)' }], ruleIndex: 1 });
+check('rule picker shown without a duplicate rule line', withPicker.picker && !withPicker.rule, JSON.stringify(withPicker));
+const noPicker = await ask({ name: 'edit_file', summary: 'a.go', rule: 'edit_file' });
+check('rule line shown when there is no picker', !noPicker.picker && noPicker.rule && noPicker.text.includes('edit_file'), JSON.stringify(noPicker));
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');

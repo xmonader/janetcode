@@ -591,9 +591,11 @@
     if (!pending) return;
     markUnseen();
     askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
-    askRule.hidden = !p.rule;
-    if (p.rule) askRule.textContent = "rule: " + p.rule + (p.learned ? "  ·  " + p.learned : "");
     showRungs(p);
+    // The rung picker already names the rule; a "rule:" line above it
+    // said the same thing twice.
+    askRule.hidden = !p.rule || !askRungs.hidden;
+    if (!askRule.hidden) askRule.textContent = "rule: " + p.rule + (p.learned ? "  ·  " + p.learned : "");
     askImpact.hidden = !p.impact;
     if (p.impact) askImpact.textContent = p.impact;
     askPreview.hidden = !p.preview;
