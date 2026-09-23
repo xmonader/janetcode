@@ -244,10 +244,6 @@ func (r *root) webMode() error {
 		Manager: &r.servers, Global: cfg.MCPServers,
 		Project: r.projectServers, ProjectHash: r.projectHash, Trust: r.trust,
 	}
-	needsConnect := r.needsConnect
-	if needsConnect {
-		return fmt.Errorf("no credentials yet: run janetcode without --web and use /connect, or set a key")
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	r.startMCP(ctx, false)
@@ -256,7 +252,7 @@ func (r *root) webMode() error {
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
-		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
+		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For, Build: buildProvider,
 		BuildProvider: func(name string) (llm.Provider, error) {
 			sub := *cfg
 			sub.Provider = name

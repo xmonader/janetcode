@@ -21,7 +21,7 @@ var webCommands = []string{
 	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
-	"/pin", "/unpin", "/title", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
+	"/pin", "/unpin", "/title", "/connect", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua",
 }
@@ -202,6 +202,10 @@ var webDispatch = map[string]webHandler{
 	"/title": (*server).cmdTitle,
 	"/inspect": func(s *server, arg string) (bool, error) {
 		s.inspect(arg)
+		return false, nil
+	},
+	"/connect": func(s *server, arg string) (bool, error) {
+		s.emit(envelope{Type: "connect"})
 		return false, nil
 	},
 	"/model": func(s *server, arg string) (bool, error) {

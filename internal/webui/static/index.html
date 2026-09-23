@@ -370,6 +370,28 @@
     <div id="switch-list" class="menu-list"></div>
   </div>
 
+  <div id="connect" class="palette connect" role="dialog" aria-modal="true" aria-labelledby="connect-title" hidden>
+    <form id="connect-form" novalidate>
+      <h2 id="connect-title">Connect a provider</h2>
+      <p id="connect-lead" class="connect-lead">Pick where the model runs and paste an API key. It is saved in <span id="cx-path">the config file</span>.</p>
+      <label class="cx-field"><span>Provider</span><select id="cx-provider"></select></label>
+      <div id="cx-custom" class="cx-pair" hidden>
+        <label class="cx-field"><span>Name</span><input id="cx-name" autocomplete="off" spellcheck="false" placeholder="my-server"></label>
+        <label class="cx-field"><span>Speaks</span><select id="cx-type"><option value="openai">OpenAI API</option><option value="anthropic">Anthropic API</option></select></label>
+      </div>
+      <label class="cx-field"><span>Base URL</span><input id="cx-url" type="url" autocomplete="off" spellcheck="false"></label>
+      <label class="cx-field" id="cx-key-row"><span>API key</span><input id="cx-key" type="password" autocomplete="off" spellcheck="false"></label>
+      <label class="cx-field"><span>Model</span><input id="cx-model" list="cx-models" autocomplete="off" spellcheck="false"><datalist id="cx-models"></datalist></label>
+      <p id="cx-msg" class="cx-msg" role="status" aria-live="polite"></p>
+      <div class="ask-actions cx-actions">
+        <button type="button" id="cx-cancel" class="ghost">Cancel</button>
+        <span class="spacer"></span>
+        <button type="button" id="cx-list">List models</button>
+        <button type="submit" id="cx-go" class="primary">Connect</button>
+      </div>
+    </form>
+  </div>
+
   <div id="palette" class="palette" hidden>
     <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off">
     <div id="palette-list"></div>

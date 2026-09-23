@@ -1411,8 +1411,9 @@ pre.sheetbody {
   z-index: 41;
   overflow: hidden;
 }
-/* The palette is modal: dim what it floats over. */
-body:has(#palette:not([hidden]))::after {
+/* The palette and the connect form are modal: dim what they float over. */
+body:has(#palette:not([hidden]))::after,
+body:has(#connect:not([hidden]))::after {
   content: "";
   position: fixed;
   inset: 0;
@@ -2076,3 +2077,32 @@ kbd {
   .model-btn { max-width: none; }
   .model-prov { display: none; }
 }
+
+/* /connect: one form, provider to model. */
+.connect { inset: 10vh auto auto 50%; overflow: visible; }
+#connect-form { display: flex; flex-direction: column; gap: 0.8rem; padding: 1.3rem 1.4rem 1.2rem; }
+#connect-title { margin: 0; font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; }
+.connect-lead { margin: -0.35rem 0 0.2rem; color: var(--mute); font-size: 0.86rem; line-height: 1.45; }
+.cx-field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.78rem; font-weight: 550; color: var(--mute); }
+.cx-field input, .cx-field select {
+  height: 34px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 400;
+}
+.cx-field input:focus, .cx-field select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.cx-field input::placeholder { color: var(--faint); }
+.cx-field input[aria-invalid="true"] { border-color: var(--bad); }
+.cx-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+.cx-pair[hidden] { display: none; }
+.cx-msg { margin: 0; min-height: 1.2em; font-size: 0.82rem; line-height: 1.45; color: var(--mute); }
+.cx-msg.bad { color: var(--bad); }
+.cx-msg.ok { color: var(--ok); }
+.cx-msg b { font-weight: 600; }
+.cx-actions { align-items: center; margin-top: 0.2rem; }
+.cx-actions .spacer { flex: 1; }
+#model.unconnected { color: var(--warn); font-weight: 600; }

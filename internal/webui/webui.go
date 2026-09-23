@@ -73,6 +73,10 @@ type Options struct {
 	// name, so the model switcher can ask each provider what it serves.
 	// Nil leaves the switcher with the config's static lists.
 	BuildProvider func(name string) (llm.Provider, error)
+	// Build constructs the client a whole configuration selects, for
+	// /connect to try a provider before switching to it. Nil disables
+	// /connect.
+	Build func(*config.Config) (llm.Provider, error)
 	// MCP describes the MCP servers, for /mcp.
 	MCP *MCPOptions
 	// Doctor is the same checkup janetcode --doctor prints. It makes a
@@ -138,8 +142,11 @@ func Run(ctx context.Context, opts Options) error {
 	if opts.Opened != nil {
 		opts.Opened(url)
 	} else {
-		fmt.Fprintf(os.Stderr, "janetcode %s serving %s (%s/%s in %s)\n",
-			opts.Version, url, opts.Provider, opts.Agent.Settings().Model, opts.Cwd)
+		backend := opts.Provider + "/" + opts.Agent.Settings().Model
+		if opts.Agent.Settings().Provider == nil {
+			backend = "not connected: open the page to pick a provider"
+		}
+		fmt.Fprintf(os.Stderr, "janetcode %s serving %s (%s in %s)\n", opts.Version, url, backend, opts.Cwd)
 		if !Loopback(ln.Addr().String()) {
 			fmt.Fprintln(os.Stderr, "warning: bound off loopback; anyone who can reach this port can approve commands in this directory")
 		}
@@ -187,6 +194,9 @@ func displayAddr(a net.Addr) string {
 
 type server struct {
 	opts Options
+	// connectMeta is what the last /connect listing said about each
+	// model, saved with the one picked. Guarded by mu.
+	connectMeta map[string]llm.ModelInfo
 	// indexHTML is the page with the server's build stamped into the
 	// __janetUIBuild placeholder, so the page can tell when it is
 	// running JavaScript from an older binary (the server restarted).
@@ -297,6 +307,9 @@ type helloPayload struct {
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
 	Mode     string `json:"mode"`
+	// Connected is false on a first run with no key: the page opens the
+	// connect form.
+	Connected bool `json:"connected"`
 }
 
 type statusPayload struct {
@@ -430,6 +443,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/command", s.command)
 	mux.HandleFunc("/api/commands", s.commandsAPI)
 	mux.HandleFunc("/api/models", s.modelsAPI)
+	mux.HandleFunc("/api/connect", s.connectAPI)
 	mux.HandleFunc("/api/inspect", s.inspectAPI)
 	mux.HandleFunc("/api/sessions", s.sessionsAPI)
 	mux.HandleFunc("/api/panel", s.panelAPI)
@@ -466,6 +480,12 @@ func (s *server) hello() helloPayload {
 		h.Plan = modes.PlanMode
 		h.ReadOnly = modes.ReadOnly
 		h.Mode = sessionMode(s.opts.Agent)
+		h.Connected = modes.Provider != nil
+		if !h.Connected {
+			// The config's default names a model nothing will answer
+			// for; the header says "not connected" instead.
+			h.Provider, h.Model = "", ""
+		}
 	}
 	if s.sess() != nil {
 		h.Session = s.sess().Meta.ID
@@ -629,6 +649,12 @@ func (s *server) submit(text string) error {
 		s.runShell(strings.TrimSpace(text[1:]))
 		return nil
 	}
+	if !s.connected() {
+		// Nothing to send it to yet. The prompt stays in the composer
+		// (the page keeps it on an error) and the connect form opens.
+		s.emit(envelope{Type: "connect"})
+		return fmt.Errorf("not connected to a provider yet")
+	}
 	s.mu.Lock()
 	if s.running {
 		s.queued = append(s.queued, text)
@@ -779,9 +805,9 @@ func (s *server) setPhaseLocked(phase string) {
 }
 
 // webRemedies are the page's words for the fixes a provider failure calls
-// for. It has no /connect; the key lives in the config file.
+// for: /connect opens the connect form here too.
 var webRemedies = llm.Remedies{
-	Key:   "in the config file (janetcode --doctor shows which key each provider has)",
+	Key:   "with /connect",
 	Model: "with the model picker",
 }
 

@@ -115,6 +115,20 @@ ui-test: build
 	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/; \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp /tmp/janetcode-chrome-cdp; exit $$rc
 
+# First run in a real browser: --web with no config and no key opens on
+# the connect form; a rejected key is said, a good one connects and is
+# saved. env -i keeps the developer's own API keys out of the run.
+UI_FIRSTRUN_PORT ?= 18993
+ui-firstrun: build
+	@tmp=$$(mktemp -d); \
+	env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_FIRSTRUN_PORT) </dev/null >$$tmp/server.log 2>&1 & \
+	srv=$$!; \
+	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ && break; sleep 0.5; done; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9225 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	chr=$$!; \
+	node internal/webui/uitest/firstrun.mjs http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ 9225 18994 $$tmp/janetcode/config.json; \
+	rc=$$?; [ $$rc = 0 ] || cat $$tmp/server.log; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp; exit $$rc
+
 # Visual regression gate: boots the webui like ui-test, shoots every state
 # shot.mjs knows (fed from a fake event stream, so the pixels are the same
 # every run), and compares each with internal/webui/uitest/baseline/.

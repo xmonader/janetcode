@@ -30,11 +30,12 @@ import (
 
 // loadConfig reads the configuration and applies the flags that are
 // settings rather than eval plumbing. needsConnect is the interactive
-// first run: no credentials yet, but a terminal to ask in, so the TUI
-// opens on /connect instead of the process failing.
+// first run: no credentials yet, but a terminal or a browser to ask in,
+// so the TUI or the page opens on /connect instead of the process failing.
 func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 	cfg, err = config.Load(config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag, AutoApprove: o.yolo})
-	needsConnect = err != nil && errors.Is(err, config.ErrNoCredentials) && o.promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
+	// --web asks in the browser, so it needs no terminal to ask in.
+	needsConnect = err != nil && errors.Is(err, config.ErrNoCredentials) && o.promptText == "" && (o.web || term.IsTerminal(int(os.Stdin.Fd())))
 	// The turn cap and the compaction threshold are settings, not eval
 	// plumbing: a headless run driven by a benchmark needs the same two
 	// knobs the eval runner takes, and applying them to the config means
