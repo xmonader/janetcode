@@ -64,6 +64,9 @@
   --nav-w: 268px;
   --work-w: 324px;
   --chat-w: 48rem;
+  /* The reading column: messages, status line and composer share it. */
+  --col-w: 50rem;
+  --gutter: 24px;
 }
 html[data-theme="dark"] {
   --bg: #0d0d10;
@@ -155,7 +158,12 @@ button:disabled { cursor: default; opacity: 0.55; }
 ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 ::-webkit-scrollbar-corner { background: transparent; }
-#chat-view, .traj-ledger, .nav, .work, .menu-list, .palette, textarea { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+/* Chrome 121+ drops ::-webkit-scrollbar styling (and draws arrow buttons)
+   once scrollbar-width is set, so only engines without it get the
+   standard properties. */
+@supports not selector(::-webkit-scrollbar) {
+  #chat-view, .traj-ledger, .nav, .work, .menu-list, .palette, textarea { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+}
 
 /* ---- shell: rail + one column; everything else overlays -------------- */
 .shell {
@@ -475,22 +483,24 @@ button:disabled { cursor: default; opacity: 0.55; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 28px 24px 12px;
 }
+/* The scroller spans the whole pane so its scrollbar sits at the pane's
+   edge, not beside the text; its children carry the column width. */
 #chat-view {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
+  padding: 28px var(--gutter) 12px;
 }
-.column, .bottom {
-  width: min(clamp(44rem, 62vw, 62rem), 100%);
+#chat-view > *, .bottom {
+  width: min(var(--col-w), 100%);
   margin-left: auto;
   margin-right: auto;
 }
+.dock { flex: none; padding: 0 var(--gutter); }
 .bottom {
-  width: min(calc(clamp(44rem, 62vw, 62rem) + 48px), calc(100% - 24px));
   padding: 0 0 14px;
   display: flex;
   flex-direction: column;
@@ -989,7 +999,6 @@ pre.sheetbody {
 .status {
   min-height: 1.25em;
   margin: 0 0 0.4rem;
-  padding-left: 6px;
   color: var(--mute);
   font-size: 0.78rem;
   display: flex;
@@ -1007,7 +1016,7 @@ pre.sheetbody {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.steer-hint { margin: 0 0 0.4rem; padding-left: 6px; color: var(--faint); font-size: 0.74rem; }
+.steer-hint { margin: 0 0 0.4rem; color: var(--faint); font-size: 0.74rem; }
 .steer-hint kbd { font-size: 0.66rem; }
 
 /* ---- permission + question cards: floating over the composer ---------- */
@@ -1224,7 +1233,7 @@ pre.sheetbody {
 }
 #stop:hover { background: var(--bad-soft); }
 .cwd-chip {
-  margin: 9px 8px 0;
+  margin: 8px 0 0;
   font-size: 0.74rem;
   color: var(--faint);
   font-family: var(--mono);
@@ -1476,20 +1485,18 @@ body.resizing .preview { transition: none !important; }
    margin) because both containers size off % min() widths that adapt
    to the shrunken content box. Actual widths come from
    --work-w-actual/--pv-w-actual, set by the resize handles. */
-.thread, .bottom {
+.thread, .dock {
   transition: padding-right 0.24s cubic-bezier(0.32, 0.72, 0.35, 1);
 }
-.shell:not(.work-collapsed) .thread,
-.shell:not(.work-collapsed) .bottom {
-  padding-right: var(--work-w-actual, var(--work-w));
-}
-.shell.pv-open .thread,
-.shell.pv-open .bottom {
-  padding-right: var(--pv-w-actual, min(30rem, 92vw));
-}
-.shell.pv-open:not(.work-collapsed) .thread,
-.shell.pv-open:not(.work-collapsed) .bottom {
+.shell:not(.work-collapsed) .thread { padding-right: var(--work-w-actual, var(--work-w)); }
+.shell:not(.work-collapsed) .dock { padding-right: calc(var(--gutter) + var(--work-w-actual, var(--work-w))); }
+.shell.pv-open .thread { padding-right: var(--pv-w-actual, min(30rem, 92vw)); }
+.shell.pv-open .dock { padding-right: calc(var(--gutter) + var(--pv-w-actual, min(30rem, 92vw))); }
+.shell.pv-open:not(.work-collapsed) .thread {
   padding-right: calc(var(--work-w-actual, var(--work-w)) + var(--pv-w-actual, min(30rem, 92vw)));
+}
+.shell.pv-open:not(.work-collapsed) .dock {
+  padding-right: calc(var(--gutter) + var(--work-w-actual, var(--work-w)) + var(--pv-w-actual, min(30rem, 92vw)));
 }
 .work { width: var(--work-w); }
 .preview { width: min(30rem, 92vw); z-index: 31; }
@@ -1733,7 +1740,7 @@ kbd {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 14px 18px 8px;
+  padding: 18px var(--gutter) 8px;
 }
 .traj-bar {
   display: flex;
@@ -1957,20 +1964,22 @@ kbd {
   .work, .preview { top: 49px; width: min(100vw - 48px, 26rem); }
   /* overlays on small screens: the thread has no width to yield */
   .shell:not(.work-collapsed) .thread,
-  .shell:not(.work-collapsed) .bottom,
   .shell.pv-open .thread,
-  .shell.pv-open .bottom,
-  .shell.pv-open:not(.work-collapsed) .thread,
-  .shell.pv-open:not(.work-collapsed) .bottom {
+  .shell.pv-open:not(.work-collapsed) .thread {
     padding-right: 0;
+  }
+  .shell:not(.work-collapsed) .dock,
+  .shell.pv-open .dock,
+  .shell.pv-open:not(.work-collapsed) .dock {
+    padding-right: var(--gutter);
   }
   .nav-open { display: inline-flex; }
   .session-title, .git-pill, .cmd-kbd { display: none; }
   .composer-bar .model-btn { max-width: 8.5rem; }
-  .column, .bottom { width: 100%; max-width: 100%; }
-  .bottom { width: calc(100% - 16px); padding-bottom: 10px; }
+  :root { --gutter: 12px; }
+  .bottom { padding-bottom: 10px; }
   .top { gap: 8px; padding: 8px 10px; min-height: 48px; }
-  .thread { padding: 18px 14px 8px; }
+  #chat-view { padding-top: 18px; }
   .findbar { width: 94vw; }
   .to-latest { right: 14px; }
   .help-cols { grid-template-columns: 1fr; }
