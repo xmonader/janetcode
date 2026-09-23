@@ -29,7 +29,7 @@ const cmd = (method, params = {}) => new Promise((res) => {
   ws.send(JSON.stringify({ id, method, params }));
 });
 const evaljs = async (expression) => {
-  const r = await cmd('Runtime.evaluate', { expression, returnByValue: true });
+  const r = await cmd('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
   if (r.result.exceptionDetails) throw new Error('page JS error: ' + JSON.stringify(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text));
   return r.result.result.value;
 };
@@ -126,6 +126,10 @@ check('closed drawer is not rendered', await evaljs(`getComputedStyle(document.g
 // 11. no text glyph stands in for an icon on a header, rail or composer button
 const glyphs = await evaljs(`[...document.querySelectorAll('.top button, .nav-foot button, .composer-bar button, .findbar button, #to-latest')].filter(b => !b.querySelector('svg') && !/[A-Za-z]/.test(b.textContent)).map(b => b.id || b.className)`);
 check('icon buttons draw SVG, not glyphs', glyphs.length === 0, glyphs.join(','));
+
+// 11b. the vendored faces load and are the ones in use
+check('Inter and JetBrains Mono load', await evaljs(`document.fonts.ready.then(() => document.fonts.check('14px Inter') && document.fonts.check('14px "JetBrains Mono"') && [...document.fonts].some(f => f.family.replace(/"/g, '') === 'Inter' && f.status === 'loaded'))`));
+check('body text uses Inter', await evaljs(`getComputedStyle(document.body).fontFamily.startsWith('Inter')`));
 
 // 12. phone width: the rail starts shut, and a tap on the dim closes it
 await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
