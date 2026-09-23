@@ -21,7 +21,7 @@ var webCommands = []string{
 	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
-	"/pin", "/unpin", "/title", "/connect", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
+	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua",
 }
@@ -97,8 +97,9 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/clear": (*server).cmdClear, "/new": (*server).cmdClear,
-	"/yolo": (*server).cmdYolo,
-	"/auto": (*server).cmdAuto,
+	"/yolo":    (*server).cmdYolo,
+	"/routing": (*server).cmdRouting,
+	"/auto":    (*server).cmdAuto,
 	"/sandbox": func(s *server, arg string) (bool, error) {
 		s.sandbox(arg)
 		return false, nil
@@ -335,6 +336,15 @@ func (s *server) cmdYolo(arg string) (bool, error) {
 		}
 	})
 	s.noteOnOff("auto-approve", on, "every tool runs without asking")
+	return false, nil
+}
+
+// cmdRouting is the web twin of the terminal's /routing: it vetoes the
+// step router for the rest of the session, so every model call goes to
+// the session's own model whatever route_cheap names.
+func (s *server) cmdRouting(arg string) (bool, error) {
+	veto := s.opts.Agent.ToggleOff("routing")
+	s.noteOnOff("step routing", !veto, "every call goes to the session's own model; /routing again re-enables it")
 	return false, nil
 }
 

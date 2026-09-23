@@ -77,8 +77,9 @@ var dispatch = map[string]cmdHandler{
 	"/help": (*model).cmdHelp, "/?": (*model).cmdHelp,
 	"/quit": (*model).cmdQuit, "/exit": (*model).cmdQuit, "/q": (*model).cmdQuit,
 	"/clear": (*model).cmdClear, "/new": (*model).cmdClear,
-	"/yolo": (*model).cmdYolo,
-	"/auto": (*model).cmdAuto,
+	"/yolo":    (*model).cmdYolo,
+	"/routing": (*model).cmdRouting,
+	"/auto":    (*model).cmdAuto,
 	"/sandbox": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.sandboxCommand(cmdArg(text, fields))
 		return nil, false
@@ -371,6 +372,20 @@ func (m *model) cmdYolo(text string, fields []string) (tea.Cmd, bool) {
 		}
 	})
 	m.noteMode()
+	return nil, false
+}
+
+// /routing vetoes the step router for the rest of the session: while it
+// is off every model call goes to the session's own model, whatever
+// route_cheap names. The veto is the trust control for issue #4's
+// routing visibility — a route you do not trust stops at the next call,
+// not at the config file.
+func (m *model) cmdRouting(text string, fields []string) (tea.Cmd, bool) {
+	if m.opts.Agent.ToggleOff("routing") {
+		m.note("step routing off · every call goes to " + m.opts.Agent.Settings().Model + " (/routing again re-enables it)")
+	} else {
+		m.note("step routing on")
+	}
 	return nil, false
 }
 

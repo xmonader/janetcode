@@ -346,6 +346,15 @@ would justify leaving it on. `/stats` reports "routed N of M model calls
 to `<cheap>`" once anything has actually routed, and `/config
 route_cheap=` (empty) turns it back off for the running session.
 
+Every model call records which slot served it and why. The assistant
+events in the session log carry `slot`, `provider`, `route` and
+`route_why` (a main call is `slot: "main"` with an empty `route` — a
+slot that resolves to the session's own model is reported as no route),
+and the trajectory ledger marks a routed call `↪ cheap` on its line with
+the policy's reason in the inspector. `/routing` vetoes the router for
+the rest of the session: while it is off, every call goes to the
+session's own model no matter what `route_cheap` names.
+
 ### The model slots
 
 A session runs on one model and may name others for particular jobs:
