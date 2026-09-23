@@ -122,6 +122,9 @@ func (a *Agent) ClassifySessionOutcome(ctx context.Context) {
 	}
 	a.stats.decision(err != nil, took, cost, tokensOut)
 	if err != nil || res == nil {
+		if err != nil {
+			a.decisionFailure("session_outcome", err, "error")
+		}
 		return
 	}
 	outcome, conf, ok := res.ChoiceAt(qSessionOutcome)

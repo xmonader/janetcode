@@ -134,14 +134,16 @@ func TestIntakeFailsOpen(t *testing.T) {
 		})
 	}
 	// A provider that errors costs the session a counted failure and
-	// nothing else — no event, no classification, no failed turn.
+	// nothing else — the failure is recorded as a failure (status
+	// "error", no classification fields), never as a classification, and
+	// the turn is not failed.
 	fd := &fakeDecisions{err: errors.New("decisions 503: down"), avail: true}
 	a, _ := intakeAgent(t, fd)
 	if err := a.Run(context.Background(), "write the README", func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
-	if len(intakeEvents(a)) != 0 {
-		t.Fatal("a failed call was logged as a classification")
+	if evs := intakeEvents(a); len(evs) != 1 || !strings.Contains(string(evs[0].Extra), `"status":"error"`) {
+		t.Fatalf("a failed call records one failure event, got %+v", evs)
 	}
 	if st := a.Stats(); st.DecisionErrors != 1 || st.IntakeKind != "" {
 		t.Fatalf("stats after an error = %+v", st)

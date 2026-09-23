@@ -191,6 +191,26 @@ func triageAction(res *jev.Result) triageVerdict {
 	}
 }
 
+// decisionFailure records a decision-service call that did not answer.
+// Nothing about the session's behaviour changes on these — every
+// consumer fails open by contract — so the record, not a notice, is
+// what makes a skipped or failed advisory visible afterwards (github
+// issue #4). status is "error", "circuit_open" when the failure also
+// tripped the client's circuit, or "timeout" when the caller gave up
+// waiting; the consumer's own records carry the successful calls.
+func (a *Agent) decisionFailure(consumer string, err error, status string) {
+	rec := map[string]any{
+		"consumer": consumer,
+		"status":   status,
+		"acted_on": false,
+	}
+	if err != nil {
+		rec["error"] = textfmt.FirstLine(err.Error(), 160)
+	}
+	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,
+		Name: consumer, Extra: mustJSON(rec)})
+}
+
 // triageFailure asks the decision provider about a failed gate and
 // reports whether the repair round should be skipped. Every soft
 // failure returns false, which is "send the failure back as always".
@@ -214,6 +234,11 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	}
 	a.stats.decision(err != nil, time.Since(start), cost, tokensOut)
 	if err != nil {
+		status := "error"
+		if !dp.Available() {
+			status = "circuit_open"
+		}
+		a.decisionFailure("verify_triage", err, status)
 		if !dp.Available() && !a.decisionCircuitSeen {
 			a.decisionCircuitSeen = true
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("decisions: repeated errors, paused for %v and then retried once (%s)", jev.DefaultCooldown, err.Error())})

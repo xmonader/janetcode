@@ -145,6 +145,10 @@ func (a *Agent) drainIntake() {
 			done(out)
 		case <-t.C:
 			a.intakeCh = nil
+			// The classification missed even the handoff slack: not an
+			// error, but a decision call the session never got an
+			// answer to, and the record says so.
+			a.decisionFailure("intake", nil, "timeout")
 		}
 		return
 	}
@@ -166,6 +170,9 @@ func (a *Agent) recordIntake(out intakeOutcome) {
 	}
 	a.stats.decision(out.err != nil, out.took, cost, tokensOut)
 	if out.err != nil || out.res == nil {
+		if out.err != nil {
+			a.decisionFailure("intake", out.err, "error")
+		}
 		return
 	}
 	// awaitIntakeRouting has already decided by the time this runs, so the
