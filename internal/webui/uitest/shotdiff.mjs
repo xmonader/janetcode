@@ -11,12 +11,13 @@ import { readdirSync, readFileSync, writeFileSync, copyFileSync, existsSync, mkd
 const [PORT, NEW, BASE] = process.argv.slice(2);
 const UPDATE = process.argv.includes('--update');
 // A pixel counts as changed when any channel moves by more than CHANNEL;
-// a shot fails when more than RATIO of its pixels changed. The shots are
-// still frames (shot.mjs stops animations) and repeat to the pixel, so
-// the bar is low: at 40/0.2% a verdict badge that lost its colour
-// passed unnoticed.
+// a shot fails when more than MAXPIX pixels changed. The shots are still
+// frames (shot.mjs stops animations, pins the clock's zone) and repeat to
+// the pixel, so the bar is a count, not a share: at 0.2% a verdict badge
+// that lost its colour passed, and at 0.01% a duration that went from
+// "21s" to "21.4s" on a 1440x900 frame did.
 const CHANNEL = 12;
-const RATIO = 0.0001;
+const MAXPIX = 40;
 
 const shots = readdirSync(NEW).filter(f => f.endsWith('.png') && !f.endsWith('.diff.png')).sort();
 if (shots.length === 0) {
@@ -84,10 +85,10 @@ for (const f of shots) {
     continue;
   }
   const ratio = v.changed / v.total;
-  if (ratio > RATIO) {
+  if (v.changed > MAXPIX) {
     const out = f.replace(/\.png$/, '.diff.png');
     writeFileSync(`${NEW}/${out}`, Buffer.from(v.diff.split(',')[1], 'base64'));
-    console.log(`FAIL ${f} — ${(ratio * 100).toFixed(2)}% of pixels changed (${out})`);
+    console.log(`FAIL ${f} — ${v.changed} pixels changed, ${(ratio * 100).toFixed(3)}% (${out})`);
     failed++;
   } else {
     console.log(`PASS ${f} — ${(ratio * 100).toFixed(3)}% changed`);
