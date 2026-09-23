@@ -214,6 +214,15 @@
   }
 
   function render(e) {
+    if (e.gone) {
+      // The server dropped it from the thread (an empty thinking
+      // placeholder, discarded text): drop the row too.
+      const g = nodes.get(e.id);
+      if (g) g.remove();
+      nodes.delete(e.id);
+      latest.delete(e.id);
+      return;
+    }
     latest.set(e.id, e);
     empty.hidden = true;
     let n = nodes.get(e.id);

@@ -1405,3 +1405,37 @@ func TestPlanToolSummaryIsNotRawJSON(t *testing.T) {
 		t.Fatalf("summary = %q", got)
 	}
 }
+
+// TestDroppedPlaceholderTellsThePage: an empty thinking placeholder the
+// server drops when the next block starts used to vanish only from the
+// server's thread, so the page kept a "Thinking…" row above the rest of
+// the turn for minutes. The drop is sent, so the page can remove it.
+func TestDroppedPlaceholderTellsThePage(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.apply(agent.Event{Kind: agent.EvThinking, Text: ""})
+	s.mu.Lock()
+	id := s.entries[len(s.entries)-1].ID
+	s.mu.Unlock()
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: &agent.ToolCall{ID: "c1", Name: "bash"}})
+	s.apply(agent.Event{Kind: agent.EvText, Text: "partial"})
+	s.apply(agent.Event{Kind: agent.EvDiscard})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	gone := map[string]bool{}
+	for _, e := range s.log {
+		if e.Type == "entry" && e.Entry != nil && e.Entry.Gone {
+			gone[e.Entry.Kind] = true
+			if e.Entry.Kind == "thinking" && e.Entry.ID != id {
+				t.Fatalf("dropped id %q, want %q", e.Entry.ID, id)
+			}
+		}
+	}
+	if !gone["thinking"] || !gone["assistant"] {
+		t.Fatalf("drops sent: %v; want the thinking placeholder and the discarded text", gone)
+	}
+	for _, e := range s.entries {
+		if e.ID == id {
+			t.Fatal("the placeholder is still in the thread")
+		}
+	}
+}

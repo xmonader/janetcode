@@ -25,6 +25,9 @@ type entry struct {
 	Error   bool   `json:"error,omitempty"`
 	Denied  bool   `json:"denied,omitempty"`
 	Done    bool   `json:"done,omitempty"`
+	// Gone tells the page to remove the entry: the server dropped it
+	// from the thread (an empty thinking placeholder, discarded text).
+	Gone    bool   `json:"gone,omitempty"`
 	Running bool   `json:"running,omitempty"`
 	CallID  string `json:"call_id,omitempty"`
 	// At is when the entry was created, for the hover timestamp.
@@ -350,6 +353,7 @@ func (s *server) closeOpen() {
 		e := s.entries[i]
 		if e.Kind == "thinking" && !e.Done && strings.TrimSpace(e.Text) == "" {
 			s.entries = append(s.entries[:i], s.entries[i+1:]...)
+			closed = append(closed, entry{ID: e.ID, Kind: e.Kind, Gone: true})
 			continue
 		}
 		if e.Kind == "assistant" || e.Kind == "thinking" {
@@ -375,14 +379,19 @@ func (s *server) closeOpen() {
 
 func (s *server) dropOpen() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var gone []entry
 	for len(s.entries) > 0 {
 		e := s.entries[len(s.entries)-1]
 		if (e.Kind == "assistant" || e.Kind == "thinking") && !e.Done {
 			s.entries = s.entries[:len(s.entries)-1]
+			gone = append(gone, entry{ID: e.ID, Kind: e.Kind, Gone: true})
 			continue
 		}
-		return
+		break
+	}
+	s.mu.Unlock()
+	for _, e := range gone {
+		s.emitEntry(e)
 	}
 }
 
