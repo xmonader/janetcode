@@ -1,4 +1,6 @@
 (() => {
+  // Inline SVG from the sprite in index.html — the only icon source.
+  const icon = (name) => `<svg class="i" aria-hidden="true"><use href="#i-${name}"/></svg>`;
   const log = document.getElementById("log");
   const empty = document.getElementById("empty");
   const input = document.getElementById("input");
@@ -229,20 +231,22 @@
       lastUserText = e.text || "";
       if (!curTitle) paintTitle();
       loadSessions();
-      n.innerHTML = `<span class="lbl">You<button type="button" class="copy-btn msg-act" data-edit="${e.id}" title="Edit & resend">Edit</button></span><div class="bubble">${esc(e.text || "")}</div>`;
+      n.innerHTML = `<div class="bubble">${esc(e.text || "")}</div><div class="msg-actions">` +
+        `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy" aria-label="Copy message">${icon("copy")}</button>` +
+        `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button></div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
-      const copyBtn = e.done ? `<button type="button" class="copy-btn" data-copy="${e.id}" title="Copy reply">Copy</button>` : "";
-      const regenBtn = e.done && lastUserText ? `<button type="button" class="copy-btn" data-regen="1" title="Ask again">↻</button>` : "";
+      const copyBtn = `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy reply" aria-label="Copy reply">${icon("copy")}</button>`;
+      const regenBtn = lastUserText ? `<button type="button" class="act" data-regen="1" title="Ask again" aria-label="Ask again">${icon("refresh")}</button>` : "";
       const meta = [];
       if (e.at) meta.push(new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       if (e.tok_in || e.tok_out) meta.push("↑" + fmtTok(e.tok_in) + " ↓" + fmtTok(e.tok_out));
       if (e.ms) meta.push(fmtDur(e.ms));
-      const metaRow = meta.length && e.done ? `<div class="msg-meta">${esc(meta.join(" · "))}</div>` : "";
+      const metaRow = e.done ? `<div class="msg-foot"><span class="msg-actions">${copyBtn}${regenBtn}</span><span class="msg-meta">${esc(meta.join(" · "))}</span></div>` : "";
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Continue</button>` : "";
-      n.innerHTML = `<span class="lbl">janetcode ${copyBtn}${regenBtn}</span><div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
+      n.innerHTML = `<div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) {
         lastReply = (e.text || "").slice(0, 200);
         drawMermaid(n);
@@ -255,9 +259,9 @@
         n.innerHTML = `<span class="lbl">${esc(lastFlavor || "Thinking")}</span>`;
       } else if (e.done && !openThoughts.has(e.id)) {
         const line = (raw.split("\n")[0] || "").slice(0, 160);
-        n.innerHTML = `<span class="lbl">Thought <span class="chev">›</span></span>${esc(line)}`;
+        n.innerHTML = `<span class="lbl">Thought <span class="chev">${icon("chevron-right")}</span></span>${esc(line)}`;
       } else if (e.done) {
-        n.innerHTML = `<span class="lbl">Thought <span class="chev">⌄</span></span><pre class="thought-body">${esc(raw)}</pre>`;
+        n.innerHTML = `<span class="lbl">Thought <span class="chev">${icon("chevron-down")}</span></span><pre class="thought-body">${esc(raw)}</pre>`;
       } else {
         const lines = raw.split("\n");
         n.innerHTML = `<span class="lbl">Thinking</span>${esc(lines.slice(-2).join(" "))}`;
@@ -271,7 +275,7 @@
       const open = openTools.has(e.id);
       let bar = "";
       if (e.run_head) {
-        bar = `<button type="button" class="run-bar${/failed/.test(e.run_label || "") ? " bad" : ""}" data-run="${esc(e.run)}"><span class="chev">${folded ? "›" : "⌄"}</span><span>${esc(e.run_label || "")}</span></button>`;
+        bar = `<button type="button" class="run-bar${/failed/.test(e.run_label || "") ? " bad" : ""}" data-run="${esc(e.run)}"><span class="chev">${icon(folded ? "chevron-right" : "chevron-down")}</span><span>${esc(e.run_label || "")}</span></button>`;
       }
       const bodyHidden = e.run_head && folded;
       let html = bar + `<div class="tool ${stCls}"${bodyHidden ? " hidden" : ""}><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
@@ -293,7 +297,7 @@
       n.innerHTML = usageCardHTML(e.data);
     } else if (e.kind === "sheet") {
       n.className = "turn sheet";
-      n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="copy-btn sheet-copy" data-copy="${e.id}" title="Copy output">Copy</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;
+      n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="act copy-btn sheet-copy" data-copy="${e.id}" title="Copy output" aria-label="Copy output">${icon("copy")}</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;
     } else if (e.kind === "error") {
       n.className = "turn err";
       n.innerHTML = esc(e.text || "") + (lastPrompt ? ` <button type="button" class="retry-btn" data-retry="1">Retry</button>` : "");
@@ -673,7 +677,7 @@
     if (!chips.length) { chipsEl.hidden = true; chipsEl.innerHTML = ""; return; }
     chipsEl.hidden = false;
     chipsEl.innerHTML = chips.map((p, i) =>
-      `<span class="file-chip">${esc(p.split("/").pop())}<button type="button" data-chip="${i}" aria-label="Remove">×</button></span>`
+      `<span class="file-chip">${esc(p.split("/").pop())}<button type="button" data-chip="${i}" aria-label="Remove">${icon("x")}</button></span>`
     ).join("");
   }
   chipsEl.addEventListener("click", (ev) => {
@@ -1562,7 +1566,7 @@
   }).catch((err) => { console.error("BOOT FAILED", err); });
   const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");
-  function drawTheme() { themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; }
+  function drawTheme() { themeBtn.innerHTML = icon(document.documentElement.dataset.theme === "dark" ? "sun" : "moon"); }
   function applyThemeChoice(choice) {
     localStorage.setItem("janetcode-theme", choice);
     document.documentElement.dataset.themeChoice = choice;
@@ -2365,8 +2369,9 @@
       if (src) {
         try {
           await navigator.clipboard.writeText(src.text || "");
-          copy.textContent = "Copied";
-          setTimeout(() => { copy.textContent = "Copy"; }, 1500);
+          copy.innerHTML = icon("check");
+          copy.classList.add("done");
+          setTimeout(() => { copy.innerHTML = icon("copy"); copy.classList.remove("done"); }, 1500);
         } catch (_) {}
       }
       return;

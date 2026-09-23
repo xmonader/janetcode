@@ -32,6 +32,37 @@
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-chevron-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-panel-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
+  <symbol id="i-panel-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-app-window" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></symbol>
+  <symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="i-command" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-smartphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.17 6.81a1 1 0 0 0-3.98-3.98L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-git-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-new" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
   <div class="shell">
   <aside class="nav" id="nav">
     <div class="logo-row">
@@ -41,16 +72,16 @@
       </span>
     </div>
     <button type="button" id="new-chat" class="new-session" title="New session (Ctrl+Shift+O)">
-      <span class="new-plus" aria-hidden="true">+</span>
+      <span class="new-plus"><svg class="i" aria-hidden="true"><use href="#i-new"/></svg></span>
       <span class="new-session-label">New session</span>
     </button>
     <div id="current-session" class="current-session" hidden></div>
     <input id="session-filter" class="session-filter" type="search" placeholder="Search conversations" aria-label="Filter past conversations">
     <ul id="sessions"></ul>
     <div class="nav-foot">
-      <button type="button" id="nav-toggle" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar">«</button>
+      <button type="button" id="nav-toggle" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar"><svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg></button>
       <span class="spacer"></span>
-      <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="i" aria-hidden="true"><use href="#i-settings"/></svg></button>
       <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
     </div>
     <div class="drag-handle" id="nav-resize" title="Drag to resize · double-click to reset"></div>
@@ -58,7 +89,7 @@
 
   <div class="col">
     <header class="top">
-      <button type="button" id="nav-open" class="icon-btn nav-open" title="Conversations" aria-label="Conversations">☰</button>
+      <button type="button" id="nav-open" class="icon-btn nav-open" title="Conversations" aria-label="Conversations"><svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg></button>
       <nav class="view-ring" id="view-ring" role="tablist" aria-label="View">
         <button type="button" data-view="chat" class="on">Chat</button>
         <button type="button" data-view="trajectory">Trajectory</button>
@@ -71,10 +102,10 @@
         <span id="ctx-chip" class="ctx-chip" title="Context window used" hidden></span>
         <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
         <span id="conn" class="conn" title="Live connection">Live</span>
-        <button type="button" id="export-btn" class="icon-btn" title="Save conversation (.md)" aria-label="Save conversation">⤓</button>
-        <button type="button" id="help-btn" class="icon-btn" title="Help & shortcuts (?)" aria-label="Help and shortcuts">?</button>
-        <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
-        <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>
+        <button type="button" id="export-btn" class="icon-btn" title="Save conversation (.md)" aria-label="Save conversation"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg></button>
+        <button type="button" id="help-btn" class="icon-btn" title="Help & shortcuts (?)" aria-label="Help and shortcuts"><svg class="i" aria-hidden="true"><use href="#i-help"/></svg></button>
+        <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview"><svg class="i" aria-hidden="true"><use href="#i-app-window"/></svg></button>
+        <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel"><svg class="i" aria-hidden="true"><use href="#i-panel-right"/></svg></button>
       </span>
     </header>
     <section class="thread" id="thread">
@@ -129,11 +160,11 @@
     <div id="findbar" class="findbar" hidden>
       <input id="find-q" type="search" placeholder="Find in conversation" aria-label="Find in conversation">
       <span id="find-count" class="find-count"></span>
-      <button type="button" id="find-prev" title="Previous (↑)">↑</button>
-      <button type="button" id="find-next" title="Next (Enter)">↓</button>
-      <button type="button" id="find-close" title="Close (Esc)">×</button>
+      <button type="button" id="find-prev" title="Previous (↑)" aria-label="Previous match"><svg class="i" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
+      <button type="button" id="find-next" title="Next (Enter)" aria-label="Next match"><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+      <button type="button" id="find-close" title="Close (Esc)" aria-label="Close find"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
     </div>
-    <button type="button" id="to-latest" class="to-latest" hidden title="Jump to the latest">↓ latest</button>
+    <button type="button" id="to-latest" class="to-latest" hidden title="Jump to the latest" aria-label="Jump to the latest"><svg class="i" aria-hidden="true"><use href="#i-arrow-down"/></svg></button>
     <div class="bottom">
       <div id="ask" class="ask" hidden>
         <p id="ask-line"></p>
@@ -173,14 +204,13 @@
         <div id="chips" class="chips-row" hidden></div>
         <textarea id="input" rows="1" placeholder="What should we do next?"></textarea>
         <div class="composer-bar">
-          <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file">+</button>
+          <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-paperclip"/></svg></button>
           <input id="attach-file" type="file" multiple hidden>
-          <button type="button" id="search-btn" title="Commands (Ctrl+K)" aria-label="Commands">⌘</button>
-          <kbd class="cmd-kbd" title="Command palette">Ctrl K</kbd>
+          <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands"><svg class="i" aria-hidden="true"><use href="#i-command"/></svg></button>
           <span id="mode-chip" class="mode-chip">ask</span>
           <span class="spacer"></span>
-          <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop">■</button>
-          <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send">↑</button>
+          <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop"><svg class="i" aria-hidden="true"><use href="#i-stop"/></svg></button>
+          <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send (Enter)"><svg class="i" aria-hidden="true"><use href="#i-arrow-up"/></svg></button>
         </div>
       </form>
       <p id="cwd" class="cwd-chip" title="Working directory"></p>
@@ -190,10 +220,10 @@
       <div class="drag-handle" id="pv-resize" title="Drag to resize · double-click to reset"></div>
       <div class="pv-bar">
         <input id="pv-url" type="url" placeholder="http://localhost:3000" autocomplete="off" spellcheck="false">
-        <button type="button" id="pv-refresh" class="icon-btn" title="Reload">↻</button>
-        <button type="button" id="pv-width" class="icon-btn" title="Toggle 390px width">▤</button>
-        <button type="button" id="pv-ext" class="icon-btn" title="Open in new tab">↗</button>
-        <button type="button" id="pv-close" class="icon-btn" title="Close preview">×</button>
+        <button type="button" id="pv-refresh" class="icon-btn" title="Reload" aria-label="Reload"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+        <button type="button" id="pv-width" class="icon-btn" title="Toggle 390px width" aria-label="Toggle phone width"><svg class="i" aria-hidden="true"><use href="#i-smartphone"/></svg></button>
+        <button type="button" id="pv-ext" class="icon-btn" title="Open in new tab" aria-label="Open in new tab"><svg class="i" aria-hidden="true"><use href="#i-external"/></svg></button>
+        <button type="button" id="pv-close" class="icon-btn" title="Close preview" aria-label="Close preview"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
       </div>
       <div class="pv-stage" id="pv-stage">
         <div class="pv-empty" id="pv-empty">Enter a URL above to preview a running app.</div>
@@ -267,7 +297,7 @@
     <div class="help-card settings-card">
       <header>
         <strong>Settings</strong>
-        <button type="button" id="settings-close" class="icon-btn" title="Close (Esc)">×</button>
+        <button type="button" id="settings-close" class="icon-btn" title="Close (Esc)" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
       </header>
       <section>
         <h3>Appearance</h3>
@@ -295,7 +325,7 @@
     <div class="help-card">
       <header>
         <strong>janetcode</strong>
-        <button type="button" id="help-close" class="icon-btn" title="Close (Esc)">×</button>
+        <button type="button" id="help-close" class="icon-btn" title="Close (Esc)" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
       </header>
       <div class="help-cols">
         <section>
