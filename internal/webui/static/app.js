@@ -236,6 +236,7 @@
         `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button></div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
+      n.hidden = !!e.done && JanetMD.isNoise(e.text);
       const copyBtn = `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy reply" aria-label="Copy reply">${icon("copy")}</button>`;
       const regenBtn = lastUserText ? `<button type="button" class="act" data-regen="1" title="Ask again" aria-label="Ask again">${icon("refresh")}</button>` : "";
       const meta = [];

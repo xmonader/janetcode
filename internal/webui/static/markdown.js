@@ -193,7 +193,14 @@
     return esc(output || "");
   }
 
-  const api = { render, renderOutput, highlight, hljsHighlight, codeBlocks, esc };
+  // Some models emit a bare "." or ":" as a text block between tool calls.
+  // A finished message that is only punctuation is not an answer worth a
+  // bubble; an emoji-only reply is (symbols are not punctuation).
+  function isNoise(text) {
+    return /^[\p{P}\s]*$/u.test(text || "");
+  }
+
+  const api = { render, renderOutput, highlight, hljsHighlight, codeBlocks, esc, isNoise };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.JanetMD = api;
 })(typeof window !== "undefined" ? window : globalThis);

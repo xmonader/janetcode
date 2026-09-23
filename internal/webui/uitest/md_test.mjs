@@ -17,7 +17,7 @@ globalThis.hljs = hlmod.default || hlmod;
 const mdi = require(join(here, '../static/vendor/markdown-it.min.js'));
 globalThis.markdownit = mdi.default || mdi;
 
-const { render, renderOutput } = require(join(here, '../static/markdown.js'));
+const { render, renderOutput, isNoise } = require(join(here, '../static/markdown.js'));
 
 let pass = 0, fail = 0;
 const bad = [];
@@ -25,6 +25,10 @@ function check(name, cond, extra = '') {
   if (cond) { pass++; }
   else { fail++; bad.push(`${name}${extra ? ' — ' + extra : ''}`); }
 }
+
+// --- a punctuation-only message is noise, anything with content is not ----
+for (const t of ['.', '.\n\n', ' : ', '', '...', '—']) check(`noise ${JSON.stringify(t)}`, isNoise(t));
+for (const t of ['ok', '42', '👍', '. done', '中文']) check(`not noise ${JSON.stringify(t)}`, !isNoise(t));
 
 // --- security: nothing executable may survive -----------------------------
 const hostile = [
