@@ -268,7 +268,10 @@
       if (!raw && !e.done) {
         n.innerHTML = `<span class="lbl">${esc(lastFlavor || "Thinking")}</span>`;
       } else if (e.done && !openThoughts.has(e.id)) {
-        const line = (raw.split("\n")[0] || "").slice(0, 160);
+        const first = raw.split("\n")[0] || "";
+        // Say there is more: a first line cut mid-sentence read as the
+        // whole thought.
+        const line = first.length > 160 || raw.length > first.length ? first.slice(0, 160).trimEnd() + "…" : first;
         n.innerHTML = `<span class="lbl">Thought <span class="chev">${icon("chevron-right")}</span></span>${esc(line)}`;
       } else if (e.done) {
         n.innerHTML = `<span class="lbl">Thought <span class="chev">${icon("chevron-down")}</span></span><pre class="thought-body">${esc(raw)}</pre>`;
