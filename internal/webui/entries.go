@@ -12,7 +12,6 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type entry struct {
@@ -91,21 +90,21 @@ func (s *server) apply(ev agent.Event) {
 	switch ev.Kind {
 	case agent.EvText:
 		s.appendText("assistant", ev.Text)
-		s.setPhaseIfChanged("writing")
+		s.setPhaseIfChanged(present.PhaseWriting)
 	case agent.EvThinking:
 		s.appendText("thinking", ev.Text)
+		s.setPhaseIfChanged(present.PhaseThinking)
 	case agent.EvToolStart:
 		s.closeOpen()
 		s.add(entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: present.ToolSummary(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
-		s.setPhaseIfChanged("preparing " + ev.Call.Name)
+		s.setPhaseIfChanged(present.PhasePreparing(ev.Call.Name))
 	case agent.EvToolInput:
 		// The status line says what is being written and how much, as the
 		// TUI's does — a large write_file streams for a minute, and a
 		// rotating filler word in the meantime tells the reader nothing.
 		if ev.Call != nil {
-			cwd := s.cwd()
-			if sum := tool.StreamingSummary(ev.Call.Name, string(ev.Call.Input), func(p string) string { return textfmt.RelTo(cwd, p) }); sum != "" && sum != "…" {
-				s.setStreamingPhase(ev.Call.Name + " " + sum)
+			if p, ok := present.PhaseStreaming(ev.Call.Name, string(ev.Call.Input), s.cwd()); ok {
+				s.setStreamingPhase(p)
 			}
 		}
 		// Arguments stream in a fragment at a time. This used to
@@ -131,7 +130,7 @@ func (s *server) apply(ev agent.Event) {
 				e.Preview = ev.Call.Preview
 			}
 		})
-		s.setPhase(e.Name + " " + e.Summary)
+		s.setPhase(present.PhaseRunning(e.Name, string(ev.Call.Input), cwd))
 	case agent.EvToolResult:
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
 			// The terminal says when a /goal ends; the page said nothing
@@ -159,7 +158,7 @@ func (s *server) apply(ev agent.Event) {
 		// The tool row already says it finished. Leaving the phase on the
 		// tool made the status line keep spinning that command while the
 		// model thought about the result.
-		s.setPhase("thinking")
+		s.setPhase(present.PhaseThinking)
 	case agent.EvTextBlockDone:
 		s.closeOpen()
 	case agent.EvTurnDone:

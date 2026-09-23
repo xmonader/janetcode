@@ -1615,3 +1615,20 @@ func TestGoalEndAndVerdictToneMatchTheTerminal(t *testing.T) {
 		t.Fatalf("verdict = %+v", verdict)
 	}
 }
+
+// The status line names what runs the same way the terminal does, and
+// says the model is thinking when it is.
+func TestPhaseWordingMatchesTheTerminal(t *testing.T) {
+	s := newServer(context.Background(), Options{Cwd: "/p"})
+	phase := func() string { s.mu.Lock(); defer s.mu.Unlock(); return s.phase }
+	s.apply(agent.Event{Kind: agent.EvThinking, Text: "hm"})
+	if got := phase(); got != present.PhaseThinking {
+		t.Fatalf("thinking phase = %q", got)
+	}
+	call := &agent.ToolCall{ID: "c1", Name: "bash", Input: json.RawMessage(`{"command":"cd /p && go test ./..."}`)}
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: call})
+	s.apply(agent.Event{Kind: agent.EvToolRun, Call: call})
+	if got := phase(); got != "bash go test ./..." {
+		t.Fatalf("running phase = %q", got)
+	}
+}

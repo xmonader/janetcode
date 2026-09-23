@@ -10,9 +10,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -422,17 +424,17 @@ func (m *model) applyEvent(ev agent.Event) {
 	m.observeEvent(ev)
 	switch ev.Kind {
 	case agent.EvThinking:
-		m.turn.setPhase("thinking")
+		m.turn.setPhase(present.PhaseThinking)
 	case agent.EvText:
-		m.turn.setPhase("writing")
+		m.turn.setPhase(present.PhaseWriting)
 	case agent.EvToolStart:
-		m.turn.setPhase("preparing " + ev.Call.Name)
+		m.turn.setPhase(present.PhasePreparing(ev.Call.Name))
 	case agent.EvToolInput:
 		// Streamed input: the status says what is being written and how
 		// much, instead of "preparing write_file" for a minute.
 		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
-			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
-				m.turn.setPhase(e.call.Name + " " + s)
+			if p, ok := present.PhaseStreaming(e.call.Name, e.input.String(), m.opts.Cwd); ok {
+				m.turn.setPhase(p)
 			}
 		}
 	case agent.EvPhase:
@@ -440,17 +442,14 @@ func (m *model) applyEvent(ev agent.Event) {
 		// countdown, a compaction, a subagent.
 		m.turn.setPhase(ev.Text)
 	case agent.EvToolRun:
-		m.turn.setPhase("running " + ev.Call.Name)
-		if ev.Call.Name == "task" {
-			m.turn.setPhase("waiting on subagent")
-		}
+		m.turn.setPhase(present.PhaseRunning(ev.Call.Name, string(ev.Call.Input), m.opts.Cwd))
 	case agent.EvToolResult:
-		m.turn.setPhase("thinking")
+		m.turn.setPhase(present.PhaseThinking)
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
 			m.status = strings.TrimSpace(ev.Output)
 		}
 	case agent.EvCompacted:
-		m.turn.setPhase("thinking")
+		m.turn.setPhase(present.PhaseThinking)
 	case agent.EvVerdict:
 		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
 	case agent.EvTurnDone:
