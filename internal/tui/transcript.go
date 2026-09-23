@@ -258,7 +258,7 @@ func (t *transcript) apply(ev agent.Event) {
 			// The goal's end is the one line the user is waiting for; a
 			// tool result in faint text is not where they look for it.
 			t.closeOpen()
-			t.add(&entry{kind: entryVerdict, text: noteGoal + strings.TrimSpace(ev.Output) + " · nothing more runs for it; /goal starts another"})
+			t.add(&entry{kind: entryVerdict, text: noteGoal + present.GoalEnded(ev.Output)})
 		}
 		e := t.findTool(ev.Call.ID)
 		if e == nil {
@@ -279,12 +279,12 @@ func (t *transcript) apply(ev agent.Event) {
 		t.closeOpen()
 	case agent.EvCompacted:
 		t.closeOpen()
-		t.info(noteCompact + ev.Text + " · expand_output brings archived output back; /context shows what remains")
+		t.info(noteCompact + present.Compacted(ev.Text))
 	case agent.EvVerdict:
 		// The one line that says whether the turn showed its work. It was
 		// dropped here for a long time while headless mode printed it.
 		t.closeOpen()
-		t.add(&entry{kind: entryVerdict, text: shortenPaths(t.cwd, ev.Text), isError: ev.IsError})
+		t.add(&entry{kind: entryVerdict, text: present.Verdict(t.cwd, ev.Text), isError: ev.IsError})
 	case agent.EvRetry:
 		// The status line that counted the retry down is gone the moment
 		// the call lands, so a turn that cost four attempts read exactly
@@ -294,9 +294,9 @@ func (t *transcript) apply(ev agent.Event) {
 	case agent.EvNotice:
 		t.closeOpen()
 		if isAttachNote(ev.Text) {
-			t.info(noteAttached + shortenPaths(t.cwd, ev.Text))
+			t.info(noteAttached + present.Notice(t.cwd, ev.Text))
 		} else {
-			t.info(noteNotice + shortenPaths(t.cwd, ev.Text))
+			t.info(noteNotice + present.Notice(t.cwd, ev.Text))
 		}
 	}
 }

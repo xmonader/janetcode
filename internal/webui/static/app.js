@@ -330,7 +330,8 @@
         n.innerHTML = esc(e.text || "") + (retry ? " " + retry : "");
       }
     } else if (e.kind === "verdict") {
-      n.className = "turn verdict" + ((e.text || "").startsWith("✓") ? " ok" : "");
+      // The server reads the tone; the page only colours it.
+      n.className = "turn verdict" + (e.tone === "ok" ? " ok" : e.tone === "bad" ? " bad" : "");
       n.textContent = e.text || "";
     } else {
       n.className = "turn note";

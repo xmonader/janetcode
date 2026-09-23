@@ -16,17 +16,19 @@ import (
 )
 
 type entry struct {
-	ID      string `json:"id"`
-	Kind    string `json:"kind"`
-	Text    string `json:"text,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Summary string `json:"summary,omitempty"`
-	Output  string `json:"output,omitempty"`
-	Preview string `json:"preview,omitempty"`
-	Dur     string `json:"dur,omitempty"`
-	Error   bool   `json:"error,omitempty"`
-	Denied  bool   `json:"denied,omitempty"`
-	Done    bool   `json:"done,omitempty"`
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+	Text string `json:"text,omitempty"`
+	// Tone colours a verdict: ok, warn or bad.
+	Tone    present.Tone `json:"tone,omitempty"`
+	Name    string       `json:"name,omitempty"`
+	Summary string       `json:"summary,omitempty"`
+	Output  string       `json:"output,omitempty"`
+	Preview string       `json:"preview,omitempty"`
+	Dur     string       `json:"dur,omitempty"`
+	Error   bool         `json:"error,omitempty"`
+	Denied  bool         `json:"denied,omitempty"`
+	Done    bool         `json:"done,omitempty"`
 	// Gone tells the page to remove the entry: the server dropped it
 	// from the thread (an empty thinking placeholder, discarded text).
 	Gone    bool   `json:"gone,omitempty"`
@@ -131,6 +133,12 @@ func (s *server) apply(ev agent.Event) {
 		})
 		s.setPhase(e.Name + " " + e.Summary)
 	case agent.EvToolResult:
+		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
+			// The terminal says when a /goal ends; the page said nothing
+			// but a faint tool row.
+			s.closeOpen()
+			s.add(entry{Kind: "verdict", Text: "◎ " + present.GoalEnded(ev.Output), Tone: present.ToneWarn})
+		}
 		s.updateTool(ev.Call, func(e *entry) {
 			if ev.Call != nil {
 				e.Name, e.CallID = ev.Call.Name, ev.Call.ID
@@ -177,18 +185,18 @@ func (s *server) apply(ev agent.Event) {
 		s.dropOpen()
 	case agent.EvVerdict:
 		s.closeOpen()
-		s.add(entry{Kind: "verdict", Text: ev.Text, Error: ev.IsError})
+		s.add(entry{Kind: "verdict", Text: present.Verdict(s.cwd(), ev.Text), Tone: present.VerdictTone(ev.Text), Error: ev.IsError})
 	case agent.EvRetry:
 		s.closeOpen()
 		s.add(entry{Kind: "notice", Text: "↻ " + ev.Text})
 	case agent.EvNotice:
 		s.closeOpen()
-		s.add(entry{Kind: "notice", Text: ev.Text})
+		s.add(entry{Kind: "notice", Text: present.Notice(s.cwd(), ev.Text)})
 	case agent.EvPhase:
 		s.setPhase(ev.Text)
 	case agent.EvCompacted:
 		s.closeOpen()
-		s.add(entry{Kind: "notice", Text: "⇣ " + ev.Text})
+		s.add(entry{Kind: "notice", Text: "⇣ " + present.Compacted(ev.Text)})
 	}
 }
 

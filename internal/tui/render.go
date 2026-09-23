@@ -15,6 +15,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/mermaid"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -249,10 +250,10 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		return t.styles.err.Render(errorBlock(e.text, width))
 	case entryVerdict:
 		style := t.styles.warn
-		switch {
-		case strings.HasPrefix(e.text, "✓"):
+		switch present.VerdictTone(e.text) {
+		case present.ToneOK:
 			style = t.styles.ok
-		case strings.HasPrefix(e.text, "✗"):
+		case present.ToneBad:
 			style = t.styles.err
 		}
 		return style.Render(wrap(e.text))

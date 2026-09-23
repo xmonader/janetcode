@@ -1589,3 +1589,29 @@ func TestMCPSummaryNeverQuotesNonObjectArguments(t *testing.T) {
 		}
 	}
 }
+
+// The terminal said when a /goal ended and coloured a failed verdict red;
+// the page showed a faint tool row and a grey verdict.
+func TestGoalEndAndVerdictToneMatchTheTerminal(t *testing.T) {
+	s := newServer(context.Background(), Options{Cwd: "/work/proj"})
+	call := &agent.ToolCall{ID: "g1", Name: "goal_status", Input: json.RawMessage(`{"status":"complete"}`)}
+	s.apply(agent.Event{Kind: agent.EvToolStart, Call: call})
+	s.apply(agent.Event{Kind: agent.EvToolResult, Call: call, Output: "goal g-1 complete: the CLI ships\n"})
+	s.apply(agent.Event{Kind: agent.EvVerdict, Text: "✗ tests fail: /work/proj/cli_test.go", IsError: true})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var goal, verdict *entry
+	for _, e := range s.entries {
+		if e.Kind == "verdict" && strings.HasPrefix(e.Text, "◎") {
+			goal = e
+		} else if e.Kind == "verdict" {
+			verdict = e
+		}
+	}
+	if goal == nil || !strings.Contains(goal.Text, "goal g-1 complete: the CLI ships · nothing more runs for it") {
+		t.Fatalf("goal line = %+v", goal)
+	}
+	if verdict == nil || verdict.Tone != present.ToneBad || verdict.Text != "✗ tests fail: cli_test.go" {
+		t.Fatalf("verdict = %+v", verdict)
+	}
+}
