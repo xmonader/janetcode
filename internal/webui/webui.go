@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/perm"
 	"io"
 	"io/fs"
 	"net"
@@ -282,7 +283,9 @@ type envelope struct {
 }
 
 type helloPayload struct {
-	Cwd      string `json:"cwd"`
+	Cwd string `json:"cwd"`
+	// CwdShort is Cwd with the home directory written as ~, for display.
+	CwdShort string `json:"cwd_short"`
 	Model    string `json:"model"`
 	Provider string `json:"provider"`
 	Session  string `json:"session"`
@@ -450,6 +453,7 @@ func (s *server) handler() http.Handler {
 func (s *server) hello() helloPayload {
 	h := helloPayload{
 		Cwd:      s.cwd(),
+		CwdShort: perm.ShortenHome(s.cwd()),
 		Provider: s.opts.Provider,
 		Version:  s.opts.Version,
 	}

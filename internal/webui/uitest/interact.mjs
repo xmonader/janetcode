@@ -197,6 +197,12 @@ const auth = await errCard({ headline: 'Authentication failed', next: 'Check the
 check('error card reads headline, next step, code', auth.head === 'Authentication failed' && auth.next.startsWith('Check the API key') && auth.meta === 'HTTP 401 · Unauthorized', JSON.stringify(auth));
 check('no Retry where a retry cannot help', !auth.retry, JSON.stringify(auth));
 
+// 16. a long working directory keeps its end — the project name — and
+// the full path is one hover away.
+const cwdShown = await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'hello', hello: { cwd: '/tmp/claude-1000/-home-x-wspace-janetcode/f8c3ae96/scratchpad/dog/proj/py-bug', cwd_short: '/tmp/claude-1000/-home-x-wspace-janetcode/f8c3ae96/scratchpad/dog/proj/py-bug', model: 'm', provider: 'p', version: window.__janetUIBuild } }) }); const c = document.getElementById('cwd'); return { text: c.textContent, title: c.title }; })()`);
+check('long cwd keeps the project end', cwdShown.text === '…/dog/proj/py-bug' && cwdShown.title.endsWith('/py-bug'), JSON.stringify(cwdShown));
+check('session times are not set in monospace', await evaljs(`(() => { const d = document.createElement('span'); d.className = 'when'; document.getElementById('sessions').appendChild(d); const f = getComputedStyle(d).fontFamily; d.remove(); return !/Mono|monospace/.test(f); })()`));
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');

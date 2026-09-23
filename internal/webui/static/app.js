@@ -490,6 +490,13 @@
   // background marks the tab title until the user looks — no permission
   // prompt needed, unlike a desktop notification.
   let unseen = false;
+  // tailPath keeps the end of a long path — the project, which is what
+  // tells two windows apart — and drops the front: "…/dog/proj/py-bug".
+  function tailPath(p) {
+    if (p.length <= 48) return p;
+    const parts = p.split("/").filter(Boolean);
+    return parts.length > 3 ? "…/" + parts.slice(-3).join("/") : p;
+  }
   function paintTitle() {
     const shown = cleanTitle(curTitle) || clipLine(firstUserText);
     document.getElementById("title").textContent = shown || "New conversation";
@@ -517,7 +524,9 @@
     modelProvider = h.provider && h.model ? h.provider : "";
     paintModel();
     setModeChip(h.mode);
-    document.getElementById("cwd").textContent = h.cwd || "";
+    const cwdEl = document.getElementById("cwd");
+    cwdEl.textContent = tailPath(h.cwd_short || h.cwd || "");
+    cwdEl.title = h.cwd || "Working directory";
     if (h.title) curTitle = cleanTitle(h.title);
     paintTitle();
     const leaf = (h.cwd || "").replace(/\\/g, "/").split("/").filter(Boolean).pop();
