@@ -158,6 +158,54 @@ await evaljs(`document.querySelector('.shell').classList.remove('nav-collapsed')
 await sleep(400);
 await shot('04-mobile-nav');
 
+// The states a person meets besides a finished chat, each in both
+// themes: a turn at work, an approval, a provider failure, the connect
+// form, and a fresh conversation.
+await setSize(1440, 900);
+const feedJS = (envs) => evaljs(`(() => { for (const env of ${JSON.stringify(envs)}) window.__es.onmessage({ data: JSON.stringify(env) }); return 1; })()`);
+const idle = { type: 'status', status: { running: false, mode: 'ask', ctx_pct: 36, status: 'done in 21s' } };
+const closeAll = `(() => { ['settings','help','palette','connect','ask'].forEach(id => { const e = document.getElementById(id); if (e) e.hidden = true; }); return 1; })()`;
+for (const theme of ['dark', 'light']) {
+  await setTheme(theme);
+  await evaljs(closeAll);
+  await feedJS([
+    { type: 'status', status: { running: true, phase: 'Noodling…', elapsed: '12s', ctx_pct: 38, mode: 'ask' } },
+    { type: 'entry', entry: { id: 'run-th', kind: 'thinking', text: 'The interpolation has to see the section it runs in, so the seen-set is per call, not per parser. A cycle comes back as an error rather than a stack overflow.', done: false } },
+  ]);
+  await sleep(500);
+  await shot(`10-running-${theme}`);
+  await feedJS([
+    { type: 'entry', entry: { id: 'run-th', kind: 'thinking', text: 'The interpolation has to see the section it runs in.', done: true } },
+    { type: 'entry', entry: { id: 'e8', kind: 'tool', name: 'bash', summary: 'rm -rf build && make', done: false } },
+    { type: 'permission', permission: { name: 'bash', summary: 'rm -rf build && make', rule: 'bash(rm -rf build*)', impact: 'deletes build/ (214 files)', preview: 'rm -rf build && make' } },
+  ]);
+  await sleep(500);
+  await shot(`11-permission-${theme}`);
+  await evaljs(closeAll);
+  await feedJS([
+    { type: 'entry', entry: { id: 'e8', kind: 'tool', name: 'bash', summary: 'rm -rf build && make', done: true, error: true, denied: true } },
+    { type: 'entry', entry: { id: 'err1', kind: 'error', error: true, text: 'Authentication failed (HTTP 401): Unauthorized. Check the API key for stub with /connect.',
+      data: { headline: 'Authentication failed', next: 'Check the API key for stub with /connect.', code: 'HTTP 401', reason: 'Unauthorized', retry: false } } },
+    idle,
+  ]);
+  await sleep(500);
+  await shot(`12-error-${theme}`);
+  await feedJS([{ type: 'connect' }]);
+  await evaljs(`new Promise(r => { const t = setInterval(() => { if (document.getElementById('connect').dataset.ready) { clearInterval(t); r(1); } }, 50); })`);
+  // The config lives in a fresh temp dir each run; pin the path shown.
+  await evaljs(`document.getElementById('cx-path').textContent = '~/.config/janetcode/config.json'; 1`);
+  await sleep(300);
+  await shot(`13-connect-${theme}`);
+  await evaljs(closeAll);
+}
+await setTheme('dark');
+for (const theme of ['dark', 'light']) {
+  await setTheme(theme);
+  await feedJS([{ type: 'reset' }, { type: 'status', status: { running: false, mode: 'ask', ctx_pct: 0 } }]);
+  await sleep(400);
+  await shot(`14-empty-${theme}`);
+}
+
 ws.close();
 console.log('done ->', OUT);
 process.exit(0);
