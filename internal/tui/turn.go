@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -17,10 +16,6 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
-
-// waitRe matches the "in 12s" a provider puts at the end of a phase to
-// say how long it is about to sleep.
-var waitRe = regexp.MustCompile(`(.*\bin )([0-9.]+)(m?s)$`)
 
 // turnState is the turn the model is running right now: whether there
 // is one, how to stop it, what it is doing, and what the user has lined
@@ -92,15 +87,9 @@ func (t *turnState) release() {
 // the line can count down to the moment something happens.
 func (t *turnState) setPhase(text string) {
 	t.phase, t.phaseUntil = text, time.Time{}
-	g := waitRe.FindStringSubmatch(text)
-	if g == nil {
-		return
+	if prefix, d, ok := textfmt.SplitCountdown(text); ok {
+		t.phase, t.phaseUntil = prefix, time.Now().Add(d)
 	}
-	d, err := time.ParseDuration(g[2] + g[3])
-	if err != nil || d <= 0 {
-		return
-	}
-	t.phase, t.phaseUntil = g[1], time.Now().Add(d)
 }
 
 // quietFor is how long the turn has produced nothing. Zero when the turn
@@ -117,14 +106,7 @@ func (t *turnState) phaseText() string {
 	if t.phaseUntil.IsZero() {
 		return flavor.ForPhase(t.phase, time.Now(), t.startedAt)
 	}
-	left := time.Until(t.phaseUntil)
-	if left < 0 {
-		left = 0
-	}
-	if left < time.Minute {
-		return fmt.Sprintf("%s%ds", t.phase, int(left.Round(time.Second)/time.Second))
-	}
-	return t.phase + textfmt.Duration(left.Round(time.Second))
+	return textfmt.Countdown(t.phase, t.phaseUntil, time.Now())
 }
 
 // dequeue takes the next prompt waiting behind the finished turn.
