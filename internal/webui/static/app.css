@@ -520,7 +520,18 @@ button:disabled { cursor: default; opacity: 0.55; }
   margin-left: auto;
   margin-right: auto;
 }
-.dock { flex: none; padding: 0 var(--gutter); }
+.dock { flex: none; padding: 0 var(--gutter); position: relative; }
+/* The thread fades out into the dock instead of butting against it. */
+.dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
 .bottom {
   padding: 0 0 14px;
   display: flex;
@@ -560,7 +571,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .chip {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 10px;
   padding: 0.5rem 1rem;
   font-size: 0.84rem;
   color: var(--mute);
@@ -570,34 +581,25 @@ button:disabled { cursor: default; opacity: 0.55; }
 .chip:hover { border-color: var(--blue-soft-border); color: var(--blue); background: var(--blue-soft); }
 
 /* ---- messages ---------------------------------------------------------- */
-.turn { margin: 0 0 2.2rem; }
+.turn { margin: 0 0 1.75rem; }
+/* Tool calls are steps of one action, not separate messages. */
+.turn.tool-turn { margin-bottom: 2px; }
+.turn.tool-turn + .turn:not(.tool-turn) { margin-top: 1.4rem; }
 .turn .lbl {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--mute);
+  margin-bottom: 0.3rem;
   user-select: none;
 }
-.turn .lbl::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--faint);
-  opacity: 0.55;
-}
 .you { display: flex; flex-direction: column; align-items: flex-end; }
-.you .lbl { color: var(--faint); }
-.you .lbl::before { background: var(--faint); opacity: 0.55; }
 .you .bubble {
   background: var(--bubble-bg);
-  border-radius: 20px;
-  padding: 0.65rem 1.05rem;
+  border-radius: 18px;
+  padding: 0.6rem 1rem;
   max-width: 78%;
   font-size: 0.95rem;
   font-weight: 400;
@@ -609,11 +611,10 @@ button:disabled { cursor: default; opacity: 0.55; }
 .md p { margin: 0.6em 0; }
 .md code {
   font-family: var(--mono);
-  font-size: 0.82em;
+  font-size: 0.86em;
   background: var(--code-bg);
-  border: 0.5px solid var(--line);
-  padding: 0.1em 0.36em;
-  border-radius: 6px;
+  padding: 0.12em 0.36em;
+  border-radius: 5px;
 }
 .md pre {
   font-family: var(--mono);
@@ -631,17 +632,25 @@ button:disabled { cursor: default; opacity: 0.55; }
 .md li { margin: 0.18em 0; }
 .md a { color: var(--blue); text-decoration: none; border-bottom: 1px solid var(--blue-soft-border); }
 .md a:hover { border-bottom-color: var(--blue); }
+/* Tables: one rounded frame, row rules only, a quiet header. Block
+   display keeps wide tables scrolling inside the column. */
 .md table {
-  border-collapse: collapse;
-  margin: 0.7em 0;
-  font-size: 0.88em;
-  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0.8em 0;
+  font-size: 0.9em;
   display: block;
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
 }
-.md th, .md td { border: 0.5px solid var(--line-strong); padding: 0.38rem 0.7rem; text-align: left; }
-.md th { background: var(--surface-2); font-weight: 600; }
-.md tr:nth-child(even) td { background: var(--surface-2); }
+.md th, .md td { padding: 0.5rem 0.9rem; text-align: left; border-top: 0.5px solid var(--line); }
+.md tr:first-child > * { border-top: 0; }
+.md th { font-weight: 600; font-size: 0.92em; color: var(--mute); background: var(--surface-2); }
+.md thead + tbody tr:first-child > td { border-top: 0.5px solid var(--line-strong); }
 
 /* fenced code: panel with a header, language left, actions right */
 .codeblock {
@@ -766,7 +775,6 @@ button:disabled { cursor: default; opacity: 0.55; }
   cursor: pointer;
 }
 .thought .lbl { cursor: pointer; }
-.thought .lbl::before { background: var(--warn); opacity: 1; }
 .thought-body { white-space: pre-wrap; color: var(--mute); font-size: 0.85rem; margin: 0.25rem 0 0; }
 .chev { display: inline-flex; font-size: 0.8rem; color: var(--faint); }
 
@@ -783,8 +791,8 @@ button:disabled { cursor: default; opacity: 0.55; }
 .tool:hover { background: var(--surface-2); }
 .tool .head {
   display: flex;
-  gap: 0.6rem;
-  align-items: baseline;
+  gap: 0.55rem;
+  align-items: center;
   padding: 0.18rem 0;
   cursor: pointer;
   font-size: 0.88rem;
@@ -793,14 +801,13 @@ button:disabled { cursor: default; opacity: 0.55; }
 .tool .head .st {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   color: var(--mute);
-  font-size: 0.7rem;
-  font-weight: 600;
-  min-width: 4.4rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+  font-weight: 500;
 }
+/* Done is the normal case: the dot says it, the word is noise. */
+.tool.st-done .head .st { font-size: 0; gap: 0; }
 .tool .head .st::before {
   content: "";
   width: 7px;
@@ -821,7 +828,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   0%, 100% { box-shadow: 0 0 0 0 var(--pulse); }
   50% { box-shadow: 0 0 0 4px transparent; }
 }
-.tool .head b { font-weight: 600; }
+.tool .head b { font-weight: 500; font-size: 0.86rem; }
 .tool .head .sum {
   color: var(--faint);
   font-family: var(--mono);
@@ -884,7 +891,8 @@ button:disabled { cursor: default; opacity: 0.55; }
   padding: 0.32rem 0.75rem;
   display: inline-block;
 }
-.err, .verdict { font-size: 0.9rem; color: var(--mute); }
+.err, .verdict { font-size: 0.88rem; color: var(--mute); }
+.verdict { display: inline-flex; align-items: center; gap: 6px; padding: 0.3rem 0.75rem; border-radius: 8px; background: var(--surface-2); }
 .err {
   color: var(--bad);
   background: var(--bad-soft);
@@ -903,7 +911,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   transition: background 0.12s ease;
 }
 .retry-btn:hover { background: var(--bad-soft); }
-.verdict.ok { color: var(--ok); font-weight: 600; }
+.verdict.ok { color: var(--ok); background: var(--ok-soft); font-weight: 500; }
 .sheet {
   background: var(--surface);
   border: 0.5px solid var(--line);
@@ -1049,10 +1057,9 @@ pre.sheetbody {
   width: min(38rem, calc(100% - 12px));
   z-index: 45;
   background: var(--surface);
-  border: 0.5px solid var(--warn-border);
-  border-top: 3px solid var(--warn);
-  border-radius: var(--radius-l);
-  padding: 1rem 1.15rem 1.05rem;
+  border: 1px solid var(--warn-border);
+  border-radius: 16px;
+  padding: 1rem 1.1rem 1rem;
   box-shadow: var(--shadow-pop);
 }
 /* scrim behind whichever card is open, pure CSS */
@@ -1102,8 +1109,9 @@ pre.sheetbody {
 .ask-actions button {
   background: var(--surface);
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  padding: 0.42rem 0.95rem;
+  border-radius: 8px;
+  height: 32px;
+  padding: 0 0.85rem;
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--ink);
@@ -1119,7 +1127,7 @@ pre.sheetbody {
   flex: 1;
   min-width: 0;
   border: 0.5px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.42rem 0.85rem;
   background: var(--surface-2);
   color: var(--ink);
@@ -1128,7 +1136,7 @@ pre.sheetbody {
 .q-other button {
   background: var(--blue);
   color: var(--on-accent);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.42rem 0.95rem;
   font-weight: 600;
 }
@@ -1137,9 +1145,9 @@ pre.sheetbody {
 #composer {
   position: relative;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 26px;
-  padding: 13px 16px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  padding: 12px 12px 10px 16px;
   box-shadow: var(--shadow-composer);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1158,8 +1166,9 @@ pre.sheetbody {
   outline: none;
   background: transparent;
   min-height: 2.6rem;
-  max-height: 9rem;
+  max-height: 14rem;
   line-height: 1.55;
+  padding: 2px 4px 0 0;
   font-size: 0.98rem;
   color: var(--ink);
 }
@@ -1167,42 +1176,38 @@ pre.sheetbody {
 .composer-bar {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding-top: 8px;
+  gap: 2px;
+  padding-top: 6px;
+  margin-left: -6px;
 }
 .composer-bar .spacer { flex: 1; }
 .cmd-btn {
   width: 32px;
   height: 32px;
   min-width: 32px;
-  border-radius: 50%;
+  border-radius: 8px;
   border: 0;
   background: transparent;
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 14px;
+  color: var(--mute);
+  font-size: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .cmd-btn:hover { background: var(--surface-2); color: var(--ink); }
-#search-btn {
-  border: 0;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 13px;
+#mode-chip {
+  cursor: default;
+  margin-left: 4px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  padding: 0 10px;
+  border-radius: 7px;
+  font: 500 12px/1 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
 }
-#search-btn:hover { background: var(--surface-2); color: var(--ink); }
-#mode-chip { cursor: default; }
 .model-btn {
   flex: 0 1 auto;
   min-width: 0;
@@ -1224,10 +1229,10 @@ pre.sheetbody {
 .model-prov { color: var(--mute); }
 .model-btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface-2); }
 .send-btn, #send {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 10px;
   border: 0;
   padding: 0;
   background: var(--blue);
@@ -1240,12 +1245,14 @@ pre.sheetbody {
   transition: background 0.13s ease, transform 0.06s ease;
 }
 #send:hover { background: var(--blue-deep); }
+/* Nothing typed, nothing to send: the button rests until there is. */
+#composer:has(#input:placeholder-shown):not(:has(.file-chip)) #send { background: var(--surface-2); color: var(--faint); }
 #send:active { transform: translateY(1px); }
 .stop-btn, #stop {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 10px;
   padding: 0;
   background: transparent;
   border: 1px solid var(--bad-border);

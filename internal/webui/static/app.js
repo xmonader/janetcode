@@ -268,7 +268,7 @@
       }
     } else if (e.kind === "tool") {
       const folded = !!(e.run && !e.run_live && !openRuns.has(e.run));
-      n.className = "turn" + (e.run && !e.run_head ? " run-child" : "");
+      n.className = "turn tool-turn" + (e.run && !e.run_head ? " run-child" : "");
       n.hidden = !!(e.run && !e.run_head && folded);
       const st = e.denied ? "Declined" : e.error ? "Failed" : e.done ? "Done" : e.running ? "Running" : "Queued";
       const stCls = "st-" + st.toLowerCase();
@@ -534,7 +534,9 @@
     const chip = document.getElementById("mode-chip");
     if (!chip) return;
     const m = mode || "ask";
-    chip.textContent = m;
+    const names = { ask: "Ask first", AUTO: "Auto", EDITS: "Auto-edit", PLAN: "Plan", "READ-ONLY": "Read-only", YOLO: "Allow all" };
+    chip.textContent = names[m] || m;
+    chip.title = "Permission mode: " + (names[m] || m) + " — switch in the session panel";
     chip.dataset.mode = m;
   }
 
