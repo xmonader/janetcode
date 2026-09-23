@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -325,6 +326,9 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 				// the width the command itself needed: the prompt read
 				// "allow bash seq 1 400 > /tmp/claude-1000/-home-driver-…"
 				// and never reached the file name.
+				if k == "command" {
+					v = shell.TrimWorkspaceCd(v, cwd)
+				}
 				v = shortenPaths(cwd, v)
 			}
 			if k == "pattern" {
