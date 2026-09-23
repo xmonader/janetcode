@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -376,7 +377,7 @@ func (s *server) replayHistory(msgs []llm.Message) {
 				}
 			case llm.BlockToolUse:
 				open[b.ID] = s.add(entry{Kind: "tool", Name: b.Name, CallID: b.ID, Running: true,
-					Summary: summarizeInput(b.Name, string(b.Input), 80, s.cwd())})
+					Summary: present.ToolSummary(b.Name, string(b.Input), 80, s.cwd())})
 			case llm.BlockToolResult:
 				id, ok := open[b.ToolUseID]
 				if !ok {

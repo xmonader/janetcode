@@ -15,6 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -145,13 +146,13 @@ func TestLoadHistory(t *testing.T) {
 }
 
 func TestSummarizeInput(t *testing.T) {
-	if got := summarizeInput("grep", `{"pattern":"foo","path":"src"}`, 40, ""); got != "foo in src" {
+	if got := present.ToolSummary("grep", `{"pattern":"foo","path":"src"}`, 40, ""); got != "foo in src" {
 		t.Fatalf("got %q", got)
 	}
-	if got := summarizeInput("bash", `{"command":"a\nb"}`, 40, ""); got != "a⏎ b" {
+	if got := present.ToolSummary("bash", `{"command":"a\nb"}`, 40, ""); got != "a⏎ b" {
 		t.Fatalf("got %q", got)
 	}
-	if got := summarizeInput("x", `{"k":"`+strings.Repeat("v", 50)+`"}`, 20, ""); len(got) > 22 || !strings.HasSuffix(got, "…") {
+	if got := present.ToolSummary("x", `{"k":"`+strings.Repeat("v", 50)+`"}`, 20, ""); len(got) > 22 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -160,22 +161,22 @@ func TestSummarizeInput(t *testing.T) {
 // context; the permission line names the keys only, and never a value.
 func TestSummarizeInputMCPKeysOnly(t *testing.T) {
 	secret := "sk-secret-token-value"
-	got := summarizeInput("mcp__deploy__ship", `{"repo":"a/b","api_key":"`+secret+`","dry_run":true}`, 200, "")
+	got := present.ToolSummary("mcp__deploy__ship", `{"repo":"a/b","api_key":"`+secret+`","dry_run":true}`, 200, "")
 	if got != "{api_key, dry_run, repo}" {
 		t.Fatalf("got %q", got)
 	}
 	if strings.Contains(got, secret) {
 		t.Fatal("a value reached the permission line")
 	}
-	if got := summarizeInput("mcp__x__y", `["`+secret+`"]`, 200, ""); strings.Contains(got, secret) || got != "(json array)" {
+	if got := present.ToolSummary("mcp__x__y", `["`+secret+`"]`, 200, ""); strings.Contains(got, secret) || got != "(json array)" {
 		t.Fatalf("got %q", got)
 	}
-	if got := summarizeInput("mcp__x__y", "not json at all: "+secret, 200, ""); strings.Contains(got, secret) || got != "(arguments are not valid JSON)" {
+	if got := present.ToolSummary("mcp__x__y", "not json at all: "+secret, 200, ""); strings.Contains(got, secret) || got != "(arguments are not valid JSON)" {
 		t.Fatalf("got %q", got)
 	}
 	// Truncation keeps long key lists on one line.
 	many := `{"` + strings.Repeat("k", 60) + `":"v","b":"v","c":"v"}`
-	if got := summarizeInput("mcp__x__y", many, 20, ""); len([]rune(got)) > 20 {
+	if got := present.ToolSummary("mcp__x__y", many, 20, ""); len([]rune(got)) > 20 {
 		t.Fatalf("got %d runes: %q", len([]rune(got)), got)
 	}
 }
@@ -212,10 +213,10 @@ func TestTruncateLineIsWidthAware(t *testing.T) {
 // directory so the file name survives truncation; a folded thought ends
 // at a word, not mid-word.
 func TestPathsAndThoughtsFit(t *testing.T) {
-	if got := summarizeInput("read_file", `{"path":"/work/proj/internal/x/x.go","offset":120}`, 60, "/work/proj"); got != "internal/x/x.go from line 120" {
+	if got := present.ToolSummary("read_file", `{"path":"/work/proj/internal/x/x.go","offset":120}`, 60, "/work/proj"); got != "internal/x/x.go from line 120" {
 		t.Fatalf("got %q", got)
 	}
-	if got := summarizeInput("grep", `{"pattern":"foo","path":"/work/proj/src"}`, 60, "/work/proj"); got != "foo in src" {
+	if got := present.ToolSummary("grep", `{"pattern":"foo","path":"/work/proj/src"}`, 60, "/work/proj"); got != "foo in src" {
 		t.Fatalf("got %q", got)
 	}
 	if got := relTo("/work/proj", "/elsewhere/a.go"); got != "/elsewhere/a.go" {
@@ -802,7 +803,7 @@ func TestResumeReplaysTerminalStatesOnly(t *testing.T) {
 func TestCommandSummaryShortensPaths(t *testing.T) {
 	cwd := "/tmp/claude-1000/-home-driver/scratch/proj"
 	raw := `{"command":"seq 1 400 > ` + cwd + `/numbers.txt"}`
-	got := summarizeInput("bash", raw, 80, cwd)
+	got := present.ToolSummary("bash", raw, 80, cwd)
 	if strings.Contains(got, cwd) {
 		t.Fatalf("absolute path kept: %q", got)
 	}
@@ -811,7 +812,7 @@ func TestCommandSummaryShortensPaths(t *testing.T) {
 	}
 	// Paths elsewhere still shorten to ~ where they can, and a command
 	// with no path in it is untouched.
-	if got := summarizeInput("bash", `{"command":"go test ./..."}`, 80, cwd); got != "go test ./..." {
+	if got := present.ToolSummary("bash", `{"command":"go test ./..."}`, 80, cwd); got != "go test ./..." {
 		t.Fatalf("summary = %q", got)
 	}
 }

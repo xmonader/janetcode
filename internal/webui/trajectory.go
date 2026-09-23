@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/trajectory"
@@ -337,7 +338,7 @@ func trajPreview(e session.Event) string {
 		if e.Intent != "" {
 			s += " · " + e.Intent
 		} else if e.Arguments != "" {
-			s += " · " + summarizeInput(e.Name, e.Arguments, 80, "")
+			s += " · " + present.ToolSummary(e.Name, e.Arguments, 80, "")
 		}
 		return s
 	}

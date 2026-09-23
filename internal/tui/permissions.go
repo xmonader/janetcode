@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/trust"
 )
 
@@ -329,7 +330,7 @@ func (m *model) permissionNotice() string {
 	room := m.width - 4
 	// Everything here came from the model or the repository; none of it
 	// may carry control characters into the terminal.
-	line := m.styles.warn.Bold(true).Render("allow ") + m.styles.tool.Bold(true).Render(sanitize(c.Name)) + " " + m.styles.dim.Render(sanitize(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd)))
+	line := m.styles.warn.Bold(true).Render("allow ") + m.styles.tool.Bold(true).Render(sanitize(c.Name)) + " " + m.styles.dim.Render(sanitize(present.ToolSummary(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd)))
 	if c.Warning != "" {
 		line += m.styles.err.Bold(true).Render(" · ⚠ " + sanitize(c.Warning))
 	}

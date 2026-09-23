@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/present"
 )
 
 // A bare "." a model emits between tool calls is not an answer: it must
@@ -39,12 +40,12 @@ func TestBashRowDropsTheWorkspaceCd(t *testing.T) {
 		`cd "/home/u/proj/rs-csvstat"; cargo test 2>&1`,
 	} {
 		raw, _ := json.Marshal(map[string]string{"command": cmd})
-		if got := summarizeInput("bash", string(raw), 80, cwd); got != "cargo test 2>&1" {
+		if got := present.ToolSummary("bash", string(raw), 80, cwd); got != "cargo test 2>&1" {
 			t.Errorf("summary of %q = %q", cmd, got)
 		}
 	}
 	raw, _ := json.Marshal(map[string]string{"command": "cd sub && make"})
-	if got := summarizeInput("bash", string(raw), 80, cwd); got != "cd sub && make" {
+	if got := present.ToolSummary("bash", string(raw), 80, cwd); got != "cd sub && make" {
 		t.Errorf("a cd elsewhere is part of the command: %q", got)
 	}
 }

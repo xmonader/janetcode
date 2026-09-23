@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -91,7 +91,7 @@ func applyToolChrome(body, icon, elapsed string) string {
 func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	var sb strings.Builder
 	name := t.styles.tool.Bold(true).Render(e.call.Name)
-	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
+	summary := present.ToolSummary(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
 	if o.renderer != nil {
 		if r, ok := o.renderer(e.call.Name); ok {
 			if lines := r.RenderCall(json.RawMessage(e.inputJSON()), tool.RenderContext{Expanded: o.expand(e)}); len(lines) > 0 {
@@ -298,81 +298,6 @@ func renderPreview(sty *styles, preview string, width, maxLines int, expandable 
 		out = append(out, sty.faint.Render("  "+moreNote(hidden, expandable)))
 	}
 	return strings.Join(out, "\n")
-}
-
-// summarizeInput shows the most useful argument on one line. Paths are
-// shown relative to cwd: the model often passes them absolute, and an
-// absolute path truncated to fit loses the one part that matters, the
-// file name.
-func summarizeInput(name, raw string, max int, cwd string) string {
-	// MCP tools are third-party code, and their argument values often
-	// carry credentials the model copied from context — an api_key, a
-	// bearer token. The permission line lands in scrollback and
-	// screenshots, so it names the argument keys only; the values stay
-	// one expand away in the entry's full input view.
-	if strings.HasPrefix(name, "mcp__") {
-		return summarizeKeys(raw, max)
-	}
-	var m map[string]any
-	if json.Unmarshal([]byte(raw), &m) != nil {
-		return truncateLine(raw, max)
-	}
-	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
-		if v, ok := m[k].(string); ok {
-			extra := ""
-			if k == "command" || k == "description" {
-				// A command redirecting into the project carried the whole
-				// absolute path, which is the same for every call and ate
-				// the width the command itself needed: the prompt read
-				// "allow bash seq 1 400 > /tmp/claude-1000/-home-driver-…"
-				// and never reached the file name.
-				if k == "command" {
-					v = shell.TrimWorkspaceCd(v, cwd)
-				}
-				v = shortenPaths(cwd, v)
-			}
-			if k == "pattern" {
-				if p, ok := m["path"].(string); ok && p != "" {
-					extra = " in " + relTo(cwd, p)
-				}
-			}
-			if k == "path" {
-				v = relTo(cwd, v)
-				if off, ok := m["offset"].(float64); ok && off > 1 {
-					extra = fmt.Sprintf(" from line %d", int(off))
-				}
-			}
-			return truncateLine(v+extra, max)
-		}
-	}
-	return truncateLine(raw, max)
-}
-
-// summarizeKeys renders a tool call's arguments as their key names
-// alone, sorted so the line is stable: {"api_key, repo"}, never the
-// values. A body that is not a JSON object has no keys to name, so it
-// is described by shape instead of quoted.
-func summarizeKeys(raw string, max int) string {
-	var v any
-	if err := json.Unmarshal([]byte(raw), &v); err != nil {
-		return truncateLine("(arguments are not valid JSON)", max)
-	}
-	if obj, ok := v.(map[string]any); ok {
-		keys := make([]string, 0, len(obj))
-		for k := range obj {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		return truncateLine("{"+strings.Join(keys, ", ")+"}", max)
-	}
-	switch v.(type) {
-	case []any:
-		return truncateLine("(json array)", max)
-	case string:
-		return truncateLine("(json string)", max)
-	default:
-		return truncateLine("(json value)", max)
-	}
 }
 
 // prettyInputFor is prettyInput with a third-party tool's argument values

@@ -3,10 +3,12 @@ package webui
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/xmonader/janetcode/internal/shell"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/present"
+	"github.com/xmonader/janetcode/internal/shell"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
@@ -93,7 +95,7 @@ func (s *server) apply(ev agent.Event) {
 		s.appendText("thinking", ev.Text)
 	case agent.EvToolStart:
 		s.closeOpen()
-		s.add(entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
+		s.add(entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: present.ToolSummary(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
 		s.setPhaseIfChanged("preparing " + ev.Call.Name)
 	case agent.EvToolInput:
 		// The status line says what is being written and how much, as the
@@ -115,7 +117,7 @@ func (s *server) apply(ev agent.Event) {
 		}
 		cwd := s.cwd()
 		s.updateTool(ev.Call, func(e *entry) {
-			e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, cwd)
+			e.Summary = present.ToolSummary(ev.Call.Name, string(ev.Call.Input), 80, cwd)
 		})
 	case agent.EvToolRun:
 		cwd := s.cwd()
@@ -123,7 +125,7 @@ func (s *server) apply(ev agent.Event) {
 			e.Name = ev.Call.Name
 			e.CallID = ev.Call.ID
 			e.Running = true
-			e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, cwd)
+			e.Summary = present.ToolSummary(ev.Call.Name, string(ev.Call.Input), 80, cwd)
 			if ev.Call.Preview != "" {
 				e.Preview = ev.Call.Preview
 			}

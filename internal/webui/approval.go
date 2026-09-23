@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/present"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 type askReq struct {
@@ -214,7 +216,7 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 			Command string `json:"command"`
 		}
 		if json.Unmarshal(c.Input, &in) == nil {
-			cmd := dropRedundantCd(in.Command, s.cwd())
+			cmd := shell.TrimWorkspaceCd(in.Command, s.cwd())
 			if len([]rune(cmd)) > 80 || strings.Contains(cmd, "\n") {
 				preview = cmd
 			}
@@ -223,7 +225,7 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 	return permPayload{
 		ID:        c.ID,
 		Name:      c.Name,
-		Summary:   summarizeInput(c.Name, string(c.Input), 80, s.cwd()),
+		Summary:   present.ToolSummary(c.Name, string(c.Input), 80, s.cwd()),
 		Preview:   preview,
 		Warning:   c.Warning,
 		Rule:      rule,

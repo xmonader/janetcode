@@ -26,7 +26,9 @@ import (
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -1392,7 +1394,7 @@ func TestPermissionCardShowsTheWholeCommand(t *testing.T) {
 	if p.Preview != long {
 		t.Fatalf("long command not previewed whole: %q", p.Preview)
 	}
-	if got := dropRedundantCd("cd /elsewhere && make", cwd); got != "cd /elsewhere && make" {
+	if got := shell.TrimWorkspaceCd("cd /elsewhere && make", cwd); got != "cd /elsewhere && make" {
 		t.Fatalf("a cd somewhere else is kept: %q", got)
 	}
 }
@@ -1401,7 +1403,7 @@ func TestPermissionCardShowsTheWholeCommand(t *testing.T) {
 // `{"todos": [{"text": "Create Go module…` in the thread.
 func TestPlanToolSummaryIsNotRawJSON(t *testing.T) {
 	raw := `{"todos":[{"text":"Create module","status":"completed"},{"text":"Write tests","status":"in_progress"},{"text":"Run","status":"pending"}]}`
-	if got := summarizeInput("todo", raw, 80, ""); got != "3 steps · Write tests" {
+	if got := present.ToolSummary("todo", raw, 80, ""); got != "3 steps · Write tests" {
 		t.Fatalf("summary = %q", got)
 	}
 }
@@ -1581,7 +1583,7 @@ func TestMCPSummaryNeverQuotesNonObjectArguments(t *testing.T) {
 		`sk-live-abc123 not json`:                 "(arguments are not valid JSON)",
 		`{"api_key":"sk-live-abc123","repo":"x"}`: "{api_key, repo}",
 	} {
-		got := summarizeInput("mcp__github__call", raw, 200, "/p")
+		got := present.ToolSummary("mcp__github__call", raw, 200, "/p")
 		if got != want || strings.Contains(got, "sk-live") {
 			t.Errorf("%s → %q, want %q", raw, got, want)
 		}

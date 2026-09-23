@@ -8,18 +8,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/xmonader/janetcode/internal/perm"
 	"io"
 	"io/fs"
 	"net"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/perm"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -1002,94 +1002,4 @@ func writeSSE(w http.ResponseWriter, e envelope) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
-}
-
-// dropRedundantCd takes a leading "cd <session dir> &&" off a command:
-// models often prefix every command with it, and in an 80-column summary
-// the absolute path was all a reader saw — a permission card asked to
-// approve "cd /tmp/…/proj/go…" with the actual command cut off.
-func dropRedundantCd(cmd, cwd string) string {
-	if cwd == "" {
-		return cmd
-	}
-	t := strings.TrimSpace(cmd)
-	for _, dir := range []string{cwd, strconv.Quote(cwd), "'" + cwd + "'"} {
-		for _, sep := range []string{"&&", ";"} {
-			if rest, ok := strings.CutPrefix(t, "cd "+dir); ok {
-				if rest, ok := strings.CutPrefix(strings.TrimSpace(rest), sep); ok && strings.TrimSpace(rest) != "" {
-					return strings.TrimSpace(rest)
-				}
-			}
-		}
-	}
-	return cmd
-}
-
-func summarizeInput(name, raw string, max int, cwd string) string {
-	var m map[string]any
-	if json.Unmarshal([]byte(raw), &m) != nil {
-		// An MCP body that is not an object (a bare string token, an
-		// array) is still theirs: describe its shape, never quote it.
-		if strings.HasPrefix(name, "mcp__") {
-			return mcpShape(raw)
-		}
-		return textfmt.Clip(raw, max)
-	}
-	// MCP tools are third-party code, and their argument values often
-	// carry a credential the model copied out of context — an api_key, a
-	// bearer token. None of the keys below are theirs, so this line fell
-	// through to printing the whole raw JSON: the summary of an MCP call
-	// was its arguments, verbatim, in the browser and in the event stream
-	// behind it. Name the keys instead, as the terminal front-end does.
-	if strings.HasPrefix(name, "mcp__") {
-		keys := make([]string, 0, len(m))
-		for k := range m {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		return textfmt.Clip("{"+strings.Join(keys, ", ")+"}", max)
-	}
-	// The plan tool's argument is the whole list; its raw JSON was the
-	// tool row's summary. Say what the TUI says: how many steps, and the
-	// one being worked on.
-	if todos, ok := m["todos"].([]any); ok {
-		sum := textfmt.Plural(len(todos), "step")
-		for _, t := range todos {
-			if item, ok := t.(map[string]any); ok && item["status"] == "in_progress" {
-				if text, ok := item["text"].(string); ok && text != "" {
-					sum += " · " + text
-				}
-				break
-			}
-		}
-		return textfmt.Clip(sum, max)
-	}
-	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
-		if v, ok := m[k].(string); ok {
-			if k == "path" {
-				v = textfmt.RelTo(cwd, v)
-			}
-			if k == "command" {
-				v = dropRedundantCd(v, cwd)
-			}
-			return textfmt.Clip(v, max)
-		}
-	}
-	return textfmt.Clip(raw, max)
-}
-
-// mcpShape names what an MCP call's non-object arguments are without
-// saying what they contain, as the terminal does.
-func mcpShape(raw string) string {
-	var v any
-	if json.Unmarshal([]byte(raw), &v) != nil {
-		return "(arguments are not valid JSON)"
-	}
-	switch v.(type) {
-	case []any:
-		return "(json array)"
-	case string:
-		return "(json string)"
-	}
-	return "(json value)"
 }
