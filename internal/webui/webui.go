@@ -917,6 +917,27 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// dropRedundantCd takes a leading "cd <session dir> &&" off a command:
+// models often prefix every command with it, and in an 80-column summary
+// the absolute path was all a reader saw — a permission card asked to
+// approve "cd /tmp/…/proj/go…" with the actual command cut off.
+func dropRedundantCd(cmd, cwd string) string {
+	if cwd == "" {
+		return cmd
+	}
+	t := strings.TrimSpace(cmd)
+	for _, dir := range []string{cwd, strconv.Quote(cwd), "'" + cwd + "'"} {
+		for _, sep := range []string{"&&", ";"} {
+			if rest, ok := strings.CutPrefix(t, "cd "+dir); ok {
+				if rest, ok := strings.CutPrefix(strings.TrimSpace(rest), sep); ok && strings.TrimSpace(rest) != "" {
+					return strings.TrimSpace(rest)
+				}
+			}
+		}
+	}
+	return cmd
+}
+
 func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
@@ -936,10 +957,28 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 		sort.Strings(keys)
 		return textfmt.Clip("{"+strings.Join(keys, ", ")+"}", max)
 	}
+	// The plan tool's argument is the whole list; its raw JSON was the
+	// tool row's summary. Say what the TUI says: how many steps, and the
+	// one being worked on.
+	if todos, ok := m["todos"].([]any); ok {
+		sum := textfmt.Plural(len(todos), "step")
+		for _, t := range todos {
+			if item, ok := t.(map[string]any); ok && item["status"] == "in_progress" {
+				if text, ok := item["text"].(string); ok && text != "" {
+					sum += " · " + text
+				}
+				break
+			}
+		}
+		return textfmt.Clip(sum, max)
+	}
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
 			if k == "path" {
 				v = textfmt.RelTo(cwd, v)
+			}
+			if k == "command" {
+				v = dropRedundantCd(v, cwd)
 			}
 			return textfmt.Clip(v, max)
 		}

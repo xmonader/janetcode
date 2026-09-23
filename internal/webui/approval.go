@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
 )
@@ -205,11 +206,25 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 			rungs = append(rungs, permRung{Rule: r.Rule, Learned: r.Learned})
 		}
 	}
+	preview := c.Preview
+	// A command is what the reader is approving: when the one-line summary
+	// cannot hold it all, the card shows it whole.
+	if preview == "" && c.Name == "bash" {
+		var in struct {
+			Command string `json:"command"`
+		}
+		if json.Unmarshal(c.Input, &in) == nil {
+			cmd := dropRedundantCd(in.Command, s.cwd())
+			if len([]rune(cmd)) > 80 || strings.Contains(cmd, "\n") {
+				preview = cmd
+			}
+		}
+	}
 	return permPayload{
 		ID:        c.ID,
 		Name:      c.Name,
 		Summary:   summarizeInput(c.Name, string(c.Input), 80, s.cwd()),
-		Preview:   c.Preview,
+		Preview:   preview,
 		Warning:   c.Warning,
 		Rule:      rule,
 		Rungs:     rungs,

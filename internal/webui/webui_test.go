@@ -1372,3 +1372,36 @@ func TestWebStatusNamesStreamingWrite(t *testing.T) {
 		t.Fatalf("text phase = %q", got)
 	}
 }
+
+// TestPermissionCardShowsTheWholeCommand: a model that prefixes every
+// command with "cd <session dir> &&" pushed the real command past the
+// 80-column summary, so the card asked to approve an absolute path. The
+// redundant cd is dropped, and a command the summary cannot hold is sent
+// whole as the card's preview.
+func TestPermissionCardShowsTheWholeCommand(t *testing.T) {
+	cwd := t.TempDir()
+	s := newServer(context.Background(), Options{Cwd: cwd})
+	in, _ := json.Marshal(map[string]string{"command": "cd " + cwd + " && go mod init wordfreq"})
+	p := s.permOf(agent.ToolCall{ID: "b1", Name: "bash", Input: in})
+	if p.Summary != "go mod init wordfreq" {
+		t.Fatalf("summary = %q", p.Summary)
+	}
+	long := strings.Repeat("x", 70) + " && go test ./... && go vet ./..."
+	in, _ = json.Marshal(map[string]string{"command": long})
+	p = s.permOf(agent.ToolCall{ID: "b2", Name: "bash", Input: in})
+	if p.Preview != long {
+		t.Fatalf("long command not previewed whole: %q", p.Preview)
+	}
+	if got := dropRedundantCd("cd /elsewhere && make", cwd); got != "cd /elsewhere && make" {
+		t.Fatalf("a cd somewhere else is kept: %q", got)
+	}
+}
+
+// TestPlanToolSummaryIsNotRawJSON: the todo tool's row read
+// `{"todos": [{"text": "Create Go module…` in the thread.
+func TestPlanToolSummaryIsNotRawJSON(t *testing.T) {
+	raw := `{"todos":[{"text":"Create module","status":"completed"},{"text":"Write tests","status":"in_progress"},{"text":"Run","status":"pending"}]}`
+	if got := summarizeInput("todo", raw, 80, ""); got != "3 steps · Write tests" {
+		t.Fatalf("summary = %q", got)
+	}
+}
