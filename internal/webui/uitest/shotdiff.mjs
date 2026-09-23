@@ -11,11 +11,12 @@ import { readdirSync, readFileSync, writeFileSync, copyFileSync, existsSync, mkd
 const [PORT, NEW, BASE] = process.argv.slice(2);
 const UPDATE = process.argv.includes('--update');
 // A pixel counts as changed when any channel moves by more than CHANNEL;
-// a shot fails when more than RATIO of its pixels changed. Font hinting
-// and subpixel positions move a handful of edge pixels between runs;
-// anything a person would notice moves far more.
-const CHANNEL = 40;
-const RATIO = 0.002;
+// a shot fails when more than RATIO of its pixels changed. The shots are
+// still frames (shot.mjs stops animations) and repeat to the pixel, so
+// the bar is low: at 40/0.2% a verdict badge that lost its colour
+// passed unnoticed.
+const CHANNEL = 12;
+const RATIO = 0.0001;
 
 const shots = readdirSync(NEW).filter(f => f.endsWith('.png') && !f.endsWith('.diff.png')).sort();
 if (shots.length === 0) {

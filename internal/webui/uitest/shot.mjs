@@ -74,8 +74,8 @@ const FEED = [
   { type: 'entry', entry: { id: 'e3', kind: 'tool', name: 'read_file', summary: 'internal/inifile/parser.go', done: true, dur: '0.4s', output: 'func (p *Parser) Interpolate(v string) string {\n    return v\n}' } },
   { type: 'entry', entry: { id: 'e4', kind: 'tool', name: 'edit_file', summary: 'internal/inifile/parser.go', preview: '@@ -120,3 +120,9 @@\n func (p *Parser) Interpolate(v string) string {\n-    return v\n+    return p.interpolate(v, "_DEFAULT", make(map[string]bool))\n+}\n+\n+func (p *Parser) interpolate(v, section string, seen map[string]bool) (string, error) {\n+    if seen == nil {\n+        seen = make(map[string]bool)\n+    }', done: true, dur: '1.2s' } },
   { type: 'entry', entry: { id: 'e5', kind: 'tool', name: 'bash', summary: 'go test ./internal/inifile/', done: true, dur: '6.1s', output: 'ok  \tgithub.com/xmonader/janetcode/internal/inifile\t0.312s' } },
-  { type: 'entry', entry: { id: 'e6', kind: 'assistant', text: ASSISTANT, done: true, tok_in: 12034, tok_out: 812, ms: 21400, at: new Date().toISOString() } },
-  { type: 'entry', entry: { id: 'e7', kind: 'verdict', text: '✓ tests passed' } },
+  { type: 'entry', entry: { id: 'e6', kind: 'assistant', text: ASSISTANT, done: true, tok_in: 12034, tok_out: 812, ms: 21400, at: '2026-01-15T14:52:00Z' } },
+  { type: 'entry', entry: { id: 'e7', kind: 'verdict', text: '✓ tests passed', tone: 'ok' } },
   { type: 'status', status: { running: false, phase: '', ctx_pct: 34, queued: 0, yolo: false, auto: false, edits: false, plan: false, readonly: false, mode: 'ask', verbose: false, status: 'done in 21s', cost: '$0.0042' } },
 ];
 
@@ -86,6 +86,14 @@ async function shot(name) {
 }
 const setTheme = (t) => evaljs(`(() => { localStorage.setItem('janetcode-theme', '${t}'); document.documentElement.dataset.theme = '${t}'; if (window.term) {} return 1; })()`);
 const setSize = async (w, h) => { await cmd('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }); await sleep(350); };
+
+// The message clock is a real time; pin the zone it is read in so the
+// shot is the same on any machine.
+await cmd('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
+
+// A spinner caught mid-turn, or a fade half done, is a different picture
+// every run; the gate compares still frames.
+await evaljs(`(() => { const st = document.createElement('style'); st.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }'; document.head.appendChild(st); return 1; })()`);
 
 // feed fixtures through the fake EventSource
 await evaljs(`(() => {
