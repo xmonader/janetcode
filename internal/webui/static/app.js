@@ -562,7 +562,8 @@
     if (!chip) return;
     chip.hidden = false;
     chip.dataset.effort = effort || "";
-    chip.textContent = effort ? "effort " + effort : "effort";
+    // A bare "effort" read as a stray word; say the model decides.
+    chip.textContent = "effort " + (effort || "default");
     paintModel();
   }
 
@@ -1314,7 +1315,7 @@
         html = rowHTML(0, `switch to “${q}”`, "routes by name or prefix") + html;
       }
     } else {
-      const cur = (effortChip.textContent || "").replace(/^effort /, "");
+      const cur = effortChip.dataset.effort || "";
       for (const t of EFFORT_TIERS) {
         if (q && !t.includes(q)) continue;
         switchRows.push({ cmd: "/effort " + t });
