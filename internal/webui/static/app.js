@@ -1077,11 +1077,33 @@
     const el = scroller();
     toLatest.hidden = el.scrollHeight - el.scrollTop - el.clientHeight <= 120;
   }
-  scroller().addEventListener("scroll", paintToLatest, { passive: true });
-  window.addEventListener("resize", paintToLatest);
+  // pinned: the reader is on the tail, so anything that grows the
+  // thread or shrinks the viewport (a highlighted block, a drawn
+  // diagram, a taller composer, a drawer opening) keeps them there.
+  // Only the reader's own scroll unpins.
+  let pinned = true;
+  scroller().addEventListener("scroll", () => {
+    const el = scroller();
+    pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    paintToLatest();
+  }, { passive: true });
+  const keepPinned = new ResizeObserver(() => {
+    if (pinned) { const el = scroller(); el.scrollTop = el.scrollHeight; }
+    paintToLatest();
+    measureGutter();
+  });
+  keepPinned.observe(log);
+  keepPinned.observe(scroller());
+  // The scroller reserves a scrollbar gutter on its right; the dock
+  // mirrors it so the composer centres exactly under the thread.
+  const measureGutter = () => {
+    const el = scroller();
+    document.documentElement.style.setProperty("--sbw", (el.offsetWidth - el.clientWidth) + "px");
+  };
+  measureGutter();
   toLatest.addEventListener("click", () => {
     const el = scroller();
-    el.scrollTop = el.scrollHeight;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     toLatest.hidden = true;
     input.focus();
   });
@@ -1147,8 +1169,8 @@
     if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable)) return;
     if (!palette.hidden) return;
     const thread = currentView === "trajectory" && trajLedger.scrollHeight > trajLedger.clientHeight ? trajLedger : scroller();
-    if (ev.key === "j") thread.scrollBy({ top: 72 });
-    else if (ev.key === "k") thread.scrollBy({ top: -72 });
+    if (ev.key === "j") thread.scrollBy({ top: 72, behavior: "smooth" });
+    else if (ev.key === "k") thread.scrollBy({ top: -72, behavior: "smooth" });
     else if (ev.key === "g") thread.scrollTop = 0;
     else if (ev.key === "G") thread.scrollTop = thread.scrollHeight;
     else return;

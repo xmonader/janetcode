@@ -512,7 +512,11 @@ button:disabled { cursor: default; opacity: 0.55; }
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  /* No scroll-behavior: smooth here — following a stream sets scrollTop
+     on every chunk, and an animating scroll falls behind the growing
+     tail until the stick-to-bottom check reads "reader scrolled away"
+     and stops following. Smoothness is opted into per user gesture. */
   padding: 28px var(--gutter) 12px;
 }
 #chat-view > *, .bottom {
@@ -520,7 +524,9 @@ button:disabled { cursor: default; opacity: 0.55; }
   margin-left: auto;
   margin-right: auto;
 }
-.dock { flex: none; padding: 0 var(--gutter); position: relative; }
+/* --sbw is the chat scroller's reserved scrollbar width (measured in
+   app.js); the dock adds it on the right so both columns centre alike. */
+.dock { flex: none; padding: 0 calc(var(--gutter) + var(--sbw, 0px)) 0 var(--gutter); position: relative; }
 /* The thread fades out into the dock instead of butting against it. */
 .dock::before {
   content: "";
@@ -1541,14 +1547,14 @@ body.resizing .preview { transition: none !important; }
   transition: padding-right 0.24s cubic-bezier(0.32, 0.72, 0.35, 1);
 }
 .shell:not(.work-collapsed) .thread { padding-right: var(--work-w-actual, var(--work-w)); }
-.shell:not(.work-collapsed) .dock { padding-right: calc(var(--gutter) + var(--work-w-actual, var(--work-w))); }
+.shell:not(.work-collapsed) .dock { padding-right: calc(var(--gutter) + var(--sbw, 0px) + var(--work-w-actual, var(--work-w))); }
 .shell.pv-open .thread { padding-right: var(--pv-w-actual, min(30rem, 92vw)); }
-.shell.pv-open .dock { padding-right: calc(var(--gutter) + var(--pv-w-actual, min(30rem, 92vw))); }
+.shell.pv-open .dock { padding-right: calc(var(--gutter) + var(--sbw, 0px) + var(--pv-w-actual, min(30rem, 92vw))); }
 .shell.pv-open:not(.work-collapsed) .thread {
   padding-right: calc(var(--work-w-actual, var(--work-w)) + var(--pv-w-actual, min(30rem, 92vw)));
 }
 .shell.pv-open:not(.work-collapsed) .dock {
-  padding-right: calc(var(--gutter) + var(--work-w-actual, var(--work-w)) + var(--pv-w-actual, min(30rem, 92vw)));
+  padding-right: calc(var(--gutter) + var(--sbw, 0px) + var(--work-w-actual, var(--work-w)) + var(--pv-w-actual, min(30rem, 92vw)));
 }
 .work { width: var(--work-w); }
 .preview { width: min(30rem, 92vw); z-index: 31; }
@@ -2035,7 +2041,7 @@ kbd {
   .shell:not(.work-collapsed) .dock,
   .shell.pv-open .dock,
   .shell.pv-open:not(.work-collapsed) .dock {
-    padding-right: var(--gutter);
+    padding-right: calc(var(--gutter) + var(--sbw, 0px));
   }
   .nav-open { display: inline-flex; }
   .session-title, .git-pill { display: none; }
