@@ -1218,7 +1218,7 @@ pre.sheetbody {
 }
 .cmd-btn:hover { background: var(--surface-2); color: var(--ink); }
 #mode-chip {
-  cursor: default;
+  cursor: pointer;
   margin-left: 4px;
   height: 26px;
   display: inline-flex;
@@ -1229,6 +1229,7 @@ pre.sheetbody {
   letter-spacing: 0;
   text-transform: none;
 }
+#mode-chip:hover { background: var(--surface-2); color: var(--ink); }
 .model-btn {
   flex: 0 1 auto;
   min-width: 0;
@@ -1326,6 +1327,15 @@ pre.sheetbody {
 .slash .name { color: var(--blue); font-family: var(--mono); font-weight: 600; }
 .ac .ac-hint { font-family: var(--sans); font-style: italic; cursor: default; color: var(--faint); }
 .ac .ac-hint:hover { background: none; }
+/* The mode chip's switcher: same popup as the slash menu, but narrow and
+   anchored left by the chip. Rows are the permission modes; the check
+   marks the active one, and the yolo row is red the way its chip is. */
+.mode-menu { left: 10px; right: auto; width: min(330px, calc(100% - 20px)); }
+.mode-menu div { grid-template-columns: 1.1rem 6.5rem 1fr; align-items: center; }
+.mode-menu .mk { color: var(--ok); visibility: hidden; font-size: 0.8rem; }
+.mode-menu div.on .mk { visibility: visible; }
+.mode-menu .name { color: var(--ink); font-family: var(--sans); font-weight: 600; }
+.mode-menu div[data-key="YOLO"] .name { color: var(--bad); }
 .chips-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.45rem; }
 .file-chip {
   display: inline-flex;

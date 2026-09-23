@@ -601,7 +601,7 @@
     const m = mode || "ask";
     const names = { ask: "Ask first", AUTO: "Auto", EDITS: "Auto-edit", PLAN: "Plan", "READ-ONLY": "Read-only", YOLO: "Allow all" };
     chip.textContent = names[m] || m;
-    chip.title = "Permission mode: " + (names[m] || m) + " — switch in the session panel";
+    chip.title = "Permission mode: " + (names[m] || m) + " — click to switch";
     chip.dataset.mode = m;
   }
 
@@ -1895,9 +1895,50 @@
     if (soundOn) ding();
   });
   paintSound();
-  document.getElementById("mode-chip").addEventListener("click", () => {
-    setCollapsed("work-collapsed", false);
-    document.querySelector('.work-tabs [data-pane="session"]')?.click();
+  // The composer mode chip is a switcher, not a label: it opens the
+  // permission menu right here, with the same toggle commands as the
+  // session-panel switches. Ask first is the only row that is not a
+  // server toggle — it turns off whatever is on.
+  const MODE_ITEMS = [
+    { key: "ask",       label: "Ask first",       what: "every tool asks first",              cmd: null },
+    { key: "AUTO",      label: "Auto",            what: "edits and safe reads run, commands ask", cmd: "/auto" },
+    { key: "EDITS",     label: "Auto-edit",       what: "file changes go through, commands still ask", cmd: "/edits" },
+    { key: "PLAN",      label: "Plan first",      what: "read-only until the plan is approved", cmd: "/plan" },
+    { key: "READ-ONLY", label: "Read-only",       what: "inspect, change nothing",            cmd: "/readonly" },
+    { key: "YOLO",      label: "Allow all tools", what: "every tool runs without asking",     cmd: "/yolo" },
+  ];
+  const modeMenuEl = document.getElementById("mode-menu");
+  const modeChip = document.getElementById("mode-chip");
+  function hideModeMenu() { modeMenuEl.hidden = true; }
+  function activeModeKeys() {
+    const ws = lastWorkspace || {};
+    return [ws.yolo && "YOLO", ws.auto && "AUTO", ws.edits && "EDITS", ws.plan && "PLAN", ws.readonly && "READ-ONLY"].filter(Boolean);
+  }
+  function paintModeMenu() {
+    const on = activeModeKeys();
+    modeMenuEl.innerHTML = MODE_ITEMS.map((it) => {
+      const isOn = it.key === "ask" ? !on.length : on.includes(it.key);
+      return `<div class="${isOn ? "on" : ""}" data-key="${it.key}"><span class="mk">✓</span><span class="name">${it.label}</span><span>${it.what}</span></div>`;
+    }).join("");
+  }
+  modeChip.addEventListener("click", () => {
+    if (!modeMenuEl.hidden) { hideModeMenu(); return; }
+    paintModeMenu();
+    modeMenuEl.hidden = false;
+  });
+  modeChip.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !modeMenuEl.hidden) { ev.preventDefault(); hideModeMenu(); }
+  });
+  modeMenuEl.addEventListener("click", async (ev) => {
+    const row = ev.target.closest("[data-key]");
+    if (!row) return;
+    hideModeMenu();
+    const item = MODE_ITEMS.find((it) => it.key === row.dataset.key);
+    const cmds = item.cmd ? [item.cmd] : activeModeKeys().map((k) => MODE_ITEMS.find((it) => it.key === k).cmd);
+    for (const c of cmds) await post("/api/command", { text: c });
+  });
+  document.addEventListener("click", (ev) => {
+    if (!modeMenuEl.hidden && !ev.target.closest("#mode-menu") && !ev.target.closest("#mode-chip")) hideModeMenu();
   });
   document.addEventListener("keydown", (ev) => {
     if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && ev.key.toLowerCase() === "o") {

@@ -282,6 +282,26 @@ await sleep(300);
 const doneSaid = await evaljs(`document.getElementById('sr-announce')?.textContent || ''`);
 check('a finished turn is announced', /done in 4s/.test(doneSaid), JSON.stringify(doneSaid));
 
+// The composer mode chip opens the permission menu in place: every mode
+// including allow-all is a row, the active one is marked, and picking a
+// row drives the same toggle command as the session-panel switches.
+await evaljs(`document.getElementById('mode-chip').click()`);
+const menu = await evaljs(`(() => { const m = document.getElementById('mode-menu'); return { open: !m.hidden, rows: m.querySelectorAll('[data-key]').length, yolo: !!m.querySelector('[data-key="YOLO"]'), askOn: !!m.querySelector('[data-key="ask"].on') }; })()`);
+check('mode chip opens the composer mode menu', menu.open && menu.rows === 6 && menu.yolo && menu.askOn, JSON.stringify(menu));
+await evaljs(`document.querySelector('#mode-menu [data-key="YOLO"]').click()`);
+let chipNow = '';
+for (let i = 0; i < 10 && chipNow !== 'Allow all'; i++) { await sleep(300); chipNow = await evaljs(`document.getElementById('mode-chip').textContent.trim()`); }
+check('Allow all tools row switches the mode', chipNow === 'Allow all', chipNow);
+// And back: Ask first is not a toggle, it turns off whatever is on.
+await evaljs(`document.getElementById('mode-chip').click()`);
+const yoloMarked = await evaljs(`!!document.querySelector('#mode-menu [data-key="YOLO"].on')`);
+check('menu marks the active mode', yoloMarked);
+await evaljs(`document.querySelector('#mode-menu [data-key="ask"]').click()`);
+chipNow = '';
+for (let i = 0; i < 10 && chipNow !== 'Ask first'; i++) { await sleep(300); chipNow = await evaljs(`document.getElementById('mode-chip').textContent.trim()`); }
+check('Ask first row turns the mode off again', chipNow === 'Ask first', chipNow);
+await evaljs(`document.getElementById('mode-menu').hidden = true; 1`);
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');

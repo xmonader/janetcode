@@ -203,13 +203,14 @@
       <form id="composer">
         <div id="slash" class="slash" hidden></div>
         <div id="ac" class="ac" hidden></div>
+        <div id="mode-menu" class="slash mode-menu" hidden></div>
         <div id="chips" class="chips-row" hidden></div>
         <textarea id="input" rows="1" placeholder="What should we do next?" aria-label="Message"></textarea>
         <div class="composer-bar">
           <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-paperclip"/></svg></button>
           <input id="attach-file" type="file" multiple hidden>
           <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands"><svg class="i" aria-hidden="true"><use href="#i-command"/></svg></button>
-          <span id="mode-chip" class="mode-chip">ask</span>
+          <button type="button" id="mode-chip" class="mode-chip">ask</button>
           <span class="spacer"></span>
           <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop"><svg class="i" aria-hidden="true"><use href="#i-stop"/></svg></button>
           <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send (Enter)"><svg class="i" aria-hidden="true"><use href="#i-arrow-up"/></svg></button>
@@ -358,7 +359,7 @@
           <h3>Worth knowing</h3>
           <dl>
             <dt><code>/</code> commands</dt><dd>type / in the composer, or open the palette</dd>
-            <dt>Permissions</dt><dd>ask → auto → plan → allow-all, under the composer and in the panel</dd>
+            <dt>Permissions</dt><dd>click the mode chip under the composer to switch: ask → auto → plan → allow-all</dd>
           </dl>
         </section>
       </div>
