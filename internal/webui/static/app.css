@@ -574,7 +574,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   border-radius: var(--radius);
   margin: 0.8em 0;
 }
-.md pre code { background: none; border: 0; color: inherit; padding: 0; }
+.md pre code { background: none; border: 0; color: inherit; padding: 0; font-size: inherit; }
 .md ul, .md ol { padding-left: 1.35em; margin: 0.55em 0; }
 .md li { margin: 0.18em 0; }
 .md a { color: var(--blue); text-decoration: none; border-bottom: 1px solid var(--blue-soft-border); }
@@ -601,40 +601,38 @@ button:disabled { cursor: default; opacity: 0.55; }
 }
 .codeblock pre {
   margin: 0;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem 1rem 0.95rem;
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: 0.82em;
-  line-height: 1.6;
+  font-size: 0.84rem;
+  line-height: 1.65;
+  tab-size: 4;
   color: var(--pre-ink);
   background: none;
 }
 .codehead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 6px 4px 12px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--faint);
-  background: var(--surface-2);
+  gap: 2px;
+  height: 34px;
+  padding: 0 6px 0 14px;
+  font: 500 12px/1 var(--sans);
+  color: var(--mute);
   border-bottom: 0.5px solid var(--line);
 }
+.codehead > span:first-child { margin-right: auto; }
 .codecopy {
-  border: 0.5px solid var(--line);
+  border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--mute);
-  font-size: 10px;
-  padding: 1px 8px;
+  color: var(--faint);
+  font: 500 12px/1 var(--sans);
+  height: 24px;
+  padding: 0 8px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition: color 120ms ease, background 120ms ease;
 }
-.codeblock:hover .codecopy, .codecopy:focus-visible { opacity: 1; }
-.codecopy:hover { color: var(--blue); border-color: var(--blue-soft-border); background: var(--blue-soft); }
+.codecopy:hover { color: var(--ink); background: var(--surface-2); }
 /* Highlighter token colors, global on purpose: the .tk/.ts/.tc/.tn spans
    exist only inside highlight() output, which lands in assistant markdown,
    tool results (.out) and the viewer — not just under .md. */
@@ -787,6 +785,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   white-space: nowrap;
 }
 .tool .out, .tool .diff {
+  tab-size: 4;
   margin: 0.3rem 0 0.4rem;
   padding: 0.7rem 0.85rem;
   border: 0.5px solid var(--line);
