@@ -1483,6 +1483,9 @@ func TestWebProviderErrorSaysWhatToDo(t *testing.T) {
 	if !ok || x.Headline != "Authentication failed" || x.Retry {
 		t.Fatalf("error data = %#v", last.Data)
 	}
+	if s.status != "Authentication failed" {
+		t.Fatalf("status line = %q, want the headline rather than a bare \"error\"", s.status)
+	}
 }
 
 // TestRetryWaitCountsDown: "retrying 2/2 · rate limited · in 3s" sat still

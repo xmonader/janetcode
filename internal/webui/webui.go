@@ -739,7 +739,12 @@ func (s *server) finish(err error) {
 	default:
 		x := llm.Explain(err, s.opts.Provider, webRemedies)
 		s.add(entry{Kind: "error", Text: x.String(), Data: x, Error: true})
-		s.statusSet("error")
+		// The status line said a bare "error"; it says what failed.
+		if x.Headline != "" {
+			s.statusSet(x.Headline)
+		} else {
+			s.statusSet("failed")
+		}
 	}
 	s.emitStatus()
 	if err == nil {
