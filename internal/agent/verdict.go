@@ -132,12 +132,16 @@ func (o TurnOutcome) Line() string {
 // ranRe matches a runner reporting that tests actually executed. Every
 // alternative is anchored or carries a count: "pass" on its own, loose in
 // prose, is what a build log says about itself and is not evidence.
-var ranRe = regexp.MustCompile(`(?im)(^ok\s+\S+|^PASS$|\d+ passed|\d+ tests?,|test result: ok\.|Tests:\s+\d+|OK \(\d+ test|Ran \d+ test|\d+ examples?, \d+ failures)`)
+var ranRe = regexp.MustCompile(`(?im)(^ok\s+\S+|^PASS$|\d+ passed|\d+ tests?,|test result: ok\.|Tests:\s+\d+|OK \(\d+ test|Ran \d+ test|\d+ examples?, \d+ failures|` +
+	// node --test (spec "ℹ pass N", TAP "# pass N"), mocha, zig, ctest,
+	// bazel, dart — each carries the runner's own count or shape, since a
+	// bare "All tests passed!" is what a model's own script prints.
+	`^(?:ℹ|#) pass [1-9]\d*$|\b[1-9]\d* passing\b|^All \d+ tests passed\.$|\d+% tests passed|Executed [1-9]\d* out of \d+ tests?|\+[1-9]\d*: All tests passed!)`)
 
 // nothingRe matches a runner saying it found nothing to run. A green that
 // collected no tests is the easiest way for a change to look done when
 // nothing checked it.
-var nothingRe = regexp.MustCompile(`(?i)(no tests? (ran|were run|to run|found|collected|executed)|collected 0 items|ran 0 tests|0 passed|empty test suite|no test suites found)`)
+var nothingRe = regexp.MustCompile(`(?im)(no tests? (ran|were run|were found|to run|found|collected|executed)|collected 0 items|ran 0 tests|0 passed|empty test suite|no test suites found|^(?:ℹ|#) tests 0$|\b0 passing\b)`)
 
 // exercised reports what a passing check's output shows. ran is true when
 // tests executed; nothing is true when the runner said it found none. A

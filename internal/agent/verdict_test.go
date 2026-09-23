@@ -163,6 +163,18 @@ func TestExercisedReadsRealRunnerOutput(t *testing.T) {
 		// But a build log saying its own checks pass is not evidence.
 		"all lint rules pass":           false,
 		"PASSWORD=xxx\nbuild succeeded": false,
+		// node --test, spec and TAP reporters (captured from node 22+).
+		"ℹ tests 28\nℹ suites 7\nℹ pass 28\nℹ fail 0": true,
+		"# tests 28\n# suites 7\n# pass 28\n# fail 0": true,
+		"ℹ tests 0\nℹ suites 0\nℹ pass 0\nℹ fail 0":   false,
+		// zig test, ctest, bun test (captured), mocha, bazel, dart.
+		"1/2 t.test.a...OK\n2/2 t.test.b...OK\nAll 2 tests passed.": true,
+		"100% tests passed, 0 tests failed out of 2":                true,
+		" 1 pass\n 0 fail\nRan 1 test across 1 file. [104.00ms]":    true,
+		"  5 passing (12ms)":                       true,
+		"  0 passing (1ms)":                        false,
+		"Executed 3 out of 3 tests: 3 tests pass.": true,
+		"00:01 +5: All tests passed!":              true,
 	} {
 		ran, _ := exercised(out)
 		if ran != wantRan {
@@ -172,6 +184,11 @@ func TestExercisedReadsRealRunnerOutput(t *testing.T) {
 	// "found nothing" is only reported when nothing ran at all.
 	if _, nothing := exercised("ok  \tx\t0.1s\n?\ty\t[no test files]"); nothing {
 		t.Fatal("a partly-tested run was called empty")
+	}
+	for _, out := range []string{"ℹ tests 0\nℹ pass 0", "# tests 0\n# pass 0", "  0 passing (1ms)", "Test project /x/b\nNo tests were found!!!"} {
+		if _, nothing := exercised(out); !nothing {
+			t.Fatalf("an empty run was not noticed: %q", out)
+		}
 	}
 	if _, nothing := exercised("collected 0 items"); !nothing {
 		t.Fatal("a run that collected nothing was not noticed")
