@@ -59,6 +59,27 @@ type CLIResult struct {
 	// jev): null until its first call, so a session that never consulted
 	// it is indistinguishable from one without the feature configured.
 	Decisions *CLIDecisions `json:"decisions,omitempty"`
+	// Routes is the routing evidence for every model call that left the
+	// session's own model (github issue #4): one entry per detour, in
+	// the order the calls were made. Main calls are not listed — no
+	// detour, nothing to report — and an empty list (omitted) means the
+	// run never left its own model.
+	Routes []CLIRoute `json:"routes,omitempty"`
+}
+
+// CLIRoute is one model call served away from the session's own model.
+// Route is the kind of detour: "route" for a cheap step, "escalate" for
+// the failure cascade, "fallback" after a provider failure. Why is the
+// reason in the policy's own words, exactly as the session log records
+// it, so a benchmark can group or filter routes without a second source.
+type CLIRoute struct {
+	Turn     int    `json:"turn"`
+	Step     int    `json:"step"`
+	Slot     string `json:"slot"`
+	Route    string `json:"route"`
+	Provider string `json:"provider,omitempty"`
+	Model    string `json:"model,omitempty"`
+	Why      string `json:"why,omitempty"`
 }
 
 // CLIDecisions is what the envelope says about the decision provider:

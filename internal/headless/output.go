@@ -13,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // A headless run is something a script reads. Printing the answer as prose
@@ -388,6 +389,20 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 				Total:       st.DecisionTime.Milliseconds(),
 				CostUSD:     st.DecisionCost,
 				TokensOut:   st.DecisionTokensOut,
+			}
+		}
+		// The routing evidence rides the session log; a headless reader
+		// gets the same per-call record the trajectory shows, so a
+		// benchmark can audit routes without replaying the UI.
+		if ag.Log != nil {
+			for _, e := range ag.Log.Events() {
+				if e.Type != session.TypeAssistant || e.Route == "" {
+					continue
+				}
+				res.Routes = append(res.Routes, CLIRoute{
+					Turn: e.Turn, Step: e.Step, Slot: e.Slot, Route: e.Route,
+					Provider: e.Provider, Model: e.Model, Why: e.RouteWhy,
+				})
 			}
 		}
 	}

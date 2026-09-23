@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 func TestParseFormat(t *testing.T) {
@@ -291,5 +292,39 @@ func TestDiscardResetsTheTurnText(t *testing.T) {
 	r.event(agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 1, OutputTokens: 1}})
 	if r.answer != "whole answer" {
 		t.Fatalf("answer = %q", r.answer)
+	}
+}
+
+// The routing evidence (github issue #4) reaches a headless reader: every
+// detoured model call is one entry in the result's routes, main calls are
+// not listed, and a run that never left its own model omits the field.
+func TestResultCarriesRoutingEvidence(t *testing.T) {
+	asst := func(step int, route, slot, model string) session.Event {
+		return session.Event{Type: session.TypeAssistant, Turn: 1, Step: step,
+			Slot: slot, Route: route, Model: model, Provider: "openrouter",
+			RouteWhy: "the previous step was a clean, mechanical batch"}
+	}
+	ag := &agent.Agent{Model: "main-model", Log: &session.Memory{Ev: []session.Event{
+		asst(1, "", "main", "main-model"),
+		asst(2, "route", "cheap", "cheap-model"),
+		asst(3, "escalate", "strong", "strong-model"),
+	}}}
+	r := newRecorder(Options{Stdout: io.Discard, Agent: ag}, FormatJSON)
+	res := r.result(ag, nil)
+	if len(res.Routes) != 2 {
+		t.Fatalf("routes = %+v, want the two detours and no main entry", res.Routes)
+	}
+	if res.Routes[0].Slot != "cheap" || res.Routes[0].Route != "route" || res.Routes[0].Why == "" {
+		t.Fatalf("route evidence = %+v", res.Routes[0])
+	}
+	if res.Routes[1].Slot != "strong" || res.Routes[1].Route != "escalate" {
+		t.Fatalf("escalation evidence = %+v", res.Routes[1])
+	}
+	main := &agent.Agent{Model: "main-model", Log: &session.Memory{Ev: []session.Event{
+		asst(1, "", "main", "main-model"),
+	}}}
+	res = newRecorder(Options{Stdout: io.Discard, Agent: main}, FormatJSON).result(main, nil)
+	if res.Routes != nil {
+		t.Fatalf("a run on one model must omit routes, got %+v", res.Routes)
 	}
 }

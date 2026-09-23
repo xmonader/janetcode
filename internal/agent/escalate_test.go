@@ -35,6 +35,7 @@ func TestEscalationIsOffWithoutBothHalvesOfTheConfig(t *testing.T) {
 		{"no round count", func(a *Agent) { a.EscalateAfter = 0 }},
 		{"switched off", func(a *Agent) { a.Off = map[string]bool{"escalate": true} }},
 		{"blank strong slot", func(a *Agent) { a.StrongModel = "   " }},
+		{"strong slot is the session's model", func(a *Agent) { a.StrongModel = a.Model }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, _ := escalatableAgent()

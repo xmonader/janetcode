@@ -59,9 +59,15 @@ type escalateState struct {
 
 // EscalateEnabled reports whether the cascade can fire at all: a strong
 // slot is configured, a round count is set, and the behaviour is not
-// switched off.
+// switched off. A strong slot naming the session's own model is the
+// slot resolver's fallback written out by hand (see config.SlotIsMain):
+// escalating to the same model changes nothing while counting as a
+// route, so it is reported as no route instead — the same rule the step
+// router applies to route_cheap.
 func (a *Agent) EscalateEnabled() bool {
-	return !a.Off["escalate"] && a.StrongModelName() != "" && a.EscalateRounds() > 0
+	return !a.Off["escalate"] && a.StrongModelName() != "" &&
+		!strings.EqualFold(a.StrongModelName(), a.Settings().Model) &&
+		a.EscalateRounds() > 0
 }
 
 // escalate turns the rest of the turn over to the strong slot. Repeated
