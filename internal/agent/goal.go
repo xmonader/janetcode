@@ -351,7 +351,7 @@ type GoalStatus struct{ Parent *Agent }
 
 func (*GoalStatus) Name() string { return "goal_status" }
 func (*GoalStatus) Description() string {
-	return "Mark the active session goal complete or blocked. Only for a goal the user set with /goal (the harness names it in the prompt as 'the goal'); an ordinary request needs no call to finish — just answer. Call it when that goal's objective is done, or when you cannot proceed (include a short reason)."
+	return "Mark the goal the user set with /goal complete, or blocked with a short reason. Not for ordinary requests: just answer those."
 }
 func (*GoalStatus) Mutating() bool { return false }
 func (*GoalStatus) Schema() json.RawMessage {
