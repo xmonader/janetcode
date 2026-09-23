@@ -13,8 +13,8 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -601,16 +601,16 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 // disk and an eval's recorded output. Redacting downstream would mean
 // finding all of those and never missing the next one; redacting here
 // means the plaintext never leaves this function. The variable names
-// and the surrounding lines survive (see memory.RedactSecrets), so the
+// and the surrounding lines survive (see secret.Redact), so the
 // model still reads the output it asked for, minus the key.
 func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, images []llm.Block, err error) {
 	out, images, err = runSafely(ctx, t, input)
 	if a.Off["scrub"] {
 		return out, images, err
 	}
-	out, _ = memory.RedactSecrets(out)
+	out, _ = secret.Redact(out)
 	if err != nil {
-		if red, n := memory.RedactSecrets(err.Error()); n > 0 {
+		if red, n := secret.Redact(err.Error()); n > 0 {
 			err = errors.New(red)
 		}
 	}

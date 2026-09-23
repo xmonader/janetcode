@@ -28,7 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/jev"
-	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/secret"
 )
 
 type labeledState struct {
@@ -100,7 +100,7 @@ func offlineDecisionsClient(who string) (*jev.Client, error) {
 // committed, so the replay path must not be the one route that sends a
 // state out unredacted.
 func replayScrub(s string) string {
-	out, _ := memory.RedactSecrets(s)
+	out, _ := secret.Redact(s)
 	return out
 }
 

@@ -1,7 +1,6 @@
-package memory
+package secret
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -99,33 +98,33 @@ func pathValue(v string) bool {
 // nothing.
 var placeholders = []string{"xxx", "your", "example", "changeme", "redacted", "placeholder", "<", "...", "****", "dummy", "sample", "env.", "${"}
 
-// ScanSecret reports what looks like a credential in text, or "".
-func ScanSecret(text string) string {
+// Scan reports what looks like a credential in text, or "".
+func Scan(text string) string {
 	_, _, what := redactSecrets(text)
 	return what
 }
 
-// RedactPlaceholder is what a redacted span is replaced with.
-const RedactPlaceholder = "[redacted]"
+// Placeholder is what a redacted span is replaced with.
+const Placeholder = "[redacted]"
 
-// RedactSecrets rewrites every credential-shaped span in text with
-// RedactPlaceholder and reports how many it replaced. It is the
-// span-level counterpart of ScanSecret, for callers that must send the
+// Redact rewrites every credential-shaped span in text with
+// Placeholder and reports how many it replaced. It is the
+// span-level counterpart of Scan, for callers that must send the
 // text somewhere rather than refuse it: blanking a whole field costs a
 // decision its evidence, while blanking the match costs it the key.
 //
-// The same patterns decide, in the same order, so a text RedactSecrets
-// leaves alone is exactly a text ScanSecret reports nothing for. For an
+// The same patterns decide, in the same order, so a text Redact
+// leaves alone is exactly a text Scan reports nothing for. For an
 // assignment it redacts the value only, keeping the name that makes the
 // surrounding line readable.
-func RedactSecrets(text string) (string, int) {
+func Redact(text string) (string, int) {
 	out, n, _ := redactSecrets(text)
 	return out, n
 }
 
 // redactSecrets is the one pass both entry points read: it rewrites the
 // text, counts the spans and names the first one. Sharing it is what
-// makes "ScanSecret finds nothing" and "RedactSecrets changes nothing"
+// makes "Scan finds nothing" and "Redact changes nothing"
 // the same statement rather than two lists that drift apart.
 func redactSecrets(text string) (string, int, string) {
 	n, what := 0, ""
@@ -135,7 +134,7 @@ func redactSecrets(text string) (string, int, string) {
 			if what == "" {
 				what = p.name
 			}
-			return RedactPlaceholder
+			return Placeholder
 		})
 	}
 	text = genericKey.ReplaceAllStringFunc(text, func(m string) string {
@@ -146,7 +145,7 @@ func redactSecrets(text string) (string, int, string) {
 		if what == "" {
 			what = "an API key"
 		}
-		return RedactPlaceholder
+		return Placeholder
 	})
 	for _, p := range spanPatterns {
 		var b strings.Builder
@@ -161,7 +160,7 @@ func redactSecrets(text string) (string, int, string) {
 				continue
 			}
 			b.WriteString(text[last:vs])
-			b.WriteString(RedactPlaceholder)
+			b.WriteString(Placeholder)
 			last = ve
 			n++
 			if what == "" {
@@ -221,10 +220,4 @@ func firstWord(s string) string {
 		return s[:i]
 	}
 	return s
-}
-
-// ErrSecret is returned instead of writing an entry that holds a
-// credential.
-func errSecret(what string) error {
-	return fmt.Errorf("this looks like %s and was not remembered: memory is written to disk and put into every later prompt, so it is the wrong place for a credential. Remember where the value lives (an environment variable, a secret manager) rather than the value", what)
 }

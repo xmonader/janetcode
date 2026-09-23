@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/secret"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -355,7 +356,7 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	// so a credential that lands here is a credential that keeps being
 	// sent. The entry is refused rather than scrubbed: what was worth
 	// remembering was where the value lives, not the value.
-	if what := ScanSecret(e.Description + "\n" + e.Body); what != "" {
+	if what := secret.Scan(e.Description + "\n" + e.Body); what != "" {
 		return Entry{}, Unchanged, errSecret(what)
 	}
 	if e.Description == "" {
@@ -934,4 +935,10 @@ func (s *Store) Rekey(cwd string) {
 		s.Ecosystem = strings.ToLower(p.Kind)
 	}
 	s.vecs = nil
+}
+
+// ErrSecret is returned instead of writing an entry that holds a
+// credential.
+func errSecret(what string) error {
+	return fmt.Errorf("this looks like %s and was not remembered: memory is written to disk and put into every later prompt, so it is the wrong place for a credential. Remember where the value lives (an environment variable, a secret manager) rather than the value", what)
 }

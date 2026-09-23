@@ -252,7 +252,7 @@ type Client struct {
 	HTTP    *http.Client  // default http.DefaultClient
 
 	// Scrub, when set, rewrites the state before it leaves the process
-	// (the composition root wires memory.ScanSecret into it). Returning
+	// (the composition root wires secret.Scan into it). Returning
 	// "[redacted]" for a flagged field is the convention.
 	Scrub func(string) string
 

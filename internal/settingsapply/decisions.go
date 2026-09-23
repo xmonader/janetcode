@@ -7,7 +7,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/jev"
-	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/secret"
 )
 
 // BuildDecisions composes the Jev client from the config's "decisions"
@@ -40,7 +40,7 @@ func BuildDecisions(cfg *config.Config, off map[string]bool) (client *jev.Client
 		// of every consumer's state: each credential-shaped span goes
 		// out as "[redacted]" and the evidence around it survives.
 		Scrub: func(s string) string {
-			out, _ := memory.RedactSecrets(s)
+			out, _ := secret.Redact(s)
 			return out
 		},
 	}, false
