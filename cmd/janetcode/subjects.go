@@ -169,7 +169,7 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 		out := configReport(cfg, cfgPath, version, cwd)
 		if why != nil {
 			out += "\nthis run has no provider: " + why.Error() + "\n"
-			out += "set a key in the environment, or run janetcode --init and edit " + cfgPath + "\n"
+			out += "run janetcode (or janetcode --web) to pick a provider and paste a key, or set one in the environment (config: " + cfgPath + ")\n"
 		}
 		return out
 	})

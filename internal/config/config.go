@@ -661,9 +661,11 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 		if len(active.Keys()) == 0 {
 			if cfg.Provider == DefaultProvider {
-				credErr = fmt.Errorf("%w: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", ErrNoCredentials, path)
+				// The first thing to try is the one with no file to edit:
+				// the TUI and --web both open on a connect form.
+				credErr = fmt.Errorf("%w: run janetcode (or janetcode --web) in a terminal to pick a provider and paste a key, or set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend (config: %s)", ErrNoCredentials, path)
 			} else {
-				credErr = fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
+				credErr = fmt.Errorf("%w for provider %q: run janetcode and /connect to paste one, or set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 			}
 		}
 	case "openai":
@@ -672,9 +674,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 		if len(active.Keys()) == 0 && active.NeedsKey() {
 			if cfg.Provider == "openai" {
-				credErr = fmt.Errorf("%w: set OPENAI_API_KEY or providers.openai.api_key in %s", ErrNoCredentials, path)
+				credErr = fmt.Errorf("%w: run janetcode and /connect to paste one, or set OPENAI_API_KEY or providers.openai.api_key in %s", ErrNoCredentials, path)
 			} else {
-				credErr = fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
+				credErr = fmt.Errorf("%w for provider %q: run janetcode and /connect to paste one, or set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 			}
 		}
 	default:
