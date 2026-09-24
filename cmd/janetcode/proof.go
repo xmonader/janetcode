@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
+	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/proof"
 )
 
@@ -15,6 +17,11 @@ import (
 // here, only whatever an earlier session already left on the commit.
 func runProofFlag(w io.Writer, cwd, args string) error {
 	res, err := proof.Exec(context.Background(), cwd, proof.ParseArgs(args), nil)
+	if errors.Is(err, proof.ErrNoCommit) {
+		// A commit that is not there is the caller's input, not a
+		// failure of the command: the usage status, and no "proof: " prefix.
+		return headless.BadInput("--proof: %v", err)
+	}
 	if err != nil {
 		return fmt.Errorf("--%w", err)
 	}
