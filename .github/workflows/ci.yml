@@ -68,3 +68,5 @@ jobs:
         run: make ui-test
       - name: browser (first run)
         run: make ui-firstrun
+      - name: browser (real turns against a scripted model)
+        run: make ui-turn

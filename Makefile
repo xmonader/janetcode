@@ -129,6 +129,22 @@ ui-firstrun: build
 	node internal/webui/uitest/firstrun.mjs http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ 9225 18994 $$tmp/janetcode/config.json; \
 	rc=$$?; [ $$rc = 0 ] || cat $$tmp/server.log; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
 
+# Real turns in a real browser: the server talks to a scripted model
+# (turn.mjs starts it), so the permission round trip, the file written by
+# the real tool and the /events replay after a reload are all exercised.
+UI_TURN_PORT ?= 18995
+UI_TURN_MODEL_PORT ?= 18996
+ui-turn: build
+	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode $$tmp/work; \
+	printf '%s' '{"provider":"scripted","model":"scripted/turn-model","providers":{"scripted":{"type":"openai","base_url":"http://127.0.0.1:$(UI_TURN_MODEL_PORT)/v1","api_key":"sk-test","models":["turn-model"]}}}' > $$tmp/janetcode/config.json; \
+	(cd $$tmp/work && env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp XDG_STATE_HOME=$$tmp $(CURDIR)/bin/janetcode --web --web-addr 127.0.0.1:$(UI_TURN_PORT) </dev/null >$$tmp/server.log 2>&1) & \
+	srv=$$!; \
+	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_TURN_PORT)/ && break; sleep 0.5; done; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9226 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	chr=$$!; \
+	node internal/webui/uitest/turn.mjs http://127.0.0.1:$(UI_TURN_PORT)/ 9226 $(UI_TURN_MODEL_PORT) $$tmp/work; \
+	rc=$$?; [ $$rc = 0 ] || tail -40 $$tmp/server.log; pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
+
 # Visual regression gate: boots the webui like ui-test, shoots every state
 # shot.mjs knows (fed from a fake event stream, so the pixels are the same
 # every run), and compares each with internal/webui/uitest/baseline/.
