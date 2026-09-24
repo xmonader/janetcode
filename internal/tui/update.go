@@ -212,6 +212,7 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		m.rung = msg.call.RuleIndex
 		m.turn.setPhase("waiting for your approval")
 		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
+		m.layout() // an impact line claims a footer row
 		m.refresh(false)
 		return nil, true
 

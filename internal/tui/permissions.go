@@ -135,9 +135,13 @@ func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) 
 // the status line said "denied <the previous call>", and the only way
 // out was to guess that enter would deny.
 func (m *model) closePending() {
+	hadImpact := m.pending != nil && m.pending.call.Impact != ""
 	m.pending = nil
 	m.denying = false
 	m.pendingClosedAt = time.Now()
+	if hadImpact {
+		m.layout() // give the impact row back to the transcript
+	}
 }
 
 func (m *model) answer(d agent.Decision, reason string) {

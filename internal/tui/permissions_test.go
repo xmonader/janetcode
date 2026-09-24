@@ -442,3 +442,25 @@ func TestPermissionKeysShowTheLadderHint(t *testing.T) {
 		}
 	}
 }
+
+// The frame is exactly the terminal's height while a prompt with an
+// impact line is up, and after it closes. footerHeight grew by the
+// impact row but the viewport was sized only at the next resize, so the
+// frame was one row too tall and the terminal scrolled the header away.
+func TestImpactPromptKeepsTheHeaderOnScreen(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	rows := func() int { return strings.Count(h.m.View(), "\n") + 1 }
+	if rows() != 24 {
+		t.Fatalf("idle frame has %d rows, want 24", rows())
+	}
+	h.update(permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
+		Impact: "changes Parse (func) · 3 refs in 2 files"}, reply: make(chan verdict, 1)})
+	if rows() != 24 {
+		t.Fatalf("frame with an impact prompt has %d rows, want 24:\n%s", rows(), plain(h.m.View()))
+	}
+	h.m.closePending()
+	if rows() != 24 {
+		t.Fatalf("frame after the prompt closed has %d rows, want 24", rows())
+	}
+}
