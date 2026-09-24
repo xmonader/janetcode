@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -438,11 +439,34 @@ func (r *recorder) finish(ag *agent.Agent, err error) {
 		return
 	}
 	res := r.result(ag, err)
+	resultWritten.Store(true)
 	enc := json.NewEncoder(r.out)
 	enc.SetIndent("", "  ")
 	if r.format == FormatStreamJSON {
 		// One object per line, so the last line is the result.
 		enc.SetIndent("", "")
+	}
+	_ = enc.Encode(res)
+}
+
+// resultWritten records that a run printed its result object, so the
+// process's last word does not print a second one.
+var resultWritten atomic.Bool
+
+// FinishEarly prints the result object for a json or stream-json run that
+// failed before it got as far as a recorder: a bad flag, a missing key, a
+// config that does not load. A script reading stdout used to get nothing
+// at all and a parse error of its own; now it gets the same object a
+// failed run ends with. It does nothing for text, or when the run already
+// printed its result.
+func FinishEarly(w io.Writer, format Format, err error) {
+	if err == nil || format == FormatText || resultWritten.Load() {
+		return
+	}
+	res := CLIResult{Type: CLIResultType, Harness: "janetcode", IsError: true, Error: err.Error(), ExitCode: ExitCode(err), CostSource: "unpriced"}
+	enc := json.NewEncoder(w)
+	if format == FormatJSON {
+		enc.SetIndent("", "  ")
 	}
 	_ = enc.Encode(res)
 }

@@ -127,3 +127,19 @@ func TestResumeUnknownSessionIsAUsageError(t *testing.T) {
 		t.Fatalf("exit %d", headless.ExitCode(err))
 	}
 }
+
+func TestRequestedFormatReadsTheRawArgs(t *testing.T) {
+	for args, want := range map[string]headless.Format{
+		"-p hi --output-format json":        headless.FormatJSON,
+		"-p hi --output-format=stream-json": headless.FormatStreamJSON,
+		"-p hi -output-format json --bogus": headless.FormatJSON,
+		"-p hi":                             headless.FormatText,
+		"-p hi --output-format":             headless.FormatText,
+		"-p hi --output-format xml":         headless.FormatText,
+		"-p hi -- --output-format json":     headless.FormatText,
+	} {
+		if got := requestedFormat(strings.Fields(args)); got != want {
+			t.Errorf("%q: %q, want %q", args, got, want)
+		}
+	}
+}

@@ -63,6 +63,7 @@ func init() {
 
 func main() {
 	err := run(os.Args[1:])
+	headless.FinishEarly(os.Stdout, requestedFormat(os.Args[1:]), err)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "janetcode:", err)
 		if headless.KeyRejected(err) && !headless.Explained(err) {
@@ -73,6 +74,32 @@ func main() {
 	// went wrong, so a script can tell a missing key from a turn limit
 	// without reading the message.
 	os.Exit(headless.ExitCode(err))
+}
+
+// requestedFormat is the --output-format the command line asked for, read
+// without the flag set: the run may have failed on the flags themselves,
+// and a json caller still wants its result object. Anything it cannot
+// read is text, which prints nothing extra.
+func requestedFormat(args []string) headless.Format {
+	for i, a := range args {
+		if a == "--" {
+			break
+		}
+		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if !strings.HasPrefix(a, "-") || name != "output-format" {
+			continue
+		}
+		if !hasVal {
+			if i+1 >= len(args) {
+				break
+			}
+			val = args[i+1]
+		}
+		if f, err := headless.ParseFormat(val); err == nil {
+			return f
+		}
+	}
+	return headless.FormatText
 }
 
 // printFlags is flag.PrintDefaults for the flags keep selects, so the
