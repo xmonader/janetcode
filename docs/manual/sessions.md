@@ -57,7 +57,7 @@ folds the log into the model-visible conversation by following those
 replacements, so a `--resume` after a rewind sees the rewound
 conversation and not the dropped turns — and the live session sees it
 for the same reason, because the rewind re-folds the log rather than
-editing the messages in memory by hand. `janetcode --events <id>` still
+editing the messages in memory by hand. `janetcode --resume <id> --inspect events` still
 shows every event, dropped turns included: the file remains the full
 record of what happened, including the fact that it was rewound.
 
