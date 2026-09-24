@@ -14,8 +14,39 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
+// checkKey asks OpenRouter whether the key is good. Its /models is
+// public, so listing models said nothing about the key: a mistyped one
+// sailed through /connect and failed on the first prompt instead. GET
+// /key needs a valid key and costs nothing. Other endpoints authenticate
+// /models itself, so there is nothing to add for them.
+func (p *Provider) checkKey(ctx context.Context) error {
+	k, _ := p.ring.Current()
+	if k == "" || !strings.Contains(strings.ToLower(p.cfg.BaseURL), "openrouter.ai") {
+		return nil
+	}
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.BaseURL+"/key", nil)
+	if err != nil {
+		return err
+	}
+	hreq.Header.Set("Authorization", "Bearer "+k)
+	resp, err := p.http.Do(hreq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return &APIError{Status: resp.StatusCode, Message: "the API key was not accepted"}
+	}
+	// Anything else (a 404 if the route moves, a 5xx) is not evidence
+	// against the key; listing goes ahead and the first call will tell.
+	return nil
+}
+
 // ListModels implements llm.ModelLister via GET /models.
 func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
+	if err := p.checkKey(ctx); err != nil {
+		return nil, err
+	}
 	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.BaseURL+"/models", nil)
 	if err != nil {
 		return nil, err

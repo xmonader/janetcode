@@ -1268,3 +1268,39 @@ func TestStreamCarriesBackTheServedModel(t *testing.T) {
 		})
 	}
 }
+
+// OpenRouter lists its models to anyone, so /connect used to accept a
+// mistyped key and the failure waited for the first prompt. The key is
+// checked against /key first; a refusal there is an auth error.
+func TestOpenRouterListingChecksTheKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		switch r.URL.Path {
+		case "/openrouter.ai/api/v1/key":
+			if key != "good" {
+				w.WriteHeader(401)
+				return
+			}
+			io.WriteString(w, `{"data":{}}`)
+		case "/openrouter.ai/api/v1/models":
+			io.WriteString(w, `{"data":[{"id":"m"}]}`) // public, whatever the key
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	for key, wantErr := range map[string]bool{"good": false, "bogus": true} {
+		p, err := New(Config{BaseURL: srv.URL + "/openrouter.ai/api/v1", APIKey: key})
+		if err != nil {
+			t.Fatal(err)
+		}
+		models, err := p.ListModels(context.Background())
+		var api *APIError
+		if wantErr && (!errors.As(err, &api) || api.Status != 401) {
+			t.Fatalf("key %q: err = %v, want a 401", key, err)
+		}
+		if !wantErr && (err != nil || len(models) != 1) {
+			t.Fatalf("key %q: %v, %d models", key, err, len(models))
+		}
+	}
+}
