@@ -12,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/sleepfold"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // extractMemory runs memory extraction in the background.
@@ -62,7 +63,7 @@ func (m *model) dreamMemory() tea.Cmd {
 		if n == 0 {
 			return memoryMsg{note: "memory already tight"}
 		}
-		return memoryMsg{note: fmt.Sprintf("dream: %d memory update(s)", n)}
+		return memoryMsg{note: "dream: " + textfmt.Plural(n, "memory update")}
 	}
 }
 

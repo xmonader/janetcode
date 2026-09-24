@@ -29,7 +29,7 @@ func TestTrainCriticFromEvalFiles(t *testing.T) {
 	if err := trainCritic([]string{dir}, out, &w); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(w.String(), "trained on 24 runs (12 passed, 12 failed) from 2 file(s)") || !strings.Contains(w.String(), "saved to") {
+	if !strings.Contains(w.String(), "trained on 24 runs (12 passed, 12 failed) from 2 files") || !strings.Contains(w.String(), "saved to") {
 		t.Fatalf("output:\n%s", w.String())
 	}
 	p, err := agent.LoadPredictor(out)

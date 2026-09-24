@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/minimal"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/treesitter"
 )
 
@@ -191,7 +192,7 @@ func reportEval(path, base string) error {
 	if label == "" {
 		label = filepath.Base(path)
 	}
-	fmt.Fprintf(os.Stdout, "%s — %d result(s), %s\n\n", label, len(f.Results), f.Model)
+	fmt.Fprintf(os.Stdout, "%s — %s, %s\n\n", label, textfmt.Plural(len(f.Results), "result"), f.Model)
 	eval.Report(os.Stdout, f.Results)
 	eval.WriteToolUse(os.Stdout, eval.Summarize(f.Results), nil)
 	if base == "" {
@@ -248,13 +249,13 @@ func trainCritic(paths []string, out string, w io.Writer) error {
 		}
 	}
 	if len(samples) == 0 {
-		return fmt.Errorf("no runs with trajectory features in %d result file(s); results written before features were recorded cannot be used", files)
+		return fmt.Errorf("no runs with trajectory features in %s; results written before features were recorded cannot be used", textfmt.Plural(files, "result file"))
 	}
 	p, err := agent.Train(samples)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "trajectory critic trained on %d runs (%d passed, %d failed) from %d file(s)\n", p.Samples, p.Positives, p.Negatives, files)
+	fmt.Fprintf(w, "trajectory critic trained on %d runs (%d passed, %d failed) from %s\n", p.Samples, p.Positives, p.Negatives, textfmt.Plural(files, "file"))
 	fmt.Fprintf(w, "cross-validated accuracy %.0f%% (always guessing the majority: %.0f%%)\n", p.Accuracy*100, p.Baseline*100)
 	if p.Accuracy <= p.Baseline {
 		fmt.Fprintf(w, "not saved: the critic is no better than guessing; more failing runs are needed before it can help\n")

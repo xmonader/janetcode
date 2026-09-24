@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/replay"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -88,7 +89,7 @@ func replaySession(ctx context.Context, path string, progress io.Writer) (record
 		return nil, nil, err
 	}
 	ag.System = prompt.System(root)
-	fmt.Fprintf(progress, "replaying %s: %d turn(s), %d recorded model call(s)\n", filepath.Base(path), len(turns), rp.Remaining())
+	fmt.Fprintf(progress, "replaying %s: %s, %s\n", filepath.Base(path), textfmt.Plural(len(turns), "turn"), textfmt.Plural(rp.Remaining(), "recorded model call"))
 	for _, tp := range turns {
 		if rp.Remaining() == 0 {
 			break

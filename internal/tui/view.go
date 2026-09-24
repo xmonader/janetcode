@@ -118,7 +118,7 @@ func (m *model) diffCommand(args []string) {
 			fmt.Fprintf(&sb, "- %s  (deleted)\n", f.Path)
 		default:
 			hunks, add, del := hunkStats(m.opts.Cwd, f.Path)
-			fmt.Fprintf(&sb, "  %s  (%d hunks, +%d -%d)\n", f.Path, hunks, add, del)
+			fmt.Fprintf(&sb, "  %s  (%s, +%d -%d)\n", f.Path, textfmt.Plural(hunks, "hunk"), add, del)
 		}
 	}
 	sb.WriteString("/diff <path> shows the hunks · /diff revert <path>:<n> reverts one · /undo reverts a whole turn")
@@ -144,7 +144,7 @@ func (m *model) showFileDiff(path string) {
 	}
 	_, hunks := splitPatch(patch)
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "# %s  %d hunks\n", path, len(hunks))
+	fmt.Fprintf(&sb, "# %s  %s\n", path, textfmt.Plural(len(hunks), "hunk"))
 	for i, h := range hunks {
 		fmt.Fprintf(&sb, "@@ hunk %d/%d %s\n", i+1, len(hunks), strings.TrimPrefix(firstLineOf(h), "@@ "))
 		body := strings.SplitN(h, "\n", 2)

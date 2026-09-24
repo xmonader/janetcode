@@ -217,7 +217,7 @@ func (r Report) Text() string {
 		fmt.Fprintf(&b, "  now:      %s\n", callLine(d.Now))
 	}
 	if r.ArgumentDiffs > 0 {
-		fmt.Fprintf(&b, "(%d earlier call(s) did the same thing with differently phrased arguments)\n", r.ArgumentDiffs)
+		fmt.Fprintf(&b, "(%s did the same thing with differently phrased arguments)\n", textfmt.Plural(r.ArgumentDiffs, "earlier call"))
 	}
 	b.WriteString("\nper-turn verdicts:\n")
 	writeVerdicts(&b, "original", r.Original.Turns)
@@ -327,7 +327,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 	case n < 1:
 		return Report{}, fmt.Errorf("--from-turn %d is out of range: turns are 1-based", n)
 	case n > total:
-		return Report{}, fmt.Errorf("--from-turn %d: the recording has only %d turn(s)", n, total)
+		return Report{}, fmt.Errorf("--from-turn %d: the recording has only %s", n, textfmt.Plural(total, "turn"))
 	}
 
 	off, err := agent.ParseSwitches(strings.Join(opts.Off, ","))
@@ -448,7 +448,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 
 	if used := usedTools(origEvents); len(used) > 0 {
 		if missing := missingFrom(used, ag.Tools.Names()); len(missing) > 0 {
-			notes = append(notes, fmt.Sprintf("the original session used tool(s) this run's minimal agent does not carry (%s), the same eval-style tool set docs/manual/evals.md describes rather than main's full session agent; a live turn that reached for one of these behaves differently for that reason alone", strings.Join(missing, ", ")))
+			notes = append(notes, fmt.Sprintf("the original session used tools this run's minimal agent does not carry (%s), the same eval-style tool set docs/manual/evals.md describes rather than main's full session agent; a live turn that reached for one of these behaves differently for that reason alone", strings.Join(missing, ", ")))
 		}
 	}
 

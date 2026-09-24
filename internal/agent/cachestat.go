@@ -95,8 +95,8 @@ func (a *Agent) CacheReport() string {
 	a.usageMu.Unlock()
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d model call(s) · %s read from cache · %s billed as fresh input\n",
-		l.calls, textfmt.Tokens(used.CacheReadTokens), textfmt.Tokens(used.InputTokens))
+	fmt.Fprintf(&b, "%s · %s read from cache · %s billed as fresh input\n",
+		textfmt.Plural(l.calls, "model call"), textfmt.Tokens(used.CacheReadTokens), textfmt.Tokens(used.InputTokens))
 	if l.calls < 2 {
 		b.WriteString("\nnot enough calls yet to say whether the cache is working")
 		return b.String()

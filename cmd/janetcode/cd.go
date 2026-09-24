@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -83,14 +84,14 @@ func registerRooted(cd *agent.CD, r rootedDeps) {
 		if n == 0 && m == 0 {
 			return "", nil
 		}
-		return fmt.Sprintf("%d skill(s), %d rule(s)", n, m), nil
+		return textfmt.Plural(n, "skill") + ", " + textfmt.Plural(m, "rule"), nil
 	})
 	cd.Add("subagents", func(dir string) (string, error) {
 		// Editing subagents check the project out into a git worktree.
 		// One already running holds a checkout of the tree it was asked
 		// about; taking that away mid-task would lose its work.
 		if n := r.task.SetRoot(dir); n > 0 {
-			return fmt.Sprintf("%d subagent(s) still working in the old tree", n), nil
+			return textfmt.Plural(n, "subagent") + " still working in the old tree", nil
 		}
 		return "", nil
 	})
@@ -139,7 +140,7 @@ func registerRooted(cd *agent.CD, r rootedDeps) {
 				}
 			}
 			if n > 0 {
-				stuck = append(stuck, fmt.Sprintf("%d background job(s)", n))
+				stuck = append(stuck, textfmt.Plural(n, "background job"))
 			}
 		}
 		if r.terms != nil {
@@ -150,7 +151,7 @@ func registerRooted(cd *agent.CD, r rootedDeps) {
 				}
 			}
 			if n > 0 {
-				stuck = append(stuck, fmt.Sprintf("%d terminal(s)", n))
+				stuck = append(stuck, textfmt.Plural(n, "terminal"))
 			}
 		}
 		if len(stuck) == 0 {
@@ -210,7 +211,7 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 		}
 		switch {
 		case trusted:
-			return fmt.Sprintf("%d verify command(s)", len(cfg.Commands)), nil
+			return textfmt.Plural(len(cfg.Commands), "verify command"), nil
 		case defined:
 			return verify.ProjectFile + " here is not trusted yet (/verify trust)", nil
 		}
@@ -248,7 +249,7 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 		r.projectServers, r.projectHash = servers, hash
 		r.projectTrusted = len(servers) > 0 && r.trust.Trusted(dir, hash)
 		if n := len(r.servers.Status()); n > 0 {
-			return fmt.Sprintf("%d mcp server(s) keep the old directory", n), nil
+			return "the old directory is kept by " + textfmt.Plural(n, "mcp server"), nil
 		}
 		return "", nil
 	})

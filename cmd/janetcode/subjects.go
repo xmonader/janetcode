@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -187,7 +188,7 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 			p := cfg.Providers[name]
 			key := "no key"
 			if len(p.Keys()) > 0 {
-				key = fmt.Sprintf("%d key(s)", len(p.Keys()))
+				key = textfmt.Plural(len(p.Keys()), "key")
 			}
 			mark := "  "
 			if name == cfg.Provider {
