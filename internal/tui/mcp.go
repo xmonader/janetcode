@@ -11,7 +11,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcpcmd"
 )
 
 // mcpAuthMsg carries progress of /mcp auth; done marks the end.
@@ -142,6 +144,12 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 		return nil
 	}
 	switch {
+	case len(args) > 0 && args[0] == "search":
+		q := strings.Join(args[1:], " ")
+		return m.mcpRun("searching the MCP registry…", func(ctx context.Context, _ mcpcmd.Env) (cmdresult.Result, error) {
+			hits, err := mcpcmd.Search(ctx, nil, q)
+			return mcpcmd.SearchResult(q, hits), err
+		})
 	case len(args) > 0 && args[0] == "add":
 		return m.mcpAdd(args[1:])
 	case len(args) > 0 && (args[0] == "remove" || args[0] == "rm"):

@@ -30,7 +30,7 @@ type MCPOptions struct {
 	Trust       trust.Store
 }
 
-const mcpUsage = "usage: /mcp [add <name> <command|url> [--env K=V] [--header 'Name: value'] | add --from <repo> --yes | remove <name> --yes]"
+const mcpUsage = "usage: /mcp [search <words> | add <name> <command|url> [--env K=V] [--header 'Name: value'] | add --from <repo> --yes | remove <name> --yes]"
 
 // mcpCommand answers /mcp. Everything that writes or starts anything runs
 // through runBusy, which serialises it against turns and against another
@@ -45,6 +45,12 @@ func (s *server) mcpCommand(arg string) {
 	switch verb {
 	case "":
 		s.sheet("MCP servers", s.mcpListing())
+	case "search":
+		q := strings.TrimSpace(rest)
+		s.runBusy("searching the MCP registry", func(ctx context.Context) {
+			hits, err := mcpcmd.Search(ctx, nil, q)
+			s.showResult(mcpcmd.SearchResult(q, hits), err)
+		})
 	case "add":
 		s.mcpAdd(strings.Fields(rest))
 	case "remove", "rm":

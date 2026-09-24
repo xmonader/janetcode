@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -232,4 +234,21 @@ func TestMCPRemoveConfirms(t *testing.T) {
 func (m *model) handlePickerKeyForTest() tea.Cmd {
 	cmd, _ := m.handlePickerKey(tea.KeyMsg{Type: tea.KeyEnter})
 	return cmd
+}
+
+// /mcp search shows each server with the /mcp add line that adds it, and
+// writes nothing.
+func TestMCPSearchShowsAddLines(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"servers":[{"server":{"name":"io.github.acme/pg-server","title":"Postgres","description":"Query a database.","packages":[{"registryType":"npm","identifier":"@acme/pg-mcp","transport":{"type":"stdio"}}]}}]}`))
+	}))
+	defer srv.Close()
+	t.Setenv("JANETCODE_MCP_REGISTRY", srv.URL)
+	h := newHarness(t)
+	withMCP(t, h)
+	h.runCmd(h.m.mcpCommand([]string{"search", "postgres"}))
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "/mcp add pg-server npx -y @acme/pg-mcp") })
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, mcp.ProjectFile)); !os.IsNotExist(err) {
+		t.Fatal("a search wrote the project file")
+	}
 }

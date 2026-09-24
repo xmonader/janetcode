@@ -2461,6 +2461,15 @@ the project's `.mcp.json` — created if absent, and otherwise left as it
 was, other keys, server order and indentation included — marked trusted
 (you wrote it yourself), started, and its tools listed.
 
+`/mcp search <words>` looks servers up in the official MCP registry
+(registry.modelcontextprotocol.io; `JANETCODE_MCP_REGISTRY` points it at
+another server with the same API) and prints, for each, the `/mcp add`
+line that would add it, with `<placeholders>` for keys and arguments you
+fill in. It installs nothing: running the line is the step that writes
+and starts the server, so you see the exact command first. A local
+package (npm, PyPI, a container image) is preferred to a hosted URL.
+Registry entries are published by their authors and not reviewed.
+
 `/mcp add <name> <command or url>` does the same without the dialog, for
 scripting and for the web UI:
 
