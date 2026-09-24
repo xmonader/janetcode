@@ -311,11 +311,11 @@ const usage = await evaljs(`(() => {
     { model: 'qwen/qwen3-coder-30b-a3b-instruct', calls: 1, in: 1000, out: 400, cache_read: 0, cache_write: 0 } ] } } }) });
   const card = [...document.querySelectorAll('.turn.card')].pop();
   const box = card.getBoundingClientRect();
-  const overlaps = [...card.querySelectorAll('.urow')].some((r) => {
+  const overlaps = [...card.querySelectorAll('.crow')].some((r) => {
     const b = r.querySelector('b').getBoundingClientRect(), c = r.querySelector('.cms').getBoundingClientRect();
     return b.right > c.left + 1 && b.bottom > c.top + 1;
   });
-  const spills = [...card.querySelectorAll('.urow *')].some((el) => el.getBoundingClientRect().right > box.right + 1);
+  const spills = [...card.querySelectorAll('.crow *')].some((el) => el.getBoundingClientRect().right > box.right + 1);
   return { overlaps, spills };
 })()`);
 check('usage card rows keep name and figures apart', !usage.overlaps && !usage.spills, JSON.stringify(usage));
