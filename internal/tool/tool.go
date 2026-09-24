@@ -389,6 +389,21 @@ func resolveExisting(abs string) (string, error) {
 }
 
 func decode(input json.RawMessage, v any) error {
+	err := decodeStrict(input, v)
+	if err != nil {
+		// Models often send a list or an object as a string holding its
+		// JSON ("paths":"[\"a.go\"]"). That is unambiguous, and
+		// rejecting it costs a round trip, so it is unwrapped and tried
+		// once more. If that fails too, its error is the one reported: it
+		// is about what is still wrong.
+		if fixed, ok := unquoteStructured(input, v); ok {
+			return decodeStrict(fixed, v)
+		}
+	}
+	return err
+}
+
+func decodeStrict(input json.RawMessage, v any) error {
 	dec := json.NewDecoder(strings.NewReader(string(input)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
@@ -403,6 +418,70 @@ func decode(input json.RawMessage, v any) error {
 		return fmt.Errorf("invalid input: %w", err)
 	}
 	return nil
+}
+
+// unquoteStructured replaces each top-level value of input that is a
+// string holding a JSON array or object with that array or object, when
+// the field it lands in is a list, a map or a struct. It reports whether
+// it changed anything.
+func unquoteStructured(input json.RawMessage, v any) (json.RawMessage, bool) {
+	t := reflect.TypeOf(v)
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t == nil || t.Kind() != reflect.Struct {
+		return nil, false
+	}
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(input, &obj) != nil {
+		return nil, false
+	}
+	changed := false
+	for i := range t.NumField() {
+		f := t.Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if !f.IsExported() || name == "-" {
+			continue
+		}
+		if name == "" {
+			name = f.Name
+		}
+		raw, ok := obj[name]
+		if !ok || !structured(f.Type) || len(raw) == 0 || raw[0] != '"' {
+			continue
+		}
+		var inner string
+		if json.Unmarshal(raw, &inner) != nil {
+			continue
+		}
+		inner = strings.TrimSpace(inner)
+		if inner == "" || (inner[0] != '[' && inner[0] != '{') || !json.Valid([]byte(inner)) {
+			continue
+		}
+		obj[name] = json.RawMessage(inner)
+		changed = true
+	}
+	if !changed {
+		return nil, false
+	}
+	out, err := json.Marshal(obj)
+	return out, err == nil
+}
+
+// structured reports whether a field decodes from a JSON array or object
+// only. A byte slice (json.RawMessage among them) is excluded: it takes
+// any value, and a string is a legitimate one.
+func structured(t reflect.Type) bool {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Slice:
+		return t.Elem().Kind() != reflect.Uint8
+	case reflect.Array, reflect.Map, reflect.Struct:
+		return true
+	}
+	return false
 }
 
 // jsonFields lists the JSON names a decode target accepts, in the order
