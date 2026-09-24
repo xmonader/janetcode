@@ -133,6 +133,19 @@
 <tr><td><code>/theme</code></td><td><code>[name]</code></td><td>switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved</td></tr>
 <tr><td><code>/verbose</code></td><td></td><td>toggle expanded tool output for the whole transcript (ctrl+o expands one turn)</td></tr>
 <tr><td><code>/hints</code></td><td><code>[on|off]</code></td><td>one-time hints about features this session could have used; alone says how many have been given</td></tr>
+<tr><td><code>/cd</code></td><td><code>[path]</code></td><td>move this session&#x27;s working directory without restarting it</td></tr>
+<tr><td><code>/compact-fast</code></td><td></td><td>prune old tool results and thinking without a summary call</td></tr>
+<tr><td><code>/effort</code></td><td><code>[tier|up|down]</code></td><td>how hard the model thinks: low, medium, high, xhigh, max (also <code>ctrl+r</code>)</td></tr>
+<tr><td><code>/perf</code></td><td></td><td>where the time went: model, tools, waiting on you, the harness itself</td></tr>
+<tr><td><code>/routing</code></td><td></td><td>toggle the step router for this session: while it is off, every call goes to the session&#x27;s own model</td></tr>
+<tr><td><code>/features</code></td><td><code>[name [on|off]]</code></td><td>the extra models janetcode can call on (cheap, strong, advisor, vision) and whether each is on</td></tr>
+<tr><td><code>/followup</code></td><td><code>[on|off]</code></td><td>ghost-text suggestion for the next prompt after a turn</td></tr>
+<tr><td><code>/init</code></td><td><code>[force]</code></td><td>write the project&#x27;s starter instruction file from what the repository shows</td></tr>
+<tr><td><code>/sleep</code></td><td></td><td>read this session&#x27;s record and store what it established, with evidence</td></tr>
+<tr><td><code>/dream</code></td><td></td><td>consolidate overlapping auto-memory entries</td></tr>
+<tr><td><code>/curator</code></td><td><code>[list | pin &lt;name&gt; | archive &lt;name&gt; | restore &lt;name&gt;]</code></td><td>pin, archive or restore auto-generated skills</td></tr>
+<tr><td><code>/cua</code></td><td><code>[on|off|doctor]</code></td><td>start Cua Driver as an MCP desktop server when it is installed (experimental)</td></tr>
+<tr><td><code>/jev</code></td><td><code>[on|off|model|provider|triage|intake|route|outcome [on|off]]</code></td><td>the optional Jev decision service: its settings and what it has decided (experimental, off by default)</td></tr>
 <tr><td><code>/eval</code></td><td><code>keep [name] [--check cmd] [--base rev] [--self-contained]</code></td><td>keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project&#x27;s verify.json</td></tr>
 <tr><td><code>/recipe</code></td><td><code>[list | show &lt;name&gt; | save &lt;name&gt; [--turn n] [k=v...] | run &lt;name&gt; [--dry-run] [k=v...]]</code></td><td>crystallise a turn&#x27;s tool calls into a replayable program under .janetcode/recipes and run it later with no model call; a failed step hands over to the model</td></tr>
 <tr><td><code>/proof</code></td><td><code>[commit | push [remote] | fetch [remote]]</code></td><td>which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked (mutation score included when logged); attaches one from this session first if the commit (default HEAD) has none yet; push/fetch move notes to/from a remote, since they are local only until pushed</td></tr>
@@ -183,6 +196,10 @@
 <tr><td><code>--web</code></td><td>serve the session in a browser instead of the terminal</td></tr>
 <tr><td><code>--web-addr &lt;host:port&gt;</code></td><td>listen address for <code>--web</code> (default <code>127.0.0.1:8787</code>). Loopback unless you name another host; anyone who can reach the port can approve commands</td></tr>
 <tr><td><code>--inspect &lt;subject&gt;</code></td><td>print one part of the session state and exit; <code>list</code> names them</td></tr>
+<tr><td><code>--set &lt;key=value&gt;</code></td><td>set a config key for this run, e.g. <code>--set escalate_after=1</code> (repeatable); the keys <code>/config</code> takes, never written to the file</td></tr>
+<tr><td><code>--append-system-prompt &lt;text&gt;</code></td><td>text (or <code>@file</code>) appended to the system prompt; <code>JANETCODE_SYSTEM_MD=&lt;file&gt;</code> replaces the base prompt</td></tr>
+<tr><td><code>--init-project</code></td><td>write a starter instruction file from what the repository shows, then exit; an existing one is never overwritten</td></tr>
+<tr><td><code>--fix</code></td><td>with <code>--doctor</code>: apply the safe repairs the checkup lists</td></tr>
 <tr><td><code>--inspect features</code></td><td>print the whole feature catalogue: commands, keys, flags, tools, config keys. <code>--inspect &quot;features &lt;query&gt;&quot;</code> searches it and the embedded manual</td></tr>
 <tr><td><code>--doctor</code></td><td>check config, credentials, providers, tools and report what is wrong</td></tr>
 <tr><td><code>--proof [commit]</code></td><td>print the proof note attached to a commit (default <code>HEAD</code>): which session, turn and intent wrote each of its files, and what actually demonstrated the work; &quot;no proof for <code>&lt;sha&gt;</code>&quot; when none is attached, then exit</td></tr>
