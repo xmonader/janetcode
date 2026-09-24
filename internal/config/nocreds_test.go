@@ -74,3 +74,32 @@ func TestBrokenConfigBeatsMissingCredentials(t *testing.T) {
 		}
 	}
 }
+
+// The first thing a new user sees is this message, printed after
+// "janetcode: ". It used to be one 300-character line; it is now the
+// problem, then one line per way out, each short enough to read in a
+// narrow terminal, and the fastest fix comes first.
+func TestNoCredentialsMessageIsReadable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	_, err := load(path, env(nil), Overrides{})
+	if !errors.Is(err, ErrNoCredentials) {
+		t.Fatalf("err = %v, want ErrNoCredentials", err)
+	}
+	lines := strings.Split(err.Error(), "\n")
+	if len(lines) < 4 {
+		t.Fatalf("want the problem plus one line per fix, got %d line(s):\n%s", len(lines), err)
+	}
+	for _, l := range lines {
+		if len(strings.Replace(l, path, "", 1)) > 90 {
+			t.Errorf("line is %d chars, want <= 90: %q", len(l), l)
+		}
+	}
+	for i, want := range []string{"no API key", "/connect", "OPENAI_API_KEY", path} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("message lacks %q:\n%s", want, err)
+		}
+		if i == 1 && !strings.Contains(lines[1], want) {
+			t.Errorf("the /connect fix is not the first suggestion:\n%s", err)
+		}
+	}
+}

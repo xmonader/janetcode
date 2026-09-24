@@ -663,7 +663,11 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 			if cfg.Provider == DefaultProvider {
 				// The first thing to try is the one with no file to edit:
 				// the TUI and --web both open on a connect form.
-				credErr = fmt.Errorf("%w: run janetcode (or janetcode --web) in a terminal to pick a provider and paste a key, or set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend (config: %s)", ErrNoCredentials, path)
+				credErr = fmt.Errorf("%w. Either:\n"+
+					"  - run janetcode (or janetcode --web) in a terminal and /connect a provider\n"+
+					"  - set ANTHROPIC_API_KEY\n"+
+					"  - set OPENAI_API_KEY and JANETCODE_MODEL (plus OPENAI_BASE_URL if not OpenAI)\n"+
+					"  config file: %s", ErrNoCredentials, path)
 			} else {
 				credErr = fmt.Errorf("%w for provider %q: run janetcode and /connect to paste one, or set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 			}
