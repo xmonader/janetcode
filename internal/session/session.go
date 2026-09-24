@@ -467,10 +467,17 @@ func AutoTitle(msgs []llm.Message) string {
 			continue
 		}
 		words := strings.Fields(textfmt.FirstLine(t, 200))
+		cut := len(words) > 8 || strings.Contains(t, "\n")
 		if len(words) > 8 {
 			words = words[:8]
 		}
-		return strings.TrimRight(strings.Join(words, " "), ".,;:")
+		title := strings.TrimRight(strings.Join(words, " "), ".,;:…")
+		if cut {
+			// A session list that shows "fix the flaky test in the"
+			// reads as a typo; the ellipsis says the prompt went on.
+			title += "…"
+		}
+		return title
 	}
 	return ""
 }

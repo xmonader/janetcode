@@ -169,6 +169,10 @@ func TestForkTitleAndSearch(t *testing.T) {
 	if got := AutoTitle(glued); got != "reply with the single word ok" {
 		t.Fatalf("AutoTitle glued map = %q", got)
 	}
+	long := []llm.Message{llm.TextMessage(llm.RoleUser, "fix the flaky test in the scheduler package and then run the whole suite")}
+	if got := AutoTitle(long); got != "fix the flaky test in the scheduler package…" {
+		t.Fatalf("AutoTitle long = %q", got)
+	}
 	if err := s.SetTitle("rate limiting"); err != nil {
 		t.Fatal(err)
 	}
