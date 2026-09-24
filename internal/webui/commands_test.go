@@ -3,6 +3,8 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,5 +188,19 @@ func TestUnknownWebCommandSuggestsTheNearest(t *testing.T) {
 		if last.Text != want {
 			t.Errorf("%s: %q, want %q", typed, last.Text, want)
 		}
+	}
+}
+
+// Stop cancels the HTTP request, which fails with a *url.Error wrapping
+// context.Canceled. That drew a red failure card with a raw "Post ...:
+// context canceled" and a Retry button.
+func TestStopIsNotAFailure(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.running = true
+	stop := &url.Error{Op: "Post", URL: "https://openrouter.ai/api/v1/chat/completions", Err: context.Canceled}
+	s.finish(fmt.Errorf("turn: %w", stop))
+	last := s.entries[len(s.entries)-1]
+	if last.Error || !strings.HasPrefix(last.Text, "stopped after") {
+		t.Fatalf("after Stop: %+v", last)
 	}
 }

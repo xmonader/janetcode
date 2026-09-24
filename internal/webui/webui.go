@@ -763,9 +763,13 @@ func (s *server) finish(err error) {
 	switch {
 	case err == nil:
 		s.statusSet("done in " + textfmt.Duration(elapsed))
-	case err == context.Canceled:
-		s.add(entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
-		s.statusSet("cancelled")
+	case errors.Is(err, context.Canceled):
+		// Stop cancels the request mid-flight, and the HTTP client hands
+		// back a *url.Error wrapping context.Canceled; comparing with ==
+		// missed it and pressing Stop drew a red "Post ...: context
+		// canceled" card with a Retry button. Stopping is not a failure.
+		s.notice("stopped after " + textfmt.Duration(elapsed))
+		s.statusSet("stopped")
 	default:
 		x := llm.Explain(err, s.opts.Provider, webRemedies)
 		s.add(entry{Kind: "error", Text: x.String(), Data: x, Error: true})
