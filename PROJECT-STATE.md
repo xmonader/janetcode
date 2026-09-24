@@ -15,10 +15,9 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   and others. Anthropic path verified only against a fake server.
 - Windows: compile-checked (`make cross`), never run.
 - Last release tag: v0.2.0; ~880 commits since.
-- Polish pass 2026-09-24: no-key error is one fix per line; `--help` grouped
-  by task (Session / Headless / Permissions / Setup / Advanced / Eval) and
-  spelled `--long`; `/help` files every built-in (11 were listed as custom);
-  this file trimmed, history moved to `docs/notes/history.md`.
+- Polish pass 2026-09-24/25: CLI, TUI and web audited end to end (frames in
+  the session scratchpad); every item fixed except the Anthropic path (held).
+  Summary in CHANGELOG "Polish". Browser checks: `make ui-test`.
 
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).
@@ -54,6 +53,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   `GITHUB_TOKEN`, `NPM_TOKEN`, `CARGO_REGISTRY_TOKEN`, `AWS_ACCESS_KEY_ID` kept
   because their CLIs need them (2026-09-22).
 - Auto-approve never skips the command guard (2026-09-22).
+- Usage errors are `headless.BadInput` (exit 42) with one plain line; a
+  message never names a TUI command from the CLI (2026-09-25).
+- A missing path on read_file/list_dir is an answer, decided once in
+  `present.EndOf` for TUI, web and replayed sessions (2026-09-25).
 - New flags land in `--help` "Advanced" unless filed in `helpGroups`
   (cmd/janetcode/flags.go); new slash commands must be filed in the TUI
   `helpGroups` (a test enforces it) (2026-09-24).

@@ -85,10 +85,41 @@ and measurements behind each round are in `docs/notes/history.md`.
   measurements are in `docs/notes/jev.md`.
 - Computer use through the Cua Driver MCP backend.
 
-### CLI polish
-- `--help` groups flags by task (Session, Headless, Permissions, Setup,
-  Advanced, Eval) and uses the `--long` spelling the docs use.
+### Polish
+CLI
+- `--help` groups flags by task, uses the `--long` spelling, names what each
+  flag takes (`--resume id`) and fits 80 columns.
+- Usage mistakes exit 42 with one plain line: an unknown or malformed flag,
+  an unknown `--resume` id or recipe, a `--from-turn` the recording lacks,
+  a missing repo or commit for `--proof`, a second `--init`/`--init-project`.
+- `--output-format json`/`stream-json` print a result object even when the
+  run fails before it starts.
+- Provider failures are explained (what failed, what to do); `--doctor`
+  fails only the provider in use and lists optional features as info.
+- `--recipe` runs with no API key; `--sessions` and counts read as words.
 - The missing-API-key error puts one fix per line, fastest first.
+
+Terminal UI
+- Permission keys say what they do (`a this session`, `r save <rule>`); the
+  approval line says "used 3 times in 2 files" instead of "3 refs".
+- Reading a file that does not exist is an answer, not a red failure (web too).
+- At 80 columns the status line keeps the cost, the connect list keeps the
+  price, and the queue row keeps its keys; the command menu is aligned.
+- `/undo` with nothing to undo is a note; titles cut short end in "…";
+  a cancelled reply no longer ends on a bare `###`; light-theme borders
+  reach 3:1.
+- `/usage` before the first call says $0 instead of "unpriced".
+
+Web UI
+- The permission card asks "Edit a.go?" / "Run go test ./...?".
+- Follows the OS light/dark setting on first visit; muted text reaches 4.5:1.
+- Model menu: wider, named after the service (OpenRouter), current model
+  first, "1M context".
+- Header: "Effort: auto", no green dot without a model, no context meter
+  before the first message; on a phone the model's own name and a dot for
+  reconnecting, and drawers that start shut and never stack.
+- Key failures offer a **Fix connection** button; plain labels throughout
+  ("Scripts", "Show full reply", one set of permission-mode names).
 
 ### Known limitations
 - The Anthropic provider has been tested against a fake server only; the
