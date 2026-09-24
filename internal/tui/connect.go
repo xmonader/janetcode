@@ -546,5 +546,33 @@ func (m *model) headerModel() string {
 	if m.opts.Agent.Settings().Provider == nil {
 		return "not connected · /connect"
 	}
-	return m.opts.Provider + "/" + m.opts.Agent.Settings().Model
+	return m.providerLabel() + "/" + m.opts.Agent.Settings().Model
+}
+
+// providerLabel is the active provider's name as a person would say it:
+// "openrouter" for an openai entry OPENAI_BASE_URL aimed at OpenRouter.
+func (m *model) providerLabel() string {
+	if m.opts.Config == nil {
+		return m.opts.Provider
+	}
+	return m.opts.Config.Providers[m.opts.Provider].Label(m.opts.Provider)
+}
+
+// remedies are the fixes a turn's failure can point at. A key from the
+// environment outranks the config /connect writes, so for one the
+// advice names the variable.
+func (m *model) remedies() llm.Remedies {
+	r := tuiRemedies
+	if m.opts.Config == nil {
+		return r
+	}
+	if p := m.opts.Config.Providers[m.opts.Provider]; p.KeysFromEnv() {
+		switch m.opts.Provider {
+		case "openai":
+			r.Key = "in OPENAI_API_KEY / OPENAI_BASE_URL (they override /connect)"
+		case "anthropic":
+			r.Key = "in ANTHROPIC_API_KEY (it overrides /connect)"
+		}
+	}
+	return r
 }

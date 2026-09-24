@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -55,5 +56,18 @@ func TestNoContextGaugeBeforeConnecting(t *testing.T) {
 	h.m.opts.Agent.Provider = nil
 	if line := plain(h.m.statusView()); strings.Contains(line, "ctx") || !strings.Contains(line, "not connected") {
 		t.Fatalf("status before connecting:\n%s", line)
+	}
+}
+
+// OPENAI_BASE_URL aimed at OpenRouter makes an entry named "openai"; the
+// header called it openai and the error advice sent people there.
+func TestHeaderNamesWhereOpenAIPoints(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Provider = "openai"
+	h.m.opts.Config = &config.Config{Providers: map[string]config.Provider{
+		"openai": {Type: "openai", BaseURL: "https://openrouter.ai/api/v1"},
+	}}
+	if got := h.m.headerModel(); !strings.HasPrefix(got, "openrouter/") {
+		t.Fatalf("header = %q, want openrouter/...", got)
 	}
 }

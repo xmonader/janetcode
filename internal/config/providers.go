@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -76,6 +77,32 @@ func (p Provider) NeedsKey() bool {
 		}
 	}
 	return true
+}
+
+// KeysFromEnv reports whether the provider's keys came from an
+// environment variable, which outranks the config file: advice to fix a
+// key with /connect is wrong for one, since the variable wins again.
+func (p Provider) KeysFromEnv() bool { return p.envKeys }
+
+// Label is the name to show for a configured provider. The "openai"
+// entry is whatever OPENAI_BASE_URL points at, and calling OpenRouter
+// "openai" in the header and in error advice sent people to the wrong
+// dashboard, so an "openai" entry aimed elsewhere is named after the
+// preset with that host, or the host itself.
+func (p Provider) Label(name string) string {
+	if name != "openai" || p.BaseURL == "" {
+		return name
+	}
+	u, err := url.Parse(p.BaseURL)
+	if err != nil || u.Host == "" || strings.EqualFold(u.Host, "api.openai.com") {
+		return name
+	}
+	for _, pre := range Presets {
+		if pu, err := url.Parse(pre.BaseURL); err == nil && pu.Host != "" && strings.EqualFold(pu.Host, u.Host) {
+			return pre.Name
+		}
+	}
+	return u.Host
 }
 
 // Preset is a well-known backend the user can connect to by name; the
