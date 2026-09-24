@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/sleepfold"
@@ -520,7 +521,9 @@ func printEvent(opts Options, e agent.Event) {
 		fmt.Fprintln(opts.Stdout)
 		fmt.Fprintln(opts.Stderr, "[discarded] the answer so far was cut off mid-stream and is being resent; the text above it is void")
 	case agent.EvNotice:
-		fmt.Fprintf(opts.Stderr, "[notice] %s\n", safe(e.Text))
+		if !present.Routine(e.Text) {
+			fmt.Fprintf(opts.Stderr, "[notice] %s\n", safe(e.Text))
+		}
 	case agent.EvTurnDone:
 		fmt.Fprintln(opts.Stdout)
 		fmt.Fprintf(opts.Stderr, "[usage] in=%d out=%d cache_read=%d stop=%s", e.Usage.InputTokens, e.Usage.OutputTokens, e.Usage.CacheReadTokens, e.StopReason)

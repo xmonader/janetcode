@@ -951,3 +951,18 @@ func gaugeWhole(m *model, line string) bool {
 	}
 	return false
 }
+
+// The repository map is attached on every turn; saying so under every
+// prompt was noise. It stays in the session log and the trajectory.
+func TestRoutineNoticeIsNotShown(t *testing.T) {
+	h := newHarness(t)
+	before := len(h.m.transcript.entries)
+	h.m.transcript.apply(agent.Event{Kind: agent.EvNotice, Text: "repository map attached: 3 files, 1 pulled up by the request"})
+	if len(h.m.transcript.entries) != before {
+		t.Fatalf("a routine notice was added: %q", h.m.transcript.entries[len(h.m.transcript.entries)-1].text)
+	}
+	h.m.transcript.apply(agent.Event{Kind: agent.EvNotice, Text: "memory recalled: 2 notes"})
+	if len(h.m.transcript.entries) != before+1 {
+		t.Fatal("an ordinary notice was dropped too")
+	}
+}

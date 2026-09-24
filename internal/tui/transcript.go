@@ -292,6 +292,9 @@ func (t *transcript) apply(ev agent.Event) {
 		t.closeOpen()
 		t.info(noteRetry + ev.Text)
 	case agent.EvNotice:
+		if present.Routine(ev.Text) {
+			return
+		}
 		t.closeOpen()
 		if isAttachNote(ev.Text) {
 			t.info(noteAttached + present.Notice(t.cwd, ev.Text))

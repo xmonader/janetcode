@@ -189,6 +189,9 @@ func (s *server) apply(ev agent.Event) {
 		s.closeOpen()
 		s.add(entry{Kind: "notice", Text: "↻ " + ev.Text})
 	case agent.EvNotice:
+		if present.Routine(ev.Text) {
+			return
+		}
 		s.closeOpen()
 		s.add(entry{Kind: "notice", Text: present.Notice(s.cwd(), ev.Text)})
 	case agent.EvPhase:

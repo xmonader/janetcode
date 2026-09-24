@@ -29,6 +29,14 @@ func VerdictTone(text string) Tone {
 // relative and the home directory is ~.
 func Verdict(cwd, text string) string { return ShortenPaths(cwd, text) }
 
+// Routine reports a notice that says the harness did what it does on
+// every turn, such as attaching the repository map. It stays in the
+// session log and the trajectory; in the conversation it was a line of
+// noise under every prompt, so the front ends leave it out.
+func Routine(text string) bool {
+	return strings.HasPrefix(text, "repository map attached")
+}
+
 // Notice is a harness notice as shown, with paths shortened the same way.
 func Notice(cwd, text string) string { return ShortenPaths(cwd, text) }
 

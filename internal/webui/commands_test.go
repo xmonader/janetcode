@@ -204,3 +204,12 @@ func TestStopIsNotAFailure(t *testing.T) {
 		t.Fatalf("after Stop: %+v", last)
 	}
 }
+
+func TestRoutineNoticeIsNotShownOnTheWeb(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	before := len(s.entries)
+	s.apply(agent.Event{Kind: agent.EvNotice, Text: "repository map attached: 3 files"})
+	if len(s.entries) != before {
+		t.Fatalf("a routine notice was added: %+v", s.entries[len(s.entries)-1])
+	}
+}
