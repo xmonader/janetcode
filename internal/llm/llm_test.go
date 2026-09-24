@@ -184,3 +184,17 @@ func TestValidateRejectsAnEmptyUserTurn(t *testing.T) {
 		t.Fatalf("an empty assistant turn was rejected: %v", err)
 	}
 }
+
+// The thinking share of the output is shown when the provider reported it,
+// and summed like every other count.
+func TestTokenLineShowsThinking(t *testing.T) {
+	var u Usage
+	u.Add(Usage{InputTokens: 10, OutputTokens: 1500, ReasoningTokens: 1200})
+	u.Add(Usage{OutputTokens: 500, ReasoningTokens: -5})
+	if got := u.TokenLine(); !strings.Contains(got, "out 2.0k (1.2k thinking)") {
+		t.Errorf("TokenLine = %q", got)
+	}
+	if got := (Usage{OutputTokens: 5}).TokenLine(); strings.Contains(got, "thinking") {
+		t.Errorf("no reasoning reported, got %q", got)
+	}
+}

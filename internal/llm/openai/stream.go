@@ -305,6 +305,9 @@ func usageOf(u *wireUsage) llm.Usage {
 	// Store uncached input so Cost() and CacheRate() stay additive
 	// like the Anthropic path (input_tokens is already uncached there).
 	usage := llm.Usage{OutputTokens: int(u.CompletionTokens), CacheReadTokens: cached, CostUSD: float64(u.Cost)}
+	if u.CompletionTokensDetails != nil {
+		usage.ReasoningTokens = int(u.CompletionTokensDetails.ReasoningTokens)
+	}
 	if cached > 0 && cached <= pt {
 		usage.InputTokens = pt - cached
 	} else {

@@ -177,6 +177,10 @@ type Usage struct {
 	OutputTokens     int `json:"output_tokens"`
 	CacheReadTokens  int `json:"cache_read_tokens"`
 	CacheWriteTokens int `json:"cache_write_tokens"`
+	// ReasoningTokens is the part of OutputTokens the model spent
+	// thinking, when the provider says. It is already in OutputTokens and
+	// priced with it.
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 	// CostUSD is the price the provider reported for the request (OpenRouter
 	// does), or 0 when unknown.
 	CostUSD float64 `json:"cost_usd,omitempty"`
@@ -194,6 +198,7 @@ func (u *Usage) Add(u2 Usage) {
 	u.OutputTokens += max(u2.OutputTokens, 0)
 	u.CacheReadTokens += max(u2.CacheReadTokens, 0)
 	u.CacheWriteTokens += max(u2.CacheWriteTokens, 0)
+	u.ReasoningTokens += max(u2.ReasoningTokens, 0)
 	if u2.CostUSD >= 0 && !math.IsNaN(u2.CostUSD) && !math.IsInf(u2.CostUSD, 0) {
 		u.CostUSD += u2.CostUSD
 	}
@@ -236,10 +241,15 @@ func (u Usage) CostSource(p *Price) string {
 	return "unpriced"
 }
 
-// TokenLine is the four token counts every usage view shows.
+// TokenLine is the four token counts every usage view shows, with the
+// thinking share of the output when the provider reported one.
 func (u Usage) TokenLine() string {
+	out := textfmt.Tokens(u.OutputTokens)
+	if u.ReasoningTokens > 0 {
+		out += " (" + textfmt.Tokens(u.ReasoningTokens) + " thinking)"
+	}
 	return fmt.Sprintf("in %s · out %s · cache read %s · cache write %s",
-		textfmt.Tokens(u.InputTokens), textfmt.Tokens(u.OutputTokens), textfmt.Tokens(u.CacheReadTokens), textfmt.Tokens(u.CacheWriteTokens))
+		textfmt.Tokens(u.InputTokens), out, textfmt.Tokens(u.CacheReadTokens), textfmt.Tokens(u.CacheWriteTokens))
 }
 
 // CacheHit is the share of the prompt tokens that were served from the

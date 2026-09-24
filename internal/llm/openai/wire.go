@@ -139,6 +139,9 @@ type wireUsage struct {
 	PromptTokensDetails *struct {
 		CachedTokens looseInt `json:"cached_tokens"`
 	} `json:"prompt_tokens_details"`
+	CompletionTokensDetails *struct {
+		ReasoningTokens looseInt `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details"`
 	Cost looseFloat `json:"cost"` // OpenRouter reports the request price
 }
 
