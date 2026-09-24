@@ -99,7 +99,7 @@ func TestUntilReloopsUntilCheckPasses(t *testing.T) {
 	if !strings.Contains(out.String(), "first try") || !strings.Contains(out.String(), "second try") {
 		t.Fatalf("stdout = %q", out.String())
 	}
-	if !strings.Contains(errOut.String(), "round 1/5 failed (exit 3)") || !strings.Contains(errOut.String(), "[until] passed") {
+	if !strings.Contains(errOut.String(), "round 1/5 failed (exit 3)") || !strings.Contains(errOut.String(), "[until] passed: "+check+" · this verifies the run") {
 		t.Fatalf("stderr = %q", errOut.String())
 	}
 	// The failure went back to the model as the next user message.

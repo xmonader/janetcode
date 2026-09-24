@@ -122,7 +122,10 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 		}
 		out, exit := check(ctx, opts.Cwd, opts.Until)
 		if exit == 0 {
-			fmt.Fprintf(opts.Stderr, "[until] passed: %s\n", opts.Until)
+			// The turn's verdict was printed before this check ran and may
+			// have said "unverified"; the check that just passed is the
+			// verification, so the last word says so.
+			fmt.Fprintf(opts.Stderr, "[until] passed: %s · this verifies the run\n", opts.Until)
 			return nil
 		}
 		fmt.Fprintf(opts.Stderr, "[until] round %d/%d failed (exit %d): %s\n", round, rounds, exit, safeLine(out, 200))
