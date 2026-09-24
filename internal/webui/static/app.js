@@ -688,6 +688,7 @@
     const same = was && was.name === p.name && was.summary === p.summary && was.preview === p.preview;
     if (!same) {
       announce("Approval needed. " + askLine.textContent + (p.impact ? " " + p.impact : ""));
+      notifyAsk(askLine.textContent);
       // Focus goes to the card, not to Allow: a stray Enter must not
       // approve a command. It stays put while the user is typing.
       const typing = document.activeElement === input && input.value.trim() !== "";
@@ -2877,6 +2878,16 @@
     const title = document.getElementById("title").textContent || "janetcode";
     const body = lastReply ? lastReply.split("\n")[0].slice(0, 120) : (st.status || "Turn finished");
     try { new Notification("janetcode · " + title, { body }); } catch (_) {}
+  }
+
+  // A turn waiting on an approval in a tab you are not looking at looks
+  // idle; the terminal UI rings for it, and so does the page. One tag, so
+  // a second request replaces the first instead of stacking.
+  function notifyAsk(line) {
+    if (!document.hidden) return;
+    if (soundOn) ding();
+    if (!notifyOn) return;
+    try { new Notification("janetcode · approval needed", { body: line, tag: "janetcode-ask" }); } catch (_) {}
   }
 
   const conn = document.getElementById("conn");

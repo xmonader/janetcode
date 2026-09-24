@@ -284,6 +284,25 @@ await sleep(300);
 check('…but not away from a half-typed message', await evaljs(`document.activeElement.id === 'input' && document.getElementById('input').value === 'half a thought'`));
 await evaljs(`document.getElementById('ask').hidden = true; document.getElementById('input').value = ''; 1`);
 
+// An approval in a hidden tab raises a desktop notification; a visible
+// tab does not need one.
+await evaljs(`(() => {
+  window.__notes = [];
+  window.Notification = function (title, opts) { window.__notes.push({ title, body: opts && opts.body }); };
+  window.Notification.permission = 'granted';
+  window.Notification.requestPermission = async () => 'granted';
+  return 1; })()`);
+await evaljs(`(async () => { const b = document.getElementById('notif-btn'); if (!b.classList.contains('on')) b.click(); await new Promise(r => setTimeout(r, 50)); return 1; })()`);
+await perm('go vet');
+await sleep(200);
+const seenVisible = await evaljs(`window.__notes.length`);
+await evaljs(`document.getElementById('ask').hidden = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); 1`);
+await perm('go build');
+await sleep(200);
+const note = await evaljs(`window.__notes[0] || null`);
+check('an approval in a hidden tab raises a notification', seenVisible === 0 && note && /approval needed/.test(note.title) && /go build/.test(note.body), JSON.stringify({ seenVisible, note }));
+await evaljs(`delete document.hidden; document.getElementById('ask').hidden = true; const b = document.getElementById('notif-btn'); if (b.classList.contains('on')) b.click(); 1`);
+
 // A finished turn is announced once, not token by token.
 await evaljs(`(() => { const es = window.__es; es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: true, phase: 'Writing', mode: 'ask' } }) }); es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', status: 'done in 4s' } }) }); return 1; })()`);
 await sleep(300);
