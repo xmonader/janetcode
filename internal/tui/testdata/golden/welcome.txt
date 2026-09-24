@@ -17,7 +17,7 @@
 
 
 
-  ask · ready                                                             ctx ▱▱▱▱▱▱▱▱▱▱ 104/80k 0%
+  ask · ready                                                  ctx ▱▱▱▱▱▱▱▱▱▱ 104 · compacts at 80k
 
   ╭────────────────────────────────────────────────────────────────────────────────────────────────╮
   │❯ Ask for a change, a fix, or an explanation… · / for commands                                  │

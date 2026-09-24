@@ -404,7 +404,7 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	if ag := h.m.opts.Agent; ag.ContextWindow != 128000 || ag.Price == nil || ag.Price.Output != 0.6 || ag.CompactThreshold() != 96000 {
 		t.Fatalf("agent window=%d price=%+v threshold=%d", ag.ContextWindow, ag.Price, ag.CompactThreshold())
 	}
-	if !strings.Contains(h.m.status, "128k ctx") || !strings.Contains(h.m.status, "$0.15/$0.6") {
+	if !strings.Contains(h.m.status, "128k context") || !strings.Contains(h.m.status, "$0.15/$0.6") {
 		t.Fatalf("details missing from status: %q", h.m.status)
 	}
 

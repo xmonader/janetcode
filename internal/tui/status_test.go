@@ -23,12 +23,12 @@ func TestStatusLineShowsTokensContextAndQuietTime(t *testing.T) {
 	h.pump(func() bool { return !h.m.turn.running })
 
 	line := plain(h.m.statusView())
-	for _, want := range []string{"↑12k", "↓3.4k", "⧉9.0k", "/"} {
+	for _, want := range []string{"↑12k", "↓3.4k", "⧉9.0k", "compacts at 80k"} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("status line lacks %q:\n%s", want, line)
 		}
 	}
-	if !strings.Contains(line, "ctx ") || !strings.Contains(line, "%") {
+	if !strings.Contains(line, "ctx ") || !strings.Contains(line, "▰") {
 		t.Fatalf("no context gauge:\n%s", line)
 	}
 
@@ -45,4 +45,15 @@ func TestStatusLineShowsTokensContextAndQuietTime(t *testing.T) {
 		t.Fatalf("a turn still streaming:\n%s", got)
 	}
 	h.m.turn.running = false
+}
+
+// Before /connect there is nothing to measure the context against, and
+// the figures it showed changed as soon as a model was picked.
+func TestNoContextGaugeBeforeConnecting(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	h.m.opts.Agent.Provider = nil
+	if line := plain(h.m.statusView()); strings.Contains(line, "ctx") || !strings.Contains(line, "not connected") {
+		t.Fatalf("status before connecting:\n%s", line)
+	}
 }

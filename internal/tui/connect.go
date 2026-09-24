@@ -237,7 +237,7 @@ func (m *model) rememberModel(mi llm.ModelInfo) {
 func modelDetails(mi llm.ModelInfo) string {
 	var parts []string
 	if mi.ContextWindow > 0 {
-		parts = append(parts, textfmt.Tokens(mi.ContextWindow)+" ctx")
+		parts = append(parts, textfmt.Tokens(mi.ContextWindow)+" context")
 	}
 	if mi.Price != nil && (mi.Price.Input > 0 || mi.Price.Output > 0) {
 		parts = append(parts, fmt.Sprintf("$%s/$%s per M", trimFloat(mi.Price.Input), trimFloat(mi.Price.Output)))

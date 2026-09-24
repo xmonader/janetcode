@@ -369,6 +369,12 @@ func (m *model) statusView() string {
 func (m *model) contextGauges() []string {
 	// While a turn runs the history belongs to the turn goroutine; the
 	// gauge reads the estimate the agent published instead.
+	if m.opts.Agent.Settings().Provider == nil {
+		// Before /connect there is no model and no threshold worth
+		// measuring against; the figures changed the moment one was
+		// picked.
+		return []string{""}
+	}
 	est := m.opts.Agent.TokenEstimate()
 	if !m.turn.running {
 		est = m.opts.Agent.EstimateTokens()
@@ -394,11 +400,14 @@ func (m *model) contextGauges() []string {
 	}
 	// The figures the percentage is of: a bare "12%" says nothing about
 	// whether the next file read is affordable.
-	sized := style.Render(fmt.Sprintf("ctx %s/%s %d%%", textfmt.Tokens(est), textfmt.Tokens(limit), pct))
+	// The figure after the estimate is where compaction runs, not the
+	// model's window; written as "7.5k/80k" it read as the window, which
+	// /connect reports as something else entirely.
+	sized := style.Render(fmt.Sprintf("ctx %s (%d%%) · compacts at %s", textfmt.Tokens(est), pct, textfmt.Tokens(limit)))
 	const cells = 10
 	filled := pct * cells / 100
 	bar := strings.Repeat("▰", filled) + strings.Repeat("▱", cells-filled)
-	full := style.Render(fmt.Sprintf("ctx %s %s/%s %d%%", bar, textfmt.Tokens(est), textfmt.Tokens(limit), pct))
+	full := style.Render(fmt.Sprintf("ctx %s %s · compacts at %s", bar, textfmt.Tokens(est), textfmt.Tokens(limit)))
 	return []string{full, sized, bare}
 }
 
