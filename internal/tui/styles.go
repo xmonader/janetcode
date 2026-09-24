@@ -32,7 +32,7 @@ var defaultPalette = palette{
 	tool:    lipgloss.AdaptiveColor{Light: "#6d28d9", Dark: "#c4a7ff"},
 	headBg:  lipgloss.AdaptiveColor{Light: "#e5e7eb", Dark: "#2b2f36"},
 	headFg:  lipgloss.AdaptiveColor{Light: "#111827", Dark: "#e6e9ef"},
-	border:  lipgloss.AdaptiveColor{Light: "#96a1b3", Dark: "#4b5361"},
+	border:  lipgloss.AdaptiveColor{Light: "#8b95a6", Dark: "#4b5361"},
 	borderA: lipgloss.AdaptiveColor{Light: "#0b63c6", Dark: "#7cc4ff"},
 	diffAdd: lipgloss.AdaptiveColor{Light: "#166534", Dark: "#7ee2a8"},
 	diffDel: lipgloss.AdaptiveColor{Light: "#991b1b", Dark: "#ff8a8a"},

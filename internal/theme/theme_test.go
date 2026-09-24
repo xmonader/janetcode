@@ -11,10 +11,11 @@ import (
 // comment names for body text; faint (the quietest text) is allowed a
 // touch lower, borders are not text and are not checked here.
 const (
-	bodyFloor  = 3.5
-	faintFloor = 3.0
-	diffFloor  = 3.0
-	headFloor  = 4.0
+	bodyFloor   = 3.5
+	faintFloor  = 3.0
+	diffFloor   = 3.0
+	headFloor   = 4.0
+	borderFloor = 3.0
 )
 
 // textRoles are checked against the terminal background; borders are not.
@@ -55,6 +56,16 @@ func TestBuiltinContrast(t *testing.T) {
 			hbg := th.Get(RoleHeadBg).For(dark)
 			if ratio, ok := Contrast(hfg, hbg); ok && ratio < headFloor {
 				t.Errorf("%s (%s): header %s on %s is %.2f:1, want ≥ %.1f", th.Name, modeName, hfg, hbg, ratio, headFloor)
+			}
+			// Borders are not text, but a box edge that fades into a
+			// light terminal leaves the dialog floating: WCAG's 3:1
+			// for UI components, checked where the theme picks the
+			// light background.
+			if !dark {
+				fg := th.Get(RoleBorder).For(dark)
+				if ratio, ok := Contrast(fg, bg); ok && ratio < borderFloor {
+					t.Errorf("%s (light): border %s on %s is %.2f:1, want ≥ %.1f", th.Name, fg, bg, ratio, borderFloor)
+				}
 			}
 			for _, role := range []string{RoleDiffAdd, RoleDiffDel} {
 				fg := th.Get(role).For(dark)

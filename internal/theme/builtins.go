@@ -52,7 +52,7 @@ var builtins = []Theme{
 			RoleTool:         adapt("#6d28d9", "#c4a7ff"),
 			RoleHeadBg:       adapt("#e5e7eb", "#2b2f36"),
 			RoleHeadFg:       adapt("#111827", "#e6e9ef"),
-			RoleBorder:       adapt("#96a1b3", "#4b5361"),
+			RoleBorder:       adapt("#8b95a6", "#4b5361"),
 			RoleBorderActive: adapt("#0b63c6", "#7cc4ff"),
 			RoleDiffAdd:      adapt("#166534", "#7ee2a8"),
 			RoleDiffDel:      adapt("#991b1b", "#ff8a8a"),
@@ -96,7 +96,7 @@ var builtins = []Theme{
 			RoleTool:         solid("#8250a8"),
 			RoleHeadBg:       solid("#eee8d5"), // base2
 			RoleHeadFg:       solid("#073642"), // base02
-			RoleBorder:       solid("#93a1a1"), // base1
+			RoleBorder:       solid("#899696"), // base1, darkened to 3:1 on white
 			RoleBorderActive: solid("#1c72b8"),
 			RoleDiffAdd:      solid("#4f6600"),
 			RoleDiffDel:      solid("#c22b26"),
@@ -140,7 +140,7 @@ var builtins = []Theme{
 			RoleTool:         adapt("#6a5a8a", "#b6a9cf"),
 			RoleHeadBg:       adapt("#e0e0e2", "#33353a"),
 			RoleHeadFg:       adapt("#2a2c30", "#d7d9dd"),
-			RoleBorder:       adapt("#9aa0aa", "#565962"),
+			RoleBorder:       adapt("#8f949e", "#565962"),
 			RoleBorderActive: adapt("#3a6ea5", "#8fb3d9"),
 			RoleDiffAdd:      adapt("#4a7a55", "#9ac8a6"),
 			RoleDiffDel:      adapt("#9d4a4a", "#d99a9a"),
@@ -166,7 +166,7 @@ var builtins = []Theme{
 			RoleTool:         adapt("#444444", "#c6c6c6"),
 			RoleHeadBg:       adapt("#dadada", "#303030"),
 			RoleHeadFg:       adapt("#1c1c1c", "#eeeeee"),
-			RoleBorder:       adapt("#9e9e9e", "#6c6c6c"),
+			RoleBorder:       adapt("#949494", "#6c6c6c"),
 			RoleBorderActive: adapt("#303030", "#e4e4e4"),
 			RoleDiffAdd:      adapt("2", "10"),
 			RoleDiffDel:      adapt("1", "9"),
@@ -254,7 +254,7 @@ var builtins = []Theme{
 			RoleTool:         solid("#8839ef"),
 			RoleHeadBg:       solid("#e6e9ef"),
 			RoleHeadFg:       solid("#4c4f69"),
-			RoleBorder:       solid("#9ca0b0"),
+			RoleBorder:       solid("#9094a2"),
 			RoleBorderActive: solid("#1e66f5"),
 			RoleDiffAdd:      solid("#3e9c2a"),
 			RoleDiffDel:      solid("#d20f39"),
@@ -452,7 +452,7 @@ var builtins = []Theme{
 			RoleTool:         solid("#8250df"),
 			RoleHeadBg:       solid("#f6f8fa"),
 			RoleHeadFg:       solid("#1f2328"),
-			RoleBorder:       solid("#d0d7de"),
+			RoleBorder:       solid("#8c959f"), // primer gray-4; border.default #d0d7de vanishes in a terminal,
 			RoleBorderActive: solid("#0969da"),
 			RoleDiffAdd:      solid("#1a7f37"),
 			RoleDiffDel:      solid("#cf222e"),
