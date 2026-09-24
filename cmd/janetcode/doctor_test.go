@@ -43,19 +43,19 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 
 	var out bytes.Buffer
 	err := doctor(context.Background(), &out, config.Overrides{}, false)
-	if err == nil || !strings.Contains(err.Error(), "check(s) failed") {
+	if err == nil || !strings.Contains(err.Error(), "checks failed") {
 		t.Fatalf("err = %v; want a credential failure", err)
 	}
 	got := out.String()
 	for _, want := range []string{
 		"[FAIL] credentials",
-		"[ok  ] hooks          2 hooks in .janetcode/hooks.json · not trusted yet (/hooks trust in the TUI) · 0 global",
-		"[ok  ] verify         1 command in .janetcode/verify.json · not trusted yet (/verify trust in the TUI)",
-		"[ok  ] permissions    1 allow / 1 deny in .janetcode/permissions.json · allow rules not trusted yet",
-		"[ok  ] skills         1 skill (1 project, 0 global, 0 claude)",
-		"[ok  ] memory         0 memory entries (0 project, 0 global)",
+		"[ok  ] hooks        2 hooks in .janetcode/hooks.json · not trusted yet (/hooks trust in the TUI) · 0 global",
+		"[ok  ] verify       1 command in .janetcode/verify.json · not trusted yet (/verify trust in the TUI)",
+		"[ok  ] permissions  1 allow / 1 deny in .janetcode/permissions.json · allow rules not trusted yet",
+		"[ok  ] skills       1 skill (1 project, 0 global, 0 claude)",
+		"[ok  ] memory       0 memory entries (0 project, 0 global)",
 		"lexical recall only",
-		"lsp gopls",
+		"lsp          gopls",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
@@ -109,7 +109,7 @@ func TestDoctorFixListsThenRepairs(t *testing.T) {
 	if strings.Contains(out.String(), "fixed: ") || !strings.Contains(out.String(), "nothing to fix") {
 		t.Fatalf("--fix repeated itself:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "verify         1 command in .janetcode/verify.json · trusted") {
+	if !strings.Contains(out.String(), "verify       1 command in .janetcode/verify.json · trusted") {
 		t.Errorf("verify is not reported as trusted after the repair:\n%s", out.String())
 	}
 }
@@ -126,5 +126,36 @@ func TestDoctorHonoursCancelledContext(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("wrote a report for a cancelled checkup:\n%s", out.String())
+	}
+}
+
+// Only the provider in use has to work: an example entry with no key is
+// information, not a failure, and a route to it says what will go wrong.
+func TestDoctorFailsOnlyTheProviderInUse(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	cfgDir := filepath.Join(home, ".config", "janetcode")
+	os.MkdirAll(cfgDir, 0o755)
+	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{
+		"provider": "local", "model": "m",
+		"providers": {
+			"local": {"type": "openai", "base_url": "http://127.0.0.1:1/v1"},
+			"anthropic": {"type": "anthropic"}
+		}
+	}`), 0o644)
+	t.Chdir(t.TempDir())
+
+	var out bytes.Buffer
+	doctor(context.Background(), &out, config.Overrides{}, false)
+	got := out.String()
+	if !strings.Contains(got, "[info] provider     anthropic · default URL · 0 keys · no key, not in use") {
+		t.Errorf("an unused keyless provider is not reported as info:\n%s", got)
+	}
+	if strings.Contains(got, "[FAIL] provider") {
+		t.Errorf("a provider failed:\n%s", got)
 	}
 }

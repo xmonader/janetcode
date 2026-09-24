@@ -56,9 +56,9 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			mark = "FAIL"
 			failed++
 		}
-		fmt.Fprintf(w, "[%s] %-14s %s\n", mark, what, detail)
+		doctorLine(w, mark, what, detail)
 	}
-	warn := func(what, detail string) { fmt.Fprintf(w, "[warn] %-14s %s\n", what, detail) }
+	warn := func(what, detail string) { doctorLine(w, "warn", what, detail) }
 
 	fmt.Fprintf(w, "janetcode %s\n\n", version)
 	cfgPath, err := config.Path()
@@ -68,7 +68,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 	if _, err := os.Stat(cfgPath); err == nil {
 		row(true, "config", cfgPath)
 	} else {
-		warn("config", cfgPath+" does not exist (janetcode --init writes one; env vars work without it)")
+		doctorLine(w, "info", "config", cfgPath+" does not exist (janetcode --init writes one; env vars work without it)")
 	}
 	cfg, err := config.Load(ov)
 	switch {
@@ -85,14 +85,24 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 		for _, n := range names {
 			p := cfg.Providers[n]
 			keys := len(p.Keys())
-			detail := fmt.Sprintf("%s · %s · %d key(s)", p.Type, orDefault(p.BaseURL, "default URL"), keys)
+			detail := fmt.Sprintf("%s · %s", orDefault(p.BaseURL, "default URL"), textfmt.Plural(keys, "key"))
+			if p.Type != n {
+				detail = p.Type + " · " + detail
+			}
 			if p.Model != "" {
 				detail += " · last model " + p.Model
 			}
-			if keys == 0 && p.NeedsKey() {
-				detail += " · no key"
+			switch {
+			case keys > 0 || !p.NeedsKey():
+				row(true, "provider "+n, detail)
+			case n == cfg.Provider:
+				row(false, "provider "+n, detail+" · no key")
+			default:
+				// Only the provider in use has to work. The ones --init
+				// writes as examples used to fail the checkup six times
+				// on a config nobody had touched yet.
+				doctorLine(w, "info", "provider "+n, detail+" · no key, not in use")
 			}
-			row(keys > 0 || !p.NeedsKey(), "provider "+n, detail)
 		}
 		// A route that names a provider with no key resolves fine and
 		// then fails at the first call, which is exactly the sort of
@@ -106,7 +116,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			case !ok:
 				row(false, "route "+rt.Model, "routed to "+rt.Provider+", which is not configured")
 			case len(p.Keys()) == 0 && p.NeedsKey():
-				row(false, "route "+rt.Model, "routed to "+rt.Provider+", which has no key")
+				doctorLine(w, "info", "route "+rt.Model, "routed to "+rt.Provider+", which has no key; picking this model will fail")
 			default:
 				row(true, "route "+rt.Model, "→ "+rt.Provider+" ("+rt.Why+")")
 			}
@@ -166,7 +176,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 	if treesitter.Supported("x.py") {
 		row(true, "grammars", "tree-sitter compiled in: Python, JavaScript, TypeScript, Rust and C are parsed, not matched")
 	} else {
-		warn("grammars", "tree-sitter not compiled in; the map reads non-Go languages with regular expressions (make build-treesitter)")
+		warn("grammars", "tree-sitter not compiled in; the map reads non-Go languages with regular expressions")
 	}
 
 	sessDir, err := session.Dir()
@@ -196,10 +206,14 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 	} else {
 		warn("git", "not a git repository: shell results are never cached here")
 	}
+	var found []string
 	for _, bin := range []string{"git", "gofmt", "python3", "node", "npx", "wl-paste", "xclip", "cua-driver", "open-computer-use"} {
 		if _, err := exec.LookPath(bin); err == nil {
-			fmt.Fprintf(w, "[ok  ] %-14s found\n", "tool "+bin)
+			found = append(found, bin)
 		}
+	}
+	if len(found) > 0 {
+		row(true, "tools", strings.Join(found, ", ")+" on PATH")
 	}
 	if cfg != nil && cfg.ComputerUseEnabled() {
 		if d, ok := cua.Detect(); ok {
@@ -231,7 +245,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 	fmt.Fprintln(w)
 	printResult(w, doctorfix.Run(fixEnv(cfgPath, cwd, sessDir, ts), fix))
 	if failed > 0 {
-		return fmt.Errorf("%d check(s) failed", failed)
+		return fmt.Errorf("%s failed", textfmt.Plural(failed, "check"))
 	}
 	fmt.Fprintln(w, "all checks passed")
 	return nil
@@ -302,6 +316,10 @@ func writable(dir string) error {
 // commands, permission rules, skills, memory and language servers. Rows
 // fail only for broken files; a missing feature is a note.
 func doctorProject(w io.Writer, row func(bool, string, string), warn func(string, string), cfg *config.Config, cwd, cfgDir, sessDir string, ts trust.Store) {
+	// Optional things left unset are information, not warnings: no hooks
+	// or skills is how most projects are, and a checkup full of [warn]
+	// taught people to skim past the one that mattered.
+	info := func(what, detail string) { doctorLine(w, "info", what, detail) }
 	plural := func(n int, what string) string {
 		if n == 1 {
 			return "1 " + what
@@ -329,14 +347,14 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		case global > 0:
 			row(true, "hooks", fmt.Sprintf("%d global, none in %s", global, hook.ProjectFile))
 		default:
-			warn("hooks", "none configured (config \"hooks\" or "+hook.ProjectFile+")")
+			info("hooks", "none configured (config \"hooks\" or "+hook.ProjectFile+")")
 		}
 	}
 
 	if vc, hash, err := verify.Load(cwd); err != nil {
 		row(false, "verify", err.Error())
 	} else if len(vc.Commands) == 0 {
-		warn("verify", "no verification commands ("+verify.ProjectFile+"; /verify set <cmd> adds one)")
+		info("verify", "no verification commands ("+verify.ProjectFile+"; /verify set <cmd> adds one)")
 	} else {
 		row(true, "verify", fmt.Sprintf("%s in %s · %s", plural(len(vc.Commands), "command"), verify.ProjectFile, trustNote(ts.Trusted(trust.VerifyKey(cwd), hash), "/verify trust")))
 	}
@@ -351,7 +369,7 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		if n > 0 {
 			row(true, "permissions", fmt.Sprintf("%s in the config, none in %s", plural(n, "rule"), perm.ProjectFile))
 		} else {
-			warn("permissions", "no rules; every mutating tool asks (or use --yolo)")
+			info("permissions", "no rules; every mutating tool asks (or use --yolo)")
 		}
 	} else {
 		detail := fmt.Sprintf("%d allow / %d deny in %s", len(rules.Allow), len(rules.Deny), perm.ProjectFile)
@@ -363,7 +381,7 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 
 	skills := skill.Load(cwd, cfgDir)
 	if len(skills) == 0 {
-		warn("skills", "none found (.janetcode/skills, "+filepath.Join(cfgDir, "skills")+", .claude/skills)")
+		info("skills", "none found (.janetcode/skills, "+filepath.Join(cfgDir, "skills")+", .claude/skills)")
 	} else {
 		by := map[string]int{}
 		for _, sk := range skills {
@@ -417,5 +435,24 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		} else {
 			warn("lsp "+n, srv.Command[0]+" not on PATH; "+strings.Join(srv.Extensions, " ")+" edits get no diagnostics")
 		}
+	}
+}
+
+// doctorLine prints one checkup row. A label with a name in it ("provider
+// openrouter", "lsp typescript-language-server") is split so the column
+// stays aligned and rows of a kind line up: the kind is the label, the
+// name leads the detail.
+func doctorLine(w io.Writer, mark, what, detail string) {
+	const col = 12
+	if kind, name, ok := strings.Cut(what, " "); ok {
+		switch kind {
+		case "provider", "route", "mcp", "lsp":
+			what, detail = kind, name+" · "+detail
+		}
+	}
+	lines := strings.Split(detail, "\n")
+	fmt.Fprintf(w, "[%-4s] %-*s %s\n", mark, col, what, lines[0])
+	for _, l := range lines[1:] {
+		fmt.Fprintf(w, "%*s%s\n", col+8, "", strings.TrimLeft(l, " "))
 	}
 }
