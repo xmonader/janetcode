@@ -437,6 +437,7 @@ await sleep(1500);
 const phone = await evaljs(`(() => {
   const sh = document.querySelector('.shell');
   const start = { work: !sh.classList.contains('work-collapsed'), nav: !sh.classList.contains('nav-collapsed') };
+  sh.classList.add('work-collapsed', 'nav-collapsed');
   document.getElementById('work-toggle').click();
   document.getElementById('nav-toggle').click();
   const both = !sh.classList.contains('work-collapsed') && !sh.classList.contains('nav-collapsed');
