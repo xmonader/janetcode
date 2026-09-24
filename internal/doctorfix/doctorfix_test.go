@@ -130,6 +130,25 @@ func TestEachFixableCase(t *testing.T) {
 			},
 		},
 		{
+			name: "config readable by other users",
+			setup: func(t *testing.T, h *home) {
+				write(t, h.ConfigPath, `{"model": "m"}`)
+				if err := os.Chmod(h.ConfigPath, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: "config-readable",
+			check: func(t *testing.T, h *home) {
+				fi, err := os.Stat(h.ConfigPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := fi.Mode().Perm(); got != 0o600 {
+					t.Errorf("mode = %04o, want 0600", got)
+				}
+			},
+		},
+		{
 			name: "unreadable skills directory",
 			setup: func(t *testing.T, h *home) {
 				dir := filepath.Join(h.work, ".janetcode", "skills")

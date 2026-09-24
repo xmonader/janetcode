@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -73,6 +74,7 @@ func Check(env Env) []Fix {
 	out = append(out, verifyTrustFix(env)...)
 	out = append(out, staleTokenFixes(env)...)
 	out = append(out, dirPermFixes(env)...)
+	out = append(out, configPermFix(env)...)
 	return out
 }
 
@@ -348,4 +350,25 @@ func dirPermFixes(env Env) []Fix {
 			apply: func() error { return os.Chmod(dir, want) }})
 	}
 	return out
+}
+
+// configPermFix makes a config file other users can read private again.
+// It can hold API keys; janetcode writes it 0600, but one written by
+// hand, copied in, or restored from a backup often is not.
+func configPermFix(env Env) []Fix {
+	if runtime.GOOS == "windows" || env.ConfigPath == "" {
+		return nil
+	}
+	fi, err := os.Stat(env.ConfigPath)
+	if err != nil || !fi.Mode().IsRegular() {
+		return nil
+	}
+	mode := fi.Mode().Perm()
+	if mode&0o077 == 0 {
+		return nil
+	}
+	path, want := env.ConfigPath, mode&0o700|0o600
+	return []Fix{{ID: "config-readable", Path: path,
+		What:  fmt.Sprintf("make %s private (mode %04o → %04o): it can hold API keys", path, mode, want),
+		apply: func() error { return os.Chmod(path, want) }}}
 }
