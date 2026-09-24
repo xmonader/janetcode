@@ -333,6 +333,8 @@ check('an unbroken token wraps inside the column', wide.scroll <= wide.client + 
 await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: { id: 'p-diff', name: 'edit_file', summary: 'a.go', preview: '--- a/a.go\\n+++ b/a.go\\n@@ -1,2 +1,2 @@\\n package a\\n-var x = 1\\n+var x = 2' } }) }); return 1; })()`);
 const addColour = await evaljs(`(() => { const a = document.querySelector('#ask-preview .add'); const plain = document.querySelector('#ask-preview'); return a ? [getComputedStyle(a).color, getComputedStyle(plain).color] : null; })()`);
 check('the permission card colours added lines', addColour && addColour[0] !== addColour[1], JSON.stringify(addColour));
+const askQ = await evaljs(`document.getElementById('ask-line').textContent`);
+check('the permission card asks about the action, not the tool name', askQ === 'Edit a.go?', askQ);
 await evaljs(`(() => { document.getElementById('ask').hidden = true; return 1; })()`);
 
 // Reconnecting to a server that restarted in another session says so.

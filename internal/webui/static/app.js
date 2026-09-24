@@ -632,13 +632,36 @@
     setTimeout(() => { srAnnounce.textContent = text; }, 30);
   }
 
+  // askQuestion words the card as a question about the action rather
+  // than the tool's internal name: "Edit mathx.go?", "Run go test ./...?"
+  // instead of "Allow edit_file — mathx.go?". The target is set in code
+  // so a command's own punctuation does not run into the question mark.
+  const askVerbs = { edit_file: "Edit", write_file: "Write", bash: "Run", fetch_url: "Fetch", web_search: "Search the web for" };
+  function askQuestion(p) {
+    askLine.textContent = "";
+    const verb = askVerbs[p.name];
+    askLine.append(verb && p.summary ? verb + " " : "Allow " + p.name + (p.summary ? " — " : ""));
+    if (p.summary) {
+      const code = document.createElement("code");
+      code.textContent = p.summary;
+      askLine.append(code);
+    }
+    askLine.append("?");
+    if (p.warning) {
+      const w = document.createElement("span");
+      w.className = "ask-warn";
+      w.textContent = " Warning: " + p.warning;
+      askLine.append(w);
+    }
+  }
+
   function showAsk(p) {
     const was = ask.hidden ? null : pending;
     pending = p && p.name ? p : null;
     ask.hidden = !pending;
     if (!pending) return;
     markUnseen();
-    askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
+    askQuestion(p);
     // A new request, not the same one sent again on a reconnect.
     const same = was && was.name === p.name && was.summary === p.summary && was.preview === p.preview;
     if (!same) {
