@@ -300,7 +300,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		logf = func(string, ...any) {}
 	}
 
-	path, dir, id, err := resolveSession(opts.SessionArg)
+	path, dir, id, err := ResolveSession(opts.SessionArg)
 	if err != nil {
 		return Report{}, err
 	}

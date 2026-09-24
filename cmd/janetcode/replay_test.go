@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -76,5 +79,55 @@ func TestReplayDrivesRecordedTurnsDespiteSteering(t *testing.T) {
 	}
 	if !reflect.DeepEqual(modelCalls(now), modelCalls(recorded)) {
 		t.Fatalf("now = %v, recorded = %v", modelCalls(now), modelCalls(recorded))
+	}
+}
+
+// A recorded session that edited a file or ran a command replays to the
+// same call sequence. The replay agent only had the four read tools, so
+// every write_file came back as "now: (nothing)" and was reported as a
+// regression. The mutating calls are answered by stubs: nothing runs.
+func TestReplayOfAnEditingSessionMatches(t *testing.T) {
+	sess, err := session.New(t.TempDir(), t.TempDir(), "openai", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(e session.Event) {
+		t.Helper()
+		if _, err := sess.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	marker := filepath.Join(t.TempDir(), "ran")
+	add(session.Event{Type: session.TypeTurnStart, Turn: 1})
+	u := llm.TextMessage(llm.RoleUser, "create hello.txt")
+	add(session.Event{Type: session.TypeUserMessage, Turn: 1, Surface: true, Message: &u})
+	for i, c := range []struct{ name, args string }{
+		{"write_file", `{"path":"hello.txt","content":"hi"}`},
+		{"bash", `{"command":"touch ` + marker + `"}`},
+	} {
+		id := fmt.Sprintf("c%d", i)
+		m := llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, Name: c.name, Input: json.RawMessage(c.args)}}}
+		add(session.Event{Type: session.TypeAssistant, Turn: 1, Surface: true, Message: &m})
+		add(session.Event{Type: session.TypeToolCall, Turn: 1, CallID: id, Name: c.name, Arguments: c.args})
+		r := llm.ToolResultMessage(llm.ToolResult(id, "ok", false))
+		add(session.Event{Type: session.TypeToolResult, Turn: 1, CallID: id, Name: c.name, Output: "ok", Surface: true, Message: &r})
+	}
+	done := llm.TextMessage(llm.RoleAssistant, "done")
+	add(session.Event{Type: session.TypeAssistant, Turn: 1, Surface: true, Message: &done})
+	add(session.Event{Type: session.TypeTurnEnd, Turn: 1, Reason: "end_turn"})
+
+	recorded, now, err := replaySession(context.Background(), sess.Path(), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := compareCalls(modelCalls(recorded), modelCalls(now), io.Discard); err != nil {
+		t.Fatalf("now = %v, recorded = %v: %v", modelCalls(now), modelCalls(recorded), err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the replay ran the recorded bash command")
+	}
+	// A different sequence is a failure the exit status carries.
+	if compareCalls([]string{"write_file"}, nil, io.Discard) == nil {
+		t.Fatal("a changed call sequence returned no error")
 	}
 }

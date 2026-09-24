@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -61,14 +62,28 @@ func replaySession(ctx context.Context, path string, progress io.Writer) (record
 		return nil, nil, err
 	}
 	defer os.RemoveAll(root)
+	// The read tools run for real against the empty root. Every other tool
+	// the recording called is a stub that runs nothing, so an edit or a
+	// command replays as the same call without touching the machine.
+	tools := []tool.Tool{
+		tool.ReadFile{Root: root}, tool.ListDir{Root: root},
+		tool.Glob{Root: root}, tool.Grep{Root: root},
+	}
+	have := map[string]bool{}
+	for _, t := range tools {
+		have[t.Name()] = true
+	}
+	for _, name := range modelCalls(events) {
+		if !have[name] {
+			have[name] = true
+			tools = append(tools, replayStub{name: name})
+		}
+	}
 	ag, err := agent.New(agent.Deps{
 		Provider: rp,
 		Log:      &session.Memory{},
-		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: root}, tool.ListDir{Root: root},
-			tool.Glob{Root: root}, tool.Grep{Root: root},
-		),
-	}, agent.Settings{AutoApprove: true, ReadOnly: true, MaxIterations: 200})
+		Tools:    tool.NewRegistry(tools...),
+	}, agent.Settings{AutoApprove: true, MaxIterations: 200})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -95,12 +110,37 @@ func runReplay(path string) error {
 	if err != nil {
 		return err
 	}
-	want, got := modelCalls(recorded), modelCalls(now)
-	fmt.Fprintf(os.Stdout, "\nrecorded: %s\nnow:      %s\n", strings.Join(want, " "), strings.Join(got, " "))
-	if strings.Join(want, " ") == strings.Join(got, " ") {
-		fmt.Fprintln(os.Stdout, "\nthe same calls in the same order: no behaviour change")
-		return nil
+	return compareCalls(modelCalls(recorded), modelCalls(now), os.Stdout)
+}
+
+// errReplayDiverged is what --replay exits with when the calls differ, so
+// a script can gate on it without reading the report.
+var errReplayDiverged = errors.New("replay: the call sequence changed; that is a regression unless it was intended")
+
+// compareCalls prints the recorded and replayed call sequences and
+// returns errReplayDiverged when they differ.
+func compareCalls(want, got []string, w io.Writer) error {
+	show := func(calls []string) string {
+		if len(calls) == 0 {
+			return "(no tool calls)"
+		}
+		return strings.Join(calls, " ")
 	}
-	fmt.Fprintln(os.Stdout, "\nthe call sequence changed. That is a regression unless it was intended.")
+	fmt.Fprintf(w, "\nrecorded: %s\nnow:      %s\n", show(want), show(got))
+	if strings.Join(want, " ") != strings.Join(got, " ") {
+		return errReplayDiverged
+	}
+	fmt.Fprintln(w, "\nthe same calls in the same order: no behaviour change")
 	return nil
+}
+
+// replayStub stands in for a tool that must not run during a replay.
+type replayStub struct{ name string }
+
+func (s replayStub) Name() string            { return s.name }
+func (s replayStub) Description() string     { return "not run during a replay" }
+func (s replayStub) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (s replayStub) Mutating() bool          { return false }
+func (s replayStub) Run(context.Context, json.RawMessage) (string, error) {
+	return "(not run: replay)", nil
 }

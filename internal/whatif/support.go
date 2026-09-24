@@ -19,13 +19,13 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 )
 
-// resolveSession turns --what-if's argument into a session file: arg is
+// ResolveSession turns --what-if's or --replay's argument into a session file: arg is
 // either a path to a .jsonl file (anything containing a path separator,
 // or ending in .jsonl) or a bare session id looked up under session.Dir().
-func resolveSession(arg string) (path, dir, id string, err error) {
+func ResolveSession(arg string) (path, dir, id string, err error) {
 	arg = strings.TrimSpace(arg)
 	if arg == "" {
-		return "", "", "", fmt.Errorf("--what-if needs a session id or path")
+		return "", "", "", fmt.Errorf("a session id or path is needed (janetcode --sessions lists them)")
 	}
 	if strings.ContainsAny(arg, "/\\") || strings.HasSuffix(arg, ".jsonl") {
 		p := arg

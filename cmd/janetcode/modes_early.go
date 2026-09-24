@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/projectinit"
+	"github.com/xmonader/janetcode/internal/whatif"
 )
 
 // The modes that run before anything is loaded. Each reports whether it
@@ -128,7 +129,11 @@ func offlineMode(o *options) (bool, error) {
 	case o.evalReport != "":
 		return true, reportEval(o.evalReport, o.evalCompare)
 	case o.replayPath != "":
-		return true, runReplay(o.replayPath)
+		path, _, _, err := whatif.ResolveSession(o.replayPath)
+		if err != nil {
+			return true, err
+		}
+		return true, runReplay(path)
 	case o.evalTrain != "":
 		cfgPath, _ := config.Path()
 		return true, trainCritic(strings.Split(o.evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
