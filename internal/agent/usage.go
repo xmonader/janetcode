@@ -124,6 +124,12 @@ func (a *Agent) SessionCost() (usd float64, source string, unpriced []string, kn
 // CostNote is the session's cost with where the figure comes from, and
 // what to do about any model it could not price.
 func (a *Agent) CostNote() string {
+	if len(a.UsageByModel()) == 0 && a.UsageSnapshot() == (llm.Usage{}) {
+		// Nothing has been called, so nothing has been spent. Saying
+		// "unpriced ... add it under prices" here sent people to fix a
+		// config that was fine, before the rate table had even loaded.
+		return "cost $0 · no model calls yet"
+	}
 	usd, source, unpriced, known := a.SessionCost()
 	var note string
 	switch {

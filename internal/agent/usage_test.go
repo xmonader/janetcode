@@ -113,3 +113,16 @@ func TestSessionCostIsPricedModelByModel(t *testing.T) {
 		t.Fatalf("reported cost = %v %q known=%v", usd, source, known)
 	}
 }
+
+// Before the first call nothing has been spent, and the note says that
+// rather than sending the reader to price a model that has not run.
+func TestCostNoteBeforeAnyCall(t *testing.T) {
+	a := &Agent{}
+	if note := a.CostNote(); note != "cost $0 · no model calls yet" {
+		t.Fatalf("note = %q", note)
+	}
+	a.addUsage("mystery", llm.Usage{InputTokens: 10})
+	if note := a.CostNote(); !strings.Contains(note, "unpriced") {
+		t.Fatalf("a call nothing prices is still said: %q", note)
+	}
+}
