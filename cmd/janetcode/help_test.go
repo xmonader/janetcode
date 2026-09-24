@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
 )
 
@@ -112,4 +113,17 @@ func captureStderr(t *testing.T, f func()) string {
 	w.Close()
 	b, _ := io.ReadAll(r)
 	return string(b)
+}
+
+// An unknown --resume id printed the session file's absolute path and
+// the syscall error; it is a usage error that says where ids come from.
+func TestResumeUnknownSessionIsAUsageError(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := openSession(&options{resume: "nosuch"}, &config.Config{Provider: "p", Model: "m"}, dir, dir)
+	if err == nil || err.Error() != `no session "nosuch" (janetcode --sessions lists this directory's)` {
+		t.Fatalf("err = %v", err)
+	}
+	if headless.ExitCode(err) != headless.ExitBadInput {
+		t.Fatalf("exit %d", headless.ExitCode(err))
+	}
 }

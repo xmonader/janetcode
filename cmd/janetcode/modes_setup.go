@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -196,6 +197,9 @@ func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.
 	}
 	if resumeID != "" {
 		sess, history, err := session.Open(sessDir, resumeID)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, headless.BadInput("no session %q (janetcode --sessions lists this directory's)", resumeID)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("resume: %w", err)
 		}
