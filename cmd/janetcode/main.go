@@ -98,7 +98,7 @@ func printFlag(fs *flag.FlagSet, f *flag.Flag) {
 		line += " " + name
 	}
 	line += "\n    \t" + strings.ReplaceAll(usage, "\n", "\n    \t")
-	if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" {
+	if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" && f.DefValue != "0s" {
 		if name == "string" {
 			line += fmt.Sprintf(" (default %q)", f.DefValue)
 		} else {
