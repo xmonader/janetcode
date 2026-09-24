@@ -185,15 +185,62 @@ func run(args []string) error {
 	return s.root.dispatch()
 }
 
+var (
+	reUnknownFlag = regexp.MustCompile(`^flag provided but not defined: -+(.+)$`)
+	reBadValue    = regexp.MustCompile(`^invalid (?:boolean )?value "(.*)" for (?:flag )?-+([^:]+): (.*)$`)
+	reNeedsArg    = regexp.MustCompile(`^flag needs an argument: -+(.+)$`)
+)
+
+// flagError rewords the flag package's parse errors in the --long
+// spelling the help uses, with a way forward, as a usage error (exit 42).
+func flagError(fs *flag.FlagSet, err error) error {
+	dash := func(name string) string {
+		if len(name) == 1 {
+			return "-" + name
+		}
+		return "--" + name
+	}
+	msg := err.Error()
+	if m := reUnknownFlag.FindStringSubmatch(msg); m != nil {
+		return headless.BadInput("unknown flag %s (janetcode --help lists them)", dash(m[1]))
+	}
+	if m := reBadValue.FindStringSubmatch(msg); m != nil {
+		why := m[3]
+		if f := fs.Lookup(m[2]); f != nil && why == "parse error" {
+			switch kind, _ := flag.UnquoteUsage(f); kind {
+			case "":
+				why = "not true or false"
+			case "float", "int", "uint":
+				why = "not a number"
+			case "duration":
+				why = "not a duration like 90s or 5m"
+			}
+		}
+		return headless.BadInput("%s: %q is %s", dash(m[2]), m[1], why)
+	}
+	if m := reNeedsArg.FindStringSubmatch(msg); m != nil {
+		return headless.BadInput("%s needs a value", dash(m[1]))
+	}
+	return headless.BadInput("%s", msg)
+}
+
 // stageFlags parses the command line, settles the short-flag aliases, and
 // runs the modes that print something and exit without loading anything.
 func (s *startup) stageFlags() (bool, error) {
 	s.fs, s.opts = newFlagSet()
+	// The flag package prints the whole help on any parse error. A typo
+	// deserves one line, and help asked for belongs on stdout where
+	// "janetcode --help | less" can page it.
+	usage := s.fs.Usage
+	s.fs.Usage = func() {}
+	s.fs.SetOutput(io.Discard)
 	if err := s.fs.Parse(s.args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
+			s.fs.SetOutput(os.Stdout)
+			usage()
 			return true, nil
 		}
-		return true, err
+		return true, flagError(s.fs, err)
 	}
 	if s.opts.continueC {
 		s.opts.cont = true

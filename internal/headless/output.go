@@ -71,6 +71,17 @@ var ErrBudget = agent.ErrBudget
 // ErrBadInput marks a usage error, so main can exit 42 for it.
 var ErrBadInput = errors.New("bad input")
 
+// BadInput is a usage error with its own wording: it exits 42 like
+// ErrBadInput but prints only the message, not a "bad input:" prefix.
+func BadInput(format string, args ...any) error {
+	return badInput{fmt.Sprintf(format, args...)}
+}
+
+type badInput struct{ msg string }
+
+func (e badInput) Error() string { return e.msg }
+func (e badInput) Unwrap() error { return ErrBadInput }
+
 // ErrConfig marks a configuration file that cannot be used, as against
 // credentials that are merely missing. Most of these come typed out of
 // the config package as config.ErrBadConfig; ErrConfig stays for the
