@@ -35,6 +35,9 @@ func (s *server) guard(next http.Handler) http.Handler {
 			http.Error(w, "forbidden: cross-site request", http.StatusForbidden)
 			return
 		}
+		if s.requireToken(w, r) {
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

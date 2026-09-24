@@ -22,8 +22,12 @@ Allow once / Always this session / Remember / Deny card floats over the
 composer with a scrim. When the model
 asks a labeled question, the options (and Other) are answered on the
 page. Ctrl+K still searches slash commands. The server binds loopback
-unless you tell it otherwise — anyone who can reach the port can approve
-commands in that directory.
+unless you tell it otherwise. Bound to any other address it requires an
+access token: the URL it prints carries one (`/?token=…`), opening it
+sets a cookie, and a page opened without it asks for the token. Set
+`JANETCODE_WEB_TOKEN` to keep the same token across restarts; scripts can
+send it as `Authorization: Bearer <token>`. The token is sent in the
+clear unless you put TLS in front.
 
 The transcript streams the model's markdown as it arrives, shows each tool
 call on one line with what it did and how long it took, and renders every

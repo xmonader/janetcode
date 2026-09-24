@@ -865,9 +865,9 @@ janetcode 0.9.0 serving
   (claude-opus-5 in ~/project)</code></pre>
     </div>
     <p class="why"><span class="why-label">Why it matters</span> &mdash;
-    it's loopback-only by default for a reason stated plainly: anyone who
-    can reach the port can approve commands in that directory, so binding
-    it off loopback prints a warning rather than doing it silently.</p>
+    it's loopback-only by default, and bound anywhere else it asks for the
+    access token in the URL it printed, so a port someone else can reach
+    does not hand them your shell.</p>
   </article>
 
   <article class="feature" id="acp">

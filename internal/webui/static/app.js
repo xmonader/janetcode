@@ -2898,6 +2898,12 @@
       }
     }).catch(() => {});
   };
-  es.onerror = () => { lost = true; conn.classList.add("off"); conn.textContent = "Reconnecting"; conn.title = "Connection lost, retrying"; };
+  es.onerror = () => {
+    lost = true; conn.classList.add("off"); conn.textContent = "Reconnecting"; conn.title = "Connection lost, retrying";
+    // A server bound off loopback restarted with a new access token: the
+    // cookie is stale and every retry would be refused. Reloading shows
+    // the page that asks for the new one.
+    fetch("/api/state").then((r) => { if (r.status === 401) location.reload(); }).catch(() => {});
+  };
   es.onmessage = (ev) => { try { handle(JSON.parse(ev.data)); } catch (_) {} };
 })();
