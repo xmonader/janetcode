@@ -138,8 +138,10 @@ func TestUndoCommand(t *testing.T) {
 	)
 	h.keys("/undo")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "nothing to undo") {
-		t.Fatalf("view:\n%s", v)
+	// An empty undo stack is an answer, not an error: it goes on the
+	// status line and leaves the conversation alone.
+	if !strings.Contains(h.m.status, "nothing to undo") || transcriptHas(h.m, "nothing to undo") {
+		t.Fatalf("status %q, view:\n%s", h.m.status, plain(h.m.View()))
 	}
 	h.m.opts.Agent.AutoApprove = true
 	h.keys("make n.txt")
@@ -167,7 +169,7 @@ func TestUndoCommand(t *testing.T) {
 	if _, err := os.Stat(target); err == nil {
 		t.Fatal("undo did not remove the created file")
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "↶ removed") || !strings.Contains(v, "n.txt") {
+	if v := plain(h.m.View()); !strings.Contains(v, "↶ removed") || !strings.Contains(v, "n.txt") || !strings.Contains(h.m.status, "no earlier turn to undo") {
 		t.Fatalf("view:\n%s", v)
 	}
 	h.keys("/redo")
@@ -1654,4 +1656,13 @@ func TestUnknownCommandSuggestsTheNearest(t *testing.T) {
 			t.Errorf("%s: want %q in\n%s", typed, want, v)
 		}
 	}
+}
+
+func transcriptHas(m *model, s string) bool {
+	for _, e := range m.transcript.entries {
+		if strings.Contains(e.text, s) {
+			return true
+		}
+	}
+	return false
 }

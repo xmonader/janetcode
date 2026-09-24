@@ -147,7 +147,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	if preview {
 		lines, err := m.opts.Agent.UndoPreview(m.life)
 		if errors.Is(err, agent.ErrNothingToUndo) {
-			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
+			m.note("nothing to undo: no turn has changed anything yet")
 			return
 		}
 		if err != nil {
@@ -176,7 +176,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		mark = "↷"
 		done, err = m.opts.Agent.Redo(m.life)
 		if errors.Is(err, agent.ErrNothingToRedo) {
-			m.transcript.errorf("nothing to redo: /redo only reapplies an /undo from before the next change")
+			m.note("nothing to redo: /redo only reapplies an /undo from before the next change")
 			return
 		}
 	} else {
@@ -186,7 +186,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 			defer m.observeUndo(spread)
 		}
 		if errors.Is(err, agent.ErrNothingToUndo) {
-			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
+			m.note("nothing to undo: no turn has changed anything yet")
 			return
 		}
 	}
@@ -212,7 +212,11 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	} else {
 		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	}
-	m.status = fmt.Sprintf("undid %s · %s can still be undone · /redo reapplies", textfmt.Plural(len(done), "file change"), textfmt.Plural(len(m.opts.Agent.Checkpoints()), "more turn"))
+	more := "no earlier turn to undo"
+	if n := len(m.opts.Agent.Checkpoints()); n > 0 {
+		more = textfmt.Plural(n, "more turn") + " can still be undone"
+	}
+	m.status = fmt.Sprintf("undid %s · %s · /redo reapplies", textfmt.Plural(len(done), "file change"), more)
 }
 
 // undoAboutMsg carries the result of "/undo about <description>" back
