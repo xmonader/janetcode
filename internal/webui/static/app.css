@@ -1940,7 +1940,7 @@ kbd {
 .traj-row:hover { background: var(--surface-2); }
 .traj-row.on { background: var(--blue-soft); }
 .traj-row.dim { opacity: 0.2; }
-.traj-row.fail .preview { color: var(--bad); }
+.traj-row.fail .traj-preview { color: var(--bad); }
 .traj-row .seq { font-family: var(--mono); color: var(--faint); }
 .traj-row .kind { font-weight: 600; }
 .traj-row .kind-user, .traj-row .kind-context, .traj-row .kind-system { color: var(--blue); }
@@ -1948,7 +1948,7 @@ kbd {
 .traj-row .kind-tool { color: var(--ok); }
 .traj-row .kind-compacted { color: var(--warn); }
 .traj-row .kind-verdict { color: var(--mute); }
-.traj-row .preview { color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.traj-row .traj-preview { color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .traj-row .metrics { font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: right; white-space: nowrap; }
 .traj-inspect {
   flex: none;

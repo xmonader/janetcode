@@ -2427,7 +2427,7 @@
               return `<div class="traj-row${state}" data-index="${r.index}" data-kind="${esc(r.kind)}">` +
                 `<span class="seq">#${r.index}</span>` +
                 `<span class="kind kind-${esc(r.kind)}">${esc(r.tag)}</span>` +
-                `<span class="preview">${esc(trajContent(r))}</span>` +
+                `<span class="traj-preview">${esc(trajContent(r))}</span>` +
                 `<span class="metrics">${esc(trajMetrics(r))}</span></div>`;
             })
             .join("") +
