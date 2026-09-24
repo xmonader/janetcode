@@ -112,9 +112,46 @@ func printFlags(fs *flag.FlagSet, keep func(*flag.Flag) bool) {
 	})
 }
 
+// wrapUsage breaks a flag's description at word boundaries so no line
+// passes 80 columns once the tab indent (8) is added; the flag package
+// printed each one as a single 300-column line.
+func wrapUsage(usage string, width int, indent string) string {
+	var out []string
+	for _, para := range strings.Split(usage, "\n") {
+		line := ""
+		for _, w := range strings.Fields(para) {
+			if line != "" && len(line)+1+len(w) > width {
+				out = append(out, indent+line)
+				line = w
+				continue
+			}
+			if line != "" {
+				line += " "
+			}
+			line += w
+		}
+		out = append(out, indent+line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// argNames says what a string flag takes, for the help line: "--resume id"
+// reads as an instruction where "--resume string" reads as a type.
+var argNames = map[string]string{
+	"model": "id", "provider": "name", "effort": "level", "r": "id", "resume": "id",
+	"web-addr": "host:port", "worktree": "branch", "add-dir": "dir", "theme": "name",
+	"p": "prompt", "output-format": "format", "until": "command", "watch": "command",
+	"allow": "rules", "deny": "rules", "mcp-auth": "server", "append-system-prompt": "text",
+	"off": "names", "prompt": "text", "recipe": "name", "replay": "session",
+	"session-profile": "path", "set": "key=value", "what-if": "session", "inspect": "subject",
+}
+
 // printFlag writes one flag the way flag.PrintDefaults would.
 func printFlag(fs *flag.FlagSet, f *flag.Flag) {
 	name, usage := flag.UnquoteUsage(f)
+	if n, ok := argNames[f.Name]; ok && (name == "string" || name == "value") {
+		name = n
+	}
 	// Go's flag package takes one dash or two; the help shows the
 	// spelling the README and docs use: -p and -c short, the rest long.
 	line := "  --" + f.Name
@@ -124,7 +161,10 @@ func printFlag(fs *flag.FlagSet, f *flag.Flag) {
 	if name != "" {
 		line += " " + name
 	}
-	line += "\n    \t" + strings.ReplaceAll(usage, "\n", "\n    \t")
+	if f.Name == "proof" {
+		line += " [commit]" // a bool whose argument is positional
+	}
+	line += "\n" + wrapUsage(usage, 70, "    \t")
 	if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" && f.DefValue != "0s" {
 		if name == "string" {
 			line += fmt.Sprintf(" (default %q)", f.DefValue)

@@ -134,10 +134,9 @@ func newFlagSet() (*flag.FlagSet, *options) {
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), `janetcode %s - a terminal coding agent
 
-Usage: janetcode [flags] [prompt]   interactive session in the current directory,
-                                     optionally starting with a prompt
-       janetcode -p "prompt" [flags] run one prompt headless and exit
-
+Usage: janetcode [flags] [prompt]      interactive session in this directory,
+                                        optionally starting with a prompt
+       janetcode -p "prompt" [flags]    run one prompt headless and exit
 `, version)
 		for _, g := range helpGroups {
 			fmt.Fprintf(fs.Output(), "\n%s:\n", g.title)
@@ -151,13 +150,16 @@ Usage: janetcode [flags] [prompt]   interactive session in the current directory
 			}
 		}
 		fmt.Fprintf(fs.Output(), `
-Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
-             (a key may be a comma-separated list; they are rotated on rate limits),
-             JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
-             JANETCODE_OFF=<names> disables behaviours for a session (see --eval-off)
-             JANETCODE_SYSTEM_MD=<file> replaces the base system prompt
-             JANETCODE_DEBUG=<file> appends a timestamped event log
-Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
+Environment:
+  ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
+      a key may be a comma-separated list; they are rotated on rate limits
+  JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
+  JANETCODE_OFF=<names>       disables behaviours for a session (see --eval-off)
+  JANETCODE_SYSTEM_MD=<file>  replaces the base system prompt
+  JANETCODE_DEBUG=<file>      appends a timestamped event log
+
+Config file: $XDG_CONFIG_HOME/janetcode/config.json
+             (default ~/.config/janetcode/config.json)
 `)
 	}
 	o := &options{}
@@ -201,7 +203,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.IntVar(&o.evalTurns, "eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 	fs.BoolVar(&o.evalGate, "eval-gate", false, "run eval tasks under a verification gate: the work directory's .janetcode/verify.json, or the checks for its project type, run after a turn that changed something, and the configured decision provider (config \"decisions\", off with --eval-off decisions) may triage a failure. Off by default: a gate changes tool counts, pass rates and cost, so every baseline in this repository was recorded without one")
 	fs.BoolVar(&o.evalNoLimit, "eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
-	fs.StringVar(&o.inspectWhat, "inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; `list` names them all")
+	fs.StringVar(&o.inspectWhat, "inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; --inspect list names them all")
 	fs.StringVar(&o.wtBranch, "worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
 	fs.BoolVar(&o.acpMode, "acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
 	fs.IntVar(&o.evalFacts, "eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")

@@ -143,3 +143,19 @@ func TestRequestedFormatReadsTheRawArgs(t *testing.T) {
 		}
 	}
 }
+
+// The help fits an 80-column terminal, and a flag's argument says what it
+// is ("--resume id") rather than its Go type ("--resume string").
+func TestHelpFitsEightyColumns(t *testing.T) {
+	help := helpText(t)
+	for _, line := range strings.Split(help, "\n") {
+		if w := len([]rune(strings.ReplaceAll(line, "    \t", "        "))); w > 80 {
+			t.Errorf("%d columns: %q", w, line)
+		}
+	}
+	for _, want := range []string{"--resume id\n", "--inspect subject\n", "--set key=value\n", "--proof [commit]\n"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("help lacks %q", want)
+		}
+	}
+}
