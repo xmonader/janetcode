@@ -329,6 +329,12 @@ const wide = await evaljs(`(() => {
 })()`);
 check('an unbroken token wraps inside the column', wide.scroll <= wide.client + 1, JSON.stringify(wide));
 
+// The permission card colours its diff like every other diff on the page.
+await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: { id: 'p-diff', name: 'edit_file', summary: 'a.go', preview: '--- a/a.go\\n+++ b/a.go\\n@@ -1,2 +1,2 @@\\n package a\\n-var x = 1\\n+var x = 2' } }) }); return 1; })()`);
+const addColour = await evaljs(`(() => { const a = document.querySelector('#ask-preview .add'); const plain = document.querySelector('#ask-preview'); return a ? [getComputedStyle(a).color, getComputedStyle(plain).color] : null; })()`);
+check('the permission card colours added lines', addColour && addColour[0] !== addColour[1], JSON.stringify(addColour));
+await evaljs(`(() => { document.getElementById('ask').hidden = true; return 1; })()`);
+
 // A message sent while the server is unreachable stays in the composer
 // instead of vanishing with an unhandled rejection.
 await evaljs(`(() => { window.__realFetch = window.fetch; window.fetch = (u, o) => String(u).includes('/api/prompt') ? Promise.reject(new TypeError('Failed to fetch')) : window.__realFetch(u, o); return 1; })()`);

@@ -870,12 +870,14 @@ button:disabled { cursor: default; opacity: 0.55; }
   background: var(--pre-bg);
   color: var(--pre-ink);
 }
-.diff .add { color: var(--ok); background: var(--diff-add-bg); display: inline-block; width: 100%; }
-.diff .del { color: var(--bad); background: var(--diff-del-bg); display: inline-block; width: 100%; }
-.diff .hunk { color: var(--blue); }
-.diff .ln { color: var(--faint); }
-.diff .gap { color: var(--faint); font-style: italic; }
-.diff .mark { background: var(--warn-soft); color: inherit; border-radius: 2px; }
+/* The permission card's preview is the same diff markup (diffHTML);
+   without these it drew every added and removed line in plain grey. */
+.diff .add, #ask-preview .add { color: var(--ok); background: var(--diff-add-bg); display: inline-block; width: 100%; }
+.diff .del, #ask-preview .del { color: var(--bad); background: var(--diff-del-bg); display: inline-block; width: 100%; }
+.diff .hunk, #ask-preview .hunk { color: var(--blue); }
+.diff .ln, #ask-preview .ln { color: var(--faint); }
+.diff .gap, #ask-preview .gap { color: var(--faint); font-style: italic; }
+.diff .mark, #ask-preview .mark { background: var(--warn-soft); color: inherit; border-radius: 2px; }
 
 /* folded tool bursts */
 .run-bar {
@@ -1130,6 +1132,7 @@ pre.sheetbody {
   font-family: var(--mono);
   font-size: 0.76rem;
   white-space: pre-wrap;
+  tab-size: 4;
 }
 .ask-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .ask-actions button {
