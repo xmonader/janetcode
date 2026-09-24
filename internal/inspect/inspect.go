@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Subject is one thing that can be looked at.
@@ -151,49 +153,7 @@ func (r *Registry) List() string {
 }
 
 // nearest is the registered name closest to what was asked for, when one
-// is close enough to be worth suggesting. A typo is the common case, so a
-// small edit distance counts as well as a shared prefix.
+// is close enough to be worth suggesting.
 func (r *Registry) nearest(name string) string {
-	best, bestScore := "", 0
-	for _, n := range r.Names() {
-		score := 0
-		switch {
-		case strings.HasPrefix(n, name), strings.HasPrefix(name, n):
-			score = 4
-		case strings.Contains(n, name), strings.Contains(name, n):
-			score = 3
-		}
-		// Within two edits of a name is a typo, not a different word.
-		if d := distance(name, n); d <= 2 && score < 4-d {
-			score = 4 - d
-		}
-		if score > bestScore {
-			best, bestScore = n, score
-		}
-	}
-	return best
-}
-
-// distance is the Levenshtein distance between two short words.
-func distance(a, b string) int {
-	if a == b {
-		return 0
-	}
-	prev := make([]int, len(b)+1)
-	cur := make([]int, len(b)+1)
-	for j := range prev {
-		prev[j] = j
-	}
-	for i := 1; i <= len(a); i++ {
-		cur[0] = i
-		for j := 1; j <= len(b); j++ {
-			cost := 1
-			if a[i-1] == b[j-1] {
-				cost = 0
-			}
-			cur[j] = min(prev[j]+1, min(cur[j-1]+1, prev[j-1]+cost))
-		}
-		prev, cur = cur, prev
-	}
-	return prev[len(b)]
+	return textfmt.Nearest(name, r.Names())
 }

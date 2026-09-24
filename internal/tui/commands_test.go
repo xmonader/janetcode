@@ -1640,3 +1640,18 @@ func TestConnectHighlightsTheSuggestedModel(t *testing.T) {
 		t.Fatalf("the suggested model is not highlighted first:\n%s", v)
 	}
 }
+
+func TestUnknownCommandSuggestsTheNearest(t *testing.T) {
+	h := newHarness(t)
+	for typed, want := range map[string]string{
+		"/hlep":      "unknown command /hlep · did you mean /help?",
+		"/modle":     "unknown command /modle · did you mean /model?",
+		"/frobnicat": "unknown command /frobnicat (/help lists them)",
+	} {
+		h.keys(typed)
+		h.enter()
+		if v := plain(h.m.transcript.render(renderOpts{width: 120})); !strings.Contains(v, want) {
+			t.Errorf("%s: want %q in\n%s", typed, want, v)
+		}
+	}
+}

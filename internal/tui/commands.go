@@ -302,7 +302,15 @@ func (m *model) command(text string) tea.Cmd {
 	} else if cmd, ok := m.runUserCommand(text, fields); ok {
 		return cmd
 	} else {
-		m.transcript.errorf("unknown command %s (try /help)", fields[0])
+		var names []string
+		for _, c := range m.allCommands() {
+			names = append(names, c.name)
+		}
+		if near := textfmt.Nearest(fields[0], names); near != "" {
+			m.transcript.errorf("unknown command %s · did you mean %s?", fields[0], near)
+		} else {
+			m.transcript.errorf("unknown command %s (/help lists them)", fields[0])
+		}
 	}
 	m.refresh(false)
 	return nil
