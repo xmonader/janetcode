@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/headless"
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // --recipe makes no model call, so it runs with no API key at all; an
@@ -58,5 +60,33 @@ func TestInitTwiceSaysWhatToDoNext(t *testing.T) {
 	}
 	if out := stdout(); strings.Contains(out, "already exists") || strings.Contains(out, "1 files") {
 		t.Fatalf("stdout:\n%s", out)
+	}
+}
+
+// --sessions counts messages in words ("1 msg", not "1   msgs") and
+// clips a long title with an ellipsis instead of running past the line.
+func TestSessionsListReadsCleanly(t *testing.T) {
+	home, work := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Chdir(work)
+	cwd, _ := os.Getwd()
+	dir, _ := session.Dir()
+	s, err := session.New(dir, cwd, "openai", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := llm.TextMessage(llm.RoleUser, "hi")
+	if _, err := s.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Message: &m}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetTitle(strings.Repeat("a very long title ", 10))
+	stdout, _ := captureStd(t)
+	if err := printSessions(); err != nil {
+		t.Fatal(err)
+	}
+	out := stdout()
+	if !strings.Contains(out, " 1 msg ") || strings.Contains(out, "msgs") || !strings.Contains(out, "…") {
+		t.Fatalf("sessions:\n%s", out)
 	}
 }

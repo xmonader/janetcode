@@ -17,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // version is set at build time via -ldflags "-X main.version=...". A
@@ -483,7 +484,7 @@ func printSessions() error {
 			aside += "  (" + note + ")"
 		}
 		forked = forked || n.Depth > 0 || n.Orphan
-		fmt.Printf("%s%s  %s  %-3d msgs  %s/%s  %s%s\n", n.Prefix(), in.Meta.ID, in.Meta.Created.Local().Format("2006-01-02 15:04"), in.Messages, in.Meta.Provider, in.Meta.Model, in.Label(), aside)
+		fmt.Printf("%s%s  %s  %-9s %s/%s  %s%s\n", n.Prefix(), in.Meta.ID, in.Meta.Created.Local().Format("2006-01-02 15:04"), textfmt.Plural(in.Messages, "msg"), in.Meta.Provider, in.Meta.Model, textfmt.Clip(in.Label(), 60), aside)
 	}
 	if forked {
 		fmt.Println("\nindented sessions are forks of the one above them")
