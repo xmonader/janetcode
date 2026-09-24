@@ -490,6 +490,15 @@ func (m *model) placeholder() string {
 		"/ for commands")
 }
 
+// menuHead is a menu row's name and arguments as plain text, the part the
+// help column is aligned after.
+func menuHead(c command) string {
+	if c.args == "" {
+		return c.name
+	}
+	return c.name + " " + c.args
+}
+
 func (m *model) footerView() string {
 	// One row above the input is always there, blank when there is
 	// nothing to say. Notices used to push the prompt down as they
@@ -510,13 +519,27 @@ func (m *model) footerView() string {
 				start = idx - rows + 1
 			}
 			end := min(len(c), start+rows)
+			// The help starts in one column for the rows on screen, so
+			// the eye reads down a list rather than zigzagging; a
+			// long name/args pair past a third of the width just
+			// pushes its own help along instead of the whole column.
+			col := 0
+			for i := start; i < end; i++ {
+				col = max(col, lipgloss.Width(menuHead(c[i])))
+			}
+			col = min(col, max(16, m.width/3))
 			for i := start; i < end; i++ {
 				cmd := c[i]
 				mark, name, help := "  ", m.styles.key.Render(cmd.name), m.styles.faint.Render(cmd.help)
 				if i == idx {
 					mark, name, help = m.styles.accent.Render("▸ "), m.styles.key.Bold(true).Render(cmd.name), m.styles.dim.Render(cmd.help)
 				}
-				parts = append(parts, fitLine(mark+name+" "+m.styles.dim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
+				head := name
+				if cmd.args != "" {
+					head += " " + m.styles.dim.Render(cmd.args)
+				}
+				pad := strings.Repeat(" ", max(0, col-lipgloss.Width(menuHead(cmd))))
+				parts = append(parts, fitLine(mark+head+pad+"  "+help, m.width-1-m.gutter()))
 			}
 			for i := end - start; i < rows; i++ {
 				parts = append(parts, "")

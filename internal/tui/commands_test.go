@@ -15,6 +15,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -1665,4 +1666,33 @@ func transcriptHas(m *model, s string) bool {
 		}
 	}
 	return false
+}
+
+// The command menu's help text starts in one column, whatever the length
+// of each command's name and arguments.
+func TestCommandMenuAlignsHelp(t *testing.T) {
+	h := newHarness(t)
+	h.keys("/")
+	var cols []int
+	for _, line := range strings.Split(plain(h.m.View()), "\n") {
+		trimmed := strings.TrimLeft(line, " ▸")
+		if !strings.HasPrefix(trimmed, "/") {
+			continue
+		}
+		head := strings.Index(line, "/")
+		gap := strings.Index(line[head:], "  ")
+		if gap < 0 {
+			continue
+		}
+		rest := line[head+gap:]
+		cols = append(cols, lipgloss.Width(line[:head+gap])+len(rest)-len(strings.TrimLeft(rest, " ")))
+	}
+	if len(cols) < 3 {
+		t.Fatalf("menu rows not found:\n%s", plain(h.m.View()))
+	}
+	for _, c := range cols[1:] {
+		if c != cols[0] {
+			t.Fatalf("help columns differ: %v\n%s", cols, plain(h.m.View()))
+		}
+	}
 }
