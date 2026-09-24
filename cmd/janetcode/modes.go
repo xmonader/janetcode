@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tui"
 	"github.com/xmonader/janetcode/internal/webui"
+	"golang.org/x/term"
 )
 
 // sessionMode is one way a fully wired session can end.
@@ -270,6 +271,9 @@ func (r *root) webMode() error {
 // tuiMode opens the terminal session, which is what is left when no other
 // mode applies.
 func (r *root) tuiMode() error {
+	if err := interactiveTerminal(); err != nil {
+		return err
+	}
 	cfg, cwd, cfgDir, cfgPath := r.cfg, r.cwd, r.cfgDir, r.cfgPath
 	ag, sess, mem, jobs, diag, subjects, catalog, typed, pool, built := r.ag, r.sess, r.mem, r.jobs, r.diag, r.subjects, r.catalog, r.typed, r.pool, r.built
 	history, initial, needsConnect, deps := r.history, r.initial, r.needsConnect, r.deps
@@ -330,4 +334,21 @@ func (r *root) tuiMode() error {
 		Verify: r.uiVerify,
 		Perms:  r.uiPerms,
 	})
+}
+
+// interactiveTerminal checks there is a terminal to draw the session on
+// before starting one. With stdin piped the UI reads keys from /dev/tty;
+// with no terminal at all (a CI job, `echo hi | janetcode` under cron)
+// the library failed with "could not open a new TTY: open /dev/tty: no
+// such device or address", which says nothing about -p.
+func interactiveTerminal() error {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil
+	}
+	f, err := os.Open("/dev/tty")
+	if err != nil {
+		return headless.BadInput("no terminal for the interactive session; for a run without one use janetcode -p \"<prompt>\" (piped input is added to the prompt)")
+	}
+	f.Close()
+	return nil
 }
