@@ -353,6 +353,20 @@ const kept = await evaljs(`({ value: document.getElementById('input').value, sta
 check('an unsent message stays in the composer', kept.value === 'are you there?' && /Cannot reach/.test(kept.status), JSON.stringify(kept));
 await evaljs(`(() => { window.fetch = window.__realFetch; document.getElementById('input').value = ''; return 1; })()`);
 
+// The header does not put jargon or a false signal up: the effort chip
+// says "auto", and the dot is not green while no model is connected.
+const header = await evaljs(`(() => {
+  window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', effort: '' } }) });
+  window.__es.onmessage({ data: JSON.stringify({ type: 'hello', hello: { connected: false, model: '', provider: '', version: window.__janetUIBuild } }) });
+  const conn = document.getElementById('conn');
+  const idle = getComputedStyle(conn, '::before').backgroundColor;
+  window.__es.onmessage({ data: JSON.stringify({ type: 'hello', hello: { connected: true, model: 'm', provider: 'p', version: window.__janetUIBuild } }) });
+  const live = getComputedStyle(conn, '::before').backgroundColor;
+  return { effort: document.getElementById('effort-chip').textContent, idle, live };
+})()`);
+check('the effort chip says auto, not default', header.effort === 'Effort: auto', header.effort);
+check('the connection dot is not green with no model', header.idle !== header.live, JSON.stringify(header));
+
 // Muted and faint text stay readable (WCAG AA, 4.5:1) in both themes.
 const contrastOf = `(() => {
   const lum = (r, g, b) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
@@ -381,6 +395,19 @@ await sleep(1500);
 const firstTheme = await evaljs(`({ theme: document.documentElement.dataset.theme, choice: document.documentElement.dataset.themeChoice })`);
 check('a first visit follows a light OS', firstTheme.theme === 'light' && firstTheme.choice === 'system', JSON.stringify(firstTheme));
 await cmd('Emulation.setEmulatedMedia', { features: [] });
+
+// Before the first message the context chip stays hidden: the system
+// prompt alone is not "context used". It shows once there is a turn.
+const ctxChip = async () => evaljs(`(() => new Promise((done) => {
+  const rf = window.fetch;
+  window.fetch = (u, o) => String(u).includes('/api/workspace') ? Promise.resolve(new Response(JSON.stringify({ ctx_pct: 9, ctx_label: '7k / 80k' }))) : rf(u, o);
+  window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask' } }) });
+  setTimeout(() => { window.fetch = rf; done(document.getElementById('ctx-chip').hidden); }, 400);
+}))()`);
+await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'reset' }) }); return 1; })()`);
+check('no context chip before the first message', await ctxChip() === true, 'shown');
+await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'u-ctx', kind: 'user', text: 'hi' } }) }); return 1; })()`);
+check('the context chip shows once there is a turn', await ctxChip() === false, 'hidden');
 
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));

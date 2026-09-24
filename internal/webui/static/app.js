@@ -477,6 +477,9 @@
   function paintModel() {
     const effort = document.getElementById("effort-chip")?.dataset.effort || "";
     const btn = document.getElementById("model");
+    // The green dot says the page reaches janetcode; with no model behind
+    // it, green next to "Not connected" read as the opposite.
+    document.getElementById("conn")?.classList.toggle("idle", !connected);
     if (!connected) {
       btn.textContent = "Not connected";
       btn.title = "Connect a provider";
@@ -618,8 +621,10 @@
     if (!chip) return;
     chip.hidden = false;
     chip.dataset.effort = effort || "";
-    // A bare "effort" read as a stray word; say the model decides.
-    chip.textContent = "effort " + (effort || "default");
+    // A bare "effort" read as a stray word, and "effort default" as
+    // jargon; "auto" says the model decides.
+    chip.textContent = "Effort: " + (effort || "auto");
+    chip.title = effort ? "Reasoning effort " + effort + " — click to change" : "The model's own reasoning effort — click to set one";
     paintModel();
   }
 
@@ -1665,7 +1670,10 @@
       }
       document.getElementById("ctx-line").textContent = ws.ctx_label ? "Context " + ws.ctx_label + " (" + ws.ctx_pct + "%)" : "Context —";
       const chip = document.getElementById("ctx-chip");
-      if (ws.ctx_pct) {
+      // Before the first message the percentage is only the system
+      // prompt and tools, which read as something already used up.
+      const talked = [...latest.values()].some((e) => e.kind === "user");
+      if (ws.ctx_pct && talked) {
         chip.hidden = false;
         chip.innerHTML = `<span class="ring" style="--p:${Math.min(100, Math.max(0, ws.ctx_pct))}"></span>${ws.ctx_pct}%`;
         chip.title = "Context window " + ws.ctx_pct + "% used" + (ws.ctx_label ? " (" + ws.ctx_label + ")" : "");

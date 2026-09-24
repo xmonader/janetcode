@@ -480,6 +480,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   background: var(--ok);
   box-shadow: 0 0 0 3px var(--ok-soft);
 }
+.conn.idle::before { background: var(--faint); box-shadow: none; }
 .conn.off { color: var(--bad); }
 .conn.off::before { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
 .icon-btn {
