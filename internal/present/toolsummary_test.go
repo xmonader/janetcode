@@ -55,3 +55,21 @@ func TestClipCountsColumnsNotBytes(t *testing.T) {
 		t.Fatalf("clip = %q", got)
 	}
 }
+
+// While a call streams its arguments are half a JSON object. They were
+// shown raw: `{"path": "/tmp/claude-1000/-home-xmonader-wsp`.
+func TestToolSummaryOfStreamingArguments(t *testing.T) {
+	cwd := "/work/proj"
+	for raw, want := range map[string]string{
+		`{"pa`:                        "",
+		`{"path": "/work/proj/src/ma`: "",
+		`{"path": "/work/proj/src/main.go", "conte`:  "src/main.go",
+		`{"command": "go test ./...", "timeo`:        "go test ./...",
+		`{"path": "a \"quoted\" name.go", "content"`: `a "quoted" name.go`,
+		`not json at all`:                            "not json at all",
+	} {
+		if got := ToolSummary("write_file", raw, 80, cwd); got != want {
+			t.Errorf("ToolSummary(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}

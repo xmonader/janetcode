@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -34,7 +35,19 @@ func ToolSummary(name, raw string, max int, cwd string) string {
 	}
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
-		return Clip(raw, max)
+		if !strings.HasPrefix(strings.TrimSpace(raw), "{") {
+			return Clip(raw, max)
+		}
+		// Still streaming: the arguments are half a JSON object. Showing
+		// them raw put `{"path": "/tmp/very/long/abs` on screen; the
+		// value that names the call is read out of the prefix instead,
+		// once it has arrived whole, and nothing is shown before.
+		k, v, ok := partialArgument(raw)
+		if !ok {
+			return ""
+		}
+		full, _ := json.Marshal(map[string]string{k: v})
+		return ToolSummary(name, string(full), max, cwd)
 	}
 	// The plan tool's argument is the whole list: say how many steps, and
 	// the one being worked on.
@@ -140,4 +153,21 @@ func ShortenPaths(cwd, s string) string {
 		s = strings.ReplaceAll(s, home+string(filepath.Separator), "~"+string(filepath.Separator))
 	}
 	return s
+}
+
+// partialArg finds the first of the summarised keys whose string value
+// has arrived whole in a JSON prefix, e.g. `{"path": "/tmp/a.go", "con`.
+// A value still arriving is not shown: half an absolute path is the
+// part of it that says nothing.
+var partialArg = regexp.MustCompile(`"(command|pattern|path|url|description)"\s*:\s*("(?:[^"\\]|\\.)*")`)
+
+func partialArgument(raw string) (key, value string, ok bool) {
+	m := partialArg.FindStringSubmatch(raw)
+	if m == nil {
+		return "", "", false
+	}
+	if json.Unmarshal([]byte(m[2]), &value) != nil || value == "" {
+		return "", "", false
+	}
+	return m[1], value, true
 }
