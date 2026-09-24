@@ -787,3 +787,23 @@ func TestRedThenGreenInOneTurnIsAFlip(t *testing.T) {
 		t.Fatalf("the turn's own breakage, repaired, counted as a fix: %s", o.Why)
 	}
 }
+
+func TestVerdictWordsOneFileAndTextFiles(t *testing.T) {
+	for path, doc := range map[string]bool{"hello.txt": true, "notes/todo.txt": true, "requirements.txt": false, "requirements-dev.txt": false, "main.go": false} {
+		if isDocFile(path) != doc {
+			t.Errorf("isDocFile(%q) = %v, want %v", path, !doc, doc)
+		}
+	}
+}
+
+func TestUnverifiedOneFileSaysIt(t *testing.T) {
+	edit := `{"path":"a.go","old_str":"x","new_str":"y"}`
+	got := FoldOutcome([]session.Event{result(1, "edit_file", edit, "ok", false)}, 1)
+	if got.Why != "1 file edited and nothing was run against it" {
+		t.Fatalf("why = %q", got.Why)
+	}
+	txt := FoldOutcome([]session.Event{result(1, "write_file", `{"path":"hello.txt","content":"hi"}`, "ok", false)}, 1)
+	if txt.Verdict != VerdictNoChanges {
+		t.Fatalf("a text file edit: %q (%s)", txt.Verdict, txt.Why)
+	}
+}

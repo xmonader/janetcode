@@ -221,7 +221,7 @@ func (s *syncBuffer) String() string {
 // the round limit still bounds it, and neither swallows the other.
 func TestUntilComposesWithTheVerdictCorrection(t *testing.T) {
 	root := t.TempDir()
-	write := `{"path":"a.txt","content":"x"}`
+	write := `{"path":"a.go","content":"package a"}`
 	f := &fake{responses: []*llm.Response{
 		// Round 1: edit, then claim the tests pass without running any.
 		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(write)}}}, StopReason: llm.StopToolUse},

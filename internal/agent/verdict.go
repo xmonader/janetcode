@@ -279,6 +279,11 @@ func isDocFile(path string) bool {
 	switch strings.ToLower(filepath.Ext(base)) {
 	case ".md", ".markdown", ".rst", ".adoc":
 		return true
+	case ".txt":
+		// Prose or a scratch file, which no test exercises, except the
+		// dependency lists that happen to be .txt.
+		l := strings.ToLower(base)
+		return !strings.HasPrefix(l, "requirements") && !strings.HasPrefix(l, "constraints")
 	}
 	stem := strings.ToUpper(strings.TrimSuffix(base, filepath.Ext(base)))
 	switch stem {
@@ -567,7 +572,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		// A README or a licence has nothing a test could exercise; warning
 		// that the edit was "not demonstrated" is noise the user learns
 		// to ignore, and then ignores when it matters.
-		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("only documentation was edited (%s); nothing to test", textfmt.Plural(o.Edited, "file"))
+		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("only documentation or text was edited (%s); nothing to test", textfmt.Plural(o.Edited, "file"))
 	case o.Failed > 0 && acceptWriting && len(testsTouched) == o.Edited:
 		o.Verdict = VerdictTestsWritten
 		o.Why = fmt.Sprintf("%s written and failing as expected until the implementation exists", textfmt.Plural(o.Edited, "acceptance test file"))
@@ -576,7 +581,11 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		o.Why = fmt.Sprintf("%s edited and a check came back red", textfmt.Plural(o.Edited, "file"))
 	case o.Ran == 0 && !ranTheCode:
 		o.Verdict = VerdictUnverified
-		o.Why = fmt.Sprintf("%s edited and nothing was run against them", textfmt.Plural(o.Edited, "file"))
+		them := "them"
+		if o.Edited == 1 {
+			them = "it"
+		}
+		o.Why = fmt.Sprintf("%s edited and nothing was run against %s", textfmt.Plural(o.Edited, "file"), them)
 	case o.Ran == 0:
 		o.Verdict = VerdictNotDemonstrated
 		o.Why = fmt.Sprintf("%s edited and the code was run, but nothing asserted the result", textfmt.Plural(o.Edited, "file"))
