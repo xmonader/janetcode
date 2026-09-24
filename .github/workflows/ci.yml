@@ -43,3 +43,28 @@ jobs:
         run: GOOS=windows GOARCH=amd64 go build ./...
       - name: vet (darwin/arm64)
         run: GOOS=darwin GOARCH=arm64 go vet ./...
+  # The page's own checks. `make check` runs the first two locally; without
+  # this job the markdown renderer's XSS corpus and the contrast checks were
+  # never run in CI, and nothing drove the page in a browser. ui-visual is
+  # left out: its pixel baselines are tied to the fonts on the machine
+  # that made them.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: markdown renderer corpus
+        run: make md-test
+      - name: contrast
+        run: make ui-a11y
+      - name: browser (interaction)
+        run: make ui-test
+      - name: browser (first run)
+        run: make ui-firstrun
