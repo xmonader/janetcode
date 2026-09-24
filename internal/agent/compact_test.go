@@ -753,3 +753,38 @@ func TestTouchedNoteSurvivesTheSummariser(t *testing.T) {
 		t.Fatalf("want an empty note, got %q", n)
 	}
 }
+
+// An old call's long arguments (a whole file body) are resent on every call
+// until a summary; pruning drops the long strings and keeps the path, and
+// leaves the recent tail alone.
+func TestPruneShrinksOldCallArguments(t *testing.T) {
+	root := t.TempDir()
+	reg := tool.NewRegistry(tool.WriteFile{Root: root})
+	body, _ := json.Marshal(strings.Repeat("line\n", 2000))
+	use := func(id string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, Name: "write_file", Input: json.RawMessage(`{"path":"b.go","content":` + string(body) + `}`)}}}
+	}
+	res := func(id string) llm.Message { return llm.ToolResultMessage(llm.ToolResult(id, "wrote b.go", false)) }
+	a := &Agent{Provider: &fake{}, Tools: reg, Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		use("1"), res("1"),
+		llm.TextMessage(llm.RoleAssistant, "done"),
+		llm.TextMessage(llm.RoleUser, "again"),
+		use("2"), res("2"),
+		llm.TextMessage(llm.RoleAssistant, "done again"),
+		llm.TextMessage(llm.RoleUser, "next"),
+	}}
+	if saved := a.Prune(); saved < 9_000 {
+		t.Fatalf("saved %d bytes", saved)
+	}
+	var old struct{ Path, Content string }
+	if err := json.Unmarshal(a.Messages[1].Blocks[0].Input, &old); err != nil {
+		t.Fatalf("pruned input is not JSON: %v", err)
+	}
+	if old.Path != "b.go" || !strings.Contains(old.Content, "10000 characters omitted") {
+		t.Fatalf("old input = %+v", old)
+	}
+	if n := len(a.Messages[5].Blocks[0].Input); n < 10_000 {
+		t.Fatalf("the recent call's arguments were shrunk to %d bytes", n)
+	}
+}

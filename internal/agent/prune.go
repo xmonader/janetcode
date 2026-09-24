@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -72,10 +73,67 @@ func (a *Agent) Prune() int {
 			saved += before - len(a.Messages[i].Blocks[j].Text)
 		}
 	}
+	// The arguments of old calls are resent too: every earlier write_file
+	// body and edit payload, until a summary drops them. The file on disk
+	// is what counts now, so their long strings go; the keys and short
+	// values (the path) stay, and the input is still the JSON object
+	// every provider requires.
+	for i := 0; i < tail && i < n; i++ {
+		for j, b := range a.Messages[i].Blocks {
+			if b.Type != llm.BlockToolUse || len(b.Input) <= pruneInputKeep {
+				continue
+			}
+			if short, ok := shrinkInput(b.Input); ok {
+				saved += len(b.Input) - len(short)
+				a.setBlockInput(i, j, short)
+			}
+		}
+	}
 	if saved > 0 {
 		a.contextManager.rewritten()
 	}
 	return saved
+}
+
+// pruneInputKeep is the size of a tool call's arguments above which an
+// old call's long strings are omitted, and pruneStringKeep the length of
+// one string value that is kept whole.
+const (
+	pruneInputKeep  = 2048
+	pruneStringKeep = 256
+)
+
+// shrinkInput replaces every string value longer than pruneStringKeep in a
+// call's arguments with a note of its length. ok is false when nothing
+// was shorter for it.
+func shrinkInput(input json.RawMessage) (json.RawMessage, bool) {
+	var v any
+	if json.Unmarshal(input, &v) != nil {
+		return nil, false
+	}
+	var shrink func(any) any
+	shrink = func(v any) any {
+		switch x := v.(type) {
+		case string:
+			if len(x) > pruneStringKeep {
+				return fmt.Sprintf("[%d characters omitted from an earlier call; read the file for what is there now]", len(x))
+			}
+		case map[string]any:
+			for k, e := range x {
+				x[k] = shrink(e)
+			}
+		case []any:
+			for k, e := range x {
+				x[k] = shrink(e)
+			}
+		}
+		return v
+	}
+	out, err := json.Marshal(shrink(v))
+	if err != nil || len(out) >= len(input) {
+		return nil, false
+	}
+	return out, true
 }
 
 // pruneTo replaces old tool results with one-line placeholders until the

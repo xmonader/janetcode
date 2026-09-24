@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -40,6 +41,12 @@ func (a *Agent) setMessages(msgs []llm.Message) {
 func (a *Agent) setBlockText(i, j int, text string) {
 	a.msgMu.Lock()
 	a.Messages[i].Blocks[j].Text = text
+	a.msgMu.Unlock()
+}
+
+func (a *Agent) setBlockInput(i, j int, input json.RawMessage) {
+	a.msgMu.Lock()
+	a.Messages[i].Blocks[j].Input = input
 	a.msgMu.Unlock()
 }
 
