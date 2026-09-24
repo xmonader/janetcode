@@ -225,6 +225,28 @@ func TestPromptStreamsOnSSE(t *testing.T) {
 	case <-time.After(4 * time.Second):
 		t.Fatal("timed out waiting for the streamed answer")
 	}
+	// The answer streams before the turn has finished writing its
+	// session; returning here raced the TempDir cleanup ("directory not
+	// empty", about one run in twelve).
+	waitTurnDone(t, ts)
+}
+
+// waitTurnDone polls /api/state until no turn is running.
+func waitTurnDone(t *testing.T, ts *httptest.Server) {
+	t.Helper()
+	waitFor(t, func() bool {
+		res, err := http.Get(ts.URL + "/api/state")
+		if err != nil {
+			return false
+		}
+		defer res.Body.Close()
+		var st struct {
+			Status struct {
+				Running bool `json:"running"`
+			} `json:"status"`
+		}
+		return json.NewDecoder(res.Body).Decode(&st) == nil && !st.Status.Running
+	})
 }
 
 func TestPermissionRoundTrip(t *testing.T) {
