@@ -19,6 +19,7 @@ package whatif
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -311,7 +312,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 	origEvents := sess.Events()
 
 	if sess.Meta.Start == nil || sess.Meta.Start.Snap == "" {
-		return Report{}, fmt.Errorf("session %s has no recorded start state: it began before --what-if existed, before its repository had any commit, or outside a git repository", sess.Meta.ID)
+		return Report{}, badArg(fmt.Errorf("session %s has no recorded start state: it began before --what-if existed, before its repository had any commit, or outside a git repository", sess.Meta.ID))
 	}
 	if opts.Config == nil || opts.Provider == nil {
 		return Report{}, fmt.Errorf("--what-if needs a configured provider for the live part")
@@ -320,23 +321,23 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 	turns := session.Turns(origEvents)
 	total := len(turns)
 	if total == 0 {
-		return Report{}, fmt.Errorf("session %s has no recorded turns to replay", sess.Meta.ID)
+		return Report{}, badArg(fmt.Errorf("session %s has no recorded turns to replay", sess.Meta.ID))
 	}
 	n := opts.FromTurn
 	switch {
 	case n < 1:
-		return Report{}, fmt.Errorf("--from-turn %d is out of range: turns are 1-based", n)
+		return Report{}, badArg(fmt.Errorf("--from-turn %d is out of range: turns are 1-based", n))
 	case n > total:
-		return Report{}, fmt.Errorf("--from-turn %d: the recording has only %s", n, textfmt.Plural(total, "turn"))
+		return Report{}, badArg(fmt.Errorf("--from-turn %d: the recording has only %s", n, textfmt.Plural(total, "turn")))
 	}
 
 	off, err := agent.ParseSwitches(strings.Join(opts.Off, ","))
 	if err != nil {
-		return Report{}, fmt.Errorf("--off: %w", err)
+		return Report{}, badArg(fmt.Errorf("--off: %w", err))
 	}
 	denyRules, err := perm.ParseAll(opts.Deny)
 	if err != nil {
-		return Report{}, fmt.Errorf("--deny: %w", err)
+		return Report{}, badArg(fmt.Errorf("--deny: %w", err))
 	}
 
 	root := strings.TrimSpace(opts.Root)
@@ -495,3 +496,17 @@ func worktreeFate(keep bool) string {
 	}
 	return "removed once this run finished"
 }
+
+// ErrBadArgument marks a Run error that is the caller's input -- a turn
+// the recording does not have, a session that cannot be replayed, an
+// unknown --off name -- rather than something failing along the way, so
+// the CLI can give it the usage exit status.
+var ErrBadArgument = errors.New("bad what-if argument")
+
+type badArgError struct{ err error }
+
+func (e badArgError) Error() string        { return e.err.Error() }
+func (e badArgError) Unwrap() error        { return e.err }
+func (e badArgError) Is(target error) bool { return target == ErrBadArgument }
+
+func badArg(err error) error { return badArgError{err} }

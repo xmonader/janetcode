@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/treesitter"
@@ -40,6 +42,9 @@ func runWhatIf(ctx context.Context, cfg *config.Config, prov llm.Provider, o wha
 		Keep:     o.keep,
 		Log:      func(format string, args ...any) { fmt.Fprintf(os.Stderr, format+"\n", args...) },
 	})
+	if errors.Is(err, whatif.ErrBadArgument) {
+		return headless.BadInput("%v", err)
+	}
 	if err != nil {
 		return err
 	}

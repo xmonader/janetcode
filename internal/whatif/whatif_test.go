@@ -3,6 +3,7 @@ package whatif_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -290,10 +291,10 @@ func TestRunRefusesOutOfRangeTurn(t *testing.T) {
 	cfg := &config.Config{Model: "fake-live-model", MaxIterations: 10, MaxTokens: 1000}
 	live := &fakeLive{}
 
-	if _, err := whatif.Run(context.Background(), whatif.Options{SessionArg: sess.Path(), Root: root, FromTurn: 0, Config: cfg, Provider: live}); err == nil {
+	if _, err := whatif.Run(context.Background(), whatif.Options{SessionArg: sess.Path(), Root: root, FromTurn: 0, Config: cfg, Provider: live}); !errors.Is(err, whatif.ErrBadArgument) {
 		t.Fatal("--from-turn 0 must be refused")
 	}
-	if _, err := whatif.Run(context.Background(), whatif.Options{SessionArg: sess.Path(), Root: root, FromTurn: 99, Config: cfg, Provider: live}); err == nil {
+	if _, err := whatif.Run(context.Background(), whatif.Options{SessionArg: sess.Path(), Root: root, FromTurn: 99, Config: cfg, Provider: live}); !errors.Is(err, whatif.ErrBadArgument) || err.Error() != "--from-turn 99: the recording has only 2 turns" {
 		t.Fatal("--from-turn beyond the recording must be refused")
 	}
 	if _, err := whatif.Run(context.Background(), whatif.Options{SessionArg: sess.Path(), Root: root, FromTurn: 1, Config: nil, Provider: nil}); err == nil {
