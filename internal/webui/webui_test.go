@@ -1184,7 +1184,7 @@ func TestModelsAPIListsWhatTheConfigKnows(t *testing.T) {
 		Model:    "glm-4",
 		Providers: map[string]config.Provider{
 			"zhipu":     {Models: []string{"glm-4", "glm-4-plus"}, Model: "glm-4"},
-			"openai":    {Models: []string{"gpt-4o"}},
+			"openai":    {Models: []string{"gpt-4o"}, BaseURL: "https://openrouter.ai/api/v1"},
 			"anthropic": {},
 		},
 		Models: map[string]config.ModelMeta{
@@ -1252,6 +1252,13 @@ func TestModelsAPIListsWhatTheConfigKnows(t *testing.T) {
 	}
 	if !rows["glm-4"].Current {
 		t.Fatalf("the current model wears the ✓: %+v", rows["glm-4"])
+	}
+	// An openai entry pointed at OpenRouter is headed by the service it
+	// reaches, not "openai".
+	for _, g := range body.Groups {
+		if g.Provider == "openai" && g.Label != "openrouter" {
+			t.Fatalf("openai group label = %q", g.Label)
+		}
 	}
 	if rows["qwen3-coder"].Model != "qwen3-coder" {
 		t.Fatalf("learned metas stay listed: %+v", rows["qwen3-coder"])

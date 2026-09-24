@@ -1473,7 +1473,7 @@ body:has(#connect:not([hidden]))::after {
   position: fixed;
   display: flex;
   flex-direction: column;
-  width: 21rem;
+  width: min(28rem, calc(100vw - 24px));
   background: var(--surface);
   border: 0.5px solid var(--line-strong);
   border-radius: var(--radius-l);

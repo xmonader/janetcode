@@ -26,8 +26,12 @@ type modelRow struct {
 }
 
 type modelGroup struct {
-	Provider string     `json:"provider"`
-	Models   []modelRow `json:"models"`
+	Provider string `json:"provider"`
+	// Label is the heading the menu shows: the provider's name, or for
+	// an openai entry the service its URL points at ("openrouter"),
+	// which "OPENAI" misnamed.
+	Label  string     `json:"label,omitempty"`
+	Models []modelRow `json:"models"`
 }
 
 // modelsFresh is how long a live listing is served from cache: long
@@ -46,11 +50,19 @@ func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
 	}
 	current := ag.Settings().Model
 	out["current"] = current
-	if groups, ok := s.cachedOrLiveModels(current); ok {
-		out["groups"] = groups
-	} else {
-		out["groups"] = s.configKnownModels(cfg, current)
+	groups, ok := s.cachedOrLiveModels(current)
+	if !ok {
+		groups = s.configKnownModels(cfg, current)
 	}
+	labelled := make([]modelGroup, len(groups))
+	for i, g := range groups {
+		g.Label = g.Provider
+		if p, ok := cfg.Providers[g.Provider]; ok {
+			g.Label = p.Label(g.Provider)
+		}
+		labelled[i] = g
+	}
+	out["groups"] = labelled
 	writeJSON(w, out)
 }
 

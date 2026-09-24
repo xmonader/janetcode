@@ -367,6 +367,26 @@ const header = await evaljs(`(() => {
 check('the effort chip says auto, not default', header.effort === 'Effort: auto', header.effort);
 check('the connection dot is not green with no model', header.idle !== header.live, JSON.stringify(header));
 
+// The model menu heads a group with the service it reaches, says sizes
+// the way people do, and opens on the model in use.
+const modelMenu = await evaljs(`(() => new Promise((done) => {
+  const rf = window.fetch;
+  window.fetch = (u, o) => String(u).includes('/api/models') ? Promise.resolve(new Response(JSON.stringify({ groups: [{ provider: 'openai', label: 'openrouter', models: [
+    { model: 'aion-labs/aion-2.0', context: 131072 }, { model: 'x/big', context: 1049000 }, { model: 'deepseek/v4-flash', context: 128000, current: true }] }] }))) : rf(u, o);
+  document.getElementById('model').click();
+  setTimeout(() => {
+    window.fetch = rf;
+    const rows = [...document.querySelectorAll('#switch-menu .menu-row')].map((r) => r.textContent);
+    const head = document.querySelector('#switch-menu .menu-group')?.textContent || '';
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.getElementById('switch-menu').hidden = true;
+    done({ head, rows });
+  }, 400);
+}))()`);
+check('the model menu names the service, not "openai"', modelMenu.head.startsWith('openrouter'), JSON.stringify(modelMenu));
+check('the model menu opens on the model in use', (modelMenu.rows[0] || '').startsWith('deepseek/v4-flash'), JSON.stringify(modelMenu.rows));
+check('context sizes read 1M, not 1049k ctx · live', modelMenu.rows.some((r) => r.includes('1M context')) && !modelMenu.rows.some((r) => /live|ctx/.test(r)), JSON.stringify(modelMenu.rows));
+
 // Muted and faint text stay readable (WCAG AA, 4.5:1) in both themes.
 const contrastOf = `(() => {
   const lum = (r, g, b) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);

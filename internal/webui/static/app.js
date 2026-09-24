@@ -1555,6 +1555,13 @@
     switchQ.focus();
   }
 
+  // contextSize is a window as people say it: "128k context", "1M context".
+  function contextSize(n) {
+    if (!n) return "";
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M context";
+    return Math.round(n / 1000) + "k context";
+  }
+
   function rowHTML(i, main, sub) {
     return `<div class="menu-row" data-i="${i}"><span>${esc(main)}</span>` + (sub ? `<span class="menu-sub">${esc(sub)}</span>` : "") + `</div>`;
   }
@@ -1569,20 +1576,22 @@
     let html = "";
     if (switchMode === "model") {
       for (const g of modelGroups) {
-        const rows = g.models.filter((m) => !q || m.model.toLowerCase().includes(q));
+        // The model in use leads its group, so the menu opens on it
+        // rather than on whatever sorts first ("aion-labs/…").
+        const rows = g.models.filter((m) => !q || m.model.toLowerCase().includes(q))
+          .sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
         if (!rows.length) continue;
-        html += `<div class="menu-group">${esc(g.provider)} · ${rows.length}</div>`;
+        html += `<div class="menu-group">${esc(g.label || g.provider)} · ${rows.length}</div>`;
         for (const m of rows) {
           switchRows.push({ cmd: "/model " + m.model });
-          const sub = [m.context ? Math.round(m.context / 1000) + "k ctx" : "", m.live ? "live" : ""].filter(Boolean).join(" · ");
-          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""), sub);
+          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""), contextSize(m.context));
         }
       }
       // A name nobody listed is still switchable: /model routes it by
       // family or prefix, and remembers it.
       if (q && !modelGroups.some((g) => g.models.some((m) => m.model.toLowerCase() === q))) {
         switchRows.unshift({ cmd: "/model " + q });
-        html = rowHTML(0, `switch to “${q}”`, "routes by name or prefix") + html;
+        html = rowHTML(0, `switch to “${q}”`, "not listed; use it by name") + html;
       }
     } else {
       const cur = effortChip.dataset.effort || "";
@@ -1727,7 +1736,7 @@
       curEl.innerHTML =
         `<div class="cur-row" title="The conversation open now">` +
         `<span class="cur-dot"></span><span class="cur-label">${esc(live.prefix || "")}${esc(label)}</span>` +
-        `<span class="cur-live">live</span></div>`;
+        `<span class="cur-live">open</span></div>`;
       curEl.hidden = false;
     } else {
       curEl.hidden = true;
