@@ -87,6 +87,16 @@ type Preset struct {
 	BaseURL string
 }
 
+// SuggestedModels is the model /connect highlights first for a preset,
+// instead of whatever sorts first alphabetically (on OpenRouter, one of
+// 400-odd models nobody asked for). Only models verified live with
+// janetcode are listed, and one is suggested only when the endpoint
+// still lists it, so a stale entry costs nothing.
+var SuggestedModels = map[string]string{
+	"openrouter":       "deepseek/deepseek-v4-flash",
+	"dashscope-coding": "qwen3.7-plus",
+}
+
 // Presets lists the known backends in menu order.
 var Presets = []Preset{
 	{"anthropic", "Anthropic", "anthropic", ""},

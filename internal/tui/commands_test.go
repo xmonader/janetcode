@@ -1618,3 +1618,25 @@ func TestSlashCommandInsideTheConnectDialog(t *testing.T) {
 		t.Fatal("/help did not run")
 	}
 }
+
+// OpenRouter lists 400-odd models and the highlight started on whichever
+// sorted first (aion-labs/...). The suggested model for the preset leads.
+func TestConnectHighlightsTheSuggestedModel(t *testing.T) {
+	h := newHarness(t)
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	lister := &listing{models: []llm.ModelInfo{{ID: "aion-labs/aion-2.0"}, {ID: "zeta/z"}, {ID: config.SuggestedModels["openrouter"]}}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return lister, nil })
+	h.keys("/connect")
+	h.enter()
+	h.keys("openrouter")
+	h.enter()
+	h.enter() // keep the preset URL
+	h.keys("sk-one")
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
+	v := plain(h.m.View())
+	if !strings.Contains(v, "▸ "+config.SuggestedModels["openrouter"]) || !strings.Contains(v, "suggested") {
+		t.Fatalf("the suggested model is not highlighted first:\n%s", v)
+	}
+}

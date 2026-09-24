@@ -299,9 +299,22 @@ func (m *model) handleModels(msg modelsMsg) {
 		if c.name == m.opts.Config.Provider {
 			current = m.opts.Agent.Settings().Model
 		}
+		suggested := config.SuggestedModels[c.name]
+		// The current model first, then the suggested one, then the rest
+		// by name: the highlight starts on the top row, and enter on it
+		// should be a good answer.
+		rank := func(id string) int {
+			switch id {
+			case current:
+				return 0
+			case suggested:
+				return 1
+			}
+			return 2
+		}
 		sort.SliceStable(msg.models, func(i, j int) bool {
-			if (msg.models[i].ID == current) != (msg.models[j].ID == current) {
-				return msg.models[i].ID == current
+			if ri, rj := rank(msg.models[i].ID), rank(msg.models[j].ID); ri != rj {
+				return ri < rj
 			}
 			return msg.models[i].ID < msg.models[j].ID
 		})
@@ -316,8 +329,11 @@ func (m *model) handleModels(msg modelsMsg) {
 				name = strings.TrimSpace(name + "  " + d)
 			}
 			r := row{key: mi.ID + " " + mi.Name, cells: []string{mi.ID, name}, name: mi.ID}
-			if mi.ID == current {
+			switch mi.ID {
+			case current:
 				r.tag = "current"
+			case suggested:
+				r.tag = "suggested"
 			}
 			c.models = append(c.models, r)
 		}
