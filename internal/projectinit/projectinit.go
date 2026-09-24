@@ -27,6 +27,7 @@ import (
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -314,7 +315,7 @@ func (s Survey) Generate() string {
 	case len(s.Languages) == 0 && s.Files == 0:
 		b.WriteString("An empty directory. Say here what is about to be built and in what.\n")
 	case len(s.Languages) == 0:
-		fmt.Fprintf(&b, "%d files, in no language this could name. Say here what they are.\n", s.Files)
+		fmt.Fprintf(&b, "%s, in no language this could name. Say here what they are.\n", textfmt.Plural(s.Files, "file"))
 	default:
 		var parts []string
 		for _, l := range s.Languages {
@@ -341,7 +342,7 @@ func (s Survey) Generate() string {
 	if len(s.Dirs) > 0 {
 		b.WriteString("\n## Layout\n\n")
 		for _, d := range s.Dirs {
-			fmt.Fprintf(&b, "- `%s/` — %d files\n", d.Name, d.N)
+			fmt.Fprintf(&b, "- `%s/` — %s\n", d.Name, textfmt.Plural(d.N, "file"))
 		}
 	}
 
@@ -377,7 +378,7 @@ func Run(cwd string, force bool) (cmdresult.Result, error) {
 		rel = r
 	}
 	if _, err := os.Stat(path); err == nil && !force {
-		res := cmdresult.Result{Error: rel + " already exists; it was not touched"}
+		res := cmdresult.Result{Error: rel + " already exists and was not touched"}
 		res.Tips = append(res.Tips, "/init force overwrites it, or open it and add what is missing")
 		if len(s.Existing) > 0 {
 			res.Tips = append(res.Tips, "`"+s.Existing[0].Name+"` is read too, so anything already there does not need repeating")

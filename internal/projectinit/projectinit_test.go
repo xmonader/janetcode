@@ -39,7 +39,7 @@ func TestGenerateFromWhatTheRepositoryShows(t *testing.T) {
 				write(t, dir, "vendor/other/huge.go", "package other\n")
 				write(t, dir, "node_modules/dep/index.js", "1\n")
 			},
-			want: []string{"Go project", "3 Go files", "`make check`", "`go test ./...`", "`internal/` — 2 files", "`cmd/` — 1 files", "## Conventions"},
+			want: []string{"Go project", "3 Go files", "`make check`", "`go test ./...`", "`internal/` — 2 files", "`cmd/` — 1 file", "## Conventions"},
 			miss: []string{"vendor", "node_modules", "npm"},
 		},
 		{

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -28,6 +27,11 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 	case o.showVersion:
 		fmt.Println("janetcode", version)
 	case o.initCfg:
+		if p, err := config.Path(); err == nil {
+			if _, err := os.Stat(p); err == nil {
+				return true, headless.BadInput("%s already exists and was not touched; janetcode --doctor checks it, /config in a session edits it", p)
+			}
+		}
 		p, err := config.WriteExample()
 		if err != nil {
 			return true, err
@@ -42,10 +46,12 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		printResult(os.Stdout, res)
 		if res.Error != "" {
-			return true, errors.New(res.Error)
+			// Said once, on stderr, with a next step a shell has: the
+			// result's tip is /init force, which only a session takes.
+			return true, headless.BadInput("%s; open it and add what is missing, or move it aside and run --init-project again", res.Error)
 		}
+		printResult(os.Stdout, res)
 	case o.listSess:
 		return true, printSessions()
 	case o.sessionProfile != "":

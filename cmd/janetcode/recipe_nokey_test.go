@@ -37,3 +37,26 @@ func TestRecipeRunsWithoutAKey(t *testing.T) {
 		t.Fatalf("unknown recipe: %v (exit %d)", err, headless.ExitCode(err))
 	}
 }
+
+// A second --init or --init-project is said once, as a usage error, with
+// a next step a shell can take rather than a session's /init force.
+func TestInitTwiceSaysWhatToDoNext(t *testing.T) {
+	home, work := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Chdir(work)
+	os.WriteFile(filepath.Join(work, "only.txt"), []byte("x\n"), 0o644)
+	stdout, _ := captureStd(t)
+	for _, flag := range []string{"--init", "--init-project"} {
+		if err := run([]string{flag}); err != nil {
+			t.Fatalf("first %s: %v", flag, err)
+		}
+		err := run([]string{flag})
+		if headless.ExitCode(err) != headless.ExitBadInput || !strings.Contains(err.Error(), "already exists and was not touched") || strings.Contains(err.Error(), "/init force") {
+			t.Fatalf("second %s: %v", flag, err)
+		}
+	}
+	if out := stdout(); strings.Contains(out, "already exists") || strings.Contains(out, "1 files") {
+		t.Fatalf("stdout:\n%s", out)
+	}
+}
