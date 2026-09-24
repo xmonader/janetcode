@@ -1326,3 +1326,28 @@ func TestOpenRouterListingChecksTheKey(t *testing.T) {
 		}
 	}
 }
+
+// A model served without a reasoning parser writes its reasoning inline;
+// it must arrive as thinking, not as the answer.
+func TestInlineThinkTagsBecomeThinking(t *testing.T) {
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"<thi"}}]}`,
+			`{"choices":[{"delta":{"content":"nk>check the file</think>\n\n"}}]}`,
+			`{"choices":[{"delta":{"content":"It is fine."},"finish_reason":"stop"}]}`))
+	})
+	var shown strings.Builder
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(e llm.Event) {
+		if e.Type == llm.EventTextDelta {
+			shown.WriteString(e.Text)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resp.Message.Text(); got != "It is fine." || shown.String() != "It is fine." {
+		t.Errorf("reply %q, shown %q", got, shown.String())
+	}
+	if resp.Message.Blocks[0].Type != llm.BlockThinking || resp.Message.Blocks[0].Text != "check the file" {
+		t.Errorf("thinking block = %+v", resp.Message.Blocks[0])
+	}
+}

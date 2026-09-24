@@ -214,6 +214,7 @@ type streamState struct {
 	emit     func(llm.Event)
 	text     strings.Builder
 	thinking strings.Builder
+	inline   llm.ThinkSplitter
 	tools    map[int]*toolAcc
 	byID     map[string]int
 	order    []int
@@ -269,12 +270,24 @@ func (s *streamState) add(ch wireChunk) {
 			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: part})
 		}
 		if d.Content != "" {
-			s.text.WriteString(d.Content)
-			s.emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
+			s.addContent(s.inline.Feed(d.Content))
 		}
 		for i, tc := range d.ToolCalls {
 			s.addToolCall(i, tc)
 		}
+	}
+}
+
+// addContent records reply text and the reasoning a model wrote inline in
+// it, each as its own delta.
+func (s *streamState) addContent(text, think string) {
+	if think != "" {
+		s.thinking.WriteString(think)
+		s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: think})
+	}
+	if text != "" {
+		s.text.WriteString(text)
+		s.emit(llm.Event{Type: llm.EventTextDelta, Text: text})
 	}
 }
 
@@ -330,6 +343,7 @@ func (s *streamState) addToolCall(pos int, tc wireDeltaToolCall) {
 
 // response builds the assistant message from a completed stream.
 func (s *streamState) response() (*llm.Response, error) {
+	s.addContent(s.inline.Flush())
 	msg := llm.Message{Role: llm.RoleAssistant}
 	calls := 0
 	if s.thinking.Len() > 0 {
