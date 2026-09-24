@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -145,7 +146,7 @@ var argNames = map[string]string{
 	"allow": "rules", "deny": "rules", "mcp-auth": "server", "append-system-prompt": "text",
 	"off": "names", "prompt": "text", "recipe": "name", "replay": "session",
 	"session-profile": "path", "set": "key=value", "what-if": "session", "inspect": "subject",
-	"backup": "file", "restore": "file",
+	"backup": "file", "restore": "file", "answer": "id",
 }
 
 // printFlag writes one flag the way flag.PrintDefaults would.
@@ -474,10 +475,20 @@ func printSessions() error {
 	}
 	// Forks are listed under the session they were copied from, the same
 	// shape /resume's picker draws (see session.Lineage).
-	forked := false
+	forked, waiting := false, ""
 	for _, n := range session.Lineage(infos, "") {
 		in := n.Info
 		aside := ""
+		// A --bg run says how it is doing: the "while you were away"
+		// view is this list.
+		if p, perr := session.BgSessionPath(dir, in.Meta.ID); perr == nil {
+			if st, ok, _ := session.ReadBgStatus(p); ok {
+				aside += "  [background: " + st.Line(time.Now()) + "]"
+				if st.State == session.BgWaiting && waiting == "" {
+					waiting = in.Meta.ID
+				}
+			}
+		}
 		if m := n.Mark(); m != "" {
 			aside = "  (" + m + ")"
 		}
@@ -489,6 +500,9 @@ func printSessions() error {
 	}
 	if forked {
 		fmt.Println("\nindented sessions are forks of the one above them")
+	}
+	if waiting != "" {
+		fmt.Printf("\na background run is waiting: janetcode --answer %s shows the request\n", waiting)
 	}
 	fmt.Println("\nresume with: janetcode --resume <id>   (or --continue for the newest)")
 	return nil

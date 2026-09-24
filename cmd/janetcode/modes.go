@@ -233,12 +233,15 @@ func (r *root) headlessMode() error {
 	}
 	r.startMCP(ctx, true)
 	defer r.syncSession()
-	return headless.Run(ctx, headless.Options{
+	finish := startBgRun(ag, sess, cwd)
+	err := headless.Run(ctx, headless.Options{
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
 		Format: format, MaxCostUSD: o.maxCost,
 	})
+	finish(err)
+	return err
 }
 
 // webMode serves the session in a browser instead of the terminal.

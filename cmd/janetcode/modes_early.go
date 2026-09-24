@@ -13,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/projectinit"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/whatif"
 )
 
@@ -64,6 +65,12 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return true, decisionsAnnotateMode(ctx, o.decisionsAnnotate, o.decisionsAnnotateOut)
+	case o.answerID != "":
+		dir, err := session.Dir()
+		if err != nil {
+			return true, err
+		}
+		return true, answerMode(os.Stdout, dir, o.answerID, strings.TrimSpace(strings.Join(fs.Args(), " ")))
 	case o.backupTo != "":
 		return true, backupMode(os.Stdout, o.backupTo)
 	case o.restoreFrom != "":

@@ -72,6 +72,7 @@ type options struct {
 	appendSystem string
 	runDoctor    bool
 	backupTo     string
+	answerID     string
 	restoreFrom  string
 	// decisionsReplay is Phase 0's offline calibration driver: a
 	// labeled-state corpus path, see docs/notes/jev-integration-spec.md.
@@ -108,7 +109,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme"}},
-	{"Headless (-p)", []string{"p", "output-format", "bg", "max-turns", "max-cost", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "version"}},
 	{"Advanced", nil},
@@ -160,6 +161,7 @@ Environment:
   JANETCODE_SYSTEM_MD=<file>  replaces the base system prompt
   JANETCODE_DEBUG=<file>      appends a timestamped event log
   JANETCODE_WEB_TOKEN=<token> the --web access token off loopback
+  JANETCODE_NOTIFY=<command>  run when a --bg run waits for --answer
 
 Config file: $XDG_CONFIG_HOME/janetcode/config.json
              (default ~/.config/janetcode/config.json)
@@ -228,6 +230,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.sessionProfile, "session-profile", "", "classify the calls of recorded runs offline (an --eval-json result file, a session .jsonl, or a directory of either) as explore/edit/verify/other, report input-token growth and the share of context that is stale tool output, and exit")
 	fs.IntVar(&o.sessionProfileStale, "session-profile-stale", profileStaleAfter, "with --session-profile: how many model calls old an unreferenced tool result has to be before it counts as stale")
 	fs.StringVar(&o.decisionsReplay, "decisions-replay", "", "calibrate the optional verify-triage decisions model against a labeled state corpus (one JSON per line: name, truth, state) and exit")
+	fs.StringVar(&o.answerID, "answer", "", "answer a --bg run waiting for permission: --answer <id> shows the request, --answer <id> allow|session|deny settles it, then exit")
 	fs.StringVar(&o.backupTo, "backup", "", "write the config and data directories (config, permission rules, MCP logins, sessions, memory) to one tar.gz readable only by you, then exit")
 	fs.StringVar(&o.restoreFrom, "restore", "", "put a --backup archive back, then exit. The files it replaces are saved to a tar.gz beside it first, so a restore can be undone")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
@@ -236,7 +239,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.themeFlag, "theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 	fs.BoolVar(&o.web, "web", false, "serve the session in a browser instead of the terminal")
 	fs.StringVar(&o.webAddr, "web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
-	fs.BoolVar(&o.bg, "bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>")
+	fs.BoolVar(&o.bg, "bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>. It runs --yolo unless a permission flag is given; then what that mode asks about waits for --answer")
 	fs.Var(&o.addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
 	fs.Var(&o.sets, "set", "set a config key for this run, e.g. --set escalate_after=1 --set decisions.triage=true (repeatable). The keys are the ones /config takes, including the model slots and the decisions block; nothing is written to the config file. --inspect config lists them")
 	return fs, o

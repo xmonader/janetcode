@@ -29,6 +29,32 @@ id to `/resume`.
 the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`
 jobs are stored on the session and restored when that session is resumed.
 
+With no permission flag the child runs `--yolo`: nobody is there to ask.
+Give it one (`--auto-edits`, `--auto`, `--readonly`, plus any `--allow`
+and `--deny` rules) and it runs in that mode instead; a call the mode
+still asks about waits until you answer it:
+
+```sh
+janetcode --bg --auto-edits "fix the tests"   # edits run, commands wait
+janetcode --sessions                          # [background: waiting for an answer: bash go test ./...]
+janetcode --answer <id>                       # shows the request and its preview
+janetcode --answer <id> allow                 # or session (this tool for the rest of the run), or deny
+```
+
+`--sessions` shows every background run's state (running, waiting, done
+with the first line of its answer, or failed with the error), so it is
+also the "what happened while I was away" view. Set `JANETCODE_NOTIFY` to
+a command and it runs each time a run starts waiting, with
+`JANETCODE_SESSION`, `JANETCODE_ASK` and `JANETCODE_ANSWER` (the command
+that allows it) in its environment and the provider keys removed, so the
+request can reach your phone:
+
+```sh
+export JANETCODE_NOTIFY='curl -s -d "$JANETCODE_ASK — $JANETCODE_ANSWER" ntfy.sh/my-private-topic'
+```
+
+The child's own log is the `.bg.log` beside its session file.
+
 ```sh
 janetcode --sessions        # list sessions for this directory
 janetcode --continue        # resume the newest one

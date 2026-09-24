@@ -79,6 +79,7 @@ var flagWhen = map[string]string{
 	"mcp-auth":               "a remote MCP server needs an OAuth login once",
 	"append-system-prompt":   "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":                 "something is not working and you want to know which part",
+	"answer":                 "a --bg run is waiting for your permission and you want to settle it from another terminal or a phone",
 	"backup":                 "you are moving to another machine, or want a copy of your settings and sessions before changing them",
 	"restore":                "you are setting up a new machine from a backup, or undoing a change to your settings",
 	"decisions-replay":       "measuring whether the optional verify-triage decisions model is calibrated before trusting it live",

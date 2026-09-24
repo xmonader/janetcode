@@ -138,6 +138,9 @@ func (st BgStatus) Line(now time.Time) string {
 	case BgRunning:
 		return "running for " + since(now, st.Started)
 	case BgDone:
+		if st.Detail != "" {
+			return "done " + since(now, st.Ended) + " ago: " + st.Detail
+		}
 		return "done " + since(now, st.Ended) + " ago"
 	case BgFailed:
 		if st.Detail != "" {
