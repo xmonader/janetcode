@@ -489,7 +489,11 @@
     btn.classList.remove("unconnected");
     const model = modelLabel.slice(modelProvider ? modelProvider.length + 3 : 0);
     // The provider is the part a narrow header can drop.
-    btn.innerHTML = (modelProvider ? `<span class="model-prov">${esc(modelProvider)} · </span>` : "") + esc(model + (effort ? " · " + effort : ""));
+    // A phone shows the model's own name ("deepseek-v4-flash"): the
+    // vendor prefix is what got the pill cut to "deepseek/d…".
+    const slash = model.lastIndexOf("/");
+    const vendor = slash > 0 ? `<span class="model-vendor">${esc(model.slice(0, slash + 1))}</span>` : "";
+    btn.innerHTML = (modelProvider ? `<span class="model-prov">${esc(modelProvider)} · </span>` : "") + vendor + esc(model.slice(slash + 1) + (effort ? " · " + effort : ""));
     btn.title = btn.textContent || "Switch model";
   }
   function cleanTitle(s) {

@@ -2098,9 +2098,12 @@ kbd {
 @media (max-width: 600px) {
   .ctx-chip, .effort-chip, .top-sep, #export-btn, #help-btn, #preview-toggle { display: none !important; }
   .conn:not(.off) { display: none; }
-  .view-ring button { padding: 0 7px; font-size: 12px; }
-  .model-btn { max-width: none; }
-  .model-prov { display: none; }
+  .view-ring button { padding: 0 5px; font-size: 11.5px; }
+  .model-btn { max-width: none; padding: 0 6px 0 8px; }
+  .model-prov, .model-vendor { display: none; }
+  /* Reconnecting is said by the red dot; the word squeezed the model
+     pill to one letter and pushed the panel toggle off the edge. */
+  .conn.off { font-size: 0; gap: 0; padding: 0 6px; }
 }
 
 /* /connect: one form, provider to model. */

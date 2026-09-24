@@ -448,6 +448,17 @@ const phone = await evaljs(`(() => {
 check('a phone opens with the Session panel shut', !phone.start.work, JSON.stringify(phone));
 check('the two drawers never stack on a phone', !phone.both, JSON.stringify(phone));
 check('a tap on the dim closes the drawers', phone.closed, JSON.stringify(phone));
+const pill = await evaljs(`(() => {
+  window.__es.onmessage({ data: JSON.stringify({ type: 'hello', hello: { connected: true, model: 'openrouter · deepseek/deepseek-v4-flash', provider: 'openrouter', version: window.__janetUIBuild } }) });
+  window.__es.onerror();
+  const b = document.getElementById('model'), c = document.getElementById('conn');
+  const w = (id) => Math.round(document.querySelector(id)?.getBoundingClientRect().width || 0);
+  const r = { text: b.innerText.trim(), cut: b.scrollWidth > b.clientWidth + 1, conn: c.getBoundingClientRect().width, need: b.scrollWidth, has: b.clientWidth, ring: w('#view-ring'), right: w('.top-right'), open: w('#nav-open'), top: w('header.top') };
+  window.__es.onopen();
+  return r;
+})()`);
+check('a phone shows the model, not its vendor prefix', pill.text === 'deepseek-v4-flash' && pill.has >= 90, JSON.stringify(pill));
+check('reconnecting is a dot on a phone, not a word', pill.conn < 30, JSON.stringify(pill));
 await cmd('Emulation.clearDeviceMetricsOverride');
 
 console.log(results.join('\n'));
