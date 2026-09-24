@@ -473,6 +473,7 @@ func (m *model) applyConnect(modelID string) {
 		m.rememberModel(mi)
 	}
 	settingsapply.SwitchModel(m.opts.Config, m.opts.Agent, modelID, prov)
+	m.refreshWelcome()
 	s := m.opts.Agent.Settings()
 	if d := modelDetails(llm.ModelInfo{ContextWindow: s.ContextWindow, Price: s.Price}); d != "" {
 		note += " · " + d
@@ -485,6 +486,19 @@ func (m *model) applyConnect(modelID string) {
 		}
 	}
 	m.closeConnect(note)
+}
+
+// refreshWelcome rewrites the opening banner in place once a first run
+// has connected: it said "no provider configured yet: pick one below",
+// which is false from here on and pointed at a dialog that has closed.
+func (m *model) refreshWelcome() {
+	for _, e := range m.transcript.entries {
+		if e.kind == entryBanner {
+			e.text = m.welcome("")
+			e.rendered = "" // the banner is fixed text; force its re-render
+			return
+		}
+	}
 }
 
 func (m *model) closeConnect(note string) {
