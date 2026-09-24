@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -42,45 +43,45 @@ func FallbackChain(models []string, current string) []string {
 
 var statusRe = regexp.MustCompile(`(?i)(?:http |status |status code |code |error )(\d{3})`)
 
-// quotaWords are the ways a provider says the account is done for, as
-// opposed to that this request arrived too fast.
-var quotaWords = []string{
-	"insufficient_quota", "quota exceeded", "exceeded your current quota",
-	"insufficient balance", "available balance", "out of budget", "billing",
-	"usage limit reached", "credit balance is too low", "credits",
-	"allocated quota", "free allocated quota",
-}
-
 // worthFallback reports whether an error is one another model could
 // survive: an exhausted account, or a rate limit or server error that
 // outlived the provider's own retries. Everything else — a bad request, a
 // context overflow, an unknown tool, the user's cancellation — would fail
 // the same way on any model and is reported as it is.
+//
+// An error that carries its HTTP status is judged by the status and the
+// server's whole text (llm.ClassifyText), not by Error(): that is cut for
+// display, and an "insufficient balance" past the cut was missed. Only an
+// error with no status — a failure reported inside the stream — falls
+// back to reading its words.
 func worthFallback(err error) bool {
-	if err == nil || isContextOverflow(err) {
+	if err == nil || isContextOverflow(err) || errIsCancel(err) {
 		return false
 	}
-	if errIsCancel(err) {
-		return false
+	text := llm.ClassifyText(err)
+	if llm.PermanentLimit(text) {
+		return true
 	}
-	l := strings.ToLower(err.Error())
-	for _, w := range quotaWords {
-		if strings.Contains(l, w) {
-			return true
-		}
+	var se llm.StatusError
+	if errors.As(err, &se) && se.HTTPStatus() != 0 {
+		return fallbackStatus(se.HTTPStatus())
 	}
+	l := strings.ToLower(text)
 	if strings.Contains(l, "rate limit") || strings.Contains(l, "overloaded") {
 		return true
 	}
 	if m := statusRe.FindStringSubmatch(l); m != nil {
-		switch code := m[1]; {
-		case code == "429", code == "529", code == "402":
-			return true
-		case strings.HasPrefix(code, "5"):
-			return true
-		}
+		code, _ := strconv.Atoi(m[1])
+		return fallbackStatus(code)
 	}
 	return false
+}
+
+// fallbackStatus reports whether a status says this model cannot serve the
+// request now: too many requests, payment required, overloaded, or a
+// server error.
+func fallbackStatus(code int) bool {
+	return code == 429 || code == 402 || code == 529 || code >= 500
 }
 
 // errIsCancel reports whether err is a cancellation or a deadline, which

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -140,5 +141,40 @@ func TestFallbackRoutesToAnotherProvider(t *testing.T) {
 	}
 	if a.Provider != llm.Provider(other) {
 		t.Fatal("the session did not move to the provider that worked")
+	}
+}
+
+// statusErr is a provider error that carries its status and the server's
+// whole text, the way both providers' errors do.
+type statusErr struct {
+	status int
+	msg    string
+	detail string
+}
+
+func (e statusErr) Error() string            { return e.msg }
+func (e statusErr) HTTPStatus() int          { return e.status }
+func (e statusErr) RetryHint() time.Duration { return 0 }
+func (e statusErr) ErrorDetail() string      { return e.detail }
+
+// An error with a status is judged by the status and the whole server
+// text, not by the display copy, which is cut short.
+func TestWorthFallbackReadsTheStatusAndWholeText(t *testing.T) {
+	long := strings.Repeat("x", 400)
+	cases := []struct {
+		err  statusErr
+		want bool
+	}{
+		{statusErr{400, "http 400: " + long[:290], "http 400: " + long + " insufficient balance"}, true},
+		{statusErr{402, "Payment Required", ""}, true},
+		{statusErr{503, "unavailable", ""}, true},
+		{statusErr{400, "http 400: max_tokens exceeds your credits limit? no: bad param", ""}, false},
+		{statusErr{401, "rate limit key invalid", ""}, false},
+		{statusErr{403, "The free allocated quota is exhausted", ""}, true},
+	}
+	for _, c := range cases {
+		if got := worthFallback(fmt.Errorf("openai: %w", c.err)); got != c.want {
+			t.Errorf("%d %.40q: worthFallback = %v, want %v", c.err.status, c.err.msg, got, c.want)
+		}
 	}
 }

@@ -83,6 +83,8 @@ var exhausted = []string{
 	"billing",
 	"usage limit reached",
 	"credit balance is too low",
+	"insufficient credits",
+	"allocated quota",
 }
 
 // PermanentLimit reports whether a rate-limit message is really an
