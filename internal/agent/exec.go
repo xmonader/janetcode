@@ -455,6 +455,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		a.refuseCall(&call, msg, denied, emit)
 		return msg, nil, true, nil
 	}
+	if raw, bad := llm.UnparsedArguments(u.Input); bad {
+		return refuse(fmt.Sprintf("%s was not run: its arguments are not valid JSON (%.120q). Resend the call with the arguments as one JSON object.", u.Name, raw), false)
+	}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
 		if why, withheld := a.Tools.Withheld(u.Name); withheld {

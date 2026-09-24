@@ -215,14 +215,36 @@ func TestErrorBodyBoundedButLearnable(t *testing.T) {
 	}
 }
 
+// Arguments that are not JSON no longer fail the turn: a dropped bracket is
+// mended, anything else reaches the agent wrapped so the model can be told,
+// and a call cut off at the output limit is never mended.
 func TestInvalidToolJSONAndEmptyStream(t *testing.T) {
-	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, sse(`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c","function":{"name":"bash","arguments":"{oops"}}]},"finish_reason":"tool_calls"}]}`))
-	})
-	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err == nil || !strings.Contains(err.Error(), "invalid JSON") {
-		t.Fatalf("err = %v", err)
+	call := func(args, finish string) *llm.Response {
+		t.Helper()
+		body, _ := json.Marshal(args)
+		p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, sse(`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c","function":{"name":"bash","arguments":`+string(body)+`}}]},"finish_reason":"`+finish+`"}]}`))
+		})
+		resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+		if err != nil {
+			t.Fatalf("args %s: %v", args, err)
+		}
+		return resp
 	}
-	p = newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {})
+	if got := string(call(`{oops`, "tool_calls").Message.ToolUses()[0].Input); got != string(llm.InvalidArguments(`{oops`)) {
+		t.Errorf("unrepairable args = %s", got)
+	}
+	if got := string(call(`{"cmd":["ls"}`, "tool_calls").Message.ToolUses()[0].Input); got != `{"cmd":["ls"]}` {
+		t.Errorf("dropped bracket not mended: %s", got)
+	}
+	cut := call(`{"cmd":["ls"`, "length")
+	if cut.StopReason != llm.StopMaxTokens {
+		t.Errorf("stop = %v, want max tokens", cut.StopReason)
+	}
+	if _, bad := llm.UnparsedArguments(cut.Message.ToolUses()[0].Input); !bad {
+		t.Errorf("cut-off args were mended: %s", cut.Message.ToolUses()[0].Input)
+	}
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {})
 	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err == nil {
 		t.Fatal("expected error for empty stream")
 	}

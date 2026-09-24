@@ -1132,3 +1132,38 @@ func TestOpeningASessionIsNotAnIntegrityFault(t *testing.T) {
 		t.Fatalf("notices = %v", notices)
 	}
 }
+
+// A call whose arguments were not JSON and could not be mended is answered
+// without running, so the model can resend it; before, the stream failed
+// and the whole turn with it.
+func TestUnparsedArgumentsAreRefusedNotRun(t *testing.T) {
+	bad := &llm.Response{
+		Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "c1", Name: "write_file", Input: llm.InvalidArguments(`{"path": a.txt}`)},
+		}},
+		StopReason: llm.StopToolUse,
+		Usage:      llm.Usage{InputTokens: 1, OutputTokens: 1},
+	}
+	w := &countingTool{}
+	ag := &Agent{
+		Provider:    &fake{responses: []*llm.Response{bad, text("resent and done")}},
+		Tools:       tool.NewRegistry(w),
+		Log:         &session.Memory{},
+		AutoApprove: true,
+	}
+	var results []string
+	err := ag.Run(context.Background(), "write the file", func(e Event) {
+		if e.Kind == EvToolResult {
+			results = append(results, e.Output)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := atomic.LoadInt32(&w.calls); n != 0 {
+		t.Fatalf("the tool ran %d time(s) on arguments that are not JSON", n)
+	}
+	if len(results) != 1 || !strings.Contains(results[0], "not valid JSON") || !strings.Contains(results[0], "a.txt") {
+		t.Fatalf("the model should be shown what it sent, got %v", results)
+	}
+}

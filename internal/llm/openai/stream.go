@@ -360,8 +360,17 @@ func (s *streamState) response() (*llm.Response, error) {
 		if args == "" {
 			args = "{}"
 		}
+		// Arguments that are not JSON cost the whole turn if they fail the
+		// stream, and the response is already paid for. A structural slip
+		// is mended; anything else goes to the agent wrapped, and the
+		// model is told to resend the call. A response cut off at the
+		// output limit is never mended: its calls are refused whole.
 		if !json.Valid([]byte(args)) {
-			return nil, fmt.Errorf("openai: tool call %s has invalid JSON arguments: %.200s", acc.name, args)
+			if fixed, ok := llm.RepairJSON(args); ok && s.finish != "length" {
+				args = fixed
+			} else {
+				args = string(llm.InvalidArguments(args))
+			}
 		}
 		// acc.started is always true here: addToolCall starts a call as
 		// soon as it has a name, which is what got it past the guard above.
@@ -380,10 +389,12 @@ func (s *streamState) response() (*llm.Response, error) {
 // them whatever the server said.
 func stopReason(finish string, calledTools bool) llm.StopReason {
 	switch {
+	case finish == "length":
+		// Before calledTools: calls cut off at the output limit may have
+		// lost part of their arguments, and the agent refuses them.
+		return llm.StopMaxTokens
 	case calledTools:
 		return llm.StopToolUse
-	case finish == "length":
-		return llm.StopMaxTokens
 	case finish == "content_filter":
 		return llm.StopRefusal
 	case finish == "stop", finish == "":
