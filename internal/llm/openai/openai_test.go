@@ -1351,3 +1351,24 @@ func TestInlineThinkTagsBecomeThinking(t *testing.T) {
 		t.Errorf("thinking block = %+v", resp.Message.Blocks[0])
 	}
 }
+
+// Content sent as a list of parts (Mistral's reasoning models) and usage
+// sent as strings must not fail the chunk: a failed chunk reads as a
+// truncated stream, and the retry gets the same bytes back.
+func TestLenientChunkShapes(t *testing.T) {
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":[{"type":"thinking","thinking":[{"type":"text","text":"hmm"}]}]}}]}`,
+			`{"choices":[{"delta":{"content":[{"type":"text","text":"Hi "},{"type":"text","text":"there"}]}}]}`,
+			`{"choices":[{"delta":{"content":null},"finish_reason":"stop"}],"usage":{"prompt_tokens":"12","completion_tokens":3,"prompt_tokens_details":{"cached_tokens":null},"cost":"0.002"}}`))
+	})
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Message.Text() != "Hi there" || resp.Message.Blocks[0].Text != "hmm" {
+		t.Errorf("blocks = %+v", resp.Message.Blocks)
+	}
+	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 3 || resp.Usage.CostUSD != 0.002 {
+		t.Errorf("usage = %+v", resp.Usage)
+	}
+}

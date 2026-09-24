@@ -269,8 +269,11 @@ func (s *streamState) add(ch wireChunk) {
 			s.thinking.WriteString(part)
 			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: part})
 		}
-		if d.Content != "" {
-			s.addContent(s.inline.Feed(d.Content))
+		if d.Content.Thinking != "" {
+			s.addContent("", d.Content.Thinking)
+		}
+		if d.Content.Text != "" {
+			s.addContent(s.inline.Feed(d.Content.Text))
 		}
 		for i, tc := range d.ToolCalls {
 			s.addToolCall(i, tc)
@@ -293,15 +296,15 @@ func (s *streamState) addContent(text, think string) {
 
 // usageOf converts the wire usage.
 func usageOf(u *wireUsage) llm.Usage {
-	pt := u.PromptTokens
+	pt := int(u.PromptTokens)
 	cached := 0
 	if u.PromptTokensDetails != nil {
-		cached = u.PromptTokensDetails.CachedTokens
+		cached = int(u.PromptTokensDetails.CachedTokens)
 	}
 	// OpenAI/DashScope: cached_tokens is a subset of prompt_tokens.
 	// Store uncached input so Cost() and CacheRate() stay additive
 	// like the Anthropic path (input_tokens is already uncached there).
-	usage := llm.Usage{OutputTokens: u.CompletionTokens, CacheReadTokens: cached, CostUSD: u.Cost}
+	usage := llm.Usage{OutputTokens: int(u.CompletionTokens), CacheReadTokens: cached, CostUSD: float64(u.Cost)}
 	if cached > 0 && cached <= pt {
 		usage.InputTokens = pt - cached
 	} else {

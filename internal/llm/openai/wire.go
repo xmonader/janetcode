@@ -1,8 +1,11 @@
 package openai
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -101,7 +104,7 @@ type wireChunk struct {
 	Model   string `json:"model"`
 	Choices []struct {
 		Delta struct {
-			Content          string              `json:"content"`
+			Content          wireContent         `json:"content"`
 			ReasoningContent string              `json:"reasoning_content"`
 			Reasoning        string              `json:"reasoning"`
 			ReasoningDetails []wireReasoningPart `json:"reasoning_details"`
@@ -131,12 +134,104 @@ type wireDeltaToolCall struct {
 }
 
 type wireUsage struct {
-	PromptTokens        int `json:"prompt_tokens"`
-	CompletionTokens    int `json:"completion_tokens"`
+	PromptTokens        looseInt `json:"prompt_tokens"`
+	CompletionTokens    looseInt `json:"completion_tokens"`
 	PromptTokensDetails *struct {
-		CachedTokens int `json:"cached_tokens"`
+		CachedTokens looseInt `json:"cached_tokens"`
 	} `json:"prompt_tokens_details"`
-	Cost float64 `json:"cost"` // OpenRouter reports the request price
+	Cost looseFloat `json:"cost"` // OpenRouter reports the request price
+}
+
+// A chunk that fails to decode fails the stream as truncated, and the
+// retry gets the same bytes back. The types below accept the shapes
+// servers are known to send for a field besides the standard one, so a
+// well-formed reply is not lost to a type mismatch.
+
+// wireContent is a delta's content: a string, null, or — Mistral's
+// reasoning models — a list of parts, where a "thinking" part carries
+// reasoning and the rest carry text.
+type wireContent struct {
+	Text     string
+	Thinking string
+}
+
+func (c *wireContent) UnmarshalJSON(b []byte) error {
+	*c = wireContent{}
+	switch firstNonSpace(b) {
+	case 'n':
+		return nil
+	case '"':
+		return json.Unmarshal(b, &c.Text)
+	case '[':
+		var parts []struct {
+			Type     string          `json:"type"`
+			Text     string          `json:"text"`
+			Thinking json.RawMessage `json:"thinking"`
+		}
+		if err := json.Unmarshal(b, &parts); err != nil {
+			return err
+		}
+		for _, p := range parts {
+			if p.Type == "thinking" {
+				var inner wireContent
+				if len(p.Thinking) > 0 && inner.UnmarshalJSON(p.Thinking) == nil {
+					c.Thinking += inner.Text + inner.Thinking
+				}
+				continue
+			}
+			c.Text += p.Text
+		}
+		return nil
+	}
+	return fmt.Errorf("content: unexpected JSON %.40s", b)
+}
+
+// looseInt is a token count sent as a number, a numeric string or null.
+type looseInt int
+
+func (n *looseInt) UnmarshalJSON(b []byte) error {
+	var f looseFloat
+	if err := f.UnmarshalJSON(b); err != nil {
+		return err
+	}
+	*n = looseInt(f)
+	return nil
+}
+
+// looseFloat is a number sent as a number, a numeric string or null.
+type looseFloat float64
+
+func (f *looseFloat) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if string(b) == "null" {
+		*f = 0
+		return nil
+	}
+	if len(b) > 0 && b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		if strings.TrimSpace(s) == "" {
+			*f = 0
+			return nil
+		}
+		b = []byte(strings.TrimSpace(s))
+	}
+	v, err := strconv.ParseFloat(string(b), 64)
+	if err != nil {
+		return fmt.Errorf("number: %w", err)
+	}
+	*f = looseFloat(v)
+	return nil
+}
+
+func firstNonSpace(b []byte) byte {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 {
+		return 0
+	}
+	return b[0]
 }
 
 type wireError struct {
