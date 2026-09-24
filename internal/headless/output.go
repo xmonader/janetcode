@@ -150,7 +150,9 @@ var exitRules = []struct {
 	}, ExitCancelled},
 	{"budget", func(err error) bool { return errors.Is(err, ErrBudget) }, ExitBudget},
 	{"turn limit", func(err error) bool { return errors.Is(err, agent.ErrMaxIterations) }, ExitTurnLimit},
-	{"bad input", func(err error) bool { return errors.Is(err, ErrBadInput) }, ExitBadInput},
+	{"bad input", func(err error) bool {
+		return errors.Is(err, ErrBadInput) || errors.Is(err, config.ErrBadOverride)
+	}, ExitBadInput},
 	{"auth", func(err error) bool {
 		return errors.Is(err, llm.ErrNoAPIKey) || errors.Is(err, config.ErrNoCredentials) ||
 			KeyRejected(err) || looksLikeAuthHTTP(err)

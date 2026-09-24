@@ -82,6 +82,20 @@ func (r *Registry) Subjects() []Subject {
 	return out
 }
 
+// NoSubjectError is Report's answer to a name it does not know. Its
+// message is for the slash command; a command line words it itself.
+type NoSubjectError struct {
+	Name string
+	Near string // the nearest known name, or ""
+}
+
+func (e *NoSubjectError) Error() string {
+	if e.Near != "" {
+		return fmt.Sprintf("no subject %q; did you mean %q? (inspect list shows them all)", e.Name, e.Near)
+	}
+	return fmt.Sprintf("no subject %q (inspect list shows them all)", e.Name)
+}
+
 // Report renders one subject. The request is the subject's name followed
 // by its argument, as it is typed. An unknown name is answered with the
 // list, and with the nearest name when there is an obvious one.
@@ -96,10 +110,7 @@ func (r *Registry) Report(ctx context.Context, request string) (string, error) {
 	s, ok := r.subjects[name]
 	r.mu.RUnlock()
 	if !ok {
-		if near := r.nearest(name); near != "" {
-			return "", fmt.Errorf("no subject %q; did you mean %q? (inspect list shows them all)", name, near)
-		}
-		return "", fmt.Errorf("no subject %q (inspect list shows them all)", name)
+		return "", &NoSubjectError{Name: name, Near: r.nearest(name)}
 	}
 	out, err := s.Report(ctx, arg)
 	if err != nil {

@@ -48,7 +48,7 @@ type sessionMode struct {
 // TUI is the fallthrough -- and because a test can then walk it.
 var sessionModes = []sessionMode{
 	{"inspect", func(o *options) bool { return o.inspectWhat != "" }, false,
-		func(r *root) error { return inspectOnce(r.subjects, r.opts.inspectWhat, os.Stdout) }},
+		func(r *root) error { return inspectOnce(r.subjects, r.opts.inspectWhat, os.Stdout, false) }},
 	{"recipe", func(o *options) bool { return o.recipeName != "" }, false, (*root).recipeMode},
 	{"acp", func(o *options) bool { return o.acpMode }, true, (*root).acpMode},
 	{"headless", func(o *options) bool { return o.promptText != "" || o.watchCmd != "" }, true, (*root).headlessMode},

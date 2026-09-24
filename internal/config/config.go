@@ -420,6 +420,24 @@ func Keys() []string {
 }
 
 // badf builds an ErrBadConfig error with a message of its own.
+// ErrBadOverride marks a command-line value config.Load cannot use: a
+// usage error (exit 42), where ErrBadConfig is the file's fault (52).
+var ErrBadOverride = errors.New("bad command-line value")
+
+type badOverride struct{ msg string }
+
+func (e badOverride) Error() string { return e.msg }
+func (e badOverride) Unwrap() error { return ErrBadOverride }
+
+// badValue is badf for a value that may have come from a flag: named
+// after the flag and marked ErrBadOverride when it did.
+func badValue(fromFlag bool, flagName, format string, args ...any) error {
+	if fromFlag {
+		return badOverride{"--" + flagName + ": " + fmt.Sprintf(format, args...)}
+	}
+	return badf(format, args...)
+}
+
 func badf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrBadConfig, fmt.Sprintf(format, args...))
 }
@@ -641,7 +659,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if !ok {
 		pre, isPreset := FindPreset(cfg.Provider)
 		if !isPreset {
-			return nil, badf("unknown provider %q (configured: %s; presets: %s)", cfg.Provider, orNone(cfg.ProviderNames()), presetNames())
+			return nil, badValue(ov.Provider != "", "provider", "unknown provider %q (configured: %s; presets: %s)", cfg.Provider, orNone(cfg.ProviderNames()), presetNames())
 		}
 		active = Provider{Type: pre.Type, BaseURL: pre.BaseURL}
 		cfg.Providers[cfg.Provider] = active
@@ -694,7 +712,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
 	}
 	if !llm.ValidEffort(cfg.Effort) {
-		return nil, badf("invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
+		return nil, badValue(ov.Effort != "", "effort", "invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
 	}
 	// Build the theme set from the builtins, the config "themes" object and
 	// any theme files in <cfgDir>/themes. A bad user theme is a config
@@ -716,7 +734,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	case "", "auto", "dark", "light":
 	default:
 		if !set.Has(cfg.Theme) {
-			return nil, badf("unknown theme %q (want auto, dark, light or one of: %s)", cfg.Theme, strings.Join(set.Names(), ", "))
+			return nil, badValue(ov.Theme != "", "theme", "unknown theme %q (want auto, dark, light or one of: %s)", cfg.Theme, strings.Join(set.Names(), ", "))
 		}
 	}
 	if cfg.MaxTokens <= 0 {

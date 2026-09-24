@@ -407,10 +407,10 @@ func TestBadConfigIsTyped(t *testing.T) {
 	}{
 		{"malformed json", `{"model": `, Overrides{}},
 		{"unknown field", `{"nosuchkey": 1}`, Overrides{}},
-		{"unknown provider", `{}`, Overrides{Provider: "nosuch"}},
+		{"unknown provider", `{"provider": "nosuch"}`, Overrides{}},
 		{"bad provider type", `{"providers": {"weird": {"type": "grpc"}}}`, Overrides{Provider: "weird"}},
 		{"openai without a model", `{"providers": {"o": {"type": "openai", "api_key": "k"}}}`, Overrides{Provider: "o"}},
-		{"bad effort", `{}`, Overrides{Effort: "ultra"}},
+		{"bad effort", `{"effort": "ultra"}`, Overrides{}},
 		{"bad theme", `{"theme": "purple"}`, Overrides{}},
 		{"negative price", `{"prices": {"m": {"input": -1}}}`, Overrides{}},
 		{"empty price entry", `{"prices": {"m": {}}}`, Overrides{}},
@@ -434,6 +434,30 @@ func TestBadConfigIsTyped(t *testing.T) {
 	// The counter-case: a fine file with no key is not a bad config.
 	if _, err := load(write(`{}`), env(nil), Overrides{}); err == nil || errors.Is(err, ErrBadConfig) {
 		t.Fatalf("err = %v, want ErrNoCredentials only", err)
+	}
+}
+
+// The same bad value typed as a flag is a usage error (exit 42), named
+// after the flag, not "bad configuration" (exit 52) -- the file is fine.
+func TestBadFlagValueIsNotBadConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	keyed := env(map[string]string{"ANTHROPIC_API_KEY": "k"})
+	for _, c := range []struct {
+		ov   Overrides
+		flag string
+	}{
+		{Overrides{Provider: "nosuch"}, "--provider: "},
+		{Overrides{Theme: "purple"}, "--theme: "},
+		{Overrides{Effort: "ultra"}, "--effort: "},
+	} {
+		_, err := load(path, keyed, c.ov)
+		if !errors.Is(err, ErrBadOverride) || errors.Is(err, ErrBadConfig) {
+			t.Errorf("%+v: err = %v, want ErrBadOverride only", c.ov, err)
+			continue
+		}
+		if !strings.HasPrefix(err.Error(), c.flag) {
+			t.Errorf("err = %q, want it to start with %q", err, c.flag)
+		}
 	}
 }
 

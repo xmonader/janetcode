@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
@@ -225,8 +227,19 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 }
 
 // inspectOnce runs one subject and prints it, for the --inspect flag.
-func inspectOnce(r *inspect.Registry, request string, out *os.File) error {
+func inspectOnce(r *inspect.Registry, request string, out *os.File, offline bool) error {
 	report, err := r.Report(context.Background(), request)
+	var ns *inspect.NoSubjectError
+	if errors.As(err, &ns) {
+		msg := fmt.Sprintf("no --inspect subject %q", ns.Name)
+		if ns.Near != "" {
+			msg += fmt.Sprintf("; did you mean %q?", ns.Near)
+		}
+		if offline {
+			return headless.BadInput("%s without an API key: subjects about a session need one (janetcode --inspect list shows what is available now)", msg)
+		}
+		return headless.BadInput("%s (janetcode --inspect list shows them all)", msg)
+	}
 	if err != nil {
 		return err
 	}

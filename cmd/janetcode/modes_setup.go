@@ -55,10 +55,10 @@ func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 		for _, kv := range o.sets {
 			key, val, ok := strings.Cut(kv, "=")
 			if !ok {
-				return cfg, needsConnect, fmt.Errorf("--set wants key=value, got %q", kv)
+				return cfg, needsConnect, headless.BadInput("--set wants key=value, got %q", kv)
 			}
 			if _, e := config.ApplyKV(cfg, strings.TrimSpace(key), strings.TrimSpace(val)); e != nil {
-				return cfg, needsConnect, fmt.Errorf("--set %s: %w", key, e)
+				return cfg, needsConnect, headless.BadInput("--set %s: %v (janetcode --inspect config lists the keys)", key, e)
 			}
 		}
 		// A decisions block reached through --set is validated the same
@@ -118,7 +118,7 @@ func offlineInspect(fs *flag.FlagSet, o *options, cfg *config.Config, cerr error
 	registerOfflineSubjects(r, cfg, cfgPath, cwd, cerr)
 	registerFeatureSubject(r, buildCatalog(fs, nil))
 	registerThemeSubject(r, cfg)
-	return true, inspectOnce(r, o.inspectWhat, os.Stdout)
+	return true, inspectOnce(r, o.inspectWhat, os.Stdout, true)
 }
 
 // openWorktree moves the run into a git worktree on --worktree's branch.
