@@ -152,7 +152,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 					Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "Reply with the single word: ok")}}, nil)
 				cancel()
 				if cerr != nil {
-					row(false, "model call", fmt.Sprintf("%s: %v", cfg.Model, cerr))
+					row(false, "model call", fmt.Sprintf("%s: %s", cfg.Model, llm.Explain(cerr, cfg.Provider, llm.Remedies{Key: "(run janetcode and /connect, or edit the config)", Model: "with --model"}).String()))
 				} else {
 					row(true, "model call", fmt.Sprintf("%s answered in %s (%d in / %d out tokens)", cfg.Model, time.Since(start).Round(time.Millisecond), resp.Usage.InputTokens, resp.Usage.OutputTokens))
 				}

@@ -65,7 +65,7 @@ func main() {
 	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "janetcode:", err)
-		if headless.KeyRejected(err) {
+		if headless.KeyRejected(err) && !headless.Explained(err) {
 			fmt.Fprintln(os.Stderr, "janetcode: the endpoint rejected the API key; check the key for the provider in use (janetcode --doctor shows which key each provider has)")
 		}
 	}

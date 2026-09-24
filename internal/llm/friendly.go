@@ -58,6 +58,7 @@ func Explain(err error, provider string, how Remedies) Explanation {
 	switch {
 	case strings.Contains(l, "connection refused") || strings.Contains(l, "no such host") || strings.Contains(l, "dial tcp"):
 		f.Headline, f.Next = "Cannot reach the API", fmt.Sprintf("Check the base URL for %s %s, and your network.", provider, how.Key)
+		f.Reason = networkReason(raw)
 	case strings.Contains(l, "http 401") || strings.Contains(l, "http 403") || strings.Contains(l, "authentication") || strings.Contains(l, "invalid x-api-key") || strings.Contains(l, "incorrect api key"):
 		f.Headline, f.Next, f.Retry = "Authentication failed", fmt.Sprintf("Check the API key for %s %s.", provider, how.Key), false
 	case strings.Contains(l, "http 429") || strings.Contains(l, "rate limit") || strings.Contains(l, "quota"):
@@ -123,4 +124,27 @@ func errorCode(l string) string {
 		return "timeout"
 	}
 	return ""
+}
+
+var (
+	dialTarget = regexp.MustCompile(`dial tcp ([^\s]+?):? (?:connect|i/o)`)
+	lookupHost = regexp.MustCompile(`lookup ([^\s:]+)`)
+)
+
+// networkReason says a network failure in plain words: Go's own text
+// ("Post \"...\": dial tcp 127.0.0.1:9: connect: connection refused") is
+// the URL, the syscall and the errno, when all that matters is where.
+func networkReason(raw string) string {
+	l := strings.ToLower(raw)
+	switch {
+	case strings.Contains(l, "no such host"):
+		if m := lookupHost.FindStringSubmatch(raw); m != nil {
+			return "no host named " + m[1]
+		}
+	case strings.Contains(l, "connection refused"):
+		if m := dialTarget.FindStringSubmatch(raw); m != nil {
+			return "nothing is listening at " + m[1]
+		}
+	}
+	return reasonOf(raw)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -136,5 +137,29 @@ func TestExitCodesAreStableAndDistinct(t *testing.T) {
 			t.Errorf("%s and %s both exit %d", name, other, code)
 		}
 		seen[code] = name
+	}
+}
+
+// A headless failure used to print Go's raw network error ("Post ...:
+// dial tcp 127.0.0.1:9: connect: connection refused") while the TUI
+// said what failed and what to try. Explained errors keep their cause
+// for the exit status; the run's own stops pass through untouched.
+func TestExplainFailureWordsProviderErrors(t *testing.T) {
+	refused := fmt.Errorf(`Post "http://127.0.0.1:9/v1/chat/completions": dial tcp 127.0.0.1:9: connect: connection refused`)
+	got := explainFailure(refused, Options{})
+	if !strings.HasPrefix(got.Error(), "Cannot reach the API") || !strings.Contains(got.Error(), "janetcode --doctor") {
+		t.Fatalf("refused = %q", got)
+	}
+	if !errors.Is(got, refused) || !Explained(got) {
+		t.Fatal("the explanation lost its cause")
+	}
+	auth := &openai.APIError{Status: 401, Message: "bad key"}
+	if x := explainFailure(auth, Options{}); ExitCode(x) != ExitAuth || !KeyRejected(x) {
+		t.Fatalf("auth explained to exit %d", ExitCode(x))
+	}
+	for _, own := range []error{context.Canceled, ErrBudget, errors.New("something else entirely")} {
+		if x := explainFailure(own, Options{}); x != own {
+			t.Errorf("%v was rewritten to %v", own, x)
+		}
 	}
 }

@@ -344,7 +344,7 @@ func TestErrorRendering(t *testing.T) {
 		switch {
 		case strings.HasPrefix(l, "✗ Cannot reach the API"):
 			seen++
-		case strings.Contains(l, "check the base URL") || strings.Contains(l, "connection refused"):
+		case strings.Contains(l, "Check the base URL") || strings.Contains(l, "nothing is listening") || strings.Contains(l, "your network"):
 			seen++
 			if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "   ") {
 				indented++

@@ -18,7 +18,7 @@ func TestExplainSortsFailures(t *testing.T) {
 		retry bool
 	}{
 		{errors.New("Post \"https://x/v1\": dial tcp 10.0.0.1:443: connect: connection refused"),
-			"Cannot reach the API (refused): Post \"https://x/v1\": dial tcp 10.0.0.1:443: connect: connection refused. Check the base URL for openai with /connect, and your network.", true},
+			"Cannot reach the API (refused): nothing is listening at 10.0.0.1:443. Check the base URL for openai with /connect, and your network.", true},
 		{errors.New("Unauthorized (HTTP 401)"),
 			"Authentication failed (HTTP 401): Unauthorized. Check the API key for openai with /connect.", false},
 		{errors.New("openai: http 403: invalid x-api-key"),
@@ -59,5 +59,18 @@ func TestExplainUsesTheFrontEndsRemedy(t *testing.T) {
 	got := Explain(errors.New("Unauthorized (HTTP 401)"), "dashscope", web).String()
 	if strings.Contains(got, "/connect") || !strings.Contains(got, "--doctor") || !strings.Contains(got, "dashscope") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestNetworkFailuresSayWhereNotHow(t *testing.T) {
+	for raw, want := range map[string]string{
+		`Post "http://127.0.0.1:9/v1/chat/completions": dial tcp 127.0.0.1:9: connect: connection refused`: "nothing is listening at 127.0.0.1:9",
+		`Post "https://nope.invalid/v1/chat/completions": dial tcp: lookup nope.invalid: no such host`:      "no host named nope.invalid",
+		`Post "https://nope.invalid/v1": dial tcp: lookup nope.invalid on 127.0.0.53:53: no such host`:    "no host named nope.invalid",
+	} {
+		x := Explain(errors.New(raw), "openai", Remedies{Key: "with /connect"})
+		if x.Headline != "Cannot reach the API" || x.Reason != want {
+			t.Errorf("%s:\n got %q / %q, want reason %q", raw, x.Headline, x.Reason, want)
+		}
 	}
 }

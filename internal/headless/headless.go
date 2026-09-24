@@ -319,7 +319,7 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			}
 		}
 	}
-	return err
+	return explainFailure(err, opts)
 }
 
 // stdinApprover asks on the terminal; without a terminal it denies, so a
@@ -529,4 +529,44 @@ func printEvent(opts Options, e agent.Event) {
 		}
 		fmt.Fprintln(opts.Stderr)
 	}
+}
+
+// cliRemedies are the fixes a command line can reach for.
+var cliRemedies = llm.Remedies{Key: "(janetcode --doctor checks it)", Model: "with --model (janetcode --inspect providers shows the endpoint)"}
+
+// explainedError is a provider failure in the words the terminal UI
+// uses for it, still unwrapping to the original so the exit status and
+// KeyRejected read the same cause.
+type explainedError struct {
+	msg string
+	err error
+}
+
+func (e explainedError) Error() string { return e.msg }
+func (e explainedError) Unwrap() error { return e.err }
+
+// explainFailure turns a raw provider failure ("Post \"...\": dial tcp
+// ...: connection refused") into what failed and what to try. Errors
+// it does not recognise, and the run's own stops (cancelled, budget,
+// turn limit), pass through unchanged.
+func explainFailure(err error, opts Options) error {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrBudget) || errors.Is(err, agent.ErrMaxIterations) {
+		return err
+	}
+	provider := "the provider"
+	if opts.Session != nil && opts.Session.Meta.Provider != "" {
+		provider = opts.Session.Meta.Provider
+	}
+	x := llm.Explain(err, provider, cliRemedies)
+	if x.Headline == "" {
+		return err
+	}
+	return explainedError{msg: x.String(), err: err}
+}
+
+// Explained reports whether err already carries its own next step, so a
+// caller does not add a second one.
+func Explained(err error) bool {
+	var x explainedError
+	return errors.As(err, &x)
 }
