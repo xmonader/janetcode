@@ -259,3 +259,27 @@ func TestFeatureFlagsUseTheHelpSpelling(t *testing.T) {
 		}
 	}
 }
+
+// The site's reference lists every slash command; it fell 13 behind
+// before anything checked.
+func TestSiteReferenceListsEverySlashCommand(t *testing.T) {
+	page, err := os.ReadFile(filepath.Join("..", "..", "site", "reference.html"))
+	if err != nil {
+		t.Skip("no site/ in this checkout")
+	}
+	fs, _ := newFlagSet()
+	seen := map[string]bool{}
+	for _, f := range buildCatalog(fs, nil).OfKind(feature.KindCommand) {
+		name, _, _ := strings.Cut(f.Name, " ")
+		if !strings.HasPrefix(name, "/") || seen[name] {
+			continue
+		}
+		seen[name] = true
+		if !strings.Contains(string(page), "<code>"+name+"</code>") {
+			t.Errorf("site/reference.html does not list %s", name)
+		}
+	}
+	if len(seen) < 40 {
+		t.Fatalf("only %d commands found; the catalogue lookup is wrong", len(seen))
+	}
+}
