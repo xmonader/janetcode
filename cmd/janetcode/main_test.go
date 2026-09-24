@@ -100,8 +100,10 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	if !strings.Contains(sleepSys, "consolidate") {
 		t.Fatalf("sleep system prompt = %q", sleepSys)
 	}
-	if !strings.Contains(errOut, "[memory] sleep: nothing kept") {
-		t.Fatalf("stderr = %q", errOut)
+	// It ran (its request is above) and kept nothing, which is not news:
+	// no line about it.
+	if strings.Contains(errOut, "[memory] sleep") {
+		t.Fatalf("an empty sleep pass was reported: %q", errOut)
 	}
 	memFiles, _ := filepath.Glob(filepath.Join(home, ".local", "share", "janetcode", "memory", "*", "*.md"))
 	if len(memFiles) != 1 || filepath.Base(memFiles[0]) != "out.txt-generated-hello.txt.md" {

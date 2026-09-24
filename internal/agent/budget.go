@@ -60,7 +60,7 @@ func (a *Agent) stopForBudget(spent float64, uses []llm.Block, emit func(Event))
 		results := make([]llm.Block, 0, len(uses))
 		for _, u := range uses {
 			call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
-			msg := u.Name + " was not run: " + err.Error() + "."
+			msg := u.Name + " was not run: the cost budget is spent."
 			results = append(results, llm.ToolResult(replyID(u), msg, true))
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 			a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
@@ -72,8 +72,10 @@ func (a *Agent) stopForBudget(spent float64, uses []llm.Block, emit func(Event))
 		// have no tool_result, which every provider refuses.
 		a.logEvent(session.Event{Type: session.TypeToolResult, Surface: true, Message: &tr})
 	}
-	emit(Event{Kind: EvNotice, Text: err.Error()})
-	emit(Event{Kind: EvVerdict, Text: "stopped on the cost budget · " + err.Error(), IsError: true})
+	// The returned error carries the figures and every front end prints
+	// it; a notice and a verdict repeating them made one stop read four
+	// times in a row.
+	emit(Event{Kind: EvVerdict, Text: "stopped on the cost budget", IsError: true})
 	return err
 }
 

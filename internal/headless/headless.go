@@ -245,13 +245,9 @@ func sleepSession(ctx context.Context, opts Options) {
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
 	}
-	if len(changed) == 0 {
-		why := "the record held nothing new"
-		if dropped > 0 {
-			why = fmt.Sprintf("%d candidate(s) cited evidence the record does not have", dropped)
-		}
-		fmt.Fprintf(opts.Stderr, "[memory] sleep: nothing kept (%s)\n", why)
-	}
+	// Nothing kept is the usual outcome and not news; it ended every
+	// headless run with a line about an internal pass.
+	_ = dropped
 	for _, e := range changed {
 		fmt.Fprintf(opts.Stderr, "[memory] sleep remembered %s: %s\n", e.Name, e.Description)
 	}

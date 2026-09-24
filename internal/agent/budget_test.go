@@ -39,18 +39,20 @@ func TestBudgetStopsWithinATurn(t *testing.T) {
 	if !strings.Contains(err.Error(), "$1.20") || !strings.Contains(err.Error(), "$1.00") {
 		t.Fatalf("err = %v, want it to say what was spent of what", err)
 	}
-	// The user hears about it through the channels a turn already uses.
-	var notice, verdict bool
+	// The user hears about it once: the returned error carries the
+	// figures, a verdict marks the turn. A notice repeating the error made
+	// one stop read four times over in a headless run.
+	var notices, verdicts int
 	for _, e := range *evs {
 		if e.Kind == EvNotice && strings.Contains(e.Text, "cost budget") {
-			notice = true
+			notices++
 		}
-		if e.Kind == EvVerdict && e.IsError {
-			verdict = true
+		if e.Kind == EvVerdict && e.IsError && e.Text == "stopped on the cost budget" {
+			verdicts++
 		}
 	}
-	if !notice || !verdict {
-		t.Fatalf("notice = %v, verdict = %v; events = %+v", notice, verdict, *evs)
+	if notices != 0 || verdicts != 1 {
+		t.Fatalf("notices = %d, verdicts = %d; want 0 and 1", notices, verdicts)
 	}
 	// The third call's tool was answered, not run, and the history still
 	// pairs every tool_use with a result — otherwise the next request
