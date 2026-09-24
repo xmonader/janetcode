@@ -1703,3 +1703,18 @@ func TestCommandMenuAlignsHelp(t *testing.T) {
 		}
 	}
 }
+
+// The end-of-turn status leads with what the turn cost and ends with the
+// token counts, so a narrow terminal cuts the counts rather than the cost.
+func TestTurnStatusPutsCostBeforeTokens(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn,
+		Usage: llm.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000}})
+	h.m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.Price = &llm.Price{Input: 10, Output: 30} })
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	cost, tokens := strings.Index(h.m.status, "$40"), strings.Index(h.m.status, "in 1.0M")
+	if cost < 0 || tokens < 0 || cost > tokens {
+		t.Fatalf("status = %q", h.m.status)
+	}
+}

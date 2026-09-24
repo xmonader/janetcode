@@ -80,32 +80,33 @@ type model struct {
 	// openedAt is when this window opened. /stats used startedAt, which
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
-	openedAt    time.Time
-	pending     *permissionMsg
-	rung        int  // the highlighted rung of the pending call's rule ladder
-	denying     bool // the input box is collecting a reason for a denial
-	status      string
-	lastTurn    string                   // usage summary of the last turn
-	lastVerdict string                   // the last turn's verdict line
-	ticks       int                      // tick count, for slow periodic checks
-	lastUsage   llm.Usage                // the last turn's usage
-	hint        hintsState               // the one-time hint engine and what it watches
-	custom      map[string]prompt.Custom // user-defined slash commands
-	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
-	copyText    func(string) error       // writes text to the clipboard; swapped in tests
-	comp        completionState          // highlight in the completion menu
-	skills      skillRowCache            // the menu's skill rows, as last read from disk
-	goal        goalCache                // the status line's goal note, as last folded from the log
-	finder      findState                // the last /find, so a repeat advances
-	picker      *picker                  // open searchable list
-	connect     *connect                 // open provider/model dialog
-	wiz         *wizard                  // open step dialog (/mcp add)
-	ov          overlayState             // live panel over the transcript; empty kind is closed
-	traj        trajBrowse               // the trajectory overlay's own state: mode, filter, ordering
-	planH       int                      // last reserved plan-strip height, so a rewrite relayouts
-	connectGen  int
-	quitting    bool
-	branch      string
+	openedAt       time.Time
+	pending        *permissionMsg
+	rung           int  // the highlighted rung of the pending call's rule ladder
+	denying        bool // the input box is collecting a reason for a denial
+	status         string
+	lastTurn       string                   // cost summary of the last turn
+	lastTurnTokens string                   // its token counts, said last
+	lastVerdict    string                   // the last turn's verdict line
+	ticks          int                      // tick count, for slow periodic checks
+	lastUsage      llm.Usage                // the last turn's usage
+	hint           hintsState               // the one-time hint engine and what it watches
+	custom         map[string]prompt.Custom // user-defined slash commands
+	clipboard      func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	copyText       func(string) error       // writes text to the clipboard; swapped in tests
+	comp           completionState          // highlight in the completion menu
+	skills         skillRowCache            // the menu's skill rows, as last read from disk
+	goal           goalCache                // the status line's goal note, as last folded from the log
+	finder         findState                // the last /find, so a repeat advances
+	picker         *picker                  // open searchable list
+	connect        *connect                 // open provider/model dialog
+	wiz            *wizard                  // open step dialog (/mcp add)
+	ov             overlayState             // live panel over the transcript; empty kind is closed
+	traj           trajBrowse               // the trajectory overlay's own state: mode, filter, ordering
+	planH          int                      // last reserved plan-strip height, so a rewrite relayouts
+	connectGen     int
+	quitting       bool
+	branch         string
 	// gutterOff is the hysteresis latch for the transcript margin: it
 	// turns off below gutterCollapseWidth and stays off until the
 	// terminal is at least gutterRestoreWidth, so resizing around 88

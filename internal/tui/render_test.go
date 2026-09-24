@@ -237,7 +237,7 @@ func TestStatusBarFitsWidth(t *testing.T) {
 		}},
 		{"done with a verdict", func() {
 			h.m.pending = nil
-			h.m.status = "✓ verified · done in 12.4s · in 12k · out 3.1k · $0.02 · 3 files changed · /undo reverts"
+			h.m.status = "✓ verified · done in 12.4s · $0.02 · 3 files changed · /undo reverts · in 12k · out 3.1k"
 		}},
 		{"scrolled up", func() { h.m.pinned = false }},
 	}

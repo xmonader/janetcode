@@ -265,7 +265,7 @@ func (m *model) resume(arg string) {
 	m.transcript = newTranscriptStyled(m.transcript.styleName, m.styles)
 	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
-	m.lastTurn = ""
+	m.lastTurn, m.lastTurnTokens = "", ""
 	m.lastVerdict = ""
 	m.repin()
 }

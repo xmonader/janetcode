@@ -295,6 +295,9 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		if n := m.filesChangedLastTurn(); n > 0 {
 			m.status += fmt.Sprintf(" · %s changed · /undo reverts", textfmt.Plural(n, "file"))
 		}
+		if m.lastTurnTokens != "" {
+			m.status += " · " + m.lastTurnTokens
+		}
 	}
 	// The end of a turn is where the hint rules get their chance: the
 	// counters are settled, nothing is being asked of the user, and a

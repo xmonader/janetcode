@@ -109,7 +109,7 @@ func goldenTurn(h *harness) {
 	ev(agent.Event{Kind: agent.EvTextBlockDone})
 	ev(agent.Event{Kind: agent.EvVerdict, Text: "✓ verified: 1 file edited; " + agent.FlippedWhy})
 	ev(agent.Event{Kind: agent.EvTurnDone})
-	m.status = "✓ verified · done in 1m42s · in 69k · out 3.2k · 1 file changed · /undo reverts"
+	m.status = "✓ verified · done in 1m42s · 1 file changed · /undo reverts · in 69k · out 3.2k"
 }
 
 // stableFrame takes out what changes between two runs of the same

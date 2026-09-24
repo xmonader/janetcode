@@ -367,7 +367,7 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(""))
 	m.note("new session " + sess.Meta.ID)
-	m.lastTurn, m.lastVerdict, m.status = "", "", ""
+	m.lastTurn, m.lastTurnTokens, m.lastVerdict, m.status = "", "", "", ""
 	m.pinned = true
 	return nil, false
 }

@@ -43,7 +43,7 @@
 
 
 
-  ask · ✓ verified · done in 1m42s · in 69k · out 3.2k · 1 file changed · /undo reverts      ctx 0%
+  ask · ✓ verified · done in 1m42s · 1 file changed · /undo reverts · in 69k · out 3.2k      ctx 0%
 
   ╭────────────────────────────────────────────────────────────────────────────────────────────────╮
   │❯ Ask for a change, a fix, or an explanation… · / for commands                                  │

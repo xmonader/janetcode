@@ -457,21 +457,26 @@ func (m *model) applyEvent(ev agent.Event) {
 		u := ev.Usage
 		m.lastUsage = u
 		in := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
-		s := fmt.Sprintf("in %s · out %s", textfmt.Tokens(in), textfmt.Tokens(u.OutputTokens))
+		// The cost leads and the token counts trail: a narrow status
+		// line is cut from the right, and "$0…" kept the half nobody
+		// reads while the gauge on the right already shows the tokens.
+		var parts []string
 		if usd, ok := u.Cost(m.opts.Agent.Settings().Price); ok {
-			s += " · " + llm.FormatUSD(usd)
+			c := llm.FormatUSD(usd)
 			if u.CostSource(m.opts.Agent.Settings().Price) != "reported" {
-				s += " est."
+				c += " est."
 			}
+			parts = append(parts, c)
 		}
 		// A ceiling the session will stop on belongs where the spend is,
 		// not only in the message that announces it has been reached.
 		if m.opts.Agent.MaxCost() > 0 {
-			s += " · budget " + m.budgetStatus()
+			parts = append(parts, "budget "+m.budgetStatus())
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {
-			s += " · stopped: " + string(ev.StopReason)
+			parts = append(parts, "stopped: "+string(ev.StopReason))
 		}
-		m.lastTurn = s
+		m.lastTurn = strings.Join(parts, " · ")
+		m.lastTurnTokens = fmt.Sprintf("in %s · out %s", textfmt.Tokens(in), textfmt.Tokens(u.OutputTokens))
 	}
 }

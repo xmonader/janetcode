@@ -53,7 +53,7 @@ pass
 
 
 
- ask · ✓ verified · done in 1m42s · in 69k · out 3.… ctx 0%
+ ask · ✓ verified · done in 1m42s · 1 file changed … ctx 0%
 
 ╭──────────────────────────────────────────────────────────╮
 │❯ Ask for a change or a fix · / for commands              │
