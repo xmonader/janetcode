@@ -97,6 +97,36 @@ type options struct {
 	sets stringList
 }
 
+// helpGroups orders --help by what a reader is trying to do, everyday
+// first. A flag not listed in any group lands in "Advanced", so a new
+// flag is never missing from the help, only filed there until someone
+// decides it belongs higher up.
+var helpGroups = []struct {
+	title string
+	names []string
+}{
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme"}},
+	{"Headless (-p)", []string{"p", "prompt", "output-format", "json", "bg", "max-turns", "max-cost", "until", "watch"}},
+	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
+	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "mcp-auth", "version"}},
+	{"Advanced", nil},
+	{"Eval and benchmark (see docs/manual/evals.md)", nil},
+}
+
+func helpGroupOf(name string) string {
+	if name == "eval" || strings.HasPrefix(name, "eval-") {
+		return helpGroups[len(helpGroups)-1].title
+	}
+	for _, g := range helpGroups {
+		for _, n := range g.names {
+			if n == name {
+				return g.title
+			}
+		}
+	}
+	return "Advanced"
+}
+
 // newFlagSet declares janetcode's flags and returns the set together with
 // the options struct the parsed values land in.
 func newFlagSet() (*flag.FlagSet, *options) {
@@ -108,17 +138,23 @@ Usage: janetcode [flags] [prompt]   interactive session in the current directory
                                      optionally starting with a prompt
        janetcode -p "prompt" [flags] run one prompt headless and exit
 
-Flags:
 `, version)
-		isEval := func(name string) bool { return name == "eval" || strings.HasPrefix(name, "eval-") }
-		printFlags(fs, func(f *flag.Flag) bool { return !isEval(f.Name) })
-		fmt.Fprintf(fs.Output(), "\nEval and benchmark flags (see docs/manual/evals.md):\n")
-		printFlags(fs, func(f *flag.Flag) bool { return isEval(f.Name) })
+		for _, g := range helpGroups {
+			fmt.Fprintf(fs.Output(), "\n%s:\n", g.title)
+			if g.names == nil {
+				printFlags(fs, func(f *flag.Flag) bool { return helpGroupOf(f.Name) == g.title })
+			}
+			for _, n := range g.names {
+				if f := fs.Lookup(n); f != nil {
+					printFlag(fs, f)
+				}
+			}
+		}
 		fmt.Fprintf(fs.Output(), `
 Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
              (a key may be a comma-separated list; they are rotated on rate limits),
              JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
-             JANETCODE_OFF=<names> disables behaviours for a session (see -eval-off)
+             JANETCODE_OFF=<names> disables behaviours for a session (see --eval-off)
              JANETCODE_SYSTEM_MD=<file> replaces the base system prompt
              JANETCODE_DEBUG=<file> appends a timestamped event log
 Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)

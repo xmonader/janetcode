@@ -79,24 +79,33 @@ func main() {
 // help can show the everyday flags apart from the eval ones.
 func printFlags(fs *flag.FlagSet, keep func(*flag.Flag) bool) {
 	fs.VisitAll(func(f *flag.Flag) {
-		if !keep(f) {
-			return
+		if keep(f) {
+			printFlag(fs, f)
 		}
-		name, usage := flag.UnquoteUsage(f)
-		line := "  -" + f.Name
-		if name != "" {
-			line += " " + name
-		}
-		line += "\n    \t" + strings.ReplaceAll(usage, "\n", "\n    \t")
-		if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" {
-			if name == "string" {
-				line += fmt.Sprintf(" (default %q)", f.DefValue)
-			} else {
-				line += fmt.Sprintf(" (default %s)", f.DefValue)
-			}
-		}
-		fmt.Fprintln(fs.Output(), line)
 	})
+}
+
+// printFlag writes one flag the way flag.PrintDefaults would.
+func printFlag(fs *flag.FlagSet, f *flag.Flag) {
+	name, usage := flag.UnquoteUsage(f)
+	// Go's flag package takes one dash or two; the help shows the
+	// spelling the README and docs use: -p and -c short, the rest long.
+	line := "  --" + f.Name
+	if len(f.Name) == 1 {
+		line = "  -" + f.Name
+	}
+	if name != "" {
+		line += " " + name
+	}
+	line += "\n    \t" + strings.ReplaceAll(usage, "\n", "\n    \t")
+	if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" {
+		if name == "string" {
+			line += fmt.Sprintf(" (default %q)", f.DefValue)
+		} else {
+			line += fmt.Sprintf(" (default %s)", f.DefValue)
+		}
+	}
+	fmt.Fprintln(fs.Output(), line)
 }
 
 // startup is the state the stages before the composition root hand each
