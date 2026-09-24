@@ -37,6 +37,12 @@ func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 	cfg, err = config.Load(config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag, AutoApprove: o.yolo})
 	// --web asks in the browser, so it needs no terminal to ask in.
 	needsConnect = err != nil && errors.Is(err, config.ErrNoCredentials) && o.promptText == "" && (o.web || term.IsTerminal(int(os.Stdin.Fd())))
+	// A recipe replays tool calls with no model call; with no key it runs
+	// and, on a failed step, exits instead of handing over (recipe.go).
+	// It used to refuse to start for want of a key it never needed.
+	if err != nil && errors.Is(err, config.ErrNoCredentials) && o.recipeName != "" && o.promptText == "" {
+		needsConnect = true
+	}
 	// The turn cap and the compaction threshold are settings, not eval
 	// plumbing: a headless run driven by a benchmark needs the same two
 	// knobs the eval runner takes, and applying them to the config means

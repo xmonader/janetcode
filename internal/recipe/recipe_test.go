@@ -2,6 +2,7 @@ package recipe
 
 import (
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -311,5 +312,18 @@ func TestListOnMissingDirIsEmptyNotError(t *testing.T) {
 	}
 	if len(list) != 0 {
 		t.Fatalf("got %+v", list)
+	}
+}
+
+func TestLoadSaysWhatIsSaved(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Load(root, "x"); !errors.Is(err, ErrNoRecipe) || !strings.Contains(err.Error(), "none are saved") {
+		t.Fatalf("empty project: %v", err)
+	}
+	if _, err := Save(root, Recipe{Name: "fmt", Steps: []Step{{Tool: "bash", Input: []byte(`{"command":"gofmt -l ."}`)}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(root, "x"); !errors.Is(err, ErrNoRecipe) || err.Error() != `no recipe named "x"; saved: fmt` {
+		t.Fatalf("one saved: %v", err)
 	}
 }

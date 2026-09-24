@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -140,6 +141,9 @@ func (r *root) recipeMode() error {
 	defer stop()
 	defer r.syncSession()
 	rec, err := recipe.Load(cwd, o.recipeName)
+	if errors.Is(err, recipe.ErrNoRecipe) {
+		return headless.BadInput("--recipe: %v", err)
+	}
 	if err != nil {
 		return fmt.Errorf("--recipe: %w", err)
 	}

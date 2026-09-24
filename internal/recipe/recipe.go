@@ -395,7 +395,7 @@ func Load(root, name string) (Recipe, error) {
 	data, err := os.ReadFile(filepath.Join(recipesDir(root), name+".json"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Recipe{}, fmt.Errorf("no recipe named %q (/recipe list shows what is saved)", name)
+			return Recipe{}, notFound(root, name)
 		}
 		return Recipe{}, err
 	}
@@ -408,6 +408,36 @@ func Load(root, name string) (Recipe, error) {
 	}
 	return r, nil
 }
+
+// ErrNoRecipe is Load's error for a name nothing is saved under.
+var ErrNoRecipe = errors.New("no such recipe")
+
+// notFound names what is saved, so the answer works from the CLI as well
+// as from a session: it used to point at /recipe list, which a shell
+// running --recipe does not have.
+func notFound(root, name string) error {
+	have, _ := List(root)
+	near := make([]string, 0, len(have))
+	for _, r := range have {
+		near = append(near, r.Name)
+	}
+	msg := fmt.Sprintf("no recipe named %q", name)
+	switch {
+	case len(near) == 0:
+		msg += "; none are saved in this project (a session saves one with /recipe save)"
+	case len(near) <= 8:
+		msg += "; saved: " + strings.Join(near, ", ")
+	default:
+		msg += fmt.Sprintf("; %d are saved, e.g. %s", len(near), strings.Join(near[:8], ", "))
+	}
+	return noRecipe(msg)
+}
+
+// noRecipe is ErrNoRecipe with the message that says what is saved.
+type noRecipe string
+
+func (e noRecipe) Error() string        { return string(e) }
+func (e noRecipe) Is(target error) bool { return target == ErrNoRecipe }
 
 // List returns every saved recipe, by name. A file that fails to parse is
 // skipped rather than failing the whole listing.
