@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -311,7 +313,16 @@ func (s *server) runCommand(text string) error {
 	}
 	h, ok := webDispatch[name]
 	if !ok {
-		s.errf("unknown command %s (try /help)", name)
+		names := make([]string, 0, len(webDispatch))
+		for n := range webDispatch {
+			names = append(names, n)
+		}
+		sort.Strings(names) // Nearest keeps the first of equal scores
+		if near := textfmt.Nearest(name, names); near != "" {
+			s.errf("unknown command %s · did you mean %s?", name, near)
+		} else {
+			s.errf("unknown command %s (/help lists them)", name)
+		}
 		s.emitStatus()
 		return nil
 	}

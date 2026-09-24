@@ -172,3 +172,19 @@ func TestWebUndoTurnPreviewsThenApplies(t *testing.T) {
 		t.Fatalf("no refusal for a turn that cannot be restored:\n%s", out)
 	}
 }
+
+func TestUnknownWebCommandSuggestsTheNearest(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	for typed, want := range map[string]string{
+		"/hlep":      "unknown command /hlep · did you mean /help?",
+		"/frobnicat": "unknown command /frobnicat (/help lists them)",
+	} {
+		if err := s.runCommand(typed); err != nil {
+			t.Fatal(err)
+		}
+		last := s.entries[len(s.entries)-1]
+		if last.Text != want {
+			t.Errorf("%s: %q, want %q", typed, last.Text, want)
+		}
+	}
+}
