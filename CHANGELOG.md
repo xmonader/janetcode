@@ -121,6 +121,41 @@ Web UI
 - Key failures offer a **Fix connection** button; plain labels throughout
   ("Scripts", "Show full reply", one set of permission-mode names).
 
+### Robustness (lessons from diwan)
+- Tool-call arguments with a dropped bracket or a trailing comma are mended;
+  anything still not JSON is refused for that call and the model resends
+  it, instead of the whole turn failing. A call cut off at the output
+  limit is now reported as such and refused, never mended.
+- Reasoning a model writes inline between `<think>` tags (Qwen3, R1
+  distills on Ollama/vLLM/llama.cpp) arrives as thinking, not as the answer.
+- A list or object sent as a string holding its JSON is accepted by every tool.
+- Content streamed as a list of parts and usage sent as strings no longer
+  read as a truncated stream.
+- Fallback judges a provider error by its status and the server's whole
+  text, not the display copy cut at 300 characters.
+- Pruning drops the long strings from old calls' arguments (whole file
+  bodies), keeping their paths; thinking tokens are shown in the usage line.
+
+### Web, background runs and operations
+- `--web` bound off loopback requires the access token in the URL it
+  prints (`JANETCODE_WEB_TOKEN` fixes it); a hidden tab raises a desktop
+  notification when an approval is waiting.
+- `--bg` keeps the permission flags it is given (before, `--bg --readonly`
+  ran `--yolo`); what that mode asks about waits for `janetcode --answer
+  <id> allow|session|deny`, `JANETCODE_NOTIFY` runs a command when one
+  starts waiting, and `--sessions` shows each run as running, waiting,
+  done or failed.
+- `--backup <file>` / `--restore <file>` for the config and data
+  directories; a restore saves what it replaces first.
+- `--doctor --output-format json`; `--doctor --fix` makes a config file
+  other users can read 0600.
+- `/mcp search <words>` prints the `/mcp add` line for servers in the
+  official MCP registry; it installs nothing.
+- `make dist` builds release binaries with `SHA256SUMS`; a `Dockerfile`
+  and a tag-triggered release workflow (binaries and a GHCR image).
+- CI runs the markdown XSS corpus, the contrast checks and three browser
+  suites, one of them real turns against a scripted model (`make ui-turn`).
+
 ### Known limitations
 - The Anthropic provider has been tested against a fake server only; the
   OpenAI-compatible path is tested live.

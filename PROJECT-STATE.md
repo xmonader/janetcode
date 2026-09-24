@@ -17,7 +17,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Last release tag: v0.2.0; ~880 commits since.
 - Polish pass 2026-09-24/25: CLI, TUI and web audited end to end (frames in
   the session scratchpad); every item fixed except the Anthropic path (held).
-  Summary in CHANGELOG "Polish". Browser checks: `make ui-test`.
+  Summary in CHANGELOG "Polish". Browser checks: `make ui-test`, `make ui-turn`.
+- Lessons from ~/wspace/diwan applied 2026-09-25 (CHANGELOG "Robustness",
+  "Web, background runs and operations"). Not taken: diwan's native Gemini
+  client (weaker than the OpenAI-compatible path), schema-enum drift test.
 
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).
@@ -57,6 +60,12 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   message never names a TUI command from the CLI (2026-09-25).
 - A missing path on read_file/list_dir is an answer, decided once in
   `present.EndOf` for TUI, web and replayed sessions (2026-09-25).
+- Malformed tool arguments are mended or wrapped (`llm.InvalidArguments`)
+  in the provider and refused per call in the agent, never a stream error;
+  the Anthropic path is untouched (2026-09-25).
+- `--web` off loopback is token-gated; loopback stays origin/Host-gated only.
+  `--bg` status and approvals are sidecars beside the session file
+  (`.bg.json`, `.bg-answer.json`), polled, no daemon (2026-09-25).
 - New flags land in `--help` "Advanced" unless filed in `helpGroups`
   (cmd/janetcode/flags.go); new slash commands must be filed in the TUI
   `helpGroups` (a test enforces it) (2026-09-24).
