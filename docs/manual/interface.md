@@ -222,7 +222,7 @@ sudo, piping downloads into a shell) are flagged in the prompt.
 
 An `edit_file` or `write_file` call to a file that already exists shows a
 second line: the reach of the change, such as
-`changes Parse (func) · 14 refs in 6 files · tests: parse_test.go, cli_test.go · checks: go test ./...`
+`changes Parse (func) · used 14 times in 6 files · tests: parse_test.go, cli_test.go · checks: go test ./...`
 (see [The reach of an edit](#the-reach-of-an-edit)).
 
 Typing while the model is working queues the message; it is sent as soon as
@@ -2327,7 +2327,7 @@ Before you approve an `edit_file` or `write_file` call to a file that
 already exists, the prompt names what it reaches: the symbols whose
 definitions the change touches, how many places reference each one, which
 test files already cover them, and which verify commands will run —
-`changes Parse (func) · 14 refs in 6 files · tests: parse_test.go,
+`changes Parse (func) · used 14 times in 6 files · tests: parse_test.go,
 cli_test.go · checks: go test ./...`. Only the lines the edit actually
 inserts, removes or replaces count, and a definition the edit adds is named
 as `adds parseAll (func)`, with no refs — nothing uses it yet — rather than
@@ -2340,7 +2340,7 @@ PATH — the same resolved view `symbols` queries — and from the repository
 map otherwise: its regex/AST-based index finds a file's definitions and
 counts identifier occurrences without a running server, at the cost of a
 coarser, unresolved count. An answer built the second way, or one cut
-short by the time budget below, says `(partial)`.
+short by the time budget below, says `may miss some uses`.
 
 This never delays the prompt beyond a fixed, short budget (well under a
 second): whatever is not known by then is left out rather than waited for,
