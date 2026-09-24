@@ -242,21 +242,31 @@ func (s *streamState) add(ch wireChunk) {
 			s.finish = *c.FinishReason
 		}
 		d := c.Delta
-		if d.ReasoningContent != "" || d.Reasoning != "" {
-			rc := d.ReasoningContent + d.Reasoning
+		// The same reasoning can arrive under several names in one delta
+		// (OpenRouter fills "reasoning" and "reasoning_details" with the
+		// same text), so the first one present is the delta and the rest
+		// are copies of it.
+		rc := d.ReasoningContent
+		if rc == "" {
+			rc = d.Reasoning
+		}
+		if rc != "" {
 			s.thinking.WriteString(rc)
 			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
 		}
 		for _, p := range d.ReasoningDetails {
-			rc := p.Text
-			if rc == "" {
-				rc = p.Summary
+			if rc != "" {
+				break
 			}
-			if rc == "" {
+			part := p.Text
+			if part == "" {
+				part = p.Summary
+			}
+			if part == "" {
 				continue
 			}
-			s.thinking.WriteString(rc)
-			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
+			s.thinking.WriteString(part)
+			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: part})
 		}
 		if d.Content != "" {
 			s.text.WriteString(d.Content)
