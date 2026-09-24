@@ -145,6 +145,7 @@ var argNames = map[string]string{
 	"allow": "rules", "deny": "rules", "mcp-auth": "server", "append-system-prompt": "text",
 	"off": "names", "prompt": "text", "recipe": "name", "replay": "session",
 	"session-profile": "path", "set": "key=value", "what-if": "session", "inspect": "subject",
+	"backup": "file", "restore": "file",
 }
 
 // printFlag writes one flag the way flag.PrintDefaults would.

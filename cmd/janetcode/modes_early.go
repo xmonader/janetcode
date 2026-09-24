@@ -64,6 +64,10 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return true, decisionsAnnotateMode(ctx, o.decisionsAnnotate, o.decisionsAnnotateOut)
+	case o.backupTo != "":
+		return true, backupMode(os.Stdout, o.backupTo)
+	case o.restoreFrom != "":
+		return true, restoreMode(os.Stdout, o.restoreFrom)
 	case o.runDoctor:
 		// The checkup makes a live model call, so ctrl+c ends it rather
 		// than waiting out the provider's own timeout.
