@@ -279,31 +279,34 @@ func (m *model) permissionKeysAt(tool, rule, learned string, expandable bool, ru
 	// is the last thing to go. Shorten it the way the rest of the
 	// interface shortens a path first, then spend the remaining width by
 	// dropping the descriptions of the keys that need one least: "y once"
-	// and "a always for edit_file" say nothing "y" and "a always" do not.
+	// and "a all edit_file this session" say little "y" and "a session"
+	// do not.
 	// Cutting the rule first is what left an 80-column terminal showing
 	// "r rule" with no rule at all, which is the one wording that makes
 	// the key useless.
 	rule = shortenPaths(m.opts.Cwd, rule)
-	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule + ladder + note}, {"n", " deny"}, {"c", " cancel"}}
+	// "a always for bash" read as a permanent grant; a is this session
+	// only, and r is the one that lasts, so the short forms say so.
+	medium := []seg{{"y", " once"}, {"a", " all " + tool + " this session"}, {"r", " save " + rule + ladder + note}, {"n", " deny"}, {"c", " cancel"}}
 	if s, w := render(medium, " · "); w <= room {
 		return s
 	}
 	// The hint outlives the learned note here: the note explains why r is
 	// worth pressing, but without the hint a widened rule reads as the
 	// only rule there ever was.
-	narrow := []seg{{"y", ""}, {"a", " always"}, {"r", " rule " + rule + ladder}, {"n", " deny"}, {"c", " cancel"}}
-	if s, w := render(narrow, " · "); w <= room {
+	narrow := []seg{{"y", ""}, {"a", " session"}, {"r", " save " + rule + ladder}, {"n", " deny"}, {"c", " cancel"}}
+	if s, w := render(narrow, "  "); w <= room {
 		return s
 	}
 	// Only now is the rule itself cut, to whatever the fixed part leaves.
-	fixed := lipgloss.Width("y · a always · r rule  · n deny · c cancel")
+	fixed := lipgloss.Width("y  a session  r save   n deny  c cancel")
 	if left := room - fixed; left >= 6 && lipgloss.Width(rule) > left {
-		narrow[2].text = " rule " + truncateLine(rule, left)
-		if s, w := render(narrow, " · "); w <= room {
+		narrow[2].text = " save " + truncateLine(rule, left)
+		if s, w := render(narrow, "  "); w <= room {
 			return s
 		}
 	}
-	s, _ := render([]seg{{"y", ""}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}, {"c", " cancel"}}, " · ")
+	s, _ := render([]seg{{"y", ""}, {"a", " session"}, {"r", " save rule"}, {"n", " deny"}, {"c", " cancel"}}, " · ")
 	return s
 }
 

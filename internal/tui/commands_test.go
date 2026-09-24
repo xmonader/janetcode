@@ -1674,7 +1674,14 @@ func TestCommandMenuAlignsHelp(t *testing.T) {
 	h := newHarness(t)
 	h.keys("/")
 	var cols []int
-	for _, line := range strings.Split(plain(h.m.View()), "\n") {
+	lines := strings.Split(plain(h.m.View()), "\n")
+	foot := len(lines)
+	for i, line := range lines {
+		if strings.Contains(line, "↑↓ choose") {
+			foot = i
+		}
+	}
+	for _, line := range lines[max(0, foot-h.m.menuRows()):foot] {
 		trimmed := strings.TrimLeft(line, " ▸")
 		if !strings.HasPrefix(trimmed, "/") {
 			continue

@@ -192,7 +192,7 @@ func TestInputBoxStates(t *testing.T) {
 	h.keys("make n.txt")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	check("permission", h.m.styles.boxWarn, "always")
+	check("permission", h.m.styles.boxWarn, "this session")
 	if h.m.styles.permBox.GetBorderTopForeground() != h.m.styles.boxWarn.GetBorderTopForeground() {
 		t.Error("the permission box does not match the warning palette")
 	}

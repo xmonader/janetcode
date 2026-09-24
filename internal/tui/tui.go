@@ -280,7 +280,7 @@ func (m *model) welcome(resumed string) string {
 		sb.WriteString("edits go through, commands ask (/edits) · esc denies")
 	default:
 		// esc at a prompt denies the one call; c stops the whole turn.
-		sb.WriteString("edits and commands ask first · y allow · a always · n deny · esc denies · c cancels")
+		sb.WriteString("edits and commands ask first · y allow · a this session · n or esc deny · c cancels")
 	}
 	sb.WriteString(" · /help\n")
 	sb.WriteString("@file attaches · !cmd runs and shares the output · /undo reverts a bad change")

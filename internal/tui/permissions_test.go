@@ -26,7 +26,7 @@ func TestPermissionPromptAllow(t *testing.T) {
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
 	v := plain(h.m.View())
-	if !strings.Contains(v, "allow write_file") || !strings.Contains(v, "+x") || !strings.Contains(v, "approval needed") || !strings.Contains(v, "always for write_file") {
+	if !strings.Contains(v, "allow write_file") || !strings.Contains(v, "+x") || !strings.Contains(v, "approval needed") || !strings.Contains(v, "all write_file this session") {
 		t.Fatalf("prompt not shown:\n%s", v)
 	}
 	// Typing while the prompt is up must not go into the textarea.
@@ -104,7 +104,7 @@ func TestPermissionPromptRuleKeySavesRule(t *testing.T) {
 	h.keys("write it")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	if v := plain(h.m.View()); !strings.Contains(v, "rule write_file(docs/*)") {
+	if v := plain(h.m.View()); !strings.Contains(v, "save write_file(docs/*)") {
 		t.Fatalf("prompt view:\n%s", v)
 	}
 	h.keys("r")
@@ -191,11 +191,11 @@ func TestPermissionKeysKeepTheRule(t *testing.T) {
 			if lipgloss.Width(line) > w-6 {
 				t.Fatalf("width %d rule %q: %d cols: %q", w, rule, lipgloss.Width(line), line)
 			}
-			i := strings.Index(line, " rule ")
+			i := strings.Index(line, " save ")
 			if i < 0 {
 				t.Fatalf("width %d rule %q: no rule on the line: %q", w, rule, line)
 			}
-			rest := line[i+len(" rule "):]
+			rest := line[i+len(" save "):]
 			if named, _, _ := strings.Cut(rest, " ·"); len(named) < 6 {
 				t.Fatalf("width %d rule %q: rule shown as %q", w, rule, named)
 			}
@@ -369,7 +369,7 @@ func TestSuggestedRuleUsesShortPaths(t *testing.T) {
 func TestBannerMatchesPermissionKeys(t *testing.T) {
 	h := newHarness(t)
 	v := plain(h.m.View())
-	if !strings.Contains(v, "esc denies") || strings.Contains(v, "n deny · esc cancels") {
+	if !strings.Contains(v, "n or esc deny") || strings.Contains(v, "esc cancels") {
 		t.Fatalf("banner:\n%s", v)
 	}
 }
