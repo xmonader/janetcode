@@ -1101,3 +1101,34 @@ func TestStreamDiscardReachesTheConsumer(t *testing.T) {
 		t.Fatalf("a consumer that honours the discard read %q", got)
 	}
 }
+
+// /clear, /resume and a session switch shrink the history on purpose,
+// through OpenSession. The integrity check read that as history lost
+// behind the agent's back and printed "request integrity: history shrank
+// from 8 to 1 messages without compaction" on the next turn.
+func TestOpeningASessionIsNotAnIntegrityFault(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("one"), text("two")}}
+	a, _ := newAgent(t, f, nil)
+	var notices []string
+	emit := func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}
+	if err := a.Run(context.Background(), "first request", emit); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := session.New(t.TempDir(), t.TempDir(), "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.OpenSession(sess, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run(context.Background(), "second", emit); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 0 {
+		t.Fatalf("notices = %v", notices)
+	}
+}

@@ -26,6 +26,13 @@ func (a *Agent) appendToLast(blocks ...llm.Block) {
 
 func (a *Agent) setMessages(msgs []llm.Message) {
 	a.msgMu.Lock()
+	if len(msgs) < len(a.Messages) {
+		// Every deliberate shrink — compaction, rewind, undo, opening
+		// another session — comes through here, so it is not the history
+		// loss the integrity check looks for (an assignment behind the
+		// agent's back).
+		a.integ.shrunkOK = true
+	}
 	a.Messages = msgs
 	a.msgMu.Unlock()
 }
