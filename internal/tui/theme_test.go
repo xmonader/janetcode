@@ -228,3 +228,29 @@ func TestGutterCollapsesUnderThreshold(t *testing.T) {
 		t.Errorf("gutter 0 still indented the prompt line:\n%q", narrow)
 	}
 }
+
+// At 80x24 the theme picker used to lose its key help and bottom border:
+// the list was sized without the swatch lines under it.
+func TestThemePickerFitsAnEightyByTwentyFour(t *testing.T) {
+	h := newHarness(t)
+	set, err := theme.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.m.opts.Themes = set
+	h.m.opts.Config = &config.Config{Theme: "auto"}
+	h.m.opts.Theme = "auto"
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	h.keys("/theme")
+	h.enter()
+	if h.m.picker == nil {
+		t.Fatal("no picker")
+	}
+	v := plain(h.m.View())
+	if !strings.Contains(v, "esc restore") {
+		t.Fatalf("the picker's key help is clipped:\n%s", v)
+	}
+	if !strings.Contains(v, "╰") {
+		t.Fatalf("the picker's bottom border is clipped:\n%s", v)
+	}
+}

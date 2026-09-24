@@ -155,7 +155,15 @@ func (m *model) pickerView(height int) string {
 	if len(rows) == 0 {
 		add("  " + m.styles.dim.Render("nothing matches"))
 	} else {
-		budget := fitRows(height, len(lines)+5)
+		// What follows the rows: their "n of N" line, a blank, the key
+		// help and the two border rows -- plus, for the theme picker, a
+		// blank and the swatch. Leaving the swatch out clipped the key
+		// help and the bottom border off an 80x24 terminal.
+		chrome := len(lines) + 5
+		if p.preview != nil {
+			chrome += 1 + strings.Count(m.themeSwatch(), "\n") + 1
+		}
+		budget := fitRows(height, chrome)
 		p.winRows = budget
 		lines = append(lines, renderRows(m.styles, rows, idx, inner, budget)...)
 	}
