@@ -1916,7 +1916,7 @@
   }
   function openSettings() {
     settingsEl.hidden = false;
-    applyThemeChoice(document.documentElement.dataset.themeChoice || "dark");
+    applyThemeChoice(document.documentElement.dataset.themeChoice || "system");
     const fs = document.documentElement.dataset.fontScale || "medium";
     document.querySelectorAll("#font-seg [data-font]").forEach((b) => b.classList.toggle("on", b.dataset.font === fs));
     paintSound();

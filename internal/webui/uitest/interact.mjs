@@ -353,6 +353,14 @@ const kept = await evaljs(`({ value: document.getElementById('input').value, sta
 check('an unsent message stays in the composer', kept.value === 'are you there?' && /Cannot reach/.test(kept.status), JSON.stringify(kept));
 await evaljs(`(() => { window.fetch = window.__realFetch; document.getElementById('input').value = ''; return 1; })()`);
 
+// A first visit follows the OS: a light system gets the light theme.
+await cmd('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+await evaljs(`(() => { localStorage.removeItem('janetcode-theme'); location.reload(); return 1; })()`);
+await sleep(1500);
+const firstTheme = await evaljs(`({ theme: document.documentElement.dataset.theme, choice: document.documentElement.dataset.themeChoice })`);
+check('a first visit follows a light OS', firstTheme.theme === 'light' && firstTheme.choice === 'system', JSON.stringify(firstTheme));
+await cmd('Emulation.setEmulatedMedia', { features: [] });
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');
