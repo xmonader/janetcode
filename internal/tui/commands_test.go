@@ -1587,3 +1587,34 @@ func TestConnectRewritesTheFirstRunBanner(t *testing.T) {
 		t.Fatalf("refreshed banner not drawn:\n%s", plain(h.m.View()))
 	}
 }
+
+// A first run opens on the connect dialog and its status line says
+// /connect, so people type /connect into it. That searched for a
+// provider named "/connect" and failed twice over.
+func TestSlashCommandInsideTheConnectDialog(t *testing.T) {
+	h := newHarness(t)
+	h.withConfig(t, &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}, func(c *config.Config) (llm.Provider, error) { return &listing{}, nil })
+	h.keys("/connect")
+	h.enter()
+	if h.m.connect == nil {
+		t.Fatal("dialog not open")
+	}
+	h.keys("/connect")
+	if v := plain(h.m.View()); strings.Contains(v, "nothing matches") || !strings.Contains(v, "enter runs /connect") {
+		t.Fatalf("typing a command reads as a failed search:\n%s", v)
+	}
+	h.enter()
+	if h.m.connect == nil || h.m.connect.problem != "" || strings.Contains(plain(h.m.View()), "no provider matches") {
+		t.Fatalf("/connect inside the dialog failed: %+v\n%s", h.m.connect, plain(h.m.View()))
+	}
+	h.keys("/help")
+	h.enter()
+	if h.m.connect != nil {
+		t.Fatal("/help inside the dialog did not close it")
+	}
+	if !strings.Contains(plain(h.m.transcript.render(renderOpts{width: 100})), "everyday") {
+		t.Fatal("/help did not run")
+	}
+}

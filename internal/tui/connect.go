@@ -392,6 +392,19 @@ func (m *model) connectEnter() tea.Cmd {
 	v := strings.TrimSpace(c.field.Value())
 	switch c.step {
 	case stepPick:
+		// The status line of a first run says "/connect", so people type
+		// it here, into the dialog it already opened. A slash command is
+		// a command, not a provider search: /connect is where you are,
+		// anything else closes the dialog and runs.
+		if strings.HasPrefix(v, "/") {
+			c.field.Reset()
+			if strings.EqualFold(v, "/connect") {
+				m.refresh(false)
+				return nil
+			}
+			m.closeConnect("")
+			return m.command(v)
+		}
 		rows, idx := m.visible()
 		if len(rows) == 0 {
 			return m.fail("no provider matches")

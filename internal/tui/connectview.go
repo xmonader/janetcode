@@ -203,7 +203,10 @@ func (m *model) listLines(inner, budget int) []string {
 				out = append(out, "  "+m.styles.warn.Render(strings.TrimRight(l, " ")))
 			}
 			out = append(out, "  "+m.styles.dim.Render("type the model id and press enter"))
-		case c.field.Value() != "":
+		case c.step == stepPick && strings.HasPrefix(strings.TrimSpace(c.field.Value()), "/"):
+			out = append(out, "  "+m.styles.dim.Render("enter runs "+strings.TrimSpace(c.field.Value())))
+		case c.field.Value() != "" && c.problem == "":
+			// With a problem shown above, "nothing matches" said it twice.
 			out = append(out, "  "+m.styles.dim.Render("nothing matches"))
 		}
 		return out
