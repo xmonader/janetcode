@@ -429,6 +429,11 @@ func (s *server) cronFire(id, prompt string) {
 }
 
 func (s *server) handler() http.Handler {
+	return s.guard(s.routes())
+}
+
+// routes is every path the server answers, before guard.
+func (s *server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	static, err := fs.Sub(staticFS, "static")
 	if err != nil {
@@ -473,7 +478,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/upload", s.upload)
 	mux.HandleFunc("/api/complete", s.completeAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
-	return s.guard(mux)
+	return mux
 }
 
 func (s *server) hello() helloPayload {
