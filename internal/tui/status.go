@@ -262,6 +262,8 @@ func (m *model) usagePart() string {
 func (m *model) statusView() string {
 	var left string
 	switch {
+	case m.mode() == modeDeny:
+		left = m.styles.warn.Render("● denied · waiting for your reason")
 	case m.pending != nil:
 		left = m.styles.warn.Render("● approval needed")
 	case m.turn.running && m.tight():
@@ -436,9 +438,11 @@ func (m *model) placeholder() string {
 	room := m.input.Width() - 2
 	switch {
 	case m.mode() == modeDeny:
+		// The keys are on the notice row above, which stays while you
+		// type; saying them here too printed them twice.
 		return fitPhrase(room,
-			"Why? the model reads this · enter sends · esc skips",
-			"Why? enter sends · esc skips",
+			"Why? the model reads this (optional)",
+			"Why? (optional)",
 			"Why?")
 	case m.pending != nil:
 		return m.pendingKeys()

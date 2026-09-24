@@ -464,3 +464,20 @@ func TestImpactPromptKeepsTheHeaderOnScreen(t *testing.T) {
 		t.Fatalf("frame after the prompt closed has %d rows, want 24", rows())
 	}
 }
+
+// After n the prompt collects a reason. The status line kept saying
+// "approval needed" and the keys were printed twice (notice row and
+// placeholder), so y and a looked like answers and were typed instead.
+func TestDenyingSaysSoOnce(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	h.update(permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`)}, reply: make(chan verdict, 1)})
+	h.keys("n")
+	v := plain(h.m.View())
+	if strings.Contains(v, "approval needed") || !strings.Contains(v, "denied · waiting for your reason") {
+		t.Fatalf("status does not say the call was denied:\n%s", v)
+	}
+	if n := strings.Count(v, "enter sends"); n != 1 {
+		t.Fatalf("the keys are shown %d times, want once:\n%s", n, v)
+	}
+}
