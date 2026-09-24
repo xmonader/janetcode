@@ -223,10 +223,15 @@ func buildCatalog(fs *flag.FlagSet, tools *tool.Registry) *feature.Catalog {
 	c.AddAll(tui.Features())
 	if fs != nil {
 		fs.VisitAll(func(f *flag.Flag) {
+			// The spelling --help and the docs use: -p and -c, --resume.
+			dash := "--"
+			if len(f.Name) == 1 {
+				dash = "-"
+			}
 			c.Add(feature.Feature{
 				Name: f.Name, Kind: feature.KindFlag,
 				What: firstSentence(f.Usage), When: flagWhen[f.Name],
-				Invoke: "janetcode -" + f.Name, Manual: "cli",
+				Invoke: "janetcode " + dash + f.Name, Manual: "cli",
 			})
 		})
 	}

@@ -240,3 +240,22 @@ func TestIntrospectAnswersStayInBudget(t *testing.T) {
 		}
 	}
 }
+
+// A flag is listed the way --help spells it: one dash for a single
+// letter, two for a word.
+func TestFeatureFlagsUseTheHelpSpelling(t *testing.T) {
+	fs, _ := newFlagSet()
+	c := buildCatalog(fs, nil)
+	for _, f := range c.All() {
+		if f.Kind != feature.KindFlag {
+			continue
+		}
+		want := "janetcode --" + f.Name
+		if len(f.Name) == 1 {
+			want = "janetcode -" + f.Name
+		}
+		if f.Invoke != want {
+			t.Errorf("%s: %q, want %q", f.Name, f.Invoke, want)
+		}
+	}
+}
