@@ -757,12 +757,21 @@
     }
   }
 
+  // post never throws: a server that is down (restarting, killed) made
+  // fetch reject, the promise went unhandled and the caller never learned
+  // the message had gone nowhere.
   async function post(path, body) {
-    const r = await fetch(path, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body || {})
-    });
+    let r;
+    try {
+      r = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body || {})
+      });
+    } catch (e) {
+      statusEl.textContent = "Cannot reach janetcode. Is it still running?";
+      return false;
+    }
     if (!r.ok) statusEl.textContent = (await r.text()) || r.statusText;
     return r.ok;
   }
@@ -799,13 +808,22 @@
     }
     if (!text.startsWith("/")) lastPrompt = text;
     histPush(text);
+    const draft = input.value, attached = chips.slice();
     input.value = "";
     chips.length = 0;
     paintChips();
     resize();
     acHide();
     hideSlash();
-    await post("/api/prompt", { text });
+    if (!(await post("/api/prompt", { text }))) {
+      // Not sent: put it back rather than let it vanish. post has already
+      // said why in the status line.
+      if (!input.value) input.value = draft;
+      if (!chips.length) chips.push(...attached);
+      paintChips();
+      resize();
+      input.focus();
+    }
   });
 
   // Composer history: the prompts this browser has sent, recalled with

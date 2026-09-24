@@ -302,6 +302,15 @@ for (let i = 0; i < 10 && chipNow !== 'Ask first'; i++) { await sleep(300); chip
 check('Ask first row turns the mode off again', chipNow === 'Ask first', chipNow);
 await evaljs(`document.getElementById('mode-menu').hidden = true; 1`);
 
+// A message sent while the server is unreachable stays in the composer
+// instead of vanishing with an unhandled rejection.
+await evaljs(`(() => { window.__realFetch = window.fetch; window.fetch = (u, o) => String(u).includes('/api/prompt') ? Promise.reject(new TypeError('Failed to fetch')) : window.__realFetch(u, o); return 1; })()`);
+await evaljs(`(() => { const i = document.getElementById('input'); i.value = 'are you there?'; i.dispatchEvent(new Event('input')); document.getElementById('composer').requestSubmit(); return 1; })()`);
+await sleep(300);
+const kept = await evaljs(`({ value: document.getElementById('input').value, status: document.getElementById('status')?.textContent || '' })`);
+check('an unsent message stays in the composer', kept.value === 'are you there?' && /Cannot reach/.test(kept.status), JSON.stringify(kept));
+await evaljs(`(() => { window.fetch = window.__realFetch; document.getElementById('input').value = ''; return 1; })()`);
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');
