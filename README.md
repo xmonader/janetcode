@@ -8,13 +8,25 @@ Ollama).
 
 ## Install
 
+From source (Go 1.25+):
+
 ```sh
 git clone https://github.com/xmonader/janetcode
 cd janetcode
 make install        # puts janetcode on your $GOPATH/bin
 ```
 
-Requires Go 1.25+.
+Tagged releases after v0.2.0 also publish prebuilt binaries for Linux,
+macOS and Windows with a `SHA256SUMS` file on the GitHub release page, and
+an image, `ghcr.io/xmonader/janetcode`:
+
+```sh
+docker run -it --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" \
+  -e OPENAI_API_KEY ghcr.io/xmonader/janetcode
+```
+
+The `Dockerfile` header shows the `--web` variant. `make dist` builds the
+release binaries locally.
 
 Linux and macOS are where janetcode is developed and tested. Windows
 support is best effort: `GOOS=windows go build ./...` (`make cross`) is

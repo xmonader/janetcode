@@ -1,0 +1,6 @@
+.git
+.claude
+bin
+dist
+ui-shots
+evals/last-results.json

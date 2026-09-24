@@ -3,7 +3,7 @@ PKG := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test race lint check clean run eval eval-baseline eval-train cross harness-bench harness-bench-large
+.PHONY: build install test race lint check clean dist run eval eval-baseline eval-train cross harness-bench harness-bench-large
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -174,7 +174,21 @@ ui-shot:
 	rc=$$?; kill $$chr 2>/dev/null; wait $$chr 2>/dev/null; rm -rf /tmp/janetcode-chrome-cdp; exit $$rc
 
 clean:
-	rm -rf bin
+	rm -rf bin dist
+
+# Release binaries for every platform janetcode ships on, pure Go (the
+# tree-sitter build needs cgo and stays a from-source option), with a
+# SHA256SUMS file to check them against. make dist VERSION=v0.3.0
+DIST_TARGETS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+dist:
+	rm -rf dist && mkdir -p dist
+	@set -e; for t in $(DIST_TARGETS); do \
+		os=$${t%/*}; arch=$${t#*/}; ext=; [ $$os = windows ] && ext=.exe; \
+		out=dist/$(BIN)-$(VERSION)-$$os-$$arch$$ext; \
+		echo "  $$out"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$out ./cmd/$(BIN); \
+	done
+	cd dist && sha256sum $(BIN)-* > SHA256SUMS
 
 run: build
 	./bin/$(BIN)
