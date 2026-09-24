@@ -356,6 +356,7 @@ func (s *server) replayHistory(msgs []llm.Message) {
 	// matching result can close it out. The entries themselves belong to
 	// the server's lock, not to this loop.
 	open := map[string]string{}
+	inputs := map[string]string{}
 	for _, m := range msgs {
 		for _, b := range m.Blocks {
 			switch b.Type {
@@ -378,6 +379,7 @@ func (s *server) replayHistory(msgs []llm.Message) {
 			case llm.BlockToolUse:
 				open[b.ID] = s.add(entry{Kind: "tool", Name: b.Name, CallID: b.ID, Running: true,
 					Summary: present.ToolSummary(b.Name, string(b.Input), 80, s.cwd())})
+				inputs[b.ID] = string(b.Input)
 			case llm.BlockToolResult:
 				id, ok := open[b.ToolUseID]
 				if !ok {
@@ -385,10 +387,13 @@ func (s *server) replayHistory(msgs []llm.Message) {
 				}
 				delete(open, b.ToolUseID)
 				s.update(id, func(e *entry) {
+					// Read the way the live row was: a failing test run
+					// keeps its failure, a missing file is an answer.
+					end := present.EndOf(e.Name, inputs[b.ToolUseID], b.Text, b.IsError, 0)
 					e.Running = false
 					e.Done = true
-					e.Error = b.IsError
-					e.Output = textfmt.Clip(b.Text, 4000)
+					e.Error = end.Failed
+					e.Output = textfmt.Clip(end.Output, 4000)
 				})
 			}
 		}

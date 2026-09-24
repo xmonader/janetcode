@@ -1653,3 +1653,19 @@ func TestPunctuationOnlyAnswerIsDropped(t *testing.T) {
 		t.Fatalf("answers = %q", texts)
 	}
 }
+
+// A reopened session draws its tool rows the way the live ones were: a
+// read of a file that did not exist is an answer, not a red failure.
+func TestReplayedMissingReadIsNotAFailure(t *testing.T) {
+	s := newServer(context.Background(), Options{Agent: &agent.Agent{Tools: tool.NewRegistry()}})
+	s.replayHistory([]llm.Message{
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "r1", Name: "read_file", Input: json.RawMessage(`{"path":"x_test.go"}`)}}},
+		{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockToolResult, ToolUseID: "r1", IsError: true, Text: "Error: x_test.go does not exist"}}},
+	})
+	_, ents, _, _, _ := s.snapshot()
+	for _, e := range ents {
+		if e.Kind == "tool" && (e.Error || e.Output != "x_test.go does not exist") {
+			t.Fatalf("replayed row = %+v", e)
+		}
+	}
+}
