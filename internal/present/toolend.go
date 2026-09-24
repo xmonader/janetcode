@@ -2,6 +2,7 @@ package present
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -31,6 +32,15 @@ func EndOf(name, input, output string, isError bool, took time.Duration) ToolEnd
 	end := ToolEnd{Output: output, Failed: isError}
 	if took > 0 {
 		end.Label = textfmt.Duration(took)
+	}
+	if isError && (name == "read_file" || name == "list_dir") {
+		// A lookup of a path that is not there is an answer, like a grep
+		// that matched nothing; the red ✗ made the model's routine
+		// "does this exist?" read like something had broken.
+		if msg := strings.TrimPrefix(output, "Error: "); strings.HasSuffix(strings.TrimSpace(msg), " "+tool.NotFound) {
+			end.Output, end.Failed = msg, false
+		}
+		return end
 	}
 	if name != "bash" {
 		return end

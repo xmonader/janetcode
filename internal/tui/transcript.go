@@ -416,7 +416,11 @@ func (t *transcript) loadHistory(msgs []llm.Message) {
 					t.add(e)
 					continue
 				}
-				e.output, e.isError = r.Text, r.IsError
+				// A reopened session reads its rows the way the live
+				// ones did: a failing test run keeps its ✗, a missing
+				// file is still an answer.
+				end := present.EndOf(b.Name, string(b.Input), r.Text, r.IsError, 0)
+				e.output, e.isError = end.Output, end.Failed
 				t.add(e)
 			}
 		}

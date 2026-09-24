@@ -4,11 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
+
+// NotFound ends the error a read of a missing path returns. Looking for a
+// file that is not there is an answer the model acts on, so front ends
+// draw it as one rather than as a failed call (present.EndOf).
+const NotFound = "does not exist"
 
 // ReadFile reads a file with optional line window.
 type ReadFile struct {
@@ -64,6 +71,9 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if data == nil {
 		var err error
 		data, err = readFileOf(ctx, t.WS, p)
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", fmt.Errorf("%s %s", in.Path, NotFound)
+		}
 		if err != nil {
 			return "", err
 		}

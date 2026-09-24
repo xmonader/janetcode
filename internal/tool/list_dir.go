@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"sort"
 	"strings"
@@ -63,6 +64,9 @@ func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error)
 		return "", err
 	}
 	entries, over, err := readDirCapped(ctx, t.WS, p, maxDirScan)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", fmt.Errorf("%s %s", in.Path, NotFound)
+	}
 	if err != nil {
 		return "", err
 	}
