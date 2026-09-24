@@ -82,14 +82,14 @@ func (s *server) connectAPI(w http.ResponseWriter, r *http.Request) {
 	case "models":
 		models, err := s.listConnectModels(r.Context(), next)
 		if err != nil {
-			writeJSON(w, map[string]any{"error": llm.Explain(err, req.Name, connectRemedies)})
+			writeJSON(w, map[string]any{"error": llm.Explain(err, providerDisplayName(req.Name), connectRemedies)})
 			return
 		}
 		writeJSON(w, map[string]any{"models": models})
 	case "connect":
 		note, err := s.applyConnect(next, req.Name, p, strings.TrimSpace(req.Model))
 		if err != nil {
-			writeJSON(w, map[string]any{"error": llm.Explain(err, req.Name, connectRemedies)})
+			writeJSON(w, map[string]any{"error": llm.Explain(err, providerDisplayName(req.Name), connectRemedies)})
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true, "note": note})

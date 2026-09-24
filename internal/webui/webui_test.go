@@ -1496,26 +1496,27 @@ func TestFailedTurnClosesItsOpenRows(t *testing.T) {
 
 // TestWebProviderErrorSaysWhatToDo: the page showed "Unauthorized (HTTP
 // 401)" and nothing else, while the terminal said which key to check and
-// how. It shows the same headline, reason and next step now; the page
-// has /connect too, so the advice is the same.
+// how. It shows the same headline, reason and next step now, names the
+// provider the way people do, and offers the connect form as a button
+// rather than naming /connect.
 func TestWebProviderErrorSaysWhatToDo(t *testing.T) {
-	s := newServer(context.Background(), Options{Provider: "dashscope"})
+	s := newServer(context.Background(), Options{Provider: "openrouter"})
 	s.finish(errors.New("Unauthorized (HTTP 401)"))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	last := s.entries[len(s.entries)-1]
 	if last.Kind != "error" || !strings.HasPrefix(last.Text, "Authentication failed (HTTP 401): Unauthorized.") ||
-		!strings.Contains(last.Text, "dashscope") || !strings.Contains(last.Text, "with /connect") {
+		!strings.Contains(last.Text, "Check the API key for OpenRouter in the connection settings.") || strings.Contains(last.Text, "/connect") {
 		t.Fatalf("error row = %q", last.Text)
 	}
 	// The page lays the parts out itself, and offers no retry: the same
 	// key fails the same way until it is changed.
-	x, ok := last.Data.(llm.Explanation)
-	if !ok || x.Headline != "Authentication failed" || x.Retry {
+	x, ok := last.Data.(errorCard)
+	if !ok || x.Headline != "Authentication failed" || x.Retry || x.Fix != "connect" {
 		t.Fatalf("error data = %#v", last.Data)
 	}
-	if s.status != "Authentication failed" {
-		t.Fatalf("status line = %q, want the headline rather than a bare \"error\"", s.status)
+	if s.status != "turn failed" {
+		t.Fatalf("status line = %q, want it not to repeat the card's headline", s.status)
 	}
 }
 

@@ -771,14 +771,17 @@ func (s *server) finish(err error) {
 		s.notice("stopped after " + textfmt.Duration(elapsed))
 		s.statusSet("stopped")
 	default:
-		x := llm.Explain(err, s.opts.Provider, webRemedies)
-		s.add(entry{Kind: "error", Text: x.String(), Data: x, Error: true})
-		// The status line said a bare "error"; it says what failed.
-		if x.Headline != "" {
-			s.statusSet(x.Headline)
-		} else {
-			s.statusSet("failed")
+		x := llm.Explain(err, providerDisplayName(s.opts.Provider), webRemedies)
+		card := errorCard{Explanation: x}
+		if strings.Contains(x.Next, webRemedies.Key) {
+			// The fix is in the connect form: a button opens it,
+			// where the terminal would name /connect.
+			card.Fix = "connect"
 		}
+		s.add(entry{Kind: "error", Text: x.String(), Data: card, Error: true})
+		// The card right above says what failed; the status line only
+		// says the turn is over, rather than repeating the headline.
+		s.statusSet("turn failed")
 	}
 	s.emitStatus()
 	if err == nil {
@@ -809,10 +812,28 @@ func (s *server) setPhaseLocked(phase string) {
 }
 
 // webRemedies are the page's words for the fixes a provider failure calls
-// for: /connect opens the connect form here too.
+// for. The key or URL is fixed in the connect form, which the error card
+// opens with a button (errorCard.Fix).
 var webRemedies = llm.Remedies{
-	Key:   "with /connect",
+	Key:   "in the connection settings",
 	Model: "with the model picker",
+}
+
+// errorCard is a provider failure as the page draws it: the explanation,
+// and which button, if any, fixes it.
+type errorCard struct {
+	llm.Explanation
+	Fix string `json:"fix,omitempty"`
+}
+
+// providerDisplayName is the name a person knows a provider by
+// ("OpenRouter"), for a configured name that matches a preset.
+func providerDisplayName(name string) string {
+	if p, ok := config.FindPreset(name); ok && p.Label != "" {
+		label, _, _ := strings.Cut(p.Label, " (")
+		return label
+	}
+	return name
 }
 
 // titleFromFirstPrompt names an untitled session after its first prompt

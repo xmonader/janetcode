@@ -196,6 +196,14 @@ await evaljs(`(() => { const t = document.getElementById('input'); t.value = 'hi
 const auth = await errCard({ headline: 'Authentication failed', next: 'Check the API key for fake in the config file.', code: 'HTTP 401', reason: 'Unauthorized', retry: false });
 check('error card reads headline, next step, code', auth.head === 'Authentication failed' && auth.next.startsWith('Check the API key') && auth.meta === 'HTTP 401 · Unauthorized', JSON.stringify(auth));
 check('no Retry where a retry cannot help', !auth.retry, JSON.stringify(auth));
+const fixed = await evaljs(`(() => {
+  window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'e-fix', kind: 'error', error: true, text: 'x', data: { headline: 'Authentication failed', next: 'Check the API key for OpenRouter in the connection settings.', fix: 'connect' } } }) });
+  const b = [...document.querySelectorAll('.turn.err')].pop().querySelector('.fix-btn');
+  if (!b) return { button: false };
+  b.click();
+  return new Promise((done) => setTimeout(() => { const c = document.getElementById('connect'); const open = !c.hidden; c.hidden = true; done({ button: true, label: b.textContent, open }); }, 300));
+})()`);
+check('a key failure offers a Fix connection button that opens the form', fixed.button && fixed.label === 'Fix connection' && fixed.open, JSON.stringify(fixed));
 
 // 16. a long working directory keeps its end — the project name — and
 // the full path is one hover away.
@@ -346,11 +354,15 @@ await evaljs(`(() => { window.fetch = window.__rf2; document.getElementById('rel
 
 // A message sent while the server is unreachable stays in the composer
 // instead of vanishing with an unhandled rejection.
+// A turn the server is still finishing from an earlier step would put
+// its own status over the one under test; let it end first.
+for (let i = 0; i < 30 && await evaljs(`document.getElementById('status')?.classList.contains('busy')`); i++) await sleep(200);
+await sleep(500);
 await evaljs(`(() => { window.__realFetch = window.fetch; window.fetch = (u, o) => String(u).includes('/api/prompt') ? Promise.reject(new TypeError('Failed to fetch')) : window.__realFetch(u, o); return 1; })()`);
 await evaljs(`(() => { const i = document.getElementById('input'); i.value = 'are you there?'; i.dispatchEvent(new Event('input')); document.getElementById('composer').requestSubmit(); return 1; })()`);
 await sleep(300);
 const kept = await evaljs(`({ value: document.getElementById('input').value, status: document.getElementById('status')?.textContent || '' })`);
-check('an unsent message stays in the composer', kept.value === 'are you there?' && /Cannot reach/.test(kept.status), JSON.stringify(kept));
+check('an unsent message stays in the composer', kept.value === 'are you there?' && /Cannot reach janetcode/.test(kept.status), JSON.stringify(kept));
 await evaljs(`(() => { window.fetch = window.__realFetch; document.getElementById('input').value = ''; return 1; })()`);
 
 // The header does not put jargon or a false signal up: the effort chip

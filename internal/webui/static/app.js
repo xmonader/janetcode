@@ -323,7 +323,8 @@
       const x = e.data && e.data.headline ? e.data : null;
       // Retry only where sending the same thing again can help: a
       // rejected key or a missing model fails the same way every time.
-      const retry = lastPrompt && (!x || x.retry) ? `<button type="button" class="retry-btn" data-retry="1">Retry</button>` : "";
+      const retry = (lastPrompt && (!x || x.retry) ? `<button type="button" class="retry-btn" data-retry="1">Retry</button>` : "") +
+        (x && x.fix === "connect" ? `<button type="button" class="fix-btn">Fix connection</button>` : "");
       if (x) {
         const meta = [x.code, x.reason].filter(Boolean).join(" · ");
         n.innerHTML = `<div class="err-head">${esc(x.headline)}${retry}</div><div class="err-next">${esc(x.next || "")}</div>` +
@@ -580,7 +581,19 @@
     if (st.running) bits.push((st.phase || "Working") + (st.elapsed ? " · " + st.elapsed : ""));
     else if (st.status) bits.push(st.status);
     if (st.queued) bits.push(st.queued + " waiting");
-    statusEl.textContent = bits.join(" · ");
+    // A note the page wrote itself (the server is unreachable) is newer
+    // than a repeat of the server's last status, and stays until the
+    // server says something new.
+    const said = bits.join(" · ");
+    if (localNote && !st.running && said === lastServerStatus) return finishStatus(st);
+    localNote = "";
+    lastServerStatus = said;
+    statusEl.textContent = said;
+    finishStatus(st);
+  }
+
+  let localNote = "", lastServerStatus = "";
+  function finishStatus(st) {
     statusEl.classList.toggle("busy", !!st.running);
     if (st.mode) setModeChip(st.mode);
     setEffortChip(st.effort);
@@ -806,7 +819,7 @@
         body: JSON.stringify(body || {})
       });
     } catch (e) {
-      statusEl.textContent = "Cannot reach janetcode. Is it still running?";
+      statusEl.textContent = localNote = "Cannot reach janetcode. Is it still running?";
       return false;
     }
     if (!r.ok) statusEl.textContent = (await r.text()) || r.statusText;
@@ -1296,7 +1309,10 @@
     if (!x) return "";
     // Headline, then the provider's words, then what to do: the same
     // three parts the error card shows.
-    return [x.headline, x.reason, x.next].filter(Boolean).join(". ").replace(/\.\./g, ".");
+    // Each part as a sentence: the server's reasons are Go errors,
+    // lowercase with no full stop ("this provider needs an API key").
+    const sentence = (t) => { t = String(t).trim(); t = t.charAt(0).toUpperCase() + t.slice(1); return /[.!?]$/.test(t) ? t : t + "."; };
+    return [x.headline, x.reason, x.next].filter(Boolean).map(sentence).join(" ");
   }
   function cxChosen() {
     const v = cx.provider.value;
@@ -1310,7 +1326,7 @@
     cx.custom.hidden = !p.custom;
     if (!p.custom) cx.url.value = p.url || "";
     cx.url.placeholder = p.type === "anthropic" ? "default (api.anthropic.com)" : "https://…/v1";
-    cx.key.placeholder = p.has_key ? "saved · leave empty to keep it" : (p.needs_key === false ? "not needed for a local server" : "paste a key; several, comma-separated, rotate");
+    cx.key.placeholder = p.has_key ? "saved · leave empty to keep it" : (p.needs_key === false ? "not needed for a local server" : "Paste your API key");
     cx.models.innerHTML = "";
     cx.model.value = "";
     cx.model.placeholder = "List models, or type a model id";
@@ -2767,6 +2783,10 @@
           setTimeout(() => { copy.innerHTML = icon("copy"); copy.classList.remove("done"); }, 1500);
         } catch (_) {}
       }
+      return;
+    }
+    if (ev.target.closest(".fix-btn")) {
+      openConnect();
       return;
     }
     if (ev.target.closest(".retry-btn") && lastPrompt) {

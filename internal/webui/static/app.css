@@ -923,7 +923,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .err-head { font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
 .err-next { color: var(--ink); margin-top: 0.2rem; }
 .err-meta { color: var(--mute); font-family: var(--mono); font-size: 0.74rem; margin-top: 0.35rem; overflow-wrap: anywhere; }
-.retry-btn {
+.retry-btn, .fix-btn {
   margin-left: 0.6rem;
   background: transparent;
   border: 0.5px solid var(--bad-border);
@@ -933,7 +933,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   color: var(--bad);
   transition: background 0.12s ease;
 }
-.retry-btn:hover { background: var(--bad-soft); }
+.retry-btn:hover, .fix-btn:hover { background: var(--bad-soft); }
 .verdict.ok { color: var(--ok); background: var(--ok-soft); font-weight: 500; }
 .verdict.bad { color: var(--bad); background: var(--bad-soft); font-weight: 500; }
 .sheet {
