@@ -184,10 +184,13 @@
     const rows = (d.models || [])
       .map((m) => {
         const all = m.in + m.cache_read + m.cache_write + m.out;
-        return `<div class="crow"><span class="cbar sl-model" style="width:${Math.max((all / maxTok) * 100, 2)}%"></span>` +
-          `<b>${esc(m.model)}</b><span class="cms">${m.calls} call${m.calls === 1 ? "" : "s"}</span>` +
+        // The share bar is its own full-width line under the row: sized
+        // inline inside the flex row it took the row's whole width and
+        // pushed the model name over the figures.
+        return `<div class="crow urow"><b>${esc(m.model)}</b><span class="cms">${m.calls} call${m.calls === 1 ? "" : "s"}</span>` +
           `<span class="cnote">↑${fmtTok(m.in)} (⧉${fmtTok(m.cache_read + m.cache_write)}) ↓${fmtTok(m.out)}` +
-          (m.cost_usd ? ` · $${m.cost_usd.toFixed(4)}` : "") + `</span></div>`;
+          (m.cost_usd ? ` · $${m.cost_usd.toFixed(4)}` : "") + `</span>` +
+          `<span class="ubar"><span class="sl-model" style="width:${Math.max((all / maxTok) * 100, 2)}%"></span></span></div>`;
       })
       .join("");
     const foot = [];

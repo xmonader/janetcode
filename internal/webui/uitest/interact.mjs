@@ -302,6 +302,33 @@ for (let i = 0; i < 10 && chipNow !== 'Ask first'; i++) { await sleep(300); chip
 check('Ask first row turns the mode off again', chipNow === 'Ask first', chipNow);
 await evaljs(`document.getElementById('mode-menu').hidden = true; 1`);
 
+// The /usage card keeps each model's name, calls and figures apart: the
+// share bar used to take the row's whole width and push the name onto
+// the figures.
+const usage = await evaljs(`(() => {
+  window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'u-1', kind: 'usage', data: { in: 21000, out: 3400, models: [
+    { model: 'deepseek/deepseek-v4-flash', calls: 3, in: 20000, out: 3000, cache_read: 9000, cache_write: 0, cost_usd: 0.0017 },
+    { model: 'qwen/qwen3-coder-30b-a3b-instruct', calls: 1, in: 1000, out: 400, cache_read: 0, cache_write: 0 } ] } } }) });
+  const card = [...document.querySelectorAll('.turn.card')].pop();
+  const box = card.getBoundingClientRect();
+  const overlaps = [...card.querySelectorAll('.urow')].some((r) => {
+    const b = r.querySelector('b').getBoundingClientRect(), c = r.querySelector('.cms').getBoundingClientRect();
+    return b.right > c.left + 1 && b.bottom > c.top + 1;
+  });
+  const spills = [...card.querySelectorAll('.urow *')].some((el) => el.getBoundingClientRect().right > box.right + 1);
+  return { overlaps, spills };
+})()`);
+check('usage card rows keep name and figures apart', !usage.overlaps && !usage.spills, JSON.stringify(usage));
+
+// A reply with an unbroken token wraps inside the column instead of
+// running past it or being cut off.
+const wide = await evaljs(`(() => {
+  window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'a-long', kind: 'assistant', done: true, text: 'token: ' + 'A'.repeat(600) + ' and /home/user/projects/' + 'deeply/'.repeat(40) + 'file.go' } }) });
+  const md = [...document.querySelectorAll('.md')].pop();
+  return { scroll: md.scrollWidth, client: md.clientWidth };
+})()`);
+check('an unbroken token wraps inside the column', wide.scroll <= wide.client + 1, JSON.stringify(wide));
+
 // A message sent while the server is unreachable stays in the composer
 // instead of vanishing with an unhandled rejection.
 await evaljs(`(() => { window.__realFetch = window.fetch; window.fetch = (u, o) => String(u).includes('/api/prompt') ? Promise.reject(new TypeError('Failed to fetch')) : window.__realFetch(u, o); return 1; })()`);
