@@ -138,7 +138,14 @@ func (m *model) footerNotice() string {
 		// What it is waiting for, and the other thing it could have been:
 		// the row is where somebody looks after pressing enter and
 		// finding the message has not gone anywhere yet.
-		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]))+m.styles.faint.Render(" · sends when this turn ends · up takes it back, ctrl+s steers it into this turn"), room)
+		// The message is clipped first so the keys survive: a long
+		// message used to push "up takes it back" off an 80-column row.
+		hint := " · sends when this turn ends · up takes it back, ctrl+s steers it into this turn"
+		if room < 110 {
+			hint = " · waits for this turn · ↑ takes back · ctrl+s steers"
+		}
+		msgRoom := max(10, room-lipgloss.Width(hint)-17)
+		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(truncateLine(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]), msgRoom))+m.styles.faint.Render(hint), room)
 	case m.notice.live():
 		return fitLine("  "+m.styles.dim.Render(m.notice.text), room)
 	}

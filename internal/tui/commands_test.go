@@ -1718,3 +1718,26 @@ func TestTurnStatusPutsCostBeforeTokens(t *testing.T) {
 		t.Fatalf("status = %q", h.m.status)
 	}
 }
+
+// At 80 columns a model row keeps its price; the display name, which
+// mostly restates the id, is what the width cuts.
+func TestConnectModelRowKeepsThePrice(t *testing.T) {
+	h := newHarness(t)
+	h.m.width = 80
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	lister := &listing{models: []llm.ModelInfo{{ID: "aion-labs/aion-rp-llama-3.1-8b", Name: "AionLabs: Aion-RP 1.0 (8B) with a long display name",
+		ContextWindow: 32_000, Price: &llm.Price{Input: 0.8, Output: 1.6}}}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return lister, nil })
+	h.keys("/connect")
+	h.enter()
+	h.keys("openrouter")
+	h.enter()
+	h.enter()
+	h.keys("sk-one")
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
+	if v := plain(h.m.View()); !strings.Contains(v, "$0.8/$1.6 per M") {
+		t.Fatalf("the price was cut:\n%s", v)
+	}
+}

@@ -677,6 +677,15 @@ func TestQueueingSaysHowToSteerInstead(t *testing.T) {
 			t.Errorf("the reserved row does not mention %q: %q", want, row)
 		}
 	}
+	// At 80 columns a long message is clipped, not the keys.
+	h.m.turn.queued = []string{strings.Repeat("please also rename every helper in the package ", 4)}
+	h.m.width = 80
+	row = plain(h.m.footerNotice())
+	for _, want := range []string{"queued 1", "please al", "↑ takes back", "ctrl+s steers"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("80 columns: the reserved row does not mention %q: %q", want, row)
+		}
+	}
 }
 
 // TestTheFirstQueuedMessageTeachesCtrlS: the hint engine says it once

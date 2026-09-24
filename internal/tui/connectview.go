@@ -123,7 +123,7 @@ func (m *model) connectView(height int) string {
 		case have > 0:
 			add(m.styles.dim.Render(fmt.Sprintf("%s already configured · enter keeps them, or paste new ones", textfmt.Plural(have, "key"))))
 		default:
-			add(m.styles.dim.Render("Keys are hidden while typing and stored in " + shortPath(m.opts.ConfigPath)))
+			add(m.styles.dim.Render("Saved to " + shortPath(m.opts.ConfigPath) + " · hidden while typing"))
 		}
 	}
 	add("")

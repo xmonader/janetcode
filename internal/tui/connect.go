@@ -321,14 +321,15 @@ func (m *model) handleModels(msg modelsMsg) {
 		c.meta = map[string]llm.ModelInfo{}
 		for _, mi := range msg.models {
 			c.meta[mi.ID] = mi
-			name := ""
+			// Context and price lead and the display name trails: at
+			// 80 columns the row is cut from the right, and the name
+			// ("AionLabs: Aion-2.0") mostly restates the id while the
+			// price ("$0…") was the part being cut.
+			desc := modelDetails(mi)
 			if mi.Name != "" && mi.Name != mi.ID {
-				name = mi.Name
+				desc = strings.TrimSpace(desc + "  " + mi.Name)
 			}
-			if d := modelDetails(mi); d != "" {
-				name = strings.TrimSpace(name + "  " + d)
-			}
-			r := row{key: mi.ID + " " + mi.Name, cells: []string{mi.ID, name}, name: mi.ID}
+			r := row{key: mi.ID + " " + mi.Name, cells: []string{mi.ID, desc}, name: mi.ID}
 			switch mi.ID {
 			case current:
 				r.tag = "current"
