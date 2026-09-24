@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -157,5 +158,52 @@ func TestDoctorFailsOnlyTheProviderInUse(t *testing.T) {
 	}
 	if strings.Contains(got, "[FAIL] provider") {
 		t.Errorf("a provider failed:\n%s", got)
+	}
+}
+
+// --doctor --output-format json is the same checkup as one object a script
+// can read: every line with its status, the failure count, and the same
+// error (so the same exit status) as the text form.
+func TestDoctorJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	cfgDir := filepath.Join(home, ".config", "janetcode")
+	os.MkdirAll(cfgDir, 0o755)
+	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{
+		"provider": "local", "model": "m",
+		"providers": {"local": {"type": "openai", "base_url": "http://127.0.0.1:1/v1"}}
+	}`), 0o644)
+	t.Chdir(t.TempDir())
+
+	var out bytes.Buffer
+	err := doctorJSON(context.Background(), &out, config.Overrides{}, false)
+	var got struct {
+		OK      bool
+		Failed  int
+		Checks  []doctorCheck
+		Repairs *struct{ Sheet string }
+	}
+	if jerr := json.Unmarshal(out.Bytes(), &got); jerr != nil {
+		t.Fatalf("not one JSON object: %v\n%s", jerr, out.String())
+	}
+	byName := map[string]doctorCheck{}
+	for _, c := range got.Checks {
+		byName[c.Check] = c
+	}
+	if c := byName["model call"]; c.Status != "fail" {
+		t.Errorf("the unreachable model should fail: %+v", c)
+	}
+	if c := byName["provider local"]; c.Status != "ok" {
+		t.Errorf("provider row = %+v", c)
+	}
+	if got.OK || got.Failed == 0 || err == nil {
+		t.Errorf("ok=%v failed=%d err=%v; a failed check must fail the run", got.OK, got.Failed, err)
+	}
+	if got.Repairs == nil || !strings.Contains(got.Repairs.Sheet, "config-readable") && !strings.Contains(got.Repairs.Sheet, "private") {
+		t.Errorf("the 0644 config should be listed as a repair: %+v", got.Repairs)
 	}
 }

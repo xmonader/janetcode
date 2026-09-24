@@ -69,7 +69,11 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		// than waiting out the provider's own timeout.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return true, doctor(ctx, os.Stdout, config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag}, o.doctorFix)
+		ov := config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag}
+		if o.outFormat == "json" {
+			return true, doctorJSON(ctx, os.Stdout, ov, o.doctorFix)
+		}
+		return true, doctor(ctx, os.Stdout, ov, o.doctorFix)
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {

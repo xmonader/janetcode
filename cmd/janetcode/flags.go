@@ -165,7 +165,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	}
 	o := &options{}
 	fs.StringVar(&o.promptText, "p", "", "run this prompt headless and exit")
-	fs.StringVar(&o.outFormat, "output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result")
+	fs.StringVar(&o.outFormat, "output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result. --doctor takes json too")
 	fs.Float64Var(&o.maxCost, "max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
 	fs.IntVar(&o.maxTurns, "max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")
 	fs.IntVar(&o.compactAt, "compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")

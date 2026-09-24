@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -266,7 +267,58 @@ func fixEnv(cfgPath, cwd, sessDir string, ts trust.Store) doctorfix.Env {
 
 // printResult renders what a core command returned for a terminal that
 // is not the TUI: the sheet, then the error, the notes and the tips.
+// doctorCheck is one line of the checkup, for --doctor --output-format json.
+type doctorCheck struct {
+	Status string `json:"status"` // ok, fail, warn or info
+	Check  string `json:"check"`
+	Detail string `json:"detail"`
+}
+
+// checkSink stands in for the terminal when the checkup is reported as
+// JSON: doctorLine and printResult record into it, and any other text
+// written to it (headings, blank lines) is dropped.
+type checkSink struct {
+	checks  []doctorCheck
+	repairs *cmdresult.Result
+}
+
+func (c *checkSink) Write(p []byte) (int, error) { return len(p), nil }
+
+// doctorJSON runs the checkup and prints it as one JSON object, for
+// scripts and CI. The error is the checkup's own, so the exit status is
+// the same as the text form's.
+func doctorJSON(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) error {
+	sink := &checkSink{}
+	err := doctor(ctx, sink, ov, fix)
+	if sink.checks == nil && err != nil {
+		return err // failed before any check ran
+	}
+	failed := 0
+	for _, c := range sink.checks {
+		if c.Status == "fail" {
+			failed++
+		}
+	}
+	report := struct {
+		Version string            `json:"version"`
+		OK      bool              `json:"ok"`
+		Failed  int               `json:"failed"`
+		Checks  []doctorCheck     `json:"checks"`
+		Repairs *cmdresult.Result `json:"repairs,omitempty"`
+	}{version, failed == 0, failed, sink.checks, sink.repairs}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	if eerr := enc.Encode(report); eerr != nil {
+		return eerr
+	}
+	return err
+}
+
 func printResult(w io.Writer, res cmdresult.Result) {
+	if s, ok := w.(*checkSink); ok {
+		s.repairs = &res
+		return
+	}
 	if res.Sheet != "" {
 		fmt.Fprintln(w, res.Sheet)
 	}
@@ -443,6 +495,10 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 // stays aligned and rows of a kind line up: the kind is the label, the
 // name leads the detail.
 func doctorLine(w io.Writer, mark, what, detail string) {
+	if s, ok := w.(*checkSink); ok {
+		s.checks = append(s.checks, doctorCheck{Status: strings.ToLower(strings.TrimSpace(mark)), Check: what, Detail: detail})
+		return
+	}
 	const col = 12
 	if kind, name, ok := strings.Cut(what, " "); ok {
 		switch kind {
