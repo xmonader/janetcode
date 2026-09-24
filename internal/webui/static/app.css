@@ -26,8 +26,8 @@
   --surface: #ffffff;
   --surface-2: #f1f1f4;
   --ink: rgba(19, 20, 26, 0.92);
-  --mute: rgba(19, 20, 26, 0.58);
-  --faint: rgba(19, 20, 26, 0.5);
+  --mute: rgba(19, 20, 26, 0.64);
+  --faint: rgba(19, 20, 26, 0.6);
   --line: rgba(19, 20, 26, 0.09);
   --line-strong: rgba(19, 20, 26, 0.17);
   --blue: #3b5bdb;
@@ -74,8 +74,8 @@ html[data-theme="dark"] {
   --surface: #16161b;
   --surface-2: #1e1e25;
   --ink: rgba(238, 238, 245, 0.92);
-  --mute: rgba(238, 238, 245, 0.55);
-  --faint: rgba(238, 238, 245, 0.38);
+  --mute: rgba(238, 238, 245, 0.6);
+  --faint: rgba(238, 238, 245, 0.5);
   --line: rgba(238, 238, 245, 0.09);
   --line-strong: rgba(238, 238, 245, 0.17);
   --blue: #4563ee;

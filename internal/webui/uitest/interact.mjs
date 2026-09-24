@@ -353,6 +353,27 @@ const kept = await evaljs(`({ value: document.getElementById('input').value, sta
 check('an unsent message stays in the composer', kept.value === 'are you there?' && /Cannot reach/.test(kept.status), JSON.stringify(kept));
 await evaljs(`(() => { window.fetch = window.__realFetch; document.getElementById('input').value = ''; return 1; })()`);
 
+// Muted and faint text stay readable (WCAG AA, 4.5:1) in both themes.
+const contrastOf = `(() => {
+  const lum = (r, g, b) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const rgba = (c) => c.match(/[0-9.]+/g).map(Number);
+  const bg = rgba(getComputedStyle(document.body).backgroundColor);
+  const out = {};
+  for (const v of ['--mute', '--faint']) {
+    const el = document.createElement('span'); el.style.color = 'var(' + v + ')'; document.body.appendChild(el);
+    const [r, g, b, a = 1] = rgba(getComputedStyle(el).color); el.remove();
+    const mix = [r, g, b].map((c, i) => c * a + bg[i] * (1 - a));
+    const l1 = lum(...mix), l2 = lum(...bg);
+    out[v] = +((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)).toFixed(2);
+  }
+  return out;
+})()`;
+for (const th of ['light', 'dark']) {
+  await evaljs(`(() => { document.documentElement.dataset.theme = '${th}'; return 1; })()`);
+  const c = await evaljs(contrastOf);
+  check(`muted and faint text reach 4.5:1 (${th})`, c['--mute'] >= 4.5 && c['--faint'] >= 4.5, JSON.stringify(c));
+}
+
 // A first visit follows the OS: a light system gets the light theme.
 await cmd('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
 await evaljs(`(() => { localStorage.removeItem('janetcode-theme'); location.reload(); return 1; })()`);
