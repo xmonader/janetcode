@@ -335,6 +335,13 @@ const addColour = await evaljs(`(() => { const a = document.querySelector('#ask-
 check('the permission card colours added lines', addColour && addColour[0] !== addColour[1], JSON.stringify(addColour));
 await evaljs(`(() => { document.getElementById('ask').hidden = true; return 1; })()`);
 
+// Reconnecting to a server that restarted in another session says so.
+await evaljs(`(() => { const rf = window.fetch; window.__rf2 = rf; window.fetch = (u, o) => String(u).includes('/api/state') ? Promise.resolve(new Response(JSON.stringify({ hello: { session: 'another-session' } }))) : rf(u, o); window.__es.onerror(); window.__es.onopen(); return 1; })()`);
+await sleep(300);
+const restarted = await evaljs(`({ shown: !document.getElementById('reload-toast').hidden, text: document.getElementById('reload-msg').textContent })`);
+check('a restart into a new session is announced', restarted.shown && /new session/.test(restarted.text), JSON.stringify(restarted));
+await evaljs(`(() => { window.fetch = window.__rf2; document.getElementById('reload-toast').hidden = true; return 1; })()`);
+
 // A message sent while the server is unreachable stays in the composer
 // instead of vanishing with an unhandled rejection.
 await evaljs(`(() => { window.__realFetch = window.fetch; window.fetch = (u, o) => String(u).includes('/api/prompt') ? Promise.reject(new TypeError('Failed to fetch')) : window.__realFetch(u, o); return 1; })()`);

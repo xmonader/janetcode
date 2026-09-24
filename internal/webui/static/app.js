@@ -525,8 +525,10 @@
     unseen = false;
     paintTitle();
   });
+  let pageSession = "";
   function applyHello(h) {
     if (!h) return;
+    if (h.session) pageSession = h.session;
     // A different build than the page was served from means the server
     // restarted with a new binary; this JavaScript is stale no matter
     // how hard the user refreshes against the old process's memory.
@@ -2040,6 +2042,7 @@
     if (term && termWS && termWS.readyState === WebSocket.OPEN) {
       term.options.theme = termTheme();
       fitTerm();
+      term.focus();
       return;
     }
     if (term) {
@@ -2072,6 +2075,12 @@
       document.fonts.ready.then(fitTerm);
       fitTerm();
       new ResizeObserver(() => fitTerm()).observe(termView);
+      term.focus();
+    };
+    // A shell whose server went away used to sit on its last prompt,
+    // taking keystrokes that went nowhere.
+    termWS.onclose = () => {
+      if (term) term.write("\r\n\x1b[2m[disconnected: the shell ended. Open the Terminal tab again for a new one]\x1b[0m\r\n");
     };
   }
 
@@ -2799,7 +2808,23 @@
 
   const conn = document.getElementById("conn");
   const es = new EventSource("/events");
-  es.onopen = () => { conn.classList.remove("off"); conn.textContent = ""; conn.title = "Connected"; };
-  es.onerror = () => { conn.classList.add("off"); conn.textContent = "Reconnecting"; conn.title = "Connection lost, retrying"; };
+  let lost = false;
+  es.onopen = () => {
+    conn.classList.remove("off"); conn.textContent = ""; conn.title = "Connected";
+    if (!lost) return;
+    lost = false;
+    // Back after a gap. If the server restarted it opened a different
+    // session, and the page went on showing the old conversation as if
+    // it were live; say so and offer the reload that shows the new one.
+    fetch("/api/state").then((r) => r.json()).then((st) => {
+      const now = st && st.hello && st.hello.session;
+      if (pageSession && now && now !== pageSession) {
+        document.getElementById("reload-msg").textContent =
+          "janetcode restarted in a new session. Reload to continue; this conversation is in the list on the left.";
+        document.getElementById("reload-toast").hidden = false;
+      }
+    }).catch(() => {});
+  };
+  es.onerror = () => { lost = true; conn.classList.add("off"); conn.textContent = "Reconnecting"; conn.title = "Connection lost, retrying"; };
   es.onmessage = (ev) => { try { handle(JSON.parse(ev.data)); } catch (_) {} };
 })();
