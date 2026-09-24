@@ -974,3 +974,27 @@ func TestPendingMCPArgumentsHideTheirValues(t *testing.T) {
 		t.Errorf("a non-object argument leaked: %q", got)
 	}
 }
+
+// A reply cancelled mid-stream can stop on the first characters of a
+// heading or bullet; those are dropped rather than drawn as an empty
+// heading under the "cancelled" line. A closing code fence is content.
+func TestCancelledReplyDropsADanglingMarkdownStub(t *testing.T) {
+	for in, want := range map[string]string{
+		"Found it.\n\n###":          "Found it.",
+		"Found it.\n- \n":           "Found it.",
+		"###":                       "",
+		"```go\nx := 1\n```":        "```go\nx := 1\n```",
+		"Done. **bold** at the end": "Done. **bold** at the end",
+	} {
+		tr := newTranscript()
+		tr.add(&entry{kind: entryAssistant, text: in})
+		tr.dropEmptyTrailing()
+		got := ""
+		if len(tr.entries) > 0 {
+			got = tr.entries[0].text
+		}
+		if got != want {
+			t.Errorf("%q -> %q, want %q", in, got, want)
+		}
+	}
+}

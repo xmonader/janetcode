@@ -375,8 +375,28 @@ func (t *transcript) finishTurn() { t.closeOpen() }
 // (e.g. a cancelled turn) so no blank block lingers.
 func (t *transcript) dropEmptyTrailing() {
 	if n := len(t.entries); n > 0 {
-		if e := t.entries[n-1]; e.kind == entryAssistant && strings.TrimSpace(e.text) == "" {
+		e := t.entries[n-1]
+		if e.kind != entryAssistant {
+			return
+		}
+		// A reply cut off mid-stream can end on the start of a line
+		// that never arrived: a bare "###" or "- " rendered as an empty
+		// heading or bullet under the "cancelled" line.
+		e.text = strings.TrimRight(e.text, " \t\n")
+		for {
+			i := strings.LastIndexByte(e.text, '\n')
+			if strings.Trim(e.text[i+1:], "#*->_ \t") != "" {
+				break
+			}
+			e.text = strings.TrimRight(e.text[:max(i, 0)], " \t\n")
+			if i < 0 {
+				break
+			}
+		}
+		if strings.TrimSpace(e.text) == "" {
 			t.entries = t.entries[:n-1]
+		} else {
+			e.rendered, e.final = "", false
 		}
 	}
 }
