@@ -261,7 +261,7 @@
       const metaRow = e.done ? `<div class="msg-foot"><span class="msg-actions">${copyBtn}${regenBtn}</span><span class="msg-meta">${esc(meta.join(" · "))}</span></div>` : "";
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
-      const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Continue</button>` : "";
+      const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Show full reply</button>` : "";
       n.innerHTML = `<div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) {
         lastReply = (e.text || "").slice(0, 200);
