@@ -1234,6 +1234,33 @@ func TestHelpSeparatesGroups(t *testing.T) {
 	}
 }
 
+// Every built-in command is filed in a /help group. One that is not
+// fell through to "custom commands and skills", so /effort and /theme
+// were listed as if the user had written them.
+func TestHelpFilesEveryBuiltin(t *testing.T) {
+	grouped := map[string]bool{}
+	for _, g := range helpGroups {
+		for _, n := range g.names {
+			if grouped[n] {
+				t.Errorf("%s is in two /help groups", n)
+			}
+			grouped[n] = true
+		}
+	}
+	builtin := map[string]bool{}
+	for _, c := range commands {
+		builtin[c.name] = true
+		if !grouped[c.name] {
+			t.Errorf("built-in %s is in no /help group", c.name)
+		}
+	}
+	for n := range grouped {
+		if !builtin[n] {
+			t.Errorf("/help group names %s, which is not a built-in command", n)
+		}
+	}
+}
+
 // tool.Bash reports a non-zero exit inside the output rather than as an
 // error, so !nosuchcommand was shown with the same green tick as a
 // command that worked.
