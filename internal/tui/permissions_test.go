@@ -238,7 +238,7 @@ func TestPermissionImpactReservesOneRow(t *testing.T) {
 	h := newHarness(t)
 	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file"}, reply: make(chan verdict, 1)}
 	without := h.m.footerHeight()
-	h.m.pending.call.Impact = "changes Foo (func) · 3 refs in 2 files"
+	h.m.pending.call.Impact = "changes Foo (func) · used 3 times in 2 files"
 	with := h.m.footerHeight()
 	if with != without+1 {
 		t.Fatalf("footerHeight with impact = %d, without = %d; want exactly one more row", with, without)
@@ -251,10 +251,10 @@ func TestPermissionImpactReservesOneRow(t *testing.T) {
 func TestPermissionViewShowsImpact(t *testing.T) {
 	h := newHarness(t)
 	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
-		Impact: "changes Parse (func) · 3 refs in 2 files · tests: parse_test.go"}, reply: make(chan verdict, 1)}
+		Impact: "changes Parse (func) · used 3 times in 2 files · tests: parse_test.go"}, reply: make(chan verdict, 1)}
 	h.m.layout()
 	v := plain(h.m.footerView())
-	if !strings.Contains(v, "changes Parse (func) · 3 refs in 2 files · tests: parse_test.go") {
+	if !strings.Contains(v, "changes Parse (func) · used 3 times in 2 files · tests: parse_test.go") {
 		t.Fatalf("permission view missing the impact line:\n%s", v)
 	}
 	if !strings.Contains(v, "allow edit_file") {
@@ -280,7 +280,7 @@ func TestPermissionImpactAbsentWhenEmpty(t *testing.T) {
 // rather than wrapped onto a second line.
 func TestPermissionImpactNeverWraps(t *testing.T) {
 	h := newHarness(t)
-	long := "changes Parse (func), Run (method), VeryLongSymbolNameThatKeepsGoingAndGoing (func) · 214 refs in 60 files · tests: parse_test.go, cli_test.go, another_test.go, yet_another_test.go · checks: go test ./..., go vet ./..., gofmt -l ."
+	long := "changes Parse (func), Run (method), VeryLongSymbolNameThatKeepsGoingAndGoing (func) · used 214 times in 60 files · tests: parse_test.go, cli_test.go, another_test.go, yet_another_test.go · checks: go test ./..., go vet ./..., gofmt -l ."
 	for _, w := range []int{80, 160} {
 		h.m.width = w
 		h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Impact: long}, reply: make(chan verdict, 1)}
@@ -455,7 +455,7 @@ func TestImpactPromptKeepsTheHeaderOnScreen(t *testing.T) {
 		t.Fatalf("idle frame has %d rows, want 24", rows())
 	}
 	h.update(permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
-		Impact: "changes Parse (func) · 3 refs in 2 files"}, reply: make(chan verdict, 1)})
+		Impact: "changes Parse (func) · used 3 times in 2 files"}, reply: make(chan verdict, 1)})
 	if rows() != 24 {
 		t.Fatalf("frame with an impact prompt has %d rows, want 24:\n%s", rows(), plain(h.m.View()))
 	}

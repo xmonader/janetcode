@@ -77,7 +77,7 @@ type Impact struct {
 
 // Line renders Impact as one compact line for a permission prompt, e.g.
 //
-//	changes Parse (func) · 14 refs in 6 files · adds parseAll (func) · tests: parse_test.go, cli_test.go · checks: go test ./...
+//	changes Parse (func) · used 14 times in 6 files · adds parseAll (func) · tests: parse_test.go, cli_test.go · checks: go test ./...
 //
 // It is "" when nothing is known: a non-code file, or an edit that
 // touches no recognizable definition.
@@ -93,7 +93,14 @@ func (i Impact) Line() string {
 			totalFiles += s.RefFiles
 		}
 		parts = append(parts, "changes "+labels(i.Symbols))
-		parts = append(parts, fmt.Sprintf("%s in %s", textfmt.Plural(totalRefs, "ref"), textfmt.Plural(totalFiles, "file")))
+		switch {
+		case totalRefs == 0 && i.Partial:
+			parts = append(parts, "uses not known")
+		case totalRefs == 0:
+			parts = append(parts, "no other uses")
+		default:
+			parts = append(parts, fmt.Sprintf("used %s in %s", textfmt.Plural(totalRefs, "time"), textfmt.Plural(totalFiles, "file")))
+		}
 	}
 	if len(i.Added) > 0 {
 		parts = append(parts, "adds "+labels(i.Added))
@@ -105,8 +112,10 @@ func (i Impact) Line() string {
 		parts = append(parts, "checks: "+strings.Join(i.Checks, ", "))
 	}
 	line := strings.Join(parts, " · ")
-	if i.Partial {
-		line += " (partial)"
+	if i.Partial && !strings.Contains(line, "uses not known") {
+		// The language server or the index did not answer everything;
+		// the count is a floor, and the person approving should know.
+		line += " · may miss some uses"
 	}
 	return line
 }

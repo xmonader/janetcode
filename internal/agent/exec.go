@@ -422,7 +422,7 @@ func (a *Agent) applyDecision(d Decision, reason string, suggested perm.Rule, na
 				if err := a.SaveRule(suggested); err != nil {
 					emit(Event{Kind: EvNotice, Text: "could not save permission rule " + suggested.String() + ": " + err.Error()})
 				} else {
-					emit(Event{Kind: EvNotice, Text: "saved permission rule: " + suggested.String()})
+					emit(Event{Kind: EvNotice, Text: "won't ask again for " + suggested.String() + " · saved as a permission rule (/permissions lists them)"})
 				}
 			}
 		}

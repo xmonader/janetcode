@@ -150,7 +150,7 @@ func TestPermissionRulesAllowDenyAndAlways(t *testing.T) {
 	if len(ap.inputs) != 1 || !strings.Contains(ap.inputs[0], "make build") {
 		t.Fatalf("approver asked for %q, want only 'make build'", ap.inputs)
 	}
-	if len(saved) != 1 || saved[0].String() != "bash(make *)" || len(notices) != 1 || !strings.Contains(notices[0], "saved permission rule: bash(make *)") {
+	if len(saved) != 1 || saved[0].String() != "bash(make *)" || len(notices) != 1 || !strings.Contains(notices[0], "won't ask again for bash(make *)") {
 		t.Fatalf("saved=%v notices=%q", saved, notices)
 	}
 	if r := res(8); r.IsError {

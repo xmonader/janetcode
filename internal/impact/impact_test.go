@@ -77,7 +77,7 @@ func TestAnalyzeWithFakeLSP(t *testing.T) {
 		t.Fatalf("checks = %v", got.Checks)
 	}
 	line := got.Line()
-	for _, want := range []string{"changes Parse (func)", "3 refs in 3 files", "tests: parse_test.go", "checks: go test ./..."} {
+	for _, want := range []string{"changes Parse (func)", "used 3 times in 3 files", "tests: parse_test.go", "checks: go test ./..."} {
 		if !strings.Contains(line, want) {
 			t.Errorf("line %q missing %q", line, want)
 		}
@@ -147,7 +147,7 @@ func TestAnalyzeRepomapFallback(t *testing.T) {
 	if len(got.Tests) != 1 || got.Tests[0] != "lib/parse_test.go" {
 		t.Fatalf("tests = %v, want [lib/parse_test.go]", got.Tests)
 	}
-	if !strings.Contains(got.Line(), "(partial)") {
+	if !strings.Contains(got.Line(), "may miss some uses") {
 		t.Errorf("line should flag the fallback as partial: %q", got.Line())
 	}
 }
@@ -272,7 +272,7 @@ func TestAnalyzeNewFunctionBetweenDefinitions(t *testing.T) {
 	if len(got.Symbols) != 1 || got.Symbols[0].Name != "B" || len(got.Added) != 1 {
 		t.Fatalf("symbols = %+v added = %+v, want B changed and N added", got.Symbols, got.Added)
 	}
-	if line := got.Line(); !strings.HasPrefix(line, "changes B (func) · 2 refs in 2 files · adds N (func)") {
+	if line := got.Line(); !strings.HasPrefix(line, "changes B (func) · used 2 times in 2 files · adds N (func)") {
 		t.Fatalf("line = %q", line)
 	}
 
@@ -281,5 +281,22 @@ func TestAnalyzeNewFunctionBetweenDefinitions(t *testing.T) {
 	got = Analyze(context.Background(), Input{Path: "p.go", Old: before, New: after, LSP: src})
 	if len(got.Symbols) != 1 || got.Symbols[0].Name != "B" || len(got.Added) != 0 {
 		t.Fatalf("body insertion: symbols = %+v added = %+v, want B", got.Symbols, got.Added)
+	}
+}
+
+// The line is read by a person deciding whether to approve an edit, so a
+// count of nothing is said plainly and an unsure count says it is unsure.
+func TestLineSaysNothingPlainly(t *testing.T) {
+	none := Impact{Symbols: []Symbol{{Name: "Parse", Kind: "func"}}}
+	if got := none.Line(); got != "changes Parse (func) · no other uses" {
+		t.Errorf("no uses = %q", got)
+	}
+	none.Partial = true
+	if got := none.Line(); got != "changes Parse (func) · uses not known" {
+		t.Errorf("unknown uses = %q", got)
+	}
+	one := Impact{Symbols: []Symbol{{Name: "Parse", Refs: 1, RefFiles: 1}}, Partial: true}
+	if got := one.Line(); got != "changes Parse · used 1 time in 1 file · may miss some uses" {
+		t.Errorf("one use = %q", got)
 	}
 }
