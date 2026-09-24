@@ -65,8 +65,8 @@ func TestExplainUsesTheFrontEndsRemedy(t *testing.T) {
 func TestNetworkFailuresSayWhereNotHow(t *testing.T) {
 	for raw, want := range map[string]string{
 		`Post "http://127.0.0.1:9/v1/chat/completions": dial tcp 127.0.0.1:9: connect: connection refused`: "nothing is listening at 127.0.0.1:9",
-		`Post "https://nope.invalid/v1/chat/completions": dial tcp: lookup nope.invalid: no such host`:      "no host named nope.invalid",
-		`Post "https://nope.invalid/v1": dial tcp: lookup nope.invalid on 127.0.0.53:53: no such host`:    "no host named nope.invalid",
+		`Post "https://nope.invalid/v1/chat/completions": dial tcp: lookup nope.invalid: no such host`:     "no host named nope.invalid",
+		`Post "https://nope.invalid/v1": dial tcp: lookup nope.invalid on 127.0.0.53:53: no such host`:     "no host named nope.invalid",
 	} {
 		x := Explain(errors.New(raw), "openai", Remedies{Key: "with /connect"})
 		if x.Headline != "Cannot reach the API" || x.Reason != want {
