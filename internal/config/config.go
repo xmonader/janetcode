@@ -507,13 +507,20 @@ func Load(ov Overrides) (*Config, error) {
 }
 
 // inferProvider picks a backend when none was configured: Anthropic when
-// it has a key, else the first configured provider with one, else Anthropic.
+// it has a key, else the first configured provider with one, else the
+// first local server that needs none (OPENAI_BASE_URL pointed at Ollama
+// is a whole setup), else Anthropic.
 func inferProvider(cfg *Config) string {
 	if len(cfg.Providers[DefaultProvider].Keys()) > 0 {
 		return DefaultProvider
 	}
 	for _, n := range cfg.ProviderNames() {
 		if len(cfg.Providers[n].Keys()) > 0 {
+			return n
+		}
+	}
+	for _, n := range cfg.ProviderNames() {
+		if !cfg.Providers[n].NeedsKey() {
 			return n
 		}
 	}

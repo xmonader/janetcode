@@ -103,3 +103,27 @@ func TestNoCredentialsMessageIsReadable(t *testing.T) {
 		}
 	}
 }
+
+// The README's Ollama quick start sets only OPENAI_BASE_URL at a local
+// server and passes a model. That used to fall through to the default
+// provider and fail with "no API key".
+func TestLocalBaseURLAloneIsASetup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg, err := load(path, env(map[string]string{
+		"OPENAI_BASE_URL": "http://localhost:11434/v1",
+		"JANETCODE_MODEL": "qwen3-coder",
+	}), Overrides{})
+	if err != nil {
+		t.Fatalf("err = %v, want a usable local setup", err)
+	}
+	if cfg.Provider != "openai" {
+		t.Fatalf("provider = %q, want openai", cfg.Provider)
+	}
+	// A remote base URL alone is not a setup: it still needs a key.
+	if _, err := load(path, env(map[string]string{
+		"OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+		"JANETCODE_MODEL": "x",
+	}), Overrides{}); !errors.Is(err, ErrNoCredentials) {
+		t.Fatalf("remote URL without a key: err = %v, want ErrNoCredentials", err)
+	}
+}
