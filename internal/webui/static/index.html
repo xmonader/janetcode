@@ -127,12 +127,12 @@
       <div id="trajectory" class="trajectory" hidden>
         <div class="traj-bar">
           <div class="traj-modes" id="traj-modes" role="group" aria-label="Timeline projection">
-            <button type="button" data-mode="sequence" class="on">sequence</button>
-            <button type="button" data-mode="duration">duration</button>
-            <button type="button" data-mode="time">time</button>
-            <button type="button" data-mode="actual">actual</button>
+            <button type="button" data-mode="sequence" class="on">Sequence</button>
+            <button type="button" data-mode="duration">Duration</button>
+            <button type="button" data-mode="time">Time</button>
+            <button type="button" data-mode="actual">Actual</button>
           </div>
-          <input id="traj-search" class="traj-search" type="search" placeholder="grep the ledger — arguments, results, answers" aria-label="Search the ledger">
+          <input id="traj-search" class="traj-search" type="search" placeholder="Search calls, results and answers" aria-label="Search the trajectory">
           <span id="traj-meta" class="traj-meta"></span>
         </div>
         <div id="traj-chart" class="traj-chart" hidden>
@@ -242,12 +242,12 @@
         <button type="button" role="tab" data-pane="files">Files</button>
         <button type="button" role="tab" data-pane="jobs">Jobs</button>
         <button type="button" role="tab" data-pane="agents">Agents</button>
-        <button type="button" role="tab" data-pane="ptc">PTC</button>
+        <button type="button" role="tab" data-pane="ptc" title="Scripts the model ran to call tools in bulk">Scripts</button>
         <button type="button" role="tab" data-pane="session">Session</button>
       </div>
       <section class="work-pane" data-pane="plan">
         <h2>Plan</h2>
-        <ul id="todos"><li class="quiet">Nothing on the list yet</li></ul>
+        <ul id="todos"><li class="quiet">No plan yet. When the model breaks a task into steps, they show here.</li></ul>
       </section>
       <section class="work-pane" data-pane="files" hidden>
         <h2>Changed files</h2>
@@ -265,7 +265,7 @@
         <ul id="agents"><li class="quiet">No subagents yet</li></ul>
       </section>
       <section class="work-pane" data-pane="ptc" hidden>
-        <h2>PTC</h2>
+        <h2>Scripts</h2>
         <ul id="ptc"><li class="quiet">No scripts this session</li></ul>
       </section>
       <section class="work-pane spend" data-pane="session" hidden>

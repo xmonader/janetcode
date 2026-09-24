@@ -1651,7 +1651,7 @@
     try {
       const ws = await (await fetch("/api/workspace")).json();
       const todos = document.getElementById("todos");
-      if (!ws.todos || !ws.todos.length) todos.innerHTML = `<li class="quiet">Nothing on the list yet</li>`;
+      if (!ws.todos || !ws.todos.length) todos.innerHTML = `<li class="quiet">No plan yet. When the model breaks a task into steps, they show here.</li>`;
       else todos.innerHTML = ws.todos.map((t) => {
         const cls = t.status === "completed" || t.status === "done" ? "done" : t.status === "in_progress" ? "doing" : "";
         return `<li class="${cls}">${esc(t.text)}</li>`;
@@ -2291,7 +2291,7 @@
       .join("");
     const legend = lanes
       .map((l) => `<span class="lg ${l.cls}">■ ${l.name}</span>`)
-      .concat([`<span class="lg lg-mode">${esc(traj.mode)}${traj.mode === "sequence" ? " · one unit per record" : " · " + esc(fmtDur(full))}</span>`])
+      .concat([`<span class="lg lg-mode">${esc(traj.mode.charAt(0).toUpperCase() + traj.mode.slice(1))}${traj.mode === "sequence" ? " · every record the same width" : " · " + esc(fmtDur(full))}</span>`])
       .join(" ");
     trajLanes.innerHTML = `<div class="traj-rulerrow">${ticks}</div>${laneRows}`;
     document.getElementById("traj-ruler").innerHTML = legend;
