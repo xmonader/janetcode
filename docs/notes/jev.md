@@ -476,7 +476,7 @@ That is its own round with its own risks and must not be slipped in
 beside a triage change.
 
 Cost once it is wired, from this repository's own measured figures for
-the same set (`docs/benchmarks/multistep/REPORT.md`, PROJECT-STATE:
+the same set (`docs/benchmarks/multistep/REPORT.md`, docs/notes/history.md:
 five runs of one variant of evals 51–62 on qwen3.7-flash ≈ 6 h and
 ≈ $0.55): two sides at five runs is ≈ 12 h wall and ≈ $1.10 — an order
 of magnitude past an hour, so it was not started. The command lines,
@@ -1102,7 +1102,7 @@ reads it without knowing where it came from.
 `internal/critic` fits a logistic predictor on `{Features, Passed}`:
 `Features` is the sixteen-number `agent.FoldTrajectory` vector, `Passed`
 is whether the eval run passed. It has never trained, for one reason
-recorded in PROJECT-STATE since 2026-09-08 — **there are no negatives.**
+recorded in docs/notes/history.md since 2026-09-08 — **there are no negatives.**
 `critic.Train` refuses one-class data outright, and the eval runs that
 produce the training data nearly all pass.
 
