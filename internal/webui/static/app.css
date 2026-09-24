@@ -2061,7 +2061,8 @@ kbd {
   .shell:not(.nav-collapsed) .nav { transform: none; }
   /* The rail overlays the thread here: dim it, and a tap on the dim
      closes the rail (app.js listens for clicks on the shell itself). */
-  .shell:not(.nav-collapsed)::after {
+  .shell:not(.nav-collapsed)::after,
+  .shell:not(.work-collapsed)::after {
     content: "";
     position: fixed;
     inset: 0;
@@ -2069,6 +2070,7 @@ kbd {
     background: var(--overlay);
   }
   .work, .preview { top: 49px; width: min(100vw - 48px, 26rem); box-shadow: var(--shadow-pop); }
+  .work { z-index: 60; }
   /* overlays on small screens: the thread has no width to yield */
   .shell:not(.work-collapsed) .thread,
   .shell.pv-open .thread,

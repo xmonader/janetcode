@@ -429,6 +429,26 @@ check('no context chip before the first message', await ctxChip() === true, 'sho
 await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'u-ctx', kind: 'user', text: 'hi' } }) }); return 1; })()`);
 check('the context chip shows once there is a turn', await ctxChip() === false, 'hidden');
 
+// On a phone the Session panel does not reopen over the thread because it
+// was left open on a desktop, and the two drawers never stack.
+await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+await evaljs(`(() => { localStorage.setItem('janetcode-work-collapsed', ''); location.reload(); return 1; })()`);
+await sleep(1500);
+const phone = await evaljs(`(() => {
+  const sh = document.querySelector('.shell');
+  const start = { work: !sh.classList.contains('work-collapsed'), nav: !sh.classList.contains('nav-collapsed') };
+  document.getElementById('work-toggle').click();
+  document.getElementById('nav-toggle').click();
+  const both = !sh.classList.contains('work-collapsed') && !sh.classList.contains('nav-collapsed');
+  sh.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  const closed = sh.classList.contains('work-collapsed') && sh.classList.contains('nav-collapsed');
+  return { start, both, closed };
+})()`);
+check('a phone opens with the Session panel shut', !phone.start.work, JSON.stringify(phone));
+check('the two drawers never stack on a phone', !phone.both, JSON.stringify(phone));
+check('a tap on the dim closes the drawers', phone.closed, JSON.stringify(phone));
+await cmd('Emulation.clearDeviceMetricsOverride');
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');
