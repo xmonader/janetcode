@@ -254,3 +254,27 @@ func TestThemePickerFitsAnEightyByTwentyFour(t *testing.T) {
 		t.Fatalf("the picker's bottom border is clipped:\n%s", v)
 	}
 }
+
+// Opening /theme and pressing esc changes nothing, so it says nothing:
+// the preview's note used to stay in the status line afterwards.
+func TestThemePickerEscLeavesNoNote(t *testing.T) {
+	h := newHarness(t)
+	set, err := theme.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.m.opts.Themes = set
+	h.m.opts.Config = &config.Config{Theme: "auto"}
+	h.m.opts.Theme = "auto"
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	h.keys("/theme")
+	h.enter()
+	h.update(tea.KeyMsg{Type: tea.KeyDown})
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.picker != nil {
+		t.Fatal("picker still open")
+	}
+	if strings.Contains(h.m.status, "theme:") {
+		t.Fatalf("status after esc = %q", h.m.status)
+	}
+}

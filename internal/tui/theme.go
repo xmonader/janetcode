@@ -77,7 +77,13 @@ func (m *model) applyThemeChoice(name string, persist bool) {
 		cfg.Theme = name
 	}
 	m.spinner.Style = m.styles.accent
-	m.note(m.themeApplied(name, th, mode))
+	if persist {
+		// Only a kept choice is news. Previews while the picker moves, and
+		// the restore on esc, used to leave "theme: auto (dark) · follows
+		// the terminal background" in the status line after a /theme that
+		// changed nothing.
+		m.note(m.themeApplied(name, th, mode))
+	}
 	if persist && m.opts.ConfigPath != "" {
 		if err := config.UpdateKey(m.opts.ConfigPath, "theme", name); err != nil {
 			m.transcript.errorf("saving theme: %v", err)
