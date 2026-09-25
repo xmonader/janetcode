@@ -185,6 +185,25 @@ Web UI
   the connect dialog are their own files; every browser suite fails on
   any uncaught exception in the page.
 
+### Look and feel
+- New palette in both interfaces: system greys, a clearer blue accent, and
+  system green, red and orange for status, in light and dark. In the web
+  UI, faint text now reaches 4.5:1 contrast. The previous terminal palette
+  is still available as the `classic` theme.
+- Web: the permission card has filled buttons and shows Deny in red; the
+  provider select in `/connect` now looks like the inputs beside it; link
+  cards use the text font; the sound setting is a switch; the help sheet no
+  longer wraps its keys; the sixth workspace tab is no longer cut off. The
+  empty trajectory and the empty conversation rail now say what will appear
+  there.
+- Terminal: `/help` shows headings in bold and command names in the accent
+  colour. A permission prompt's keys (y, a, r, n, c) stand out from their
+  descriptions. Wrapped bullets and numbered items continue under their own
+  text, and wrapped quotes keep their bar. Wrapped thoughts continue under
+  their text too. The input hint uses the theme's faint colour, so on a
+  light terminal it no longer looks like typed text. When the status line
+  is short of room, the cache rate goes first and `/undo` stays.
+
 ### Known limitations
 - The Anthropic provider has been tested against a fake server only; the
   OpenAI-compatible path is tested live.
