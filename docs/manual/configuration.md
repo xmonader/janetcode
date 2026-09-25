@@ -365,7 +365,7 @@ A session runs on one model and may name others for particular jobs:
 | cheap | `route_cheap` | a turn's mechanical steps, when step routing fires |
 | strong | `strong_model` | the rest of a turn whose gate kept failing, with `escalate_after` |
 | advisor | `advisor_model` | the advisor tool's consults, forced when `advisor_mode` is `always` |
-| vision | `vision_model` | nothing yet -- the slot is recorded, and an image pasted into a turn still rides on the session's own model |
+| vision | `vision_model` | reads the images a model that cannot see would be sent, and describes them for it (below) |
 
 **Every empty slot is the main model.** One resolver says so --
 `(*config.Config).Slot(name) -> (provider, model)` in
@@ -392,6 +392,38 @@ From the terminal, `/model` is every slot: `/model` alone (or `/model
 strong`, `/model advisor` and `/model vision` open the same searchable
 provider list for the slot named, and `/model <slot> off` empties one.
 An unset slot reads `cheap: unset (main: anthropic/claude-opus-5)`.
+
+### Images for a model that cannot see: `vision_model`
+
+Many coding models read no images: DeepSeek, Qwen Coder, most GLM
+releases. Setting `vision_model` says the session's model is one of
+them. From then on, every image a request would carry to any other
+model — a screenshot attached with `@file`, a paste, an image an MCP
+tool returned — goes to the vision model first, and what it says the
+image shows is sent in its place: every piece of text transcribed
+exactly, the layout and state of what is on screen, a chart's values.
+The text the image came with tells it what to look at. The session's
+model reads the description marked as coming from the vision model, and
+as data rather than instructions.
+
+- An image is described once per session: every later request that
+  carries it reuses the description, so a screenshot early in a long
+  session is not paid for on every call.
+- The session keeps the image itself. Switching the session to the
+  vision model (or to any model named by `vision_model`) sends the real
+  image again, and so does emptying the slot.
+- If the vision model fails, the session's model is told an image was
+  there that could not be described and to ask you if it matters; the
+  raw image is never sent to a model declared unable to read it. It is
+  tried again next turn. A name that cannot be routed turns the bridge
+  off for the session with one notice, and images then go to the
+  session's model as they would without it.
+- The vision call is billed with the session's other calls, under the
+  vision model's name in `/usage`.
+
+`vision_model` names a model the way the other slots do, on the session's
+provider or any other configured one; `/model vision` picks one from the
+list. Leave it empty when the session's model reads images itself.
 
 ### Turning the features on from the session
 

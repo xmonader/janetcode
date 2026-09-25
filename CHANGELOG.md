@@ -84,6 +84,8 @@ and measurements behind each round are in `docs/notes/history.md`.
   understood.
 - Fixed: a subagent left with no tools crashed the session instead of
   reporting an error.
+- `vision_model` now works: a text-only session model gets each image
+  described by the vision model instead, once per image per session.
 - `status_line` puts a command's output under the input, fed the session
   as JSON the way Claude Code and Qwen Code feed theirs; their
   `statusLine` object can be pasted in as it is.
