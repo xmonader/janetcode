@@ -97,6 +97,11 @@ func TestStatusTextOutranksTheCacheRate(t *testing.T) {
 	if strings.Contains(v, "cache 90%") {
 		t.Fatalf("the cache rate did not yield: %q", v)
 	}
+	// Nor when the text is too long to fit whatever yields.
+	h.m.status = strings.Repeat("x", h.m.width+10)
+	if v := plain(h.m.statusView()); strings.Contains(v, "cache 90%") {
+		t.Fatalf("the cache rate stayed beside a cut status: %q", v)
+	}
 }
 
 func TestFooterShowsCacheRate(t *testing.T) {

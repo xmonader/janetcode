@@ -340,7 +340,7 @@ func (m *model) statusView() string {
 	// The cache rate is the first to yield, before the token counts and
 	// the gauge's figures: a status cut to "/undo…" beside "cache 32%"
 	// kept the least useful of them.
-	chosen := build(cache, "", gauges[len(gauges)-1])
+	chosen := build("", "", gauges[len(gauges)-1])
 	fit := false
 	for _, u := range []string{usage, ""} {
 		for _, c := range []string{cache, ""} {
