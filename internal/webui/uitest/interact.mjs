@@ -578,6 +578,19 @@ const attach = await evaljs(`(async () => {
 check('the file picker attaches the file', attach.afterPick.uploads === 1 && attach.afterPick.value.includes('@notes.txt') && !attach.errors.length, JSON.stringify(attach));
 check('a drop on the composer uploads once', attach.drops === 1 && attach.value.includes('@notes.txt'), JSON.stringify(attach));
 
+// Motion: an entry that arrives alone rises into place; a burst (a
+// replay, a reconnect) is simply there.
+const motion = await evaljs(`(async () => {
+  const send = (id) => window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id, kind: 'note', text: id } }) });
+  await new Promise(r => setTimeout(r, 120));
+  send('mo-alone');
+  await new Promise(r => setTimeout(r, 120));
+  send('mo-b1'); send('mo-b2'); send('mo-b3');
+  const has = (id) => document.querySelector('[data-id="' + id + '"]').hasAttribute('data-enter');
+  return { alone: has('mo-alone'), burst: [has('mo-b2'), has('mo-b3')] };
+})()`);
+check('a lone entry rises in, a burst does not', motion.alone && !motion.burst[0] && !motion.burst[1], JSON.stringify(motion));
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));

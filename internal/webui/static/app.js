@@ -71,6 +71,7 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  let lastCreated = 0;
   function render(e) {
     if (e.gone) {
       // The server dropped it from the thread (an empty thinking
@@ -89,6 +90,12 @@
       n = document.createElement("article");
       n.className = "turn";
       n.dataset.id = e.id;
+      // An entry that arrives on its own rises into place. One of a burst
+      // (a page load replaying the thread, a batch after a reconnect) is
+      // simply there: forty rows sliding in at once is noise, not motion.
+      const now = performance.now();
+      if (now - lastCreated > 60 && log.childElementCount > 0) n.dataset.enter = "";
+      lastCreated = now;
       log.appendChild(n);
       nodes.set(e.id, n);
     }
@@ -114,7 +121,7 @@
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Show full reply</button>` : "";
-      n.innerHTML = `<div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : "▍"}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
+      n.innerHTML = `<div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : '<span class="caret">▍</span>'}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) {
         lastReply = (e.text || "").slice(0, 200);
         drawMermaid(n);
