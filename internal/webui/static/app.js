@@ -120,7 +120,7 @@
         drawMermaid(n);
       }
     } else if (e.kind === "thinking") {
-      n.className = "turn thought";
+      n.className = "turn thought" + (e.done ? "" : " live");
       n.dataset.thought = e.id;
       const raw = (e.text || "").trim();
       if (!raw && !e.done) {

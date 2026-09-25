@@ -792,8 +792,24 @@ button:disabled { cursor: default; opacity: 0.55; }
   padding-left: 0.8rem;
   cursor: pointer;
 }
-.thought .lbl { cursor: pointer; }
-.thought-body { white-space: pre-wrap; color: var(--mute); font-size: 0.85rem; margin: 0.25rem 0 0; }
+.thought .lbl { cursor: pointer; font-weight: 550; color: var(--faint); }
+/* Reasoning is prose: the reading face, a little quieter than the reply,
+   never a log in a monospace box. */
+.thought-body {
+  white-space: pre-wrap;
+  font-family: var(--sans);
+  color: var(--mute);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: 0.25rem 0 0;
+}
+.thought.live .lbl {
+  background: linear-gradient(90deg, var(--faint) 0%, var(--faint) 35%, var(--ink) 50%, var(--faint) 65%, var(--faint) 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
 .thought-live {
   display: flex;
   flex-direction: column-reverse; /* anchored to the newest line */
