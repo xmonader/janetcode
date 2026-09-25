@@ -756,6 +756,24 @@ glob, or read with the `skill` tool. The heaviest come first, and the
 last line totals the index lines against the request prefix, which is
 what a directory of a hundred unused skills actually costs you.
 
+Every skill's files are scanned, never run, when it is loaded: SKILL.md,
+its scripts and references, hidden files included. A skill that came
+with the repository (`.janetcode/skills`, `.agents/skills`,
+`.claude/skills`) and holds a critical finding is **blocked**: it is not
+attached, not offered to the model and not runnable as `/name`, and
+`/skills` and `--doctor` say which file and line blocked it. Critical is
+a pipe from a bare IP address into a shell, decoded code evaluated, a
+reverse shell, deleting `/` or `~`, a fork bomb, the cloud metadata
+address, the environment or SSH keys sent over the network, a key added
+to `authorized_keys`, a symlink out of the skill, and in markdown an
+instruction to ignore earlier instructions or to hide something from you.
+Everything else the scan notices is a warning: an installer piped from a
+named host (the way uv and ollama install; bash still asks before it
+runs), a command shape quoted in a reference document, a compiled binary
+or archive shipped with the skill, a credential. Your own skills under
+the config directory are never blocked, only warned about. To use a
+blocked skill, read it and remove what was found, or remove the skill.
+
 `/curator` manages auto-generated skills (`auto-skill-*`, or frontmatter
 `source: auto-skill` / `learned`). `/curator` lists them with how often
 they have fired; `pin` keeps one, `archive` moves it to

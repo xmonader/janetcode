@@ -49,6 +49,17 @@ type Skill struct {
 	// Paths are globs that attach the skill when a tool touches a matching
 	// file, the same way project rules work. Empty means text-match only.
 	Paths []string
+	// Findings are what the scan of its files saw (see Scan). Blocked is
+	// set for a skill the repository supplied with a critical finding:
+	// it is neither attached, offered to the model nor run as /name.
+	Findings []Finding
+	Blocked  bool
+}
+
+// repoSupplied reports a skill that came with the working directory
+// rather than from the user's own configuration.
+func repoSupplied(source string) bool {
+	return source == "project" || source == "agents" || source == "claude"
 }
 
 // maxFiles bounds the supporting files listed per skill.
@@ -134,6 +145,10 @@ func readDir(dir, source string) []Skill {
 		}
 		if sdir != "" {
 			s.Files = supportingFiles(sdir)
+		}
+		s.Findings = Scan(p, sdir)
+		if repoSupplied(source) && len(Blocking(s.Findings)) > 0 {
+			s.Blocked, s.ModelInvocable, s.UserInvocable = true, false, false
 		}
 		out = append(out, s)
 	}

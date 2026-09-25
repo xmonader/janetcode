@@ -331,6 +331,10 @@ func (m *model) runUserCommand(text string, fields []string) (tea.Cmd, bool) {
 		return m.submit(c.Expand(args)), true
 	}
 	for _, sk := range skill.WithBuiltins(skill.Load(m.opts.Cwd, m.opts.ConfigDir)) {
+		if sk.Blocked && "/"+sk.Name == fields[0] {
+			m.note("skill " + sk.Name + " is blocked: " + skill.Blocking(sk.Findings)[0].String() + "; /skills says more")
+			return nil, true
+		}
 		if sk.UserInvocable && "/"+sk.Name == fields[0] {
 			m.note("running skill " + sk.Name + " (" + shortPath(sk.Path) + ")")
 			return m.submit(sk.Expand(strings.TrimPrefix(text, fields[0]))), true

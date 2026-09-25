@@ -441,6 +441,13 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		}
 		row(true, "skills", fmt.Sprintf("%s (%d project, %d global, %d claude)", plural(len(skills), "skill"), by["project"], by["global"], by["claude"]))
 	}
+	for _, sk := range skills {
+		if sk.Blocked {
+			row(false, "skill "+sk.Name, "blocked: "+skill.Blocking(sk.Findings)[0].String()+" in "+sk.Path)
+		} else if len(sk.Findings) > 0 {
+			info("skill "+sk.Name, fmt.Sprintf("%s: %s", plural(len(sk.Findings), "scan warning"), sk.Findings[0]))
+		}
+	}
 	if profiles := skill.LoadProfiles(cwd, cfgDir); len(profiles) > 0 {
 		row(true, "profiles", plural(len(profiles), "subagent profile"))
 	}

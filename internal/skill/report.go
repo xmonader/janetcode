@@ -37,6 +37,10 @@ type Row struct {
 	// ModelInvocable is false for a skill only the user can invoke with
 	// "/name": it costs nothing until it is typed.
 	ModelInvocable bool
+	// Blocked and Findings are the scan's verdict (see Skill).
+	Blocked  bool
+	Findings []Finding
+	Path     string
 }
 
 // Rows prices every skill, heaviest first. stats may be nil.
@@ -44,7 +48,8 @@ func Rows(skills []Skill, stats map[string]Stat) []Row {
 	out := make([]Row, 0, len(skills))
 	for _, s := range skills {
 		r := Row{Name: s.Name, Description: s.Description, Source: s.Source,
-			Body: tokens.Estimate(s.Block().Text), ModelInvocable: s.ModelInvocable}
+			Body: tokens.Estimate(s.Block().Text), ModelInvocable: s.ModelInvocable,
+			Blocked: s.Blocked, Findings: s.Findings, Path: s.Path}
 		if s.ModelInvocable {
 			r.Index = tokens.Estimate(fmt.Sprintf("- %s: %s\n", s.Name, s.Description))
 		}
@@ -81,6 +86,8 @@ func Report(skills []Skill, stats map[string]Stat, prefixTokens int, where strin
 		index += r.Index
 		state := "unused"
 		switch {
+		case r.Blocked:
+			state = "blocked"
 		case r.Injected:
 			state = "in context"
 		case r.Used > 0:
@@ -105,10 +112,34 @@ func Report(skills []Skill, stats map[string]Stat, prefixTokens int, where strin
 	}
 	fmt.Fprintf(&sb, "\n%d of %d have been sent this session", used, len(rows))
 	res := cmdresult.Result{Sheet: strings.TrimRight(sb.String(), "\n"), SheetTitle: "skills"}
+	res.Tips = append(res.Tips, ScanTips(rows)...)
 	if used == 0 && len(rows) > 0 {
 		res.Tips = append(res.Tips, "no skill has been used this session; the index lines above are paid for in every request whether one matches or not")
 	}
 	return res
+}
+
+// ScanTips says, for each blocked skill, what blocked it and how to use
+// it again, and names the skills the scan only warned about.
+func ScanTips(rows []Row) []string {
+	var tips, warned []string
+	for _, r := range rows {
+		switch {
+		case r.Blocked:
+			b := Blocking(r.Findings)
+			more := ""
+			if len(b) > 1 {
+				more = fmt.Sprintf(" (and %d more)", len(b)-1)
+			}
+			tips = append(tips, fmt.Sprintf("%s is blocked: %s%s. It came with this repository; read %s, and remove what the scan found or the skill, to use it", r.Name, b[0], more, r.Path))
+		case len(r.Findings) > 0:
+			warned = append(warned, fmt.Sprintf("%s (%s)", r.Name, r.Findings[0]))
+		}
+	}
+	if len(warned) > 0 {
+		tips = append(tips, "the scan warned about "+strings.Join(warned, "; "))
+	}
+	return tips
 }
 
 func pct(n, total int) int {
