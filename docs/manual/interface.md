@@ -76,7 +76,7 @@ A theme is a full named palette: every colour role the interface draws
 with (accent, dim, faint, warn, err, ok, user, tool, the header
 foreground and background, the two border colours, and the two diff
 colours), plus the transcript's left gutter. The `default` theme is calm
-system colours with a blue accent, and is what you get if you never pick
+system colours with janetcode's iris accent (aqua for tools and code), and is what you get if you never pick
 one; `classic` is the palette janetcode drew before v0.3.
 
 The terminal's background is asked for once at start. `theme: auto` (the
