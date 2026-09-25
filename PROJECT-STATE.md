@@ -15,24 +15,13 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   and others. Anthropic path verified only against a fake server.
 - Windows: compile-checked (`make cross`), never run.
 - Last release tag: v0.2.0; ~1040 commits since.
-- Polish pass 2026-09-24/25: CLI, TUI and web audited end to end (frames in
-  the session scratchpad); every item fixed except the Anthropic path (held).
-  Summary in CHANGELOG "Polish". Browser checks: `make ui-test`, `make ui-turn`.
-- Lessons from ~/wspace/diwan applied 2026-09-25 (CHANGELOG "Robustness",
-  "Web, background runs and operations"). Not taken: diwan's native Gemini
-  client (weaker than the OpenAI-compatible path), schema-enum drift test.
-- "Apple-grade" list done 2026-09-25 except Anthropic and Windows (CHANGELOG
-  "First week"). Release pipeline rehearsed locally: `make dist`, install.sh
-  and `--update` against a fake GitHub layout. The GitHub repo answers 404
-  anonymously, so install.sh/--update need it public (or a mirror via
-  JANETCODE_RELEASES) before they work for anyone else.
-- Look-and-feel pass 2026-09-25 (CHANGELOG "Look and feel"): system palette
-  in web + TUI (old TUI palette = `classic` theme). Web review: shots via
-  shot.mjs into a scratch dir; TUI review: pty frames rendered to PNG.
-- Brand/"lickable" pass 2026-09-25: iris accent + iris→aqua gradient (chosen
-  by the agent; alternatives offered to user), tool cards, TUI tables/diff
-  bands, hljs palette (`--hl-*`, a11y-checked), project-aware empty chips
-  (`/api/suggest`; pinned in shot.mjs so baselines ignore the worktree).
+- Polish/look passes 2026-09-24/25: CHANGELOG "Polish", "Robustness", "Web,
+  background runs and operations", "First week", "Look and feel". Brand:
+  iris accent + iris→aqua gradient (agent's pick; alternatives offered).
+  Checks: `make ui-test ui-turn ui-a11y ui-visual` (shot.mjs pins
+  `/api/suggest`). TUI review: pty frames rendered to PNG. Not taken from
+  diwan: native Gemini client, schema-enum drift test. Release pipeline
+  rehearsed locally; install.sh/--update need the GitHub repo public.
 - Qwen/Claude parity 2026-09-25 (vs qwen-code ffea2d0 on herobox): 14 hook
   events + Claude/Qwen hook configs read as-is; `status_line` command
   (TUI only; Qwen's preset mode refused); `vision_model` bridge (images
