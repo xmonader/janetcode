@@ -48,7 +48,9 @@
   --code-bg: rgba(0, 0, 0, 0.05);
   --pre-bg: #f7f7f9;
   --pre-ink: #1d1d1f;
-  --violet: #8944ab;
+  /* code: a full highlighting palette, kin to the iris and aqua brand */
+  --hl-kw: #6b3fd6; --hl-str: #17774a; --hl-num: #a35200; --hl-fn: #0b5fc0;
+  --hl-type: #007482; --hl-attr: #b0215f; --hl-com: #6e6e78; --hl-meta: #5f5f68;
   --bubble-bg: #efeff2;
   --diff-add-bg: rgba(52, 199, 89, 0.2);
   --diff-del-bg: rgba(255, 59, 48, 0.18);
@@ -97,7 +99,8 @@ html[data-theme="dark"] {
   --code-bg: rgba(255, 255, 255, 0.08);
   --pre-bg: #1b1b1e;
   --pre-ink: rgba(255, 255, 255, 0.88);
-  --violet: #d08cf5;
+  --hl-kw: #b4a7ff; --hl-str: #7ee2b8; --hl-num: #ffb86b; --hl-fn: #82cfff;
+  --hl-type: #5fe3d8; --hl-attr: #f5a3cf; --hl-com: #8b8b96; --hl-meta: #b3b3bd;
   --bubble-bg: #2c2c2f;
   --diff-add-bg: rgba(48, 209, 88, 0.12);
   --diff-del-bg: rgba(255, 69, 58, 0.13);
@@ -741,12 +744,16 @@ button:disabled { cursor: default; opacity: 0.55; }
 .tn { color: var(--warn); }
 /* highlight.js theme on the design tokens. The hljs- classes exist only
    inside highlight.js output (chat fences, tool results). */
-.hljs-keyword, .hljs-literal, .hljs-selector-tag, .hljs-doctag, .hljs-tag { color: var(--accent); font-weight: 500; }
-.hljs-string, .hljs-regexp, .hljs-addition { color: var(--ok); }
-.hljs-comment, .hljs-quote { color: var(--faint); font-style: italic; }
-.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-link { color: var(--warn); }
-.hljs-title, .hljs-name, .hljs-section, .hljs-function, .hljs-selector-id, .hljs-selector-class, .hljs-selector-attr, .hljs-selector-pseudo { color: var(--violet); }
-.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-type, .hljs-params, .hljs-built_in, .hljs-class, .hljs-meta, .hljs-subst { color: var(--ink); }
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag { color: var(--hl-kw); font-weight: 500; }
+.hljs-literal, .hljs-number, .hljs-symbol, .hljs-bullet { color: var(--hl-num); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-link { color: var(--hl-str); }
+.hljs-comment, .hljs-quote { color: var(--hl-com); font-style: italic; }
+.hljs-title, .hljs-title.function_, .hljs-function .hljs-title, .hljs-section, .hljs-selector-id { color: var(--hl-fn); }
+.hljs-type, .hljs-title.class_, .hljs-class .hljs-title, .hljs-built_in, .hljs-selector-class { color: var(--hl-type); }
+.hljs-attr, .hljs-attribute, .hljs-name, .hljs-tag, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-property { color: var(--hl-attr); }
+.hljs-variable, .hljs-template-variable, .hljs-params, .hljs-subst { color: var(--pre-ink); }
+.hljs-variable.language_, .hljs-meta, .hljs-meta .hljs-keyword { color: var(--hl-meta); }
+.hljs-meta .hljs-string { color: var(--hl-str); }
 .hljs-operator, .hljs-punctuation { color: var(--mute); }
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }

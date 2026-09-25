@@ -69,7 +69,14 @@ const PAIRS = [
   ['--bad', '--surface', 3.0, 'errors on cards'],
   ['--warn', '--bg', 3.0, 'warnings'],
   ['--warn', '--surface', 3.0, 'warnings on cards'],
-  ['--violet', '--bg', 3.0, 'hljs titles'],
+  ['--hl-kw', '--pre-bg', 4.5, 'code kw'],
+  ['--hl-str', '--pre-bg', 4.5, 'code str'],
+  ['--hl-num', '--pre-bg', 4.5, 'code num'],
+  ['--hl-fn', '--pre-bg', 4.5, 'code fn'],
+  ['--hl-type', '--pre-bg', 4.5, 'code type'],
+  ['--hl-attr', '--pre-bg', 4.5, 'code attr'],
+  ['--hl-com', '--pre-bg', 4.5, 'code com'],
+  ['--hl-meta', '--pre-bg', 4.5, 'code meta'],
   ['--mute', '--bubble-bg', 3.5, 'user bubble secondary'],
 ];
 
