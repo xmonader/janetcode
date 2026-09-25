@@ -331,6 +331,9 @@ type Agent struct {
 	turnN, stepN int
 	// sessHooks tracks session_start and session_end for this session.
 	sessHooks sessionHooks
+	// vision is the vision_model slot and the image descriptions it made
+	// (see vision.go).
+	vision visionState
 	// Archive, when set, keeps full tool outputs longer than InlineOutput
 	// on disk so the model can page through them with expand_output.
 	Archive *Archive

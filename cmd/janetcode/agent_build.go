@@ -407,6 +407,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.AdvisorMode = d.cfg.AdvisorMode
 	ag.AdvisorMaxConsults = d.cfg.AdvisorMaxConsults
 	ag.StrongModel = d.cfg.StrongModel
+	ag.SetVisionModel(d.cfg.VisionModel)
 	ag.EscalateAfter = d.cfg.EscalateAfter
 	// Every model the session pays for, not only the one it is set to: a
 	// fallback, a routed cheap call, an advisor and a subagent each have

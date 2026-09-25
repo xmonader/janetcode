@@ -71,9 +71,7 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		// /config route_cheap does for the cheap one.
 		a.SetStrongModel(cfg.StrongModel)
 	case "vision_model":
-		// Nothing consumes the vision slot yet (see config.Config), so
-		// there is no live field to update: the choice is recorded and
-		// resolved through cfg.Slot wherever it is eventually read.
+		a.SetVisionModel(cfg.VisionModel)
 	case "stale_check_nudge":
 		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
 	case "escalate_after":

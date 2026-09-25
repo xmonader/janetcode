@@ -94,7 +94,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	resp, err := prov.Stream(ctx, llm.Request{
 		Model:     model,
 		System:    system,
-		Messages:  a.Messages,
+		Messages:  a.bridgeImages(ctx, a.Messages, model, emit),
 		Tools:     defs,
 		MaxTokens: a.Settings().MaxTokens,
 		Effort:    a.Settings().Effort,
