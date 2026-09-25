@@ -88,8 +88,15 @@ const ws = new WebSocket((await target()).webSocketDebuggerUrl);
 await new Promise(r => ws.onopen = r);
 let seq = 0;
 const pending = new Map();
-ws.onmessage = (ev) => { const m = JSON.parse(ev.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
+// Uncaught exceptions anywhere in the page's scripts fail the run.
+const pageErrors = [];
+ws.onmessage = (ev) => {
+  const m = JSON.parse(ev.data);
+  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+  if (m.method === 'Runtime.exceptionThrown') pageErrors.push(String(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text).split('\n')[0]);
+};
 const cmd = (method, params = {}) => new Promise(res => { const id = ++seq; pending.set(id, res); ws.send(JSON.stringify({ id, method, params })); });
+await cmd('Runtime.enable');
 const js = async (expression) => {
   const r = await cmd('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
   if (r.result.exceptionDetails) throw new Error('page JS error: ' + (r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text));
@@ -147,6 +154,7 @@ check('a reload mid-reply shows the whole reply', await until(`document.getEleme
 const once = await js(`(document.getElementById('log').innerText.match(/one two three/g) || []).length`);
 check('…exactly once', once === 1, `seen ${once} times`);
 
+check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 ws.close();
 model.close();
 for (const r of results) console.log(r);
