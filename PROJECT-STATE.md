@@ -22,6 +22,8 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   `/api/suggest`). TUI review: pty frames rendered to PNG. Not taken from
   diwan: native Gemini client, schema-enum drift test. Release pipeline
   rehearsed locally; install.sh/--update need the GitHub repo public.
+- deer-flow/trae-agent reviewed 2026-09-25: took skill scan + open-plan gate.
+  Already had: loops, truncation refusal, searchable compaction archive.
 - Qwen/Claude parity 2026-09-25 (vs qwen-code ffea2d0 on herobox): 14 hook
   events + Claude/Qwen hook configs read as-is; `status_line` command
   (TUI only; Qwen's preset mode refused); `vision_model` bridge (images
