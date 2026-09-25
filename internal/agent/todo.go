@@ -369,3 +369,31 @@ func PlanDelta(prev, cur string) string {
 	}
 	return strings.Join(changed, "\n")
 }
+
+// openTodoGate sends back, once a turn, a model that ends its turn with
+// steps of the plan it wrote this turn still open: a model that writes
+// five steps and says "done" after three has stopped early, and the plan
+// is the evidence. It stands down when the plan came from an earlier turn
+// (a new request may have moved on from it), in plan mode (the steps are a
+// proposal awaiting approval), and when the answer ends in a question
+// (the model is waiting on the user, which is a legitimate stop).
+func (a *Agent) openTodoGate(text string, nudged *bool, emit func(Event)) bool {
+	if *nudged || a.Off["opentodos"] || a.Off["todo"] || a.Settings().PlanMode {
+		return false
+	}
+	if strings.HasSuffix(strings.TrimSpace(text), "?") || !a.todosWrittenThisTurn() {
+		return false
+	}
+	open := openTodos(a.Todos())
+	if len(open) == 0 {
+		return false
+	}
+	*nudged = true
+	steps := make([]string, 0, len(open))
+	for _, t := range open {
+		steps = append(steps, "- "+t.Text+" ("+t.Status+")")
+	}
+	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("the plan still has %d open step(s); sent back to finish them", len(open))})
+	a.appendHarnessText(fmt.Sprintf("You ended your turn, but the plan you wrote this turn still has %d open step(s):\n%s\n\nCarry on with them. If one should not be done after all, update the plan to say so (mark it completed or drop it) and say why in your answer. If only the user can unblock you, ask them.", len(open), strings.Join(steps, "\n")))
+	return true
+}

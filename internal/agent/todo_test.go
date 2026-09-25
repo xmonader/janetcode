@@ -241,3 +241,60 @@ func TestAPlanIsNotResetMidTask(t *testing.T) {
 		t.Fatalf("a fresh plan in a new turn: %v", err)
 	}
 }
+
+// A model that writes a plan and ends the turn with steps still open is
+// sent back once, told which steps; a second stop is let through, and so
+// is a stop that asks the user something, or one under an older plan.
+func TestAnOpenPlanSendsTheTurnBackOnce(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	a.turnN = 1
+	todo := &TodoTool{Parent: a}
+	plan := `{"todos":[{"text":"add the parser","status":"completed"},{"text":"wire the CLI flag","status":"in_progress"},{"text":"update the README","status":"pending"}]}`
+	if _, err := todo.Run(context.Background(), json.RawMessage(plan)); err != nil {
+		t.Fatal(err)
+	}
+	var notices []string
+	emit := func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}
+
+	// A question to the user is a legitimate stop.
+	nudged := false
+	if a.openTodoGate("Should the flag be --strict or --pedantic?", &nudged, emit) || nudged {
+		t.Fatal("a question to the user was sent back")
+	}
+
+	if !a.openTodoGate("Done: the parser is in.", &nudged, emit) {
+		t.Fatal("a turn ending with two open steps was let through")
+	}
+	msgs := a.Messages
+	last := msgs[len(msgs)-1].Text()
+	for _, want := range []string{"2 open step(s)", "wire the CLI flag (in_progress)", "update the README (pending)"} {
+		if !strings.Contains(last, want) {
+			t.Fatalf("the note back lacks %q:\n%s", want, last)
+		}
+	}
+	if strings.Contains(last, "add the parser") || len(notices) != 1 {
+		t.Fatalf("note = %q, notices = %q", last, notices)
+	}
+	if a.openTodoGate("Done.", &nudged, emit) {
+		t.Fatal("sent back a second time in the same turn")
+	}
+
+	// Next turn: the plan is from an earlier request.
+	a.turnN = 2
+	if a.openTodoGate("Here is the answer.", new(bool), emit) {
+		t.Fatal("an earlier turn's plan held a new turn")
+	}
+	// A finished plan never holds a turn.
+	a.turnN = 3
+	finished := `{"todos":[{"text":"add the parser","status":"completed"},{"text":"wire the CLI flag","status":"completed"},{"text":"update the README","status":"completed"}]}`
+	if _, err := todo.Run(context.Background(), json.RawMessage(finished)); err != nil {
+		t.Fatal(err)
+	}
+	if a.openTodoGate("All done.", new(bool), emit) {
+		t.Fatal("a finished plan held the turn")
+	}
+}

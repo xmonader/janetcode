@@ -500,7 +500,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 type turnGates struct {
 	stops, needs, corrections int
 	verify, accept            gateState
-	acceptNudged              bool
+	acceptNudged, todoNudged  bool
 }
 
 // openTurn is everything that has to happen once, before the first model
@@ -695,6 +695,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	if a.acceptCapture(resp.Message.Text(), &g.acceptNudged, emit) {
+		return false
+	}
+	if a.openTodoGate(resp.Message.Text(), &g.todoNudged, emit) {
 		return false
 	}
 	if !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
