@@ -151,6 +151,9 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 		maxIter = profile.MaxTurns
 	}
 	if ro = allowed(ro, profile); len(ro) == 0 {
+		if profile == nil {
+			return nil, fmt.Errorf("a subagent has no read-only tools to work with")
+		}
 		return nil, fmt.Errorf("the %s agent has no tools left once its disallowed_tools are removed", profile.Name)
 	}
 	child, err := New(Deps{

@@ -750,3 +750,13 @@ func TestAFinishedForkReportsToTheParent(t *testing.T) {
 		t.Fatalf("the same fork reported twice: %v", again)
 	}
 }
+
+func TestASubagentWithNoToolsIsAnErrorNotACrash(t *testing.T) {
+	parent := &Agent{Provider: &fake{}, Model: "m", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(task)
+	_, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"look"}`))
+	if err == nil || !strings.Contains(err.Error(), "no read-only tools") {
+		t.Fatalf("err = %v", err)
+	}
+}
