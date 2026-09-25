@@ -34,6 +34,8 @@ const evaljs = async (expression) => {
 await cmd('Page.enable');
 await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
   window.__feed = [];
+  // Dark from the first paint, the way a returning dark-mode user loads it.
+  localStorage.setItem('janetcode-theme', 'dark');
   window.EventSource = class {
     constructor(url) { this.url = url; window.__es = this; setTimeout(() => this.onopen && this.onopen(), 0); }
     close() {}
@@ -42,7 +44,6 @@ await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
 await cmd('Page.navigate', { url: APP });
 await sleep(2500);
 await cmd('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-await evaljs(`(() => { localStorage.setItem('janetcode-theme', 'dark'); document.documentElement.dataset.theme = 'dark'; return 1; })()`);
 await sleep(300);
 await cmd('Page.captureScreenshot', { format: 'png' }).then(r => { writeFileSync(`${OUT}/00-empty.png`, Buffer.from(r.result.data, 'base64')); console.log('shot 00-empty'); });
 
@@ -84,7 +85,9 @@ async function shot(name) {
   writeFileSync(`${OUT}/${name}.png`, Buffer.from(r.result.data, 'base64'));
   console.log('shot', name);
 }
-const setTheme = (t) => evaljs(`(() => { localStorage.setItem('janetcode-theme', '${t}'); document.documentElement.dataset.theme = '${t}'; if (window.term) {} return 1; })()`);
+// Through the page's own toggle, so every piece of chrome that follows
+// the theme (its icon, the settings segment) is drawn as a user sees it.
+const setTheme = (t) => evaljs(`(() => { if (document.documentElement.dataset.theme !== '${t}') document.getElementById('theme-toggle').click(); return document.documentElement.dataset.theme; })()`);
 const setSize = async (w, h) => { await cmd('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }); await sleep(350); };
 
 // The message clock is a real time; pin the zone it is read in so the
@@ -158,8 +161,10 @@ await evaljs(`document.querySelector('[data-view=chat]').click(); 1`);
 await sleep(300);
 
 // mobile
+// The pane, open since 02, is remembered: close it so the phone and the
+// later states show the default layout.
+await evaljs(`document.querySelector('.shell').classList.contains('work-collapsed') || document.getElementById('work-toggle').click()`);
 await setSize(390, 844);
-await evaljs(`document.getElementById('work-toggle').click()`);
 await sleep(400);
 await shot('04a-mobile-chat');
 await evaljs(`document.querySelector('.shell').classList.remove('nav-collapsed')`);
@@ -178,6 +183,9 @@ for (const theme of ['dark', 'light']) {
   await evaljs(closeAll);
   await feedJS([
     { type: 'status', status: { running: true, phase: 'Noodling…', elapsed: '12s', ctx_pct: 38, mode: 'ask' } },
+    // A folded burst with one failure: only its "(1 failed)" is red.
+    { type: 'entry', entry: { id: 'rb1', kind: 'tool', name: 'bash', summary: 'go vet ./...', done: true, run: 'rb1', run_head: true, run_label: 'Ran 2 commands (1 failed)' } },
+    { type: 'entry', entry: { id: 'rb2', kind: 'tool', name: 'bash', summary: 'go test ./config', done: true, error: true, run: 'rb1', run_label: 'Ran 2 commands (1 failed)' } },
     { type: 'entry', entry: { id: 'run-th', kind: 'thinking', text: 'The interpolation has to see the section it runs in, so the seen-set is per call, not per parser. A cycle comes back as an error rather than a stack overflow.', done: false } },
   ]);
   await sleep(500);
