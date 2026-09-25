@@ -100,7 +100,9 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 	if !hooks.Has(hook.Stop) || *stops >= maxStopContinues {
 		return false
 	}
-	res := hooks.Run(ctx, hook.Input{Event: hook.Stop, Cwd: hooks.Cwd, Text: text})
+	in := a.hookInput(hook.Stop)
+	in.Text = text
+	res := a.runHook(ctx, in, emit)
 	if res.Continue == "" {
 		return false
 	}

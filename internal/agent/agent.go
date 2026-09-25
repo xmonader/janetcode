@@ -329,6 +329,8 @@ type Agent struct {
 	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
 	Log          session.Log
 	turnN, stepN int
+	// sessHooks tracks session_start and session_end for this session.
+	sessHooks sessionHooks
 	// Archive, when set, keeps full tool outputs longer than InlineOutput
 	// on disk so the model can page through them with expand_output.
 	Archive *Archive
@@ -414,6 +416,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	emit = serialize(a.ledgered(a.traced(emit)))
 	if a.Settings().Provider == nil {
 		return errors.New("no provider")
+	}
+	blocks, err := a.promptHooks(ctx, blocks, emit)
+	if err != nil {
+		return err
 	}
 	maxIter := a.openTurn(ctx, blocks, emit)
 	turnBegan := time.Now()

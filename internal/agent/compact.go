@@ -189,12 +189,18 @@ func (a *Agent) EstimateTokens() int {
 // so the pending request is not lost. force skips the "pruning was
 // enough" shortcut.
 func (a *Agent) Compact(ctx context.Context, emit func(Event)) error {
-	return a.compact(ctx, emit, false)
+	return a.compact(ctx, emit, false, "auto")
+}
+
+// CompactManual is Compact asked for by the user, which is what compaction
+// hooks are told.
+func (a *Agent) CompactManual(ctx context.Context, emit func(Event)) error {
+	return a.compact(ctx, emit, false, "manual")
 }
 
 // ForceCompact always writes a summary, for an explicit user request.
 func (a *Agent) ForceCompact(ctx context.Context, emit func(Event)) error {
-	return a.compact(ctx, emit, true)
+	return a.compact(ctx, emit, true, "manual")
 }
 
 // CompactFast prunes old tool results and drops thinking from earlier
@@ -253,7 +259,7 @@ func (a *Agent) stripOldThinking() int {
 	return n
 }
 
-func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error {
+func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigger string) error {
 	if emit == nil {
 		emit = func(Event) {}
 	}
@@ -285,10 +291,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		}
 	}
 
-	var hookNotes []string
-	if hooks := a.HookRunner(); hooks.Has(hook.PreCompact) {
-		hookNotes = hooks.Run(ctx, hook.Input{Event: hook.PreCompact, Cwd: hooks.Cwd, Tokens: before}).Notes
-	}
+	pre := a.hookInput(hook.PreCompact)
+	pre.Tokens, pre.Trigger = before, trigger
+	hookNotes := a.runHook(ctx, pre, emit).Notes
 
 	// The log seqs of the messages about to be replaced, aligned with
 	// a.Messages by index (CurrentSeqs folds in model order).
@@ -436,6 +441,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		a.logEvent(session.Event{Type: session.TypeCompactEnd, Turn: a.turnN})
 	}
 	emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context compacted: ~%d → ~%d tokens (%d recent messages kept)", before, after, len(tail))})
+	post := a.hookInput(hook.PostCompact)
+	post.Tokens, post.Trigger, post.Summary = after, trigger, summary
+	a.runHook(ctx, post, emit)
 	return nil
 }
 

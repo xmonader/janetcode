@@ -171,7 +171,7 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 // before anything asks; and only what none of those settled reaches the
 // user.
 func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
-	hookNotes, hookAllowed, hookMustAsk, refusal := a.preToolHook(ctx, u, call)
+	hookNotes, hookAllowed, hookMustAsk, refusal := a.preToolHook(ctx, u, call, emit)
 	if refusal != "" {
 		return nil, refusal, nil
 	}
@@ -237,12 +237,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 // preToolHook runs the pre-tool hook, which may refuse the call outright,
 // allow it past the prompt, or rewrite the input everything after this
 // point — the preview, the approval and the call itself — works on.
-func (a *Agent) preToolHook(ctx context.Context, u *llm.Block, call *ToolCall) (notes []string, allowed, mustAsk bool, refusal string) {
-	hooks := a.HookRunner()
-	if !hooks.Has(hook.PreTool) {
+func (a *Agent) preToolHook(ctx context.Context, u *llm.Block, call *ToolCall, emit func(Event)) (notes []string, allowed, mustAsk bool, refusal string) {
+	if !a.HookRunner().Has(hook.PreTool) {
 		return nil, false, false, ""
 	}
-	res := hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input})
+	in := a.hookInput(hook.PreTool)
+	in.Tool, in.Input = u.Name, u.Input
+	res := a.runHook(ctx, in, emit)
 	if res.Denied {
 		return nil, false, false, "Blocked by a hook: " + res.Reason
 	}
@@ -257,7 +258,12 @@ func (a *Agent) preToolHook(ctx context.Context, u *llm.Block, call *ToolCall) (
 		// command bash runs, and under --yolo nothing else would look.
 		mustAsk = res.InputFromProject
 	}
-	return append(notes, res.Notes...), res.Allowed, mustAsk, ""
+	if res.Ask {
+		// permissionDecision "ask": the user confirms this call whatever
+		// the mode would otherwise do.
+		mustAsk = true
+	}
+	return append(notes, res.Notes...), res.Allowed && !res.Ask, mustAsk, ""
 }
 
 // describeCall fills in what the user would be shown about the call — the
@@ -546,9 +552,16 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if out == "" {
 		out = "(no output)"
 	}
-	if hooks := a.HookRunner(); hooks.Has(hook.PostTool) {
-		res := hooks.Run(ctx, hook.Input{Event: hook.PostTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input, Output: out, IsError: isErr})
-		hookNotes = append(hookNotes, res.Notes...)
+	for _, ev := range []string{hook.PostTool, hook.PostToolFailure} {
+		if ev == hook.PostToolFailure && !isErr {
+			continue
+		}
+		in := a.hookInput(ev)
+		in.Tool, in.Input, in.Output, in.IsError = u.Name, u.Input, out, isErr
+		if isErr {
+			in.Error = out
+		}
+		hookNotes = append(hookNotes, a.runHook(ctx, in, emit).Notes...)
 	}
 	if a.Diagnose != nil && !isErr && editTool(u.Name) {
 		if note := a.Diagnose(ctx, perm.Subject(u.Name, u.Input)); note != "" {

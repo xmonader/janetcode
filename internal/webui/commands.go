@@ -402,7 +402,7 @@ func (s *server) cmdVerbose(arg string) (bool, error) {
 
 func (s *server) cmdCompact(arg string) (bool, error) {
 	ag := s.opts.Agent
-	s.runBusy("compacting context", func(ctx context.Context) { _ = ag.Compact(ctx, s.apply) })
+	s.runBusy("compacting context", func(ctx context.Context) { _ = ag.CompactManual(ctx, s.apply) })
 	return false, nil
 }
 

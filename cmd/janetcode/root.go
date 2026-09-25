@@ -185,6 +185,9 @@ func (r *root) wireProject() error {
 	} else if hooksCfg.Len() > 0 && o.promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
+	// session_end runs before the servers and jobs the hooks might look
+	// at are closed (closers run newest first).
+	r.onClose(func() { ag.EndSession("exit") })
 	verifyCfg, verifyHash, err := verify.Load(cwd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
