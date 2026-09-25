@@ -66,6 +66,7 @@ type options struct {
 	cont         bool
 	resume       string
 	showVersion  bool
+	plain        bool
 	selfUpdate   bool
 	listSess     bool
 	initProject  bool
@@ -110,7 +111,7 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme"}},
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
@@ -209,6 +210,7 @@ Environment:
   JANETCODE_OFF=<names>       disables behaviours for a session (see --eval-off)
   JANETCODE_SYSTEM_MD=<file>  replaces the base system prompt
   JANETCODE_DEBUG=<file>      appends a timestamped event log
+  JANETCODE_PLAIN=1           ASCII interface, no animation (as --plain)
   JANETCODE_WEB_TOKEN=<token> the --web access token (default: random)
   JANETCODE_NOTIFY=<command>  run when a --bg run waits for --answer
 
@@ -286,6 +288,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	fs.BoolVar(&o.runProof, "proof", false, "print the proof note attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed")
 	fs.StringVar(&o.recipeName, "recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails, or the project's verify gate once every step has succeeded, hands over to the model if a provider is configured, otherwise the run exits non-zero")
+	fs.BoolVar(&o.plain, "plain", false, "draw the terminal interface in ASCII with no animation, for the Linux console, a font without box drawing, or a quieter screen (JANETCODE_PLAIN=1; on by itself when TERM=linux)")
 	fs.StringVar(&o.themeFlag, "theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 	fs.BoolVar(&o.web, "web", false, "serve the session in a browser instead of the terminal")
 	fs.StringVar(&o.webAddr, "web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")

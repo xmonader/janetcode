@@ -92,6 +92,7 @@ var flagWhen = map[string]string{
 	"fix":                    "the doctor listed repairs you want carried out: the safe, obvious ones only",
 	"proof":                  "code review, or months later: which session and turn wrote a committed file and what actually demonstrated it worked",
 	"theme":                  "one run in a different colour scheme without changing the config",
+	"plain":                  "the terminal shows boxes or question marks where lines and marks should be, or you want a screen that does not move",
 	"web":                    "you want the session in a browser, on another screen or from a phone on the same machine",
 	"web-addr":               "the default loopback port is taken, or you are deliberately binding off loopback",
 	"bg":                     "a prompt you want to keep running after this terminal is gone; reopen with --resume",

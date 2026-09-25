@@ -30,6 +30,8 @@ import (
 
 // Options configures the UI.
 type Options struct {
+	// Plain draws the interface in ASCII with a still spinner (plain.go).
+	Plain bool
 	// Notes are decisions the configuration made on the user's behalf
 	// (a provider switched for one that has a key); shown once at start.
 	Notes []string

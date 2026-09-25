@@ -297,6 +297,7 @@ func (r *root) tuiMode() error {
 	r.uiPerms = &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: ts,
 		Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }}
 	return tui.Run(tui.Options{
+		Plain: r.opts.plain || tui.PlainWanted(os.Getenv),
 		Notes: cfg.Notes,
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
 		Workspace: built.ws,

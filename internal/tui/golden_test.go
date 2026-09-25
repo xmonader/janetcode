@@ -9,8 +9,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -30,31 +32,49 @@ func TestGoldenFrames(t *testing.T) {
 		name          string
 		width, height int
 		build         func(h *harness)
+		plain         bool
 	}{
-		{"welcome", 100, 24, func(h *harness) {}},
-		{"turn", 100, 50, goldenTurn},
-		{"turn-narrow", 60, 60, goldenTurn},
+		{"welcome", 100, 24, func(h *harness) {}, false},
+		{"turn", 100, 50, goldenTurn, false},
+		{"turn-narrow", 60, 60, goldenTurn, false},
 		{"permission", 100, 30, func(h *harness) {
 			h.m.transcript.user("clean the build and rebuild")
 			h.m.turn.running = true
 			h.update(permissionMsg{call: agent.ToolCall{ID: "c1", Name: "bash",
 				Input: json.RawMessage(`{"command":"rm -rf build && make -j8 all"}`)}})
-		}},
+		}, false},
 		{"error", 100, 24, func(h *harness) {
 			h.m.transcript.user("say hi")
 			h.m.transcript.errorf("%s", llm.Explain(errors.New("Unauthorized (HTTP 401)"), "dashscope", tuiRemedies).String())
-		}},
+		}, false},
+		// Plain mode: the same screens in ASCII (see plain.go).
+		{"turn-plain", 100, 50, goldenTurn, true},
+		{"permission-plain", 100, 30, func(h *harness) {
+			h.m.transcript.user("clean the build and rebuild")
+			h.m.turn.running = true
+			h.update(permissionMsg{call: agent.ToolCall{ID: "c1", Name: "bash",
+				Input: json.RawMessage(`{"command":"rm -rf build && make -j8 all"}`)}})
+		}, true},
 	} {
 		t.Run(g.name, func(t *testing.T) {
 			opts := fakeOptions(t)
 			// A fixed working directory keeps the header the same width
 			// on every machine; the temp dir's name is random.
 			opts.Cwd = "/home/u/proj"
+			opts.Plain = g.plain
 			h := newHarnessFor(t, opts)
 			h.update(tea.WindowSizeMsg{Width: g.width, Height: g.height})
 			g.build(h)
 			h.m.refresh(false)
 			got := stableFrame(plain(h.m.View()))
+			if g.plain {
+				for i, r := range got {
+					if r > 0x7E && !unicode.IsLetter(r) {
+						t.Errorf("plain frame has %q at byte %d", r, i)
+						break
+					}
+				}
+			}
 			path := filepath.Join("testdata", "golden", g.name+".txt")
 			if *updateGolden {
 				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -127,4 +147,27 @@ func stableFrame(s string) string {
 		}), " "))
 	}
 	return strings.Join(out, "\n") + "\n"
+}
+
+// Plain mode swaps one glyph for one ASCII character, so every width the
+// layout computed still holds.
+func TestPlainGlyphsKeepTheirWidth(t *testing.T) {
+	for g, a := range plainGlyphs {
+		if w := lipgloss.Width(string(g)); w != 1 || a > 0x7E {
+			t.Errorf("%q (width %d) -> %q", g, w, a)
+		}
+	}
+	for _, c := range []struct {
+		env  map[string]string
+		want bool
+	}{
+		{map[string]string{"TERM": "linux"}, true},
+		{map[string]string{"TERM": "xterm-256color"}, false},
+		{map[string]string{"TERM": "xterm-256color", PlainEnv: "1"}, true},
+		{map[string]string{"TERM": "linux", PlainEnv: "0"}, false},
+	} {
+		if got := PlainWanted(func(k string) string { return c.env[k] }); got != c.want {
+			t.Errorf("%v: %v", c.env, got)
+		}
+	}
 }

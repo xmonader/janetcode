@@ -19,6 +19,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--compact-at <tokens>` | compact the history at this size instead of the configured one; `--eval-compact-at` with the everyday spelling |
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |
+| `--plain` | draw the terminal interface in ASCII (`+-|` borders, `>` and `*` marks) with a spinner that does not move, for the Linux console, a font without box drawing, or a quieter screen. `JANETCODE_PLAIN=1` does the same, and it is on by itself when `TERM=linux`; `NO_COLOR` turns colour off separately. For a screen reader, `--web` is the better interface: it has landmarks and live announcements |
 | `--theme <name>` | colour theme for this run: `auto`, `dark`, `light`, or a builtin or user theme name. Overrides the config for this run only; `--inspect themes` lists them |
 | `--yolo` | run mutating tools without asking |
 | `--auto` | auto mode: in-workspace file edits and known-safe reads run without asking; other commands still ask. `/auto` toggles it; shift+tab cycles ask → plan → auto → yolo |

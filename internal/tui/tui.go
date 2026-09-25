@@ -152,6 +152,9 @@ func newModel(opts Options) *model {
 	ta.Focus()
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(defaultStyles().accent))
+	if opts.Plain {
+		sp.Spinner = plainSpinner
+	}
 
 	_, ansi := applyColorProfile(os.Getenv)
 	// The terminal background is probed exactly once, here, before any
@@ -315,6 +318,13 @@ func tick() tea.Cmd {
 }
 
 func (m *model) View() string {
+	if m.opts.Plain {
+		return toPlain(m.view())
+	}
+	return m.view()
+}
+
+func (m *model) view() string {
 	if !m.ready {
 		return "loading…"
 	}
