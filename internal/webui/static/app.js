@@ -1467,7 +1467,7 @@
       (r.note || "").toLowerCase().includes(q);
     const kept = rows.filter((r) => !r.current).filter(match).slice(0, 40);
     if (!kept.length) {
-      ul.innerHTML = `<li class="quiet">${q ? "Nothing matches" : "No past conversations"}</li>`;
+      ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : "Earlier conversations in this project will appear here."}</li>`;
       return;
     }
     const order = ["Today", "Yesterday", "2 days ago", "3 days ago", "4 days ago", "5 days ago", "6 days ago", "Older"];

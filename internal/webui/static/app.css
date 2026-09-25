@@ -2202,3 +2202,5 @@ kbd {
 .switch[aria-checked="true"]::after { transform: translateX(16px); }
 .switch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--blue-soft-border); }
 @media (prefers-reduced-motion: reduce) { .switch, .switch::after { transition: none; } }
+/* The rail's empty line wraps like a sentence, not a list row. */
+#sessions > li.quiet { padding: 6px 11px; line-height: 1.45; white-space: normal; }
