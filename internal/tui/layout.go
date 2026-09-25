@@ -113,7 +113,7 @@ func (m *model) inputHeight() int {
 
 func (m *model) footerHeight() int {
 	h := m.inputHeight() + 2 + 1 // border, and the reserved notice row
-	h += len(m.sline.lines) // the status line command's rows, under the input
+	h += len(m.sline.lines)      // the status line command's rows, under the input
 	if m.pending != nil && m.pending.call.Impact != "" {
 		// A second reserved row for the impact line (see
 		// permissionImpact): what the pending edit reaches. Claimed only
