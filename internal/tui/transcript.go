@@ -26,6 +26,7 @@ const (
 	entryBanner
 	entryVerdict // what the turn demonstrated, with its mark
 	entryTip     // a one-time hint about a feature, fainter than the rest
+	entryHelp    // the /help sheet: headings, commands and what they do
 )
 
 // The glyph on an information line is a small fixed vocabulary. A line
@@ -182,6 +183,7 @@ func (t *transcript) add(e *entry) *entry {
 
 func (t *transcript) info(s string)   { t.add(&entry{kind: entryInfo, text: s}) }
 func (t *transcript) tip(s string)    { t.add(&entry{kind: entryTip, text: s}) }
+func (t *transcript) help(s string)   { t.add(&entry{kind: entryHelp, text: s}) }
 func (t *transcript) code(s string)   { t.add(&entry{kind: entryCode, text: s}) }
 func (t *transcript) banner(s string) { t.add(&entry{kind: entryBanner, text: s}) }
 func (t *transcript) user(s string)   { t.add(&entry{kind: entryUser, text: s}) }

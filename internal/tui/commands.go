@@ -347,14 +347,14 @@ func (m *model) runUserCommand(text string, fields []string) (tea.Cmd, bool) {
 // manual compiled into the binary: no model call, no network.
 func (m *model) cmdHelp(text string, fields []string) (tea.Cmd, bool) {
 	if len(fields) == 2 && fields[1] == "all" {
-		m.transcript.info(m.helpText())
+		m.transcript.help(m.helpText())
 		return nil, false
 	}
 	if len(fields) > 1 && m.opts.Features != nil {
 		m.transcript.info(feature.AnswerWidth(m.opts.Features, strings.Join(fields[1:], " "), "", m.width-4))
 		return nil, false
 	}
-	m.transcript.info(m.briefHelpText())
+	m.transcript.help(m.briefHelpText())
 	return nil, false
 }
 

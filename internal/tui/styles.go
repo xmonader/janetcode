@@ -99,7 +99,7 @@ type styles struct {
 	accent, dim, faint, warn, err, ok lipgloss.Style
 	user, userBody, tool              lipgloss.Style
 	diffAdd, diffDel                  lipgloss.Style
-	header, headerHi, key             lipgloss.Style
+	header, headerHi, key, heading    lipgloss.Style
 
 	// Every box the footer can show is the same rounded border; only its
 	// colour changes, and it says whose turn it is:
@@ -165,6 +165,7 @@ func buildStyles(p palette) *styles {
 	s.header = lipgloss.NewStyle().Background(p.headBg).Foreground(p.headFg)
 	s.headerHi = lipgloss.NewStyle().Background(p.headBg).Foreground(p.accent).Bold(true)
 	s.key = lipgloss.NewStyle().Foreground(p.accent).Bold(true)
+	s.heading = lipgloss.NewStyle().Foreground(p.headFg).Bold(true)
 	s.boxIdle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(p.borderA)
 	s.boxBusy = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(p.border)
 	s.boxWarn = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(p.warn)

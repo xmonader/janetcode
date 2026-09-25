@@ -193,7 +193,7 @@ func (t *transcript) render(o renderOpts) string {
 // marked done and the switch below fell through to "yes".
 func fixedText(k entryKind) bool {
 	switch k {
-	case entryInfo, entryCode, entryError, entryUser, entryBanner, entryVerdict, entryTip:
+	case entryInfo, entryCode, entryError, entryUser, entryBanner, entryVerdict, entryTip, entryHelp:
 		return true
 	}
 	return false
@@ -251,6 +251,8 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		return t.styles.dim.Render(wrapAtDots(e.text, width-2, "  "))
 	case entryInfo:
 		return t.styles.dim.Render(wrap(e.text))
+	case entryHelp:
+		return helpSheet(t.styles, e.text, width-2)
 	case entryTip:
 		return t.styles.faint.Render(hangWrap("tip · "+e.text, width-2, "      "))
 	case entryCode:
@@ -746,4 +748,36 @@ func trimBlankLines(out string) string {
 		lines = lines[:len(lines)-1]
 	}
 	return strings.Join(lines, "\n")
+}
+
+// helpSheet draws the /help text so it scans: a heading in bold, a
+// command's name in the accent and what it does dimmed, everything else
+// dimmed and wrapped under its own indent. The text itself stays plain,
+// so it reads the same with NO_COLOR and in --plain.
+func helpSheet(sty *styles, text string, width int) string {
+	var out []string
+	for _, l := range strings.Split(text, "\n") {
+		body := strings.TrimLeft(l, " ")
+		indent := l[:len(l)-len(body)]
+		switch {
+		case body == "":
+			out = append(out, "")
+		case indent == "" && !strings.HasPrefix(body, "/") && !strings.Contains(body, ":") && len(body) <= 40:
+			out = append(out, sty.heading.Render(body))
+		case strings.HasPrefix(body, "/"):
+			// The rows are laid out to the width already; only the
+			// colour changes.
+			name, rest, _ := strings.Cut(body, " ")
+			row := indent + sty.key.Render(name)
+			if rest != "" {
+				row += sty.dim.Render(" " + rest)
+			}
+			out = append(out, row)
+		default:
+			for _, w := range strings.Split(hangWrap(l, width, indent+"  "), "\n") {
+				out = append(out, sty.dim.Render(w))
+			}
+		}
+	}
+	return strings.Join(out, "\n")
 }
