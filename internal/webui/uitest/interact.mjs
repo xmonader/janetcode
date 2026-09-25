@@ -19,9 +19,17 @@ const ws = new WebSocket(await getWsUrl());
 await new Promise(r => ws.onopen = r);
 let seq = 0;
 const pending = new Map();
+// Every uncaught exception the page throws during the run, from any of
+// its scripts: a name left behind when code moves between files is a
+// ReferenceError only when that path runs.
+const pageErrors = [];
 ws.onmessage = (ev) => {
   const m = JSON.parse(ev.data);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+  if (m.method === 'Runtime.exceptionThrown') {
+    const d = m.params.exceptionDetails;
+    pageErrors.push((d.exception && d.exception.description || d.text || '').split('\n')[0]);
+  }
 };
 const cmd = (method, params = {}) => new Promise((res) => {
   const id = ++seq;
@@ -34,6 +42,7 @@ const evaljs = async (expression) => {
   return r.result.result.value;
 };
 
+await cmd('Runtime.enable');
 await sleep(2500); // let app.js boot, SSE settle
 const results = [];
 const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); };
@@ -492,6 +501,22 @@ check('a phone shows the model, not its vendor prefix', pill.text === 'deepseek-
 check('reconnecting is a dot on a phone, not a word', pill.conn < 30, JSON.stringify(pill));
 await cmd('Emulation.clearDeviceMetricsOverride');
 
+// The trajectory view (trajectory.js) opens, fetches, and takes its keys:
+// "/" focuses its search, Escape leaves the field alone.
+const trajCheck = await evaljs(`(async () => {
+  const errors = [];
+  window.addEventListener('error', (e) => errors.push(e.message));
+  document.querySelector('#view-ring [data-view=trajectory]').click();
+  await new Promise(r => setTimeout(r, 600));
+  const shown = !document.getElementById('trajectory').hidden;
+  document.activeElement.blur();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+  const focused = document.activeElement === document.getElementById('traj-search');
+  document.querySelector('#view-ring [data-view=chat]').click();
+  return { shown, focused, errors };
+})()`);
+check('the trajectory view opens and "/" focuses its search', trajCheck.shown && trajCheck.focused && !trajCheck.errors.length, JSON.stringify(trajCheck));
+
 // Attaching: the paperclip's file picker and a drop on the composer each
 // upload once and put an @path in the input. The picker gives a FileList,
 // which has no forEach; a drop on the composer used to reach two drop
@@ -523,6 +548,8 @@ const attach = await evaljs(`(async () => {
 })()`);
 check('the file picker attaches the file', attach.afterPick.uploads === 1 && attach.afterPick.value.includes('@notes.txt') && !attach.errors.length, JSON.stringify(attach));
 check('a drop on the composer uploads once', attach.drops === 1 && attach.value.includes('@notes.txt'), JSON.stringify(attach));
+
+check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
