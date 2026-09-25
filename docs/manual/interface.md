@@ -2452,8 +2452,11 @@ hooks run; a `prompt` or `agent` hook is refused when the config loads.
 
 The stdin carries their field names too (`hook_event_name` in their
 spelling, `tool_name`, `tool_input`, `tool_response`,
-`last_assistant_message`, `compact_summary`, `agent_type`), and their
-answers are understood: `hookSpecificOutput.permissionDecision`
+`last_assistant_message`, `compact_summary`, `agent_type`), though
+`tool_name` and `tool_input` hold janetcode's own tools and inputs
+(`bash` with `{"command": …}`, `write_file` with `path`): a script that
+compares `tool_name` to `Bash` or reads `file_path` needs changing,
+where a matcher does not. Their answers are understood: `hookSpecificOutput.permissionDecision`
 (allow, deny, ask) with its reason, `updatedInput`, `additionalContext`,
 `decision.behavior` for `permission_request`, `continue: false` with
 `stopReason`, and `systemMessage`, which is shown to you rather than the
