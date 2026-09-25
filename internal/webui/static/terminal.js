@@ -14,15 +14,15 @@
     function termTheme() {
       const dark = document.documentElement.dataset.theme === "dark";
       return dark ? {
-        background: "#101014",
-        foreground: "rgba(238,238,245,0.9)",
-        cursor: "#4563ee",
-        selectionBackground: "#2a2a35",
+        background: "#161618",
+        foreground: "rgba(255,255,255,0.9)",
+        cursor: "#0a84ff",
+        selectionBackground: "#2f3b52",
       } : {
         background: "#ffffff",
-        foreground: "#1f2328",
-        cursor: "#3b5bdb",
-        selectionBackground: "#d6defc",
+        foreground: "#1d1d1f",
+        cursor: "#0071e3",
+        selectionBackground: "#cfe3fb",
       };
     }
     function fitTerm() {
