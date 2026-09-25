@@ -329,6 +329,8 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 			out, err = t.renderer.Render(joinListSoftBreaks(src))
 			if err != nil {
 				out = lipgloss.NewStyle().Width(width - 2).Render(src)
+			} else {
+				out = hangMarkdown(src, out, width-2)
 			}
 		}
 		out = trimBlankLines(out) + "\n"

@@ -846,6 +846,66 @@ func TestListItemSoftBreaksReflow(t *testing.T) {
 	}
 }
 
+// TestWrappedListItemsAndQuotesHang: glamour wrapped an item's second line
+// back under its bullet and dropped the bar from a wrapped quote line. A
+// wrapped item now continues under its own text, a numbered one under the
+// words after the number, and every line of a quote keeps its bar, while
+// the gap between two quoted paragraphs stays.
+func TestWrappedListItemsAndQuotesHang(t *testing.T) {
+	render := func(text string) []string {
+		tr := newTranscriptStyled("dark", defaultStyles())
+		tr.apply(agent.Event{Kind: agent.EvText, Text: text})
+		tr.apply(agent.Event{Kind: agent.EvTurnDone})
+		var lines []string
+		for _, l := range strings.Split(plain(tr.render(renderOpts{width: 44})), "\n") {
+			if strings.TrimSpace(l) != "" {
+				lines = append(lines, strings.TrimRight(l, " "))
+			}
+		}
+		return lines
+	}
+	col := func(l, s string) int {
+		i := strings.Index(l, s)
+		if i < 0 {
+			return -1
+		}
+		return lipgloss.Width(l[:i])
+	}
+
+	got := render("- The file `hello.py` holds a single print statement that writes to stdout\n- short")
+	if len(got) < 3 || col(got[1], "print") < 0 && col(got[1], "statement") < 0 {
+		t.Fatalf("expected the first item to wrap:\n%s", strings.Join(got, "\n"))
+	}
+	text := col(got[0], "The")
+	if lead := len(got[1]) - len(strings.TrimLeft(got[1], " ")); lead != text {
+		t.Fatalf("a wrapped bullet starts at column %d, its text at %d:\n%s", lead, text, strings.Join(got, "\n"))
+	}
+	for _, l := range got {
+		if w := lipgloss.Width(l); w > 44 {
+			t.Fatalf("line wider than the window (%d): %q", w, l)
+		}
+	}
+
+	got = render("12. a numbered item long enough that it has to wrap onto another line")
+	if len(got) < 2 || len(got[1])-len(strings.TrimLeft(got[1], " ")) != col(got[0], "a numbered") {
+		t.Fatalf("a wrapped numbered item does not hang under its text:\n%s", strings.Join(got, "\n"))
+	}
+
+	got = render("> a quoted remark that is long enough to wrap across several lines of the window\n>\n> and a second paragraph")
+	bars := 0
+	for _, l := range got {
+		if !strings.HasPrefix(strings.TrimLeft(l, " "), "│") {
+			t.Fatalf("a quote line lost its bar: %q\n%s", l, strings.Join(got, "\n"))
+		}
+		if strings.TrimSpace(l) == "│" {
+			bars++
+		}
+	}
+	if bars != 1 {
+		t.Fatalf("the gap between quoted paragraphs: %d bar-only lines\n%s", bars, strings.Join(got, "\n"))
+	}
+}
+
 // TestFlashClearsWithoutMovingTheLayout: the flash on a finished call is
 // chrome. It has to go away on its own — a finished entry is rendered
 // once and cached, so a flash that never cleared would stay bright for
