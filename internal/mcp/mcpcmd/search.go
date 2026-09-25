@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,8 +26,13 @@ import (
 // points the search at another server with the same API.
 const Registry = "https://registry.modelcontextprotocol.io/v0.1/servers"
 
-// searchLimit is how many servers one search lists.
-const searchLimit = 10
+// searchLimit is how many servers one search lists, and searchFetch how
+// many it reads to choose them from: the registry returns matches in name
+// order, with no measure of quality, and one publisher can fill a page.
+const (
+	searchLimit = 10
+	searchFetch = 50
+)
 
 // Hit is one server a search found.
 type Hit struct {
@@ -38,11 +44,21 @@ type Hit struct {
 	Add string
 	// Notes say what Add needs that it cannot carry, or why there is no Add.
 	Notes []string
+	// More is how many other matches from the same publisher were folded
+	// into this one.
+	More int
+
+	score int
 }
 
 type registryList struct {
 	Servers []struct {
 		Server registryServer `json:"server"`
+		Meta   struct {
+			Official struct {
+				Status string `json:"status"`
+			} `json:"io.modelcontextprotocol.registry/official"`
+		} `json:"_meta"`
 	} `json:"servers"`
 }
 
@@ -51,7 +67,10 @@ type registryServer struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	WebsiteURL  string `json:"websiteUrl"`
-	Packages    []struct {
+	Repository  struct {
+		URL string `json:"url"`
+	} `json:"repository"`
+	Packages []struct {
 		RegistryType string `json:"registryType"`
 		Identifier   string `json:"identifier"`
 		RuntimeHint  string `json:"runtimeHint"`
@@ -99,10 +118,10 @@ func Search(ctx context.Context, client *http.Client, q string) ([]Hit, error) {
 	qs := u.Query()
 	qs.Set("search", q)
 	qs.Set("version", "latest")
-	qs.Set("limit", fmt.Sprint(searchLimit))
+	qs.Set("limit", fmt.Sprint(searchFetch))
 	u.RawQuery = qs.Encode()
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = &http.Client{Timeout: 45 * time.Second} // the registry often takes 15s or more
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -127,11 +146,69 @@ func Search(ctx context.Context, client *http.Client, q string) ([]Hit, error) {
 	}
 	hits := make([]Hit, 0, len(list.Servers))
 	for _, e := range list.Servers {
-		if e.Server.Name != "" {
-			hits = append(hits, hitOf(e.Server))
+		if st := e.Meta.Official.Status; e.Server.Name == "" || (st != "" && st != "active") {
+			continue
+		}
+		h := hitOf(e.Server)
+		h.score = scoreOf(e.Server, h, q)
+		hits = append(hits, h)
+	}
+	return rank(hits), nil
+}
+
+// scoreOf ranks a match by what makes it worth trying: it runs locally
+// from a package, its source can be read, its name is what was searched
+// for, and its publisher's namespace was verified by GitHub.
+func scoreOf(s registryServer, h Hit, q string) int {
+	score := 0
+	if h.Add != "" && !strings.Contains(h.Add, "://") {
+		score += 3
+	}
+	if h.Add != "" {
+		score++
+	}
+	if s.Repository.URL != "" {
+		score += 2
+	}
+	if strings.HasPrefix(s.Name, "io.github.") {
+		score++
+	}
+	short := strings.ToLower(s.Name[strings.LastIndex(s.Name, "/")+1:])
+	for _, w := range strings.Fields(strings.ToLower(q)) {
+		switch {
+		case short == w:
+			score += 3
+		case strings.Contains(short, w):
+			score++
 		}
 	}
-	return hits, nil
+	return score
+}
+
+// rank keeps the best match of each publisher, orders them best first,
+// and cuts the list to searchLimit.
+func rank(hits []Hit) []Hit {
+	best := map[string]int{}
+	var out []Hit
+	for _, h := range hits {
+		ns, _, _ := strings.Cut(h.Name, "/")
+		if i, ok := best[ns]; ok {
+			if h.score > out[i].score {
+				h.More = out[i].More + 1
+				out[i] = h
+			} else {
+				out[i].More++
+			}
+			continue
+		}
+		best[ns] = len(out)
+		out = append(out, h)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].score > out[j].score })
+	if len(out) > searchLimit {
+		out = out[:searchLimit]
+	}
+	return out
 }
 
 // hitOf turns a registry entry into the /mcp add line for it. A package
@@ -252,6 +329,10 @@ func SearchResult(q string, hits []Hit) cmdresult.Result {
 		}
 		for _, n := range h.Notes {
 			fmt.Fprintf(&b, "  note: %s\n", n)
+		}
+		if h.More > 0 {
+			ns, _, _ := strings.Cut(h.Name, "/")
+			fmt.Fprintf(&b, "  (and %s from %s)\n", textfmt.Plural(h.More, "other"), ns)
 		}
 	}
 	return cmdresult.Result{

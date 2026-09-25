@@ -2,6 +2,7 @@ package mcpcmd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +16,7 @@ const registryFixture = `{"servers":[
    "packages":[{"registryType":"npm","identifier":"@acme/pg-mcp","transport":{"type":"stdio"},
      "packageArguments":[{"type":"positional","name":"dsn","isRequired":true}],
      "environmentVariables":[{"name":"PG_PASSWORD","isSecret":true},{"name":"PG_DEBUG"}]}]}},
- {"server":{"name":"io.github.acme/py-tool","description":"A Python one.",
+ {"server":{"name":"io.github.other/py-tool","description":"A Python one.",
    "packages":[{"registryType":"pypi","identifier":"acme-mcp","transport":{"type":"stdio"}}]}},
  {"server":{"name":"ai.smithery/hosted","description":"Hosted.",
    "remotes":[{"type":"streamable-http","url":"https://server.example/mcp",
@@ -98,5 +99,43 @@ func TestSearchFailures(t *testing.T) {
 	}
 	if res := SearchResult("zzz", nil); len(res.Notes) != 1 || !strings.Contains(res.Notes[0], `no server matching "zzz"`) {
 		t.Errorf("no hits = %+v", res)
+	}
+}
+
+// The registry lists matches in name order and one publisher can fill a
+// page with near-copies: the search shows one line per publisher, the
+// best first, and skips entries the registry marked deleted.
+func TestSearchRanksAndFoldsPublishers(t *testing.T) {
+	entry := func(name, extra, status string) string {
+		return `{"server":{"name":"` + name + `"` + extra + `},"_meta":{"io.modelcontextprotocol.registry/official":{"status":"` + status + `"}}}`
+	}
+	remote := `,"remotes":[{"type":"streamable-http","url":"https://spam.example/mcp"}]`
+	local := `,"repository":{"url":"https://github.com/real/postgres"},"packages":[{"registryType":"npm","identifier":"pg-mcp","transport":{"type":"stdio"}}]`
+	var servers []string
+	for i := range 12 {
+		servers = append(servers, entry(fmt.Sprintf("ai.spam/postgres-gen-%d", i), remote, "active"))
+	}
+	servers = append(servers,
+		entry("io.github.gone/postgres", local, "deleted"),
+		entry("io.github.real/postgres", local, "active"),
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"servers":[` + strings.Join(servers, ",") + `]}`))
+	}))
+	defer srv.Close()
+	t.Setenv("JANETCODE_MCP_REGISTRY", srv.URL)
+
+	hits, err := Search(context.Background(), srv.Client(), "postgres")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].Name != "io.github.real/postgres" || hits[1].More != 11 {
+		for _, h := range hits {
+			t.Logf("%s more=%d score=%d", h.Name, h.More, h.score)
+		}
+		t.Fatalf("got %d hits", len(hits))
+	}
+	if sheet := SearchResult("postgres", hits).Sheet; !strings.Contains(sheet, "(and 11 others from ai.spam)") {
+		t.Errorf("sheet does not say what was folded:\n%s", sheet)
 	}
 }
