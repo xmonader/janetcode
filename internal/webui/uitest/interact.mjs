@@ -492,6 +492,38 @@ check('a phone shows the model, not its vendor prefix', pill.text === 'deepseek-
 check('reconnecting is a dot on a phone, not a word', pill.conn < 30, JSON.stringify(pill));
 await cmd('Emulation.clearDeviceMetricsOverride');
 
+// Attaching: the paperclip's file picker and a drop on the composer each
+// upload once and put an @path in the input. The picker gives a FileList,
+// which has no forEach; a drop on the composer used to reach two drop
+// handlers and upload twice.
+const attach = await evaljs(`(async () => {
+  const input = document.getElementById('input');
+  const real = window.fetch;
+  let uploads = 0;
+  window.fetch = (url, opts) => {
+    if (String(url).includes('/api/upload')) { uploads++; return Promise.resolve(new Response(JSON.stringify({ paths: ['notes.txt'] }), { status: 200 })); }
+    return real(url, opts);
+  };
+  const dt = () => { const d = new DataTransfer(); d.items.add(new File(['hi'], 'notes.txt', { type: 'text/plain' })); return d; };
+  const errors = [];
+  window.addEventListener('error', (e) => errors.push(e.message));
+  window.addEventListener('unhandledrejection', (e) => errors.push(String(e.reason)));
+  input.value = '';
+  const pick = document.getElementById('attach-file');
+  pick.files = dt().files;
+  pick.dispatchEvent(new Event('change'));
+  await new Promise(r => setTimeout(r, 300));
+  const afterPick = { uploads, value: input.value };
+  input.value = '';
+  const form = document.getElementById('composer');
+  form.dispatchEvent(new DragEvent('drop', { dataTransfer: dt(), bubbles: true, cancelable: true }));
+  await new Promise(r => setTimeout(r, 300));
+  window.fetch = real;
+  return { afterPick, drops: uploads - afterPick.uploads, value: input.value, errors };
+})()`);
+check('the file picker attaches the file', attach.afterPick.uploads === 1 && attach.afterPick.value.includes('@notes.txt') && !attach.errors.length, JSON.stringify(attach));
+check('a drop on the composer uploads once', attach.drops === 1 && attach.value.includes('@notes.txt'), JSON.stringify(attach));
+
 console.log(results.join('\n'));
 const failed = results.filter(r => r.startsWith('FAIL'));
 console.log(failed.length ? `${failed.length} FAILURES` : 'ALL PASS');

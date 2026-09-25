@@ -1442,23 +1442,10 @@
   }
   document.getElementById("search-btn").addEventListener("click", openPalette);
   const attachInput = document.getElementById("attach-file");
-  async function uploadFiles(list) {
-    if (!list || !list.length) return;
-    const fd = new FormData();
-    for (const f of list) fd.append("files", f);
-    const r = await fetch("/api/upload", { method: "POST", body: fd });
-    if (!r.ok) { statusEl.textContent = (await r.text()) || r.statusText; return; }
-    const data = await r.json();
-    for (const p of data.paths || []) chips.push(p);
-    paintChips();
-  }
+  // uploadFiles is defined with the paste and drop handling further down;
+  // a drop on the composer reaches the column's handler there.
   document.getElementById("attach-btn").addEventListener("click", () => attachInput.click());
-  attachInput.addEventListener("change", () => { uploadFiles(attachInput.files); attachInput.value = ""; });
-  form.addEventListener("dragover", (ev) => ev.preventDefault());
-  form.addEventListener("drop", (ev) => {
-    ev.preventDefault();
-    if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) uploadFiles(ev.dataTransfer.files);
-  });
+  attachInput.addEventListener("change", () => { uploadFiles([...attachInput.files]); attachInput.value = ""; });
   document.addEventListener("click", (ev) => {
     if (!slashEl.hidden && !ev.target.closest("#composer")) hideSlash();
   });
