@@ -191,11 +191,15 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 			}
 			continue
 		}
-		var hs []Hook
-		if err := json.Unmarshal(v, &hs); err != nil {
+		hs, err := decodeHooks(v)
+		if err != nil {
 			return fmt.Errorf("hooks: %s: %w", k, err)
 		}
-		c.Hooks[k] = hs
+		ev := k
+		if native, ok := compatEvents[k]; ok {
+			ev = native
+		}
+		c.Hooks[ev] = append(c.Hooks[ev], hs...)
 	}
 	return nil
 }
@@ -362,10 +366,12 @@ type Input struct {
 	// Tokens is the estimated context size for pre_compact events.
 	Tokens int `json:"tokens,omitempty"`
 
-	// SessionID and Mode (ask, plan, auto, auto_edits, read_only, yolo)
-	// are filled in by the runner for every event.
-	SessionID string `json:"session_id,omitempty"`
-	Mode      string `json:"permission_mode,omitempty"`
+	// SessionID, TranscriptPath (the session's JSONL log) and Mode (ask,
+	// plan, auto, auto_edits, read_only, yolo) are filled in by the agent
+	// for every event.
+	SessionID      string `json:"session_id,omitempty"`
+	TranscriptPath string `json:"transcript_path,omitempty"`
+	Mode           string `json:"permission_mode,omitempty"`
 	// Prompt is the submitted text (user_prompt).
 	Prompt string `json:"prompt,omitempty"`
 	// Source is how a session began: startup or resume (session_start).
@@ -426,6 +432,8 @@ type Output struct {
 	Note string `json:"note,omitempty"`
 	// Continue sends the model back to work with this text (stop).
 	Continue string `json:"continue,omitempty"`
+	// Message is shown to the user and not to the model.
+	Message string `json:"message,omitempty"`
 }
 
 // Result is the combined verdict of every hook that ran for an event.
@@ -443,6 +451,11 @@ type Result struct {
 	Notes []string
 	// Continue is the text to feed back on a stop event, or "".
 	Continue string
+	// Ask means a pre_tool hook wants the user to confirm the call
+	// whatever the mode would otherwise do.
+	Ask bool
+	// Messages are for the user, not the model.
+	Messages []string
 }
 
 // Runner executes hooks. Log receives one line per failure that was
@@ -481,7 +494,7 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 				r.logf("%s hook %d (%s) ignored: match %q is not a valid regexp: %v", in.Event, i+1, firstWords(h.Command), h.Match, err)
 				continue
 			}
-			if !re.MatchString(target) {
+			if !re.MatchString(target) && !matchesAlias(h.Match, in.Event, target) {
 				continue
 			}
 		}
@@ -510,13 +523,22 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			r.logf("%s ignored: exit %d: %s", label, exit, msg)
 			continue
 		}
-		var o Output
 		text := strings.TrimSpace(out.stdout)
 		if text == "" {
 			continue
 		}
-		if err := json.Unmarshal([]byte(text), &o); err != nil {
-			o.Note = text
+		o, ok := parseOutput(text)
+		if !ok {
+			o = Output{Note: text}
+		}
+		if o.Message != "" {
+			res.Messages = append(res.Messages, o.Message)
+		}
+		if o.Decision == "ask" && in.Event == PreTool {
+			res.Ask = true
+			if o.Reason != "" {
+				res.Notes = append(res.Notes, "a hook asked for this call to be confirmed: "+o.Reason)
+			}
 		}
 		if o.Decision == "deny" || o.Decision == "block" {
 			if o.Reason == "" {
