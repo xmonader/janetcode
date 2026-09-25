@@ -519,8 +519,8 @@ func (m *model) applyConnect(modelID string) {
 }
 
 // refreshWelcome rewrites the opening banner in place once a first run
-// has connected: it said "no provider configured yet: pick one below",
-// which is false from here on and pointed at a dialog that has closed.
+// has connected: it said "not connected yet", which is false from here
+// on.
 func (m *model) refreshWelcome() {
 	for _, e := range m.transcript.entries {
 		if e.kind == entryBanner {

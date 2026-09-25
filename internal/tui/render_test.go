@@ -966,3 +966,36 @@ func TestRoutineNoticeIsNotShown(t *testing.T) {
 		t.Fatal("an ordinary notice was dropped too")
 	}
 }
+
+// The banner is a " · " list: it wraps between items, never inside one
+// ("c" at the end of a line with "cancels" under it), each continuation
+// is indented, and no line runs past the width.
+func TestBannerWrapsBetweenItems(t *testing.T) {
+	text := "edits and commands ask first · y allow · a this session · n or esc deny · c cancels · /help\n@file attaches · !cmd runs and shares the output · /undo reverts a bad change"
+	for _, width := range []int{40, 58, 78, 200} {
+		got := wrapAtDots(text, width, "  ")
+		lines := strings.Split(got, "\n")
+		for _, l := range lines {
+			if lipgloss.Width(l) > width {
+				t.Errorf("width %d: %q is %d wide", width, l, lipgloss.Width(l))
+			}
+		}
+		for _, item := range []string{"c cancels", "n or esc deny", "/undo reverts a bad change"} {
+			if !strings.Contains(got, item) {
+				t.Errorf("width %d split %q:\n%s", width, item, got)
+			}
+		}
+		for i, l := range lines[1:] {
+			if !strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "@file") {
+				t.Errorf("width %d: line %d is not indented: %q", width, i+1, l)
+			}
+		}
+	}
+	// A single item wider than the line is word-wrapped under the indent.
+	got := hangWrap("tip · "+strings.Repeat("word ", 30), 40, "      ")
+	for _, l := range strings.Split(got, "\n")[1:] {
+		if !strings.HasPrefix(l, "      ") || lipgloss.Width(l) > 40 {
+			t.Errorf("hanging line %q", l)
+		}
+	}
+}

@@ -263,7 +263,7 @@ func (m *model) welcome(resumed string) string {
 	case resumed != "":
 		fmt.Fprintf(&sb, "janetcode %s · %s · ", m.opts.Version, resumed)
 	case m.opts.Agent.Settings().Provider == nil:
-		fmt.Fprintf(&sb, "janetcode %s · no provider configured yet: pick one below, or set ANTHROPIC_API_KEY / OPENAI_API_KEY\n", m.opts.Version)
+		fmt.Fprintf(&sb, "janetcode %s · not connected yet · /connect picks a provider, or set ANTHROPIC_API_KEY or OPENAI_API_KEY and restart\n", m.opts.Version)
 	default:
 		fmt.Fprintf(&sb, "janetcode %s · ", m.opts.Version)
 	}

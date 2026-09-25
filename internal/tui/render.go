@@ -239,11 +239,11 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	wrap := func(s string) string { return unpad(lipgloss.NewStyle().Width(width - 2).Render(s)) }
 	switch e.kind {
 	case entryBanner:
-		return t.styles.dim.Render(wrap(e.text))
+		return t.styles.dim.Render(wrapAtDots(e.text, width-2, "  "))
 	case entryInfo:
 		return t.styles.dim.Render(wrap(e.text))
 	case entryTip:
-		return t.styles.faint.Render(wrap("tip · " + e.text))
+		return t.styles.faint.Render(hangWrap("tip · "+e.text, width-2, "      "))
 	case entryCode:
 		return renderCode(t.styles, e.text, width)
 	case entryError:
@@ -577,6 +577,45 @@ func renderCode(sty *styles, text string, width int) string {
 }
 
 // unpad strips the trailing spaces lipgloss pads every wrapped line with.
+// wrapAtDots folds each line of a " · " list at the dots, so a wrapped
+// line never splits "c cancels" across two lines, and indents the lines
+// it continues with hang. A part wider than the width is word-wrapped.
+func wrapAtDots(s string, width int, hang string) string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		cur := ""
+		for i, part := range strings.Split(line, " · ") {
+			switch {
+			case i == 0:
+				cur = part
+			case lipgloss.Width(cur+" · "+part+" ·") <= width:
+				cur += " · " + part
+			default:
+				out = append(out, cur+" ·")
+				cur = hang + part
+			}
+		}
+		out = append(out, strings.Split(hangWrap(cur, width, hang), "\n")...)
+	}
+	return strings.Join(out, "\n")
+}
+
+// hangWrap word-wraps s to width, indenting every line after the first
+// with hang so a wrapped item reads as one item.
+func hangWrap(s string, width int, hang string) string {
+	if lipgloss.Width(s) <= width || width <= lipgloss.Width(hang)+10 {
+		return unpad(lipgloss.NewStyle().Width(max(width, 1)).Render(s))
+	}
+	first := unpad(lipgloss.NewStyle().Width(width).Render(s))
+	head, rest, _ := strings.Cut(first, "\n")
+	rest = strings.Join(strings.Fields(rest), " ")
+	lines := strings.Split(unpad(lipgloss.NewStyle().Width(width-lipgloss.Width(hang)).Render(rest)), "\n")
+	for i := range lines {
+		lines[i] = hang + lines[i]
+	}
+	return head + "\n" + strings.Join(lines, "\n")
+}
+
 func unpad(s string) string {
 	lines := strings.Split(s, "\n")
 	for i, l := range lines {

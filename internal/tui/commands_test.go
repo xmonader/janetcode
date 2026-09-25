@@ -1565,8 +1565,7 @@ func TestConnectRejectedKeyGoesBackToTheKey(t *testing.T) {
 	}
 }
 
-// A first run's banner says "no provider configured yet: pick one
-// below". Once /connect succeeds that is false, and the header already
+// A first run's banner says "not connected yet". Once /connect succeeds that is false, and the header already
 // names the model, so the banner is rewritten in place.
 func TestConnectRewritesTheFirstRunBanner(t *testing.T) {
 	h := newHarness(t)
@@ -1580,10 +1579,10 @@ func TestConnectRewritesTheFirstRunBanner(t *testing.T) {
 	if banner == nil {
 		t.Fatal("no banner")
 	}
-	banner.text = "janetcode dev · no provider configured yet: pick one below\nworking in /x"
+	banner.text = "janetcode dev · not connected yet · /connect picks a provider\nworking in /x"
 	banner.rendered = "stale"
 	h.m.refreshWelcome()
-	if strings.Contains(banner.text, "no provider configured") || banner.rendered != "" {
+	if strings.Contains(banner.text, "not connected") || banner.rendered != "" {
 		t.Fatalf("banner not refreshed: %q (rendered %q)", banner.text, banner.rendered)
 	}
 	if !strings.Contains(plain(h.m.View()), "working in") {
