@@ -116,7 +116,7 @@
       if (!traj.records.length) {
         trajChart.hidden = true;
         trajMeta.textContent = "";
-        trajLedger.innerHTML = `<p class="quiet">No trajectory events yet</p>`;
+        trajLedger.innerHTML = `<div class="empty-state"><b>Nothing to trace yet</b><span>Each model call, tool run and answer in this session lines up here as it happens.</span></div>`;
         trajInspect.hidden = true;
         return;
       }
