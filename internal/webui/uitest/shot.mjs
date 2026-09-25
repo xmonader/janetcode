@@ -116,6 +116,14 @@ await shot('01-chat-dark');
 await evaljs(`document.getElementById('chat-view').scrollTop = 0; 1`);
 await sleep(300);
 await shot('01b-chat-top');
+// A command opened: its output is a terminal card.
+await evaljs(`(() => { const h = document.querySelector('.tool.tk-cmd .head'); h.click(); return 1; })()`);
+await sleep(300);
+await evaljs(`document.getElementById('chat-view').scrollTop = 120; 1`);
+await sleep(200);
+await shot('01c-command-open');
+await evaljs(`(() => { const h = document.querySelector('.tool.tk-cmd .head'); h.click(); return 1; })()`);
+await sleep(200);
 await evaljs(`(() => { const v = document.getElementById('chat-view'); v.scrollTop = v.scrollHeight; return 1; })()`);
 
 // permission card

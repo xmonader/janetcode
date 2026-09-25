@@ -140,11 +140,16 @@
       }
     } else if (e.kind === "tool") {
       const folded = !!(e.run && !e.run_live && !openRuns.has(e.run));
+      const kind = toolKind(e.name || "");
       n.className = "turn tool-turn" + (e.run && !e.run_head ? " run-child" : "");
       n.hidden = !!(e.run && !e.run_head && folded);
       const st = e.denied ? "Declined" : e.error ? "Failed" : e.done ? "Done" : e.running ? "Running" : "Queued";
       const stCls = "st-" + st.toLowerCase();
-      const open = openTools.has(e.id);
+      // An edit shows what it changed without a click: that is the work.
+      // Everything else opens on demand. openTools holds the calls whose
+      // default the reader flipped.
+      const openByDefault = (kind.k === "edit" || kind.k === "write") && !!e.preview && !e.denied;
+      const open = openByDefault !== openTools.has(e.id);
       let bar = "";
       if (e.run_head) {
         // Only the "(n failed)" count is red: the bar is a summary, and
@@ -153,13 +158,24 @@
         bar = `<button type="button" class="run-bar" data-run="${esc(e.run)}"><span class="chev">${icon(folded ? "chevron-right" : "chevron-down")}</span><span>${label}</span></button>`;
       }
       const bodyHidden = e.run_head && folded;
-      let html = bar + `<div class="tool ${stCls}"${bodyHidden ? " hidden" : ""}><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
+      const stat = kind.k === "edit" || kind.k === "write" ? diffStat(e.preview) : null;
+      const statHTML = stat && (stat.add || stat.del)
+        ? `<span class="dstat">${stat.add ? `<span class="a">+${stat.add}</span>` : ""}${stat.del ? `<span class="d">−${stat.del}</span>` : ""}</span>` : "";
+      const mark = st === "Done" ? "" : `<span class="st">${st}</span>`;
+      const expandable = !!(e.preview || e.output);
+      let html = bar + `<div class="tool ${stCls} tk-${kind.k}${open ? " open" : ""}${expandable ? "" : " flat"}"${bodyHidden ? " hidden" : ""}>` +
+        `<div class="head"><span class="ti">${icon(kind.icon)}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}</span>` +
+        `<span class="tail">${statHTML}${e.dur ? `<span class="dur">${esc(e.dur)}</span>` : ""}${mark}${expandable ? `<span class="chev">${icon(open ? "chevron-down" : "chevron-right")}</span>` : ""}</span></div>`;
       if (open && e.preview) html += `<pre class="diff">${diffHTML(e.preview)}</pre>`;
-      if (open && e.output) html += `<pre class="out">${JanetMD.renderOutput(e.name || "", e.summary || "", e.output)}</pre>`;
+      if (open && e.output) {
+        html += kind.k === "cmd"
+          ? `<div class="term"><div class="term-cmd"><span class="prompt">$</span> ${esc(e.summary || "")}</div><pre class="out">${JanetMD.renderOutput(e.name || "", e.summary || "", e.output)}</pre></div>`
+          : `<pre class="out">${JanetMD.renderOutput(e.name || "", e.summary || "", e.output)}</pre>`;
+      }
       html += `</div>`;
       n.innerHTML = html;
       const head = n.querySelector(".tool .head");
-      if (head) head.onclick = () => {
+      if (head && expandable) head.onclick = () => {
         if (openTools.has(e.id)) openTools.delete(e.id);
         else openTools.add(e.id);
         render(latest.get(e.id));
@@ -197,6 +213,29 @@
     }
     follow(was);
     paintToLatest();
+  }
+
+  // toolKind sorts a tool into what it does, for its icon and for how its
+  // card opens. Names are the harness's own and MCP's (server__tool).
+  function toolKind(name) {
+    const n = name.toLowerCase();
+    if (/^(edit_file|edit|multi_edit|apply_patch|replace)$/.test(n)) return { k: "edit", icon: "pencil" };
+    if (/^(write_file|write|create_file)$/.test(n)) return { k: "write", icon: "file-plus" };
+    if (/^(bash|shell|run|job|jobs)$/.test(n)) return { k: "cmd", icon: "terminal" };
+    if (/^(read_file|read|read_many|list_dir|ls|glob|grep|search|find|repo_map|expand_output|symbols|references|definition)$/.test(n)) return { k: "read", icon: /grep|search|find|glob|references|definition|symbols/.test(n) ? "search" : "file" };
+    if (/^(fetch_url|web_fetch|web_search|browse)$/.test(n)) return { k: "web", icon: "globe" };
+    if (/^(task|agent|subagent)$/.test(n)) return { k: "task", icon: "bot" };
+    return { k: "tool", icon: "wrench" };
+  }
+
+  // diffStat counts the lines a preview adds and removes.
+  function diffStat(src) {
+    let add = 0, del = 0;
+    for (const l of String(src || "").split("\n")) {
+      if (l.startsWith("+") && !l.startsWith("+++")) add++;
+      else if (l.startsWith("-") && !l.startsWith("---")) del++;
+    }
+    return { add, del };
   }
 
   async function drawMermaid(root) {

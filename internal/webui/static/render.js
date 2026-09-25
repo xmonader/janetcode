@@ -74,7 +74,7 @@
         body = markSpan(text, lines[i - 1].slice(1));
       }
       const gutter = String(n).padStart(gw, " ");
-      out.push(`<span class="${cls}"><span class="ln">${esc(gutter)} │ </span>${kind === "+" || kind === "-" ? kind : " "}${body}</span>`);
+      out.push(`<span class="${cls}"><span class="ln">${esc(gutter)} │ </span><span class="mk">${kind === "+" || kind === "-" ? kind : " "}</span>${body}</span>`);
       if (kind !== "-") prevEnd = newN;
     }
     return out.join("\n");

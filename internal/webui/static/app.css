@@ -99,8 +99,8 @@ html[data-theme="dark"] {
   --pre-ink: rgba(255, 255, 255, 0.88);
   --violet: #d08cf5;
   --bubble-bg: #2c2c2f;
-  --diff-add-bg: rgba(48, 209, 88, 0.17);
-  --diff-del-bg: rgba(255, 69, 58, 0.17);
+  --diff-add-bg: rgba(48, 209, 88, 0.12);
+  --diff-del-bg: rgba(255, 69, 58, 0.13);
   --overlay: rgba(0, 0, 0, 0.5);
   --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(238, 238, 245, 0.09);
   --shadow-card: 0 0 0 0.5px rgba(238, 238, 245, 0.07);
@@ -806,80 +806,160 @@ button:disabled { cursor: default; opacity: 0.55; }
 }
 .chev { display: inline-flex; font-size: 0.8rem; color: var(--faint); }
 
-/* tool runs: compact rows that expand */
+/* Tool calls. Each is a row with the tool's icon, what it touched and
+   how it went; an edit opens on its diff, a command on a terminal. A read
+   stays one quiet line: it is how the model looks, not what it did. */
 .tool {
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
-  padding: 0.3rem 0.6rem;
-  margin-left: -0.6rem;
-  margin-right: -0.6rem;
-  transition: background 0.13s ease;
+  --tool-tint: var(--mute);
+  border: 0.5px solid transparent;
+  border-radius: 12px;
+  padding: 0.28rem 0.6rem;
+  margin: 0 -0.6rem;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.tool:hover { background: var(--surface-2); }
+.tool.tk-edit, .tool.tk-write { --tool-tint: var(--accent); }
+.tool.tk-cmd { --tool-tint: var(--ink); }
+.tool:not(.flat):hover { background: var(--surface-2); }
+.tool.open {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+  padding-bottom: 0.55rem;
+  margin: 0.3rem -0.6rem 0.45rem;
+}
+.tool.open:hover { background: var(--surface); }
 .tool .head {
   display: flex;
   gap: 0.55rem;
   align-items: center;
-  padding: 0.18rem 0;
+  min-height: 1.8rem;
   cursor: pointer;
   font-size: 0.88rem;
   user-select: none;
 }
-.tool .head .st {
+.tool.flat .head { cursor: default; }
+.tool .head .ti {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  color: var(--mute);
-  font-size: 0.78rem;
-  font-weight: 500;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 7px;
+  color: var(--tool-tint);
+  background: color-mix(in srgb, var(--tool-tint) 11%, transparent);
+  font-size: 0.8rem;
 }
-/* Done is the normal case: the dot says it, the word is noise. */
-.tool.st-done .head .st { font-size: 0; gap: 0; }
-.tool .head .st::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--line-strong);
-  flex: none;
-}
-.tool.st-running .head .st { color: var(--accent); }
-.tool.st-running .head .st::before { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
-.tool.st-done .head .st { color: var(--ok); }
-.tool.st-done .head .st::before { background: var(--ok); }
-.tool.st-failed .head .st { color: var(--bad); }
-.tool.st-failed .head .st::before { background: var(--bad); }
-.tool.st-declined .head .st { color: var(--warn); }
-.tool.st-declined .head .st::before { background: var(--warn); }
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--pulse); }
-  50% { box-shadow: 0 0 0 4px transparent; }
-}
-.tool .head b { font-weight: 500; font-size: 0.86rem; }
+.tool.tk-read .head .ti, .tool.tk-tool .head .ti { background: transparent; color: var(--faint); }
+.tool .head b { font-weight: 550; font-size: 0.86rem; flex: none; }
+.tool.tk-read .head b { font-weight: 450; color: var(--mute); }
 .tool .head .sum {
-  color: var(--faint);
+  color: var(--mute);
   font-family: var(--mono);
   font-size: 0.76rem;
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tool .head .tail {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--faint);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+.tool .dstat { display: inline-flex; gap: 0.35rem; font-family: var(--mono); font-weight: 600; }
+.tool .dstat .a { color: var(--ok); }
+.tool .dstat .d { color: var(--bad); }
+.tool .head .st {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 550;
+  color: var(--mute);
+  background: var(--surface-2);
+}
+.tool.st-running .head .st { color: var(--accent); background: var(--accent-soft); }
+.tool.st-running .head .st::before {
+  content: "";
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+.tool.st-failed .head .st { color: var(--bad); background: var(--bad-soft); }
+.tool.st-declined .head .st { color: var(--warn); background: var(--warn-soft); }
+/* A call in flight: what it is working on shimmers. */
+.tool.st-running .head .sum {
+  background: linear-gradient(90deg, var(--mute) 0%, var(--mute) 35%, var(--ink) 50%, var(--mute) 65%, var(--mute) 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--pulse); }
+  50% { box-shadow: 0 0 0 4px transparent; }
+}
+.tool.st-failed .head .ti { color: var(--bad); background: var(--bad-soft); }
 .tool .out, .tool .diff {
   tab-size: 4;
-  margin: 0.3rem 0 0.4rem;
-  padding: 0.7rem 0.85rem;
+  margin: 0.45rem 0 0;
+  padding: 0.6rem 0;
   border: 0.5px solid var(--line);
   border-radius: var(--radius-s);
-  max-height: 18rem;
+  max-height: 20rem;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--mono);
   font-size: 0.76rem;
-  line-height: 1.55;
+  line-height: 1.6;
   background: var(--pre-bg);
   color: var(--pre-ink);
+}
+.tool .out { padding: 0.6rem 0.85rem; }
+/* Inside an open card the diff needs no frame of its own. Its lines keep
+   the reader's ink on a tint; only the + and - marks carry the colour. */
+.tool.open .diff { border-color: transparent; }
+.tool .diff .add, .tool .diff .del { color: var(--pre-ink); }
+.diff .mk, #ask-preview .mk { display: inline-block; width: 1.1em; font-weight: 700; }
+.diff .add .mk, #ask-preview .add .mk { color: var(--ok); }
+.diff .del .mk, #ask-preview .del .mk { color: var(--bad); }
+.tool .diff > span { padding: 0 0.85rem; }
+.tool .diff > span:not([class]) { display: inline-block; width: 100%; }
+/* A command's output is a terminal: its own dark glass in both themes. */
+.tool .term {
+  margin: 0.45rem 0 0;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: #111114;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
+}
+.tool .term-cmd {
+  padding: 0.5rem 0.85rem 0.1rem;
+  font: 500 0.76rem/1.5 var(--mono);
+  color: #f2f2f7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool .term-cmd .prompt { color: #5fe3d8; font-weight: 700; }
+.tool .term .out {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(235, 235, 245, 0.78);
 }
 /* The permission card's preview is the same diff markup (diffHTML);
    without these it drew every added and removed line in plain grey. */
