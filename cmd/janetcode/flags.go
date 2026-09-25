@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -114,6 +115,52 @@ var helpGroups = []struct {
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
+}
+
+// briefHelp is what plain --help shows: the flags a first week needs, one
+// line each, so the help fits a screen. --help all prints every flag.
+var briefHelp = []struct{ flag, arg, text string }{
+	{"p", "prompt", "run one prompt headless, print the answer, exit"},
+	{"c", "", "continue the newest session in this directory"},
+	{"resume", "id", "reopen a session (--sessions lists them)"},
+	{"model", "id", "the model to use; /model switches in a session"},
+	{"provider", "name", "a configured provider or preset, e.g. openrouter"},
+	{"web", "", "the same session in a browser instead of the terminal"},
+	{"auto-edits", "", "file edits run without asking; commands still ask"},
+	{"readonly", "", "the model can look but not change anything"},
+	{"yolo", "", "run every tool call without asking"},
+	{"bg", "", "run the prompt in the background; --answer settles its asks"},
+	{"doctor", "", "check the config, the key and a live model call"},
+	{"version", "", "print the version"},
+}
+
+// printBriefHelp is plain --help.
+func printBriefHelp(w io.Writer, fs *flag.FlagSet) {
+	n := 0
+	fs.VisitAll(func(*flag.Flag) { n++ })
+	fmt.Fprintf(w, `janetcode %s - a terminal coding agent
+
+Usage: janetcode [flags] [prompt]      interactive session in this directory
+       janetcode -p "prompt" [flags]    run one prompt headless and exit
+
+`, version)
+	for _, b := range briefHelp {
+		name := "--" + b.flag
+		if len(b.flag) == 1 {
+			name = "-" + b.flag
+		}
+		if b.arg != "" {
+			name += " " + b.arg
+		}
+		fmt.Fprintf(w, "  %-18s %s\n", name, b.text)
+	}
+	fmt.Fprintf(w, `
+In a session, /help lists the commands. An API key comes from /connect,
+or from ANTHROPIC_API_KEY / OPENAI_API_KEY.
+
+janetcode --help all       every flag (%d), grouped, and the environment
+docs/manual/cli.md         the same, with examples
+`, n)
 }
 
 func helpGroupOf(name string) string {

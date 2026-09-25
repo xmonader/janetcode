@@ -272,7 +272,7 @@ func flagError(fs *flag.FlagSet, err error) error {
 	}
 	msg := err.Error()
 	if m := reUnknownFlag.FindStringSubmatch(msg); m != nil {
-		return headless.BadInput("unknown flag %s (janetcode --help lists them)", dash(m[1]))
+		return headless.BadInput("unknown flag %s (janetcode --help all lists them)", dash(m[1]))
 	}
 	if m := reBadValue.FindStringSubmatch(msg); m != nil {
 		why := m[3]
@@ -307,7 +307,11 @@ func (s *startup) stageFlags() (bool, error) {
 	if err := s.fs.Parse(s.args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			s.fs.SetOutput(os.Stdout)
-			usage()
+			if rest := s.fs.Args(); len(rest) > 0 && rest[0] == "all" {
+				usage()
+			} else {
+				printBriefHelp(os.Stdout, s.fs)
+			}
 			return true, nil
 		}
 		return true, flagError(s.fs, err)

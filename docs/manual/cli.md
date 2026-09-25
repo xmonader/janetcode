@@ -7,6 +7,9 @@ janetcode [flags] [prompt]        interactive session in the working directory
 janetcode -p "prompt" [flags]     one prompt, headless, then exit
 ```
 
+`janetcode --help` shows the dozen flags most people need; `janetcode
+--help all` prints every flag, grouped, as the table below does.
+
 | flag | what it does |
 |---|---|
 | `-p "<prompt>"` | run one prompt headless; assistant text on stdout, tool activity on stderr |

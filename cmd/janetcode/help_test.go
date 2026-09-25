@@ -78,8 +78,8 @@ func TestFlagErrorsAreOneLineUsageErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"--bogus"}, "unknown flag --bogus (janetcode --help lists them)"},
-		{[]string{"-x"}, "unknown flag -x (janetcode --help lists them)"},
+		{[]string{"--bogus"}, "unknown flag --bogus (janetcode --help all lists them)"},
+		{[]string{"-x"}, "unknown flag -x (janetcode --help all lists them)"},
 		{[]string{"--max-cost", "abc"}, `--max-cost: "abc" is not a number`},
 		{[]string{"--eval-timeout", "soon"}, `--eval-timeout: "soon" is not a duration like 90s or 5m`},
 		{[]string{"--yolo=maybe"}, `--yolo: "maybe" is not true or false`},
@@ -156,6 +156,48 @@ func TestHelpFitsEightyColumns(t *testing.T) {
 	for _, want := range []string{"--resume id\n", "--inspect subject\n", "--set key=value\n", "--proof [commit]\n"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help lacks %q", want)
+		}
+	}
+}
+
+// Plain --help is one screen of the everyday flags, each a real flag,
+// and says how to get the rest; --help all prints every flag.
+func TestHelpIsOneScreenAndHelpAllIsEverything(t *testing.T) {
+	fs, _ := newFlagSet()
+	for _, b := range briefHelp {
+		if fs.Lookup(b.flag) == nil {
+			t.Errorf("briefHelp names %q, which is not a flag", b.flag)
+		}
+	}
+	for _, c := range []struct {
+		args    []string
+		all     bool
+		maxRows int
+	}{
+		{[]string{"--help"}, false, 30},
+		{[]string{"-h"}, false, 30},
+		{[]string{"--help", "all"}, true, 0},
+		{[]string{"-h", "all"}, true, 0},
+	} {
+		stdout, _ := captureStd(t)
+		s := &startup{args: c.args}
+		done, err := s.stageFlags()
+		out := stdout()
+		if !done || err != nil {
+			t.Errorf("%v: done=%v err=%v", c.args, done, err)
+		}
+		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+		for _, l := range lines {
+			if len([]rune(l)) > 80 {
+				t.Errorf("%v: %d columns: %q", c.args, len([]rune(l)), l)
+			}
+		}
+		hasEval := strings.Contains(out, "--eval-jobs")
+		if hasEval != c.all {
+			t.Errorf("%v: lists --eval-jobs = %v", c.args, hasEval)
+		}
+		if !c.all && (len(lines) > c.maxRows || !strings.Contains(out, "janetcode --help all")) {
+			t.Errorf("%v: %d lines, or no pointer to --help all:\n%s", c.args, len(lines), out)
 		}
 	}
 }
