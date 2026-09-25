@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -198,7 +197,7 @@ func (m *model) layout() {
 		vh = 3
 	}
 	if !m.ready {
-		m.viewport = viewport.New(m.width, vh)
+		m.viewport = newScroller(m.width, vh)
 		m.viewport.MouseWheelEnabled = true
 		m.ready = true
 	} else {

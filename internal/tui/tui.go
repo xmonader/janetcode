@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -45,7 +44,7 @@ type model struct {
 
 	transcript *transcript
 	queue      *eventQueue
-	viewport   viewport.Model
+	viewport   scroller
 	input      textarea.Model
 	spinner    spinner.Model
 
