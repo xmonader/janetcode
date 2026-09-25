@@ -35,14 +35,25 @@ func markdownStyle(p palette, dark bool) ansi.StyleConfig {
 	}
 	yes, off := true, false
 
-	// Headings: one accent colour for every level, no h1 bar.
+	// Headings: no "#" marks and no h1 bar. The level shows in colour and
+	// weight instead, the way a page shows it: the top two in the accent,
+	// the third in the text colour, anything deeper dimmed. All bold.
 	c.Heading.Color = pick(p.accent)
 	c.Heading.Bold = &yes
 	c.Heading.BackgroundColor = nil
-	c.H1.Prefix, c.H1.Suffix = "# ", ""
-	c.H1.Color = pick(p.accent)
-	c.H1.BackgroundColor = nil
-	c.H1.Bold = &yes
+	for i, h := range []*ansi.StyleBlock{&c.H1, &c.H2, &c.H3, &c.H4, &c.H5, &c.H6} {
+		h.Prefix, h.Suffix = "", ""
+		h.BackgroundColor = nil
+		h.Bold = &yes
+		switch {
+		case i < 2:
+			h.Color = pick(p.accent)
+		case i == 2:
+			h.Color = nil
+		default:
+			h.Color = pick(p.dim)
+		}
+	}
 
 	// Inline code: colour only, never a background.
 	c.Code.Prefix, c.Code.Suffix = "", ""

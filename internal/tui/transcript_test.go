@@ -1058,3 +1058,23 @@ func TestCancelledReplyDropsADanglingMarkdownStub(t *testing.T) {
 		}
 	}
 }
+
+// Headings show their level in colour and weight, not in "#" marks the
+// reader has to skip.
+func TestMarkdownHeadingsDropTheirMarks(t *testing.T) {
+	const src = "# Top\n\n## Summary\n\n### Files overview\n\n#### Deep\n\ntext\n"
+	for _, style := range []string{"dark", "light"} {
+		tr := newTranscriptStyled(style, defaultStyles())
+		tr.apply(agent.Event{Kind: agent.EvText, Text: src})
+		tr.apply(agent.Event{Kind: agent.EvTurnDone})
+		out := plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
+		if strings.Contains(out, "#") {
+			t.Errorf("%s: heading marks left:\n%s", style, out)
+		}
+		for _, want := range []string{"Top", "Summary", "Files overview", "Deep"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s: lost %q:\n%s", style, want, out)
+			}
+		}
+	}
+}
