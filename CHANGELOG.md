@@ -20,6 +20,14 @@ and measurements behind each round are in `docs/notes/history.md`.
   unexpanded variables); `-o` output paths are now classified as writes.
 - Provider HTTP clients refuse redirects to another origin and bound and
   redact error bodies before they reach the transcript.
+- Skills are scanned when they load, never run. A skill that came with the
+  repository (`.claude/skills`, `.agents/skills`, `.janetcode/skills`) is
+  blocked when the scan finds something critical: a reverse shell, the
+  environment or SSH keys sent out, a pipe from a bare IP address into a
+  shell, a symlink out of the skill, or an instruction to hide something
+  from you. `/skills` and `--doctor` name the file and line. Your own skills
+  are only warned about. Tested against 400 real-world skills: none were
+  blocked.
 
 ### Web UI (`--web`)
 - A browser session: live workspace pane (plan, files, jobs, subagents),
@@ -52,6 +60,9 @@ and measurements behind each round are in `docs/notes/history.md`.
 - `/cd` moves the session without restarting it; fork lineage is shown
   wherever sessions are listed.
 - The plan is a file you can comment on, from either front end.
+- A turn that ends with steps still open in the plan it wrote is sent back
+  once to finish them. A model you asked to do only part of the plan can
+  still stop there.
 
 ### Models and cost
 - Model slots (main, cheap, strong, advisor, vision) set from `/model`,
