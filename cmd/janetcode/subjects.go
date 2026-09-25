@@ -204,10 +204,13 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 		}
 		return b.String()
 	})
+	// Asked for with no session to describe, these are a usage error
+	// (exit 42), not a report: a script checking the exit status must not
+	// read the explanation as the subject.
 	needsSession := func(name, summary string) {
-		r.AddText(name, summary, func() string {
-			return name + " describes a running session; this run has no provider, so there is none.\nSet a key, or run janetcode --init, and try again."
-		})
+		r.Add(inspect.Subject{Name: name, Summary: summary, Report: func(context.Context, string) (string, error) {
+			return "", headless.BadInput("%s describes a running session, and this run has no provider, so there is none; set a key or run janetcode --init, then try again", name)
+		}})
 	}
 	for _, s := range []struct{ name, summary string }{
 		{"context", "what the next request will carry, by part"},

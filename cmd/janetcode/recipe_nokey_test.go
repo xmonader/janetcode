@@ -90,3 +90,24 @@ func TestSessionsListReadsCleanly(t *testing.T) {
 		t.Fatalf("sessions:\n%s", out)
 	}
 }
+
+// A session subject asked for with no key is a usage error, not a report
+// that exits 0.
+func TestInspectSessionWithoutAKeyIsAUsageError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Chdir(t.TempDir())
+	stdout, _ := captureStd(t)
+	err := run([]string{"--inspect", "session"})
+	out := stdout()
+	if headless.ExitCode(err) != headless.ExitBadInput || !strings.Contains(err.Error(), "describes a running session") || out != "" {
+		t.Fatalf("err = %v (exit %d), stdout %q", err, headless.ExitCode(err), out)
+	}
+	if err := run([]string{"--inspect", "config"}); err != nil {
+		t.Fatalf("a subject that needs no session: %v", err)
+	}
+}
