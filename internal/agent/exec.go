@@ -221,9 +221,16 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	if !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
 		return hookNotes, "", nil
 	}
+	switch allowed, refusal := a.permissionHook(ctx, u, call, mustAsk, emit); {
+	case refusal != "":
+		return nil, refusal, nil
+	case allowed:
+		return hookNotes, "", nil
+	}
 	if a.Approver == nil {
 		return nil, "Permission denied: no approver configured for mutating tools.", nil
 	}
+	a.notifyHook("permission_prompt", "janetcode needs your permission to use "+u.Name)
 	d, reason, suggested, err := a.ask(ctx, u, call, subject, mustAsk)
 	if err != nil {
 		return nil, "", err

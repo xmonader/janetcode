@@ -6,8 +6,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -15,22 +17,22 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
-// hookLog binds a hook that appends each stdin it gets to a file, one
-// JSON object per line, and returns a reader for what it recorded.
+// hookLog binds a hook that saves each stdin it gets to its own file,
+// named by the time it ran (background hooks run at once), and returns a
+// reader for what was recorded, oldest first.
 func hookLog(t *testing.T) (string, func() []map[string]any) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "hook.log")
-	cmd := `cat >> '` + path + `'; echo >> '` + path + `'`
+	dir := t.TempDir()
+	cmd := `cat > '` + dir + `'/$(date +%s%N)`
 	return cmd, func() []map[string]any {
-		data, _ := os.ReadFile(path)
+		names, _ := filepath.Glob(filepath.Join(dir, "*"))
+		sort.Strings(names)
 		var got []map[string]any
-		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-			if line == "" {
-				continue
-			}
+		for _, n := range names {
+			data, _ := os.ReadFile(n)
 			var m map[string]any
-			if err := json.Unmarshal([]byte(line), &m); err != nil {
-				t.Fatalf("hook stdin %q: %v", line, err)
+			if err := json.Unmarshal(data, &m); err != nil {
+				continue // still being written
 			}
 			got = append(got, m)
 		}
@@ -167,6 +169,113 @@ func TestPostCompactSeesTheSummaryAndTrigger(t *testing.T) {
 	got := logged()
 	if len(got) != 2 || got[0]["trigger"] != "manual" || got[1]["hook_event_name"] != "PostCompact" ||
 		got[1]["trigger"] != "manual" || !strings.Contains(str(got[1]["compact_summary"]), "SUMMARY") {
+		t.Fatalf("hook stdins = %v", got)
+	}
+}
+
+// eventually waits for a background hook to have recorded n stdins.
+func eventually(t *testing.T, logged func() []map[string]any, n int) []map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got := logged()
+		if len(got) >= n || time.Now().After(deadline) {
+			return got
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestAPermissionRequestHookAnswersInTheUsersPlace(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"ok.txt","content":"x"}`),
+		toolCall("t2", "write_file", `{"path":"no.txt","content":"x"}`),
+		text("done"),
+	}}
+	ap := &seesApprover{decision: Allow}
+	a, root := newAgent(t, f, ap)
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.PermissionAsk: {{Match: "Write", Command: `if grep -q ok.txt; then echo '{"hookSpecificOutput":{"decision":{"behavior":"allow"}}}'; else echo '{"hookSpecificOutput":{"decision":{"behavior":"deny","message":"not that file"}}}'; fi`}},
+	}}}
+	if err := a.Run(context.Background(), "go", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ap.inputs) != 0 {
+		t.Fatalf("the user was asked %d times; the hook answered both", len(ap.inputs))
+	}
+	if _, err := os.Stat(filepath.Join(root, "ok.txt")); err != nil {
+		t.Fatalf("allowed write did not run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "no.txt")); err == nil {
+		t.Fatal("denied write ran")
+	}
+	if r := a.Messages[4].Blocks[0]; !r.IsError || !strings.Contains(r.Text, "not that file") {
+		t.Fatalf("deny result = %+v", r)
+	}
+}
+
+func TestNotificationHooksHearWhenTheUserIsNeeded(t *testing.T) {
+	f := &fake{responses: []*llm.Response{toolCall("t1", "write_file", `{"path":"x","content":"x"}`), text("done")}}
+	a, root := newAgent(t, f, &seesApprover{decision: Allow})
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	logCmd, logged := hookLog(t)
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.Notification: {{Command: logCmd}},
+	}}}
+	if err := a.Run(context.Background(), "go", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, m := range eventually(t, logged, 2) {
+		kinds[str(m["notification_type"])] = true
+	}
+	if !kinds["permission_prompt"] || !kinds["idle_prompt"] {
+		t.Fatalf("notifications = %v", kinds)
+	}
+}
+
+func TestStopFailureSaysWhyATurnFailed(t *testing.T) {
+	f := &fake{responses: []*llm.Response{toolCall("t1", "read_file", `{"path":"a"}`), toolCall("t2", "read_file", `{"path":"b"}`)}}
+	a, root := newAgent(t, f, nil)
+	a.MaxIterations = 1
+	a.Tools = tool.NewRegistry(tool.ReadFile{Root: root})
+	logCmd, logged := hookLog(t)
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.StopFailure:  {{Command: logCmd}},
+		hook.Notification: {{Command: logCmd}},
+	}}}
+	if err := a.Run(context.Background(), "go", func(Event) {}); !errors.Is(err, ErrMaxIterations) {
+		t.Fatalf("err = %v", err)
+	}
+	got := eventually(t, logged, 1)
+	time.Sleep(50 * time.Millisecond) // an idle_prompt would have landed by now
+	got = logged()
+	if len(got) != 1 || got[0]["hook_event_name"] != "StopFailure" || got[0]["error"] != "max_turns" {
+		t.Fatalf("hook stdins = %v", got)
+	}
+}
+
+func TestSubagentHooksBracketASubagent(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("REPORT: all clear")}}
+	parent := &Agent{Provider: f, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: t.TempDir()}, task)
+	logCmd, logged := hookLog(t)
+	parent.Hooks = &hook.Runner{Cwd: t.TempDir(), Config: hook.Config{Hooks: hook.Hooks{
+		hook.SubagentStart: {{Command: logCmd + `; echo "use the staging database"`}},
+		hook.SubagentStop:  {{Command: logCmd}},
+	}}}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"look around"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if brief := f.requests[0].Messages[0].Text(); !strings.Contains(brief, "look around") || !strings.Contains(brief, "use the staging database") {
+		t.Fatalf("brief = %q", brief)
+	}
+	got := eventually(t, logged, 2)
+	if len(got) != 2 || got[0]["hook_event_name"] != "SubagentStart" || got[0]["agent_type"] != "general" ||
+		got[1]["hook_event_name"] != "SubagentStop" || got[1]["last_assistant_message"] != "REPORT: all clear" ||
+		got[0]["agent_id"] != got[1]["agent_id"] {
 		t.Fatalf("hook stdins = %v", got)
 	}
 }

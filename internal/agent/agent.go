@@ -412,15 +412,16 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 // needs from the step before it is passed explicitly, and the counters
 // that have to survive the iterations live in turnGates, so the loop
 // itself holds no state of its own beyond the compaction threshold.
-func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
+func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) (err error) {
 	emit = serialize(a.ledgered(a.traced(emit)))
 	if a.Settings().Provider == nil {
 		return errors.New("no provider")
 	}
-	blocks, err := a.promptHooks(ctx, blocks, emit)
+	blocks, err = a.promptHooks(ctx, blocks, emit)
 	if err != nil {
 		return err
 	}
+	defer func() { a.turnEndHooks(ctx, err) }()
 	maxIter := a.openTurn(ctx, blocks, emit)
 	turnBegan := time.Now()
 	defer func() { a.stats.turnTook(time.Since(turnBegan)) }()

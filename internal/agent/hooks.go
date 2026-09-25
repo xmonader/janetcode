@@ -10,6 +10,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 )
 
 // hookInput is the part of every hook's stdin the agent knows about any
@@ -204,4 +205,91 @@ func (a *Agent) promptHooks(ctx context.Context, blocks []llm.Block, emit func(E
 	}
 	ctxBlock := llm.Block{Type: llm.BlockText, Text: "<hook-context>\n" + strings.Join(notes, "\n") + "\n</hook-context>"}
 	return append(append([]llm.Block{}, blocks...), ctxBlock), nil
+}
+
+// permissionHook runs permission_request hooks as a call is about to be
+// put to the user, so a hook can answer in their place. A deny refuses
+// the call. An allow (never a project hook's, see hook.Runner) skips the
+// prompt, except for a call that must be asked whatever else allows it:
+// a protected path, or a rewrite the user has not seen.
+func (a *Agent) permissionHook(ctx context.Context, u *llm.Block, call *ToolCall, mustAsk bool, emit func(Event)) (allowed bool, refusal string) {
+	if !a.HookRunner().Has(hook.PermissionAsk) {
+		return false, ""
+	}
+	in := a.hookInput(hook.PermissionAsk)
+	in.Tool, in.Input = u.Name, u.Input
+	res := a.runHook(ctx, in, emit)
+	switch {
+	case res.Denied:
+		return false, "Blocked by a permission_request hook: " + res.Reason
+	case res.Allowed && !mustAsk:
+		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a permission_request hook", "; ")
+		return true, ""
+	}
+	return false, ""
+}
+
+// notifyHook tells notification hooks the session is waiting on the
+// user: kind is permission_prompt or idle_prompt.
+func (a *Agent) notifyHook(kind, msg string) {
+	if !a.HookRunner().Has(hook.Notification) {
+		return
+	}
+	in := a.hookInput(hook.Notification)
+	in.Kind, in.Message = kind, msg
+	a.fireHook(in)
+}
+
+// subagentKind names a subagent for subagent hooks: its profile, or what
+// kind of task started it.
+func subagentKind(kid *subagent, profile *agentprofile.Profile) string {
+	switch {
+	case profile != nil:
+		return profile.Name
+	case kid.fork:
+		return "fork"
+	case kid.wt != nil:
+		return "editor"
+	}
+	return "general"
+}
+
+// subagentStartHook runs subagent_start hooks as a subagent starts, and
+// returns what they want the subagent told, ready to go after its brief.
+func (a *Agent) subagentStartHook(ctx context.Context, id, kind string) string {
+	if !a.HookRunner().Has(hook.SubagentStart) {
+		return ""
+	}
+	in := a.hookInput(hook.SubagentStart)
+	in.AgentID, in.Agent = id, kind
+	notes := a.runHook(ctx, in, nil).Notes
+	if len(notes) == 0 {
+		return ""
+	}
+	return "\n\n<hook-context>\n" + strings.Join(notes, "\n") + "\n</hook-context>"
+}
+
+// subagentStopHook tells subagent_stop hooks a subagent finished, with
+// the last thing it said.
+func (a *Agent) subagentStopHook(id, kind string, child *Agent) {
+	if !a.HookRunner().Has(hook.SubagentStop) {
+		return
+	}
+	in := a.hookInput(hook.SubagentStop)
+	in.AgentID, in.Agent, in.Text = id, kind, lastAssistantText(child.Messages)
+	a.fireHook(in)
+}
+
+// turnEndHooks tells hooks how a turn ended: stop_failure when it failed
+// (a turn the user cancelled did not fail), and an idle_prompt
+// notification when it finished and the session waits on the user.
+func (a *Agent) turnEndHooks(ctx context.Context, err error) {
+	switch {
+	case err == nil:
+		a.notifyHook("idle_prompt", "janetcode is waiting for your input")
+	case ctx.Err() == nil && a.HookRunner().Has(hook.StopFailure):
+		in := a.hookInput(hook.StopFailure)
+		in.ErrorType, in.Error = failureType(err), err.Error()
+		a.fireHook(in)
+	}
 }

@@ -559,6 +559,8 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		t.remember(ctx, childID, kid)
 	}
 	child, wt := kid.agent, kid.wt
+	kind := subagentKind(kid, profile)
+	in.Prompt += t.Parent.subagentStartHook(ctx, childID, kind)
 	start := time.Now()
 	t.mu.Lock()
 	kid.desc = in.Description
@@ -594,6 +596,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			defer t.running.Done()
 			defer t.releaseChild(kid)
 			err := child.Run(runCtx, in.Prompt, emit)
+			t.Parent.subagentStopHook(childID, kind, child)
 			t.mu.Lock()
 			kid.done = true
 			kid.report = forkReport(childID, desc, time.Since(start), child, err)
@@ -605,6 +608,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	runCtx := t.bindChildCtx(ctx, kid, minutes)
 	defer t.releaseChild(kid)
 	err = child.Run(runCtx, in.Prompt, emit)
+	t.Parent.subagentStopHook(childID, kind, child)
 	t.mu.Lock()
 	kid.done = true
 	t.mu.Unlock()
