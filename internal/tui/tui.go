@@ -165,6 +165,7 @@ func newModel(opts Options) *model {
 	th, dark := resolveTheme(opts.Theme, opts.Themes, bgDark)
 	lipgloss.SetHasDarkBackground(dark)
 	st := newStyles(th, ansi)
+	styleInput(&ta, st)
 	style := "light"
 	if dark {
 		style = "dark"

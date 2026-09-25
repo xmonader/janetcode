@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -77,6 +78,7 @@ func (m *model) applyThemeChoice(name string, persist bool) {
 		cfg.Theme = name
 	}
 	m.spinner.Style = m.styles.accent
+	styleInput(&m.input, m.styles)
 	if persist {
 		// Only a kept choice is news. Previews while the picker moves, and
 		// the restore on esc, used to leave "theme: auto (dark) · follows
@@ -238,4 +240,12 @@ func resolveTheme(name string, set *theme.Set, detectedDark bool) (theme.Theme, 
 	// The config validated the name, so this is only reached by a caller
 	// with no set; fall back to the default in the detected mode.
 	return def, detectedDark
+}
+
+// styleInput gives the input box's placeholder the theme's faint colour.
+// textarea's own default is a fixed 256-colour grey, dark enough on a
+// light terminal to read as typed text.
+func styleInput(ta *textarea.Model, st *styles) {
+	ta.FocusedStyle.Placeholder = st.faint
+	ta.BlurredStyle.Placeholder = st.faint
 }

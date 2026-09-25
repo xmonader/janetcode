@@ -69,3 +69,17 @@ func TestPermissionKeyLineMarksTheKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestPlaceholderFollowsTheTheme: the input box's placeholder kept
+// textarea's fixed grey, near-black on a light terminal. It is the
+// theme's faint colour, and follows a /theme switch.
+func TestPlaceholderFollowsTheTheme(t *testing.T) {
+	h := newHarness(t)
+	if got, want := h.m.input.FocusedStyle.Placeholder.GetForeground(), h.m.styles.faint.GetForeground(); got != want {
+		t.Fatalf("placeholder %v, faint %v", got, want)
+	}
+	h.m.applyThemeChoice("classic", false)
+	if got, want := h.m.input.FocusedStyle.Placeholder.GetForeground(), h.m.styles.faint.GetForeground(); got != want {
+		t.Fatalf("after /theme: placeholder %v, faint %v", got, want)
+	}
+}
