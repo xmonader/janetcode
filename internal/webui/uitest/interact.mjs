@@ -517,6 +517,22 @@ const trajCheck = await evaljs(`(async () => {
 })()`);
 check('the trajectory view opens and "/" focuses its search', trajCheck.shown && trajCheck.focused && !trajCheck.errors.length, JSON.stringify(trajCheck));
 
+// The terminal tab (terminal.js) builds xterm over the pty socket, and a
+// theme switch reaches it.
+const termCheck = await evaljs(`(async () => {
+  document.querySelector('#view-ring [data-view=terminal]').click();
+  await new Promise(r => setTimeout(r, 1200));
+  const shown = !document.getElementById('terminal').hidden && !!document.querySelector('#terminal .xterm');
+  const before = getComputedStyle(document.querySelector('#terminal .xterm-viewport') || document.body).backgroundColor;
+  document.getElementById('theme-toggle').click();
+  await new Promise(r => setTimeout(r, 200));
+  const after = getComputedStyle(document.querySelector('#terminal .xterm-viewport') || document.body).backgroundColor;
+  document.getElementById('theme-toggle').click();
+  document.querySelector('#view-ring [data-view=chat]').click();
+  return { shown, restyled: before !== after, hiddenAgain: document.getElementById('terminal').hidden };
+})()`);
+check('the terminal tab opens a shell and follows the theme', termCheck.shown && termCheck.restyled && termCheck.hiddenAgain, JSON.stringify(termCheck));
+
 // Attaching: the paperclip's file picker and a drop on the composer each
 // upload once and put an @path in the input. The picker gives a FileList,
 // which has no forEach; a drop on the composer used to reach two drop
