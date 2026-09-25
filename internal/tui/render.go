@@ -237,6 +237,15 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	// to the right edge: padding spaces carry the style, and a terminal
 	// that draws faint or italic as reverse video turns them into a bar.
 	wrap := func(s string) string { return unpad(lipgloss.NewStyle().Width(width - 2).Render(s)) }
+	// hang wraps each line with its continuation indented under the text
+	// after the leading "· ", so a thought reads as one block.
+	hang := func(s string) string {
+		ls := strings.Split(s, "\n")
+		for i, l := range ls {
+			ls[i] = hangWrap(l, width-2, "  ")
+		}
+		return strings.Join(ls, "\n")
+	}
 	switch e.kind {
 	case entryBanner:
 		return t.styles.dim.Render(wrapAtDots(e.text, width-2, "  "))
@@ -264,9 +273,9 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		// Faint, never italic: many terminals have no italic face and
 		// draw SGR italic as reverse video.
 		if o.expand(e) && e.done {
-			return t.styles.faint.Render(wrap("· thought: " + strings.TrimSpace(e.text)))
+			return t.styles.faint.Render(hang("· thought: " + strings.ReplaceAll(strings.TrimSpace(e.text), "\n", "\n  ")))
 		}
-		return t.styles.faint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
+		return t.styles.faint.Render(hang(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
 	case entryAssistant:
 		return t.renderMarkdown(e, width, o)
 	case entryTool:
@@ -542,9 +551,9 @@ func thinkingView(text string, done bool, took time.Duration, started time.Time)
 	const shown = 3
 	if len(lines) > shown {
 		lines = append([]string{fmt.Sprintf("· thinking… (%d earlier lines)", len(lines)-shown+1)}, lines[len(lines)-shown+1:]...)
-		return strings.Join(lines, "\n")
+		return strings.Join(lines, "\n  ")
 	}
-	return "· " + strings.Join(lines, "\n")
+	return "· " + strings.Join(lines, "\n  ")
 }
 
 // renderCode shows lines verbatim with diff colouring by prefix and no

@@ -9,7 +9,7 @@ edits and commands ask first · y allow · a this session ·
   fix the code, not the tests.
 
 · thought: The holiday tests fail. add_business_days never
-looks at the holidays set.
+  looks at the holidays set.
 
 ✓ read_file dates.py
   1    from datetime import date, timedelta
