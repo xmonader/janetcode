@@ -310,3 +310,48 @@ func TestProjectHookCannotAllowAToolCall(t *testing.T) {
 		t.Fatalf("the refusal should be logged, logs = %q", joined)
 	}
 }
+
+// TestMatchReachesEveryEventsSubject: match used to filter tool events
+// only. It now filters every event on what that event is about -- a
+// session's source, a compaction's trigger, a notification's type, a
+// failure's error type, a subagent's profile -- and "*" matches all, as
+// other harnesses write it.
+func TestMatchReachesEveryEventsSubject(t *testing.T) {
+	hooks := Hooks{}
+	for _, c := range []struct{ ev, match string }{
+		{SessionStart, "^resume$"}, {SessionEnd, "clear"}, {PostCompact, "manual"},
+		{Notification, "permission_prompt"}, {StopFailure, "rate_limit"}, {SubagentStart, "^explore$"},
+		{UserPrompt, "*"},
+	} {
+		hooks[c.ev] = []Hook{{Match: c.match, Command: `echo hit`}}
+	}
+	cfg := Config{Hooks: hooks}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	r := &Runner{Cwd: t.TempDir(), Config: cfg}
+	ctx := context.Background()
+	for _, c := range []struct {
+		in   Input
+		want bool
+	}{
+		{Input{Event: SessionStart, Source: "resume"}, true},
+		{Input{Event: SessionStart, Source: "startup"}, false},
+		{Input{Event: SessionEnd, Reason: "clear"}, true},
+		{Input{Event: SessionEnd, Reason: "exit"}, false},
+		{Input{Event: PostCompact, Trigger: "manual"}, true},
+		{Input{Event: PostCompact, Trigger: "auto"}, false},
+		{Input{Event: Notification, Kind: "permission_prompt"}, true},
+		{Input{Event: Notification, Kind: "idle_prompt"}, false},
+		{Input{Event: StopFailure, ErrorType: "rate_limit"}, true},
+		{Input{Event: StopFailure, ErrorType: "server_error"}, false},
+		{Input{Event: SubagentStart, Agent: "explore"}, true},
+		{Input{Event: SubagentStart, Agent: "general"}, false},
+		{Input{Event: UserPrompt, Prompt: "hi"}, true},
+	} {
+		got := len(r.Run(ctx, c.in).Notes) == 1
+		if got != c.want {
+			t.Errorf("%s %+v: ran = %v, want %v", c.in.Event, c.in, got, c.want)
+		}
+	}
+}

@@ -1,7 +1,9 @@
 // Package hook runs user-supplied commands at points in the agent loop:
-// before and after a tool call, before compaction, and when the model
-// wants to stop. A hook can deny or rewrite a tool call and add notes the
-// model sees. Hooks are fail-open: a crash, timeout or unexpected exit
+// around a tool call and its permission prompt, when a prompt is
+// submitted, when a session starts and ends, around compaction and
+// subagents, when a turn stops or fails, and when the user is waiting to
+// be told something. A hook can deny or rewrite a tool call, block a
+// prompt, and add notes the model sees. Hooks are fail-open: a crash, timeout or unexpected exit
 // code is reported and otherwise ignored, so a broken hook cannot wedge a
 // session; only exit code 2 (or a JSON deny) blocks.
 package hook
@@ -27,18 +29,34 @@ import (
 
 // Event names.
 const (
-	PreTool    = "pre_tool"    // before a tool runs; may deny or rewrite input
-	PostTool   = "post_tool"   // after a tool ran; may add a note to the result
-	PreCompact = "pre_compact" // before the history is summarised
-	Stop       = "stop"        // the model ended its turn; may send it back to work
+	PreTool         = "pre_tool"           // before a tool runs; may deny or rewrite input
+	PostTool        = "post_tool"          // after a tool ran; may add a note to the result
+	PostToolFailure = "post_tool_failure"  // after a tool failed; may add a note to the result
+	PreCompact      = "pre_compact"        // before the history is summarised
+	PostCompact     = "post_compact"       // after the history was summarised; observes only
+	Stop            = "stop"               // the model ended its turn; may send it back to work
+	StopFailure     = "stop_failure"       // a turn ended on an error; observes only
+	UserPrompt      = "user_prompt"        // a prompt is about to be sent; may block it or add context
+	SessionStart    = "session_start"      // a session's first turn begins; may add context
+	SessionEnd      = "session_end"        // a session is closed or cleared; observes only
+	PermissionAsk   = "permission_request" // a permission prompt is about to be shown; may answer it
+	Notification    = "notification"       // the user is being told something; observes only
+	SubagentStart   = "subagent_start"     // a subagent starts; may add context to its brief
+	SubagentStop    = "subagent_stop"      // a subagent finished; observes only
 )
 
 // Events lists every event name, for validation and docs.
-var Events = []string{PreTool, PostTool, PreCompact, Stop}
+var Events = []string{
+	PreTool, PostTool, PostToolFailure, PreCompact, PostCompact, Stop, StopFailure,
+	UserPrompt, SessionStart, SessionEnd, PermissionAsk, Notification, SubagentStart, SubagentStop,
+}
 
 // Hook is one command bound to an event.
 type Hook struct {
-	// Match is a regexp on the tool name for tool events; empty matches all.
+	// Match is a regexp on what the event is about (see Input.target): the
+	// tool for tool events, the source, reason, trigger, notification
+	// type, error type or subagent for the others. Empty, "*" and ".*"
+	// match all.
 	Match string `json:"match,omitempty"`
 	// Command is run through the shell with the event JSON on stdin.
 	Command string `json:"command"`
@@ -215,7 +233,7 @@ func (c Config) Validate() error {
 			if strings.TrimSpace(h.Command) == "" {
 				return fmt.Errorf("hooks: %s[%d] has no command", ev, i)
 			}
-			if h.Match != "" {
+			if !matchAll(h.Match) {
 				if _, err := regexp.Compile(h.Match); err != nil {
 					return fmt.Errorf("hooks: %s[%d] match: %w", ev, i, err)
 				}
@@ -329,7 +347,8 @@ func MergeScoped(user, project Config) (Config, []string) {
 	return Merge(user, kept), notes
 }
 
-// Input is what a hook reads on stdin, as JSON.
+// Input is what a hook reads on stdin, as JSON (see MarshalJSON for the
+// names it is written under).
 type Input struct {
 	Event   string          `json:"event"`
 	Cwd     string          `json:"cwd"`
@@ -337,10 +356,60 @@ type Input struct {
 	Input   json.RawMessage `json:"input,omitempty"`
 	Output  string          `json:"output,omitempty"`
 	IsError bool            `json:"is_error,omitempty"`
-	// Text is the model's final message for stop events.
+	// Text is the model's final message for stop events and a
+	// subagent's answer for subagent_stop.
 	Text string `json:"text,omitempty"`
 	// Tokens is the estimated context size for pre_compact events.
 	Tokens int `json:"tokens,omitempty"`
+
+	// SessionID and Mode (ask, plan, auto, auto_edits, read_only, yolo)
+	// are filled in by the runner for every event.
+	SessionID string `json:"session_id,omitempty"`
+	Mode      string `json:"permission_mode,omitempty"`
+	// Prompt is the submitted text (user_prompt).
+	Prompt string `json:"prompt,omitempty"`
+	// Source is how a session began: startup or resume (session_start).
+	Source string `json:"source,omitempty"`
+	// Reason is why a session ended: exit or clear (session_end).
+	Reason string `json:"reason,omitempty"`
+	// Trigger is manual or auto (pre_compact, post_compact).
+	Trigger string `json:"trigger,omitempty"`
+	// Summary is what replaced the compacted history (post_compact).
+	Summary string `json:"summary,omitempty"`
+	// Kind is the notification type: permission_prompt or idle_prompt
+	// (notification).
+	Kind string `json:"notification_type,omitempty"`
+	// Message is the notification's text (notification).
+	Message string `json:"message,omitempty"`
+	// ErrorType classifies a failed turn: rate_limit,
+	// authentication_failed, billing_error, invalid_request,
+	// server_error, max_output_tokens, loop_detected or unknown
+	// (stop_failure); Error is its message.
+	ErrorType string `json:"error_type,omitempty"`
+	Error     string `json:"error,omitempty"`
+	// Agent is the subagent's profile and AgentID its id
+	// (subagent_start, subagent_stop).
+	Agent   string `json:"agent,omitempty"`
+	AgentID string `json:"agent_id,omitempty"`
+}
+
+// target is what a hook's Match is tested against for this event.
+func (in Input) target() string {
+	switch in.Event {
+	case SessionStart:
+		return in.Source
+	case SessionEnd:
+		return in.Reason
+	case PreCompact, PostCompact:
+		return in.Trigger
+	case Notification:
+		return in.Kind
+	case StopFailure:
+		return in.ErrorType
+	case SubagentStart, SubagentStop:
+		return in.Agent
+	}
+	return in.Tool
 }
 
 // Output is what a hook may print on stdout, as JSON. Plain text on
@@ -403,7 +472,7 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			r.logf("%s: only the first %d hooks ran (hooks.limits.per_event)", in.Event, lim.PerEvent)
 			break
 		}
-		if h.Match != "" && in.Tool != "" {
+		if target := in.target(); !matchAll(h.Match) && target != "" {
 			re, err := matchRe(h.Match)
 			if err != nil {
 				// Validate rejects these when the file is loaded, so this
@@ -412,7 +481,7 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 				r.logf("%s hook %d (%s) ignored: match %q is not a valid regexp: %v", in.Event, i+1, firstWords(h.Command), h.Match, err)
 				continue
 			}
-			if !re.MatchString(in.Tool) {
+			if !re.MatchString(target) {
 				continue
 			}
 		}
@@ -495,6 +564,13 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 		}
 	}
 	return res
+}
+
+// matchAll reports whether a pattern matches everything: empty, or the
+// "*" and ".*" other harnesses write for it ("*" alone is not a regexp).
+func matchAll(pat string) bool {
+	p := strings.TrimSpace(pat)
+	return p == "" || p == "*" || p == ".*"
 }
 
 // matchRe compiles a hook's tool-name pattern once. Hooks run on every
