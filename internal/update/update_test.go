@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -116,5 +118,45 @@ func TestNewer(t *testing.T) {
 		if n != c.newer || ok != c.okay {
 			t.Errorf("Newer(%s, %s) = %v %v", c.tag, c.cur, n, ok)
 		}
+	}
+}
+
+// install.sh follows the same release layout and refuses the same bad
+// checksum: run it against the fake releases.
+func TestInstallScript(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("install.sh is for Linux and macOS")
+	}
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("no curl")
+	}
+	script, _ := filepath.Abs("../../install.sh")
+	run := func(srvURL, dir string) (string, error) {
+		cmd := exec.Command("sh", script)
+		cmd.Env = append(os.Environ(), "JANETCODE_RELEASES="+srvURL, "JANETCODE_INSTALL_DIR="+dir, "JANETCODE_VERSION=")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	srv := fakeReleases(t, "v0.4.0", []byte("#!/bin/sh\necho hi\n"), "")
+	dir := filepath.Join(t.TempDir(), "bin")
+	out, err := run(srv.URL, dir)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	fi, err := os.Stat(filepath.Join(dir, "janetcode"))
+	if err != nil || fi.Mode().Perm()&0o111 == 0 || !strings.Contains(out, "installed") || !strings.Contains(out, "v0.4.0") {
+		t.Fatalf("not installed: %v\n%s", err, out)
+	}
+
+	asset := Asset("v0.4.0", runtime.GOOS, runtime.GOARCH)
+	bad := fakeReleases(t, "v0.4.0", []byte("tampered"), hex.EncodeToString(make([]byte, 32))+"  "+asset+"\n")
+	dir2 := filepath.Join(t.TempDir(), "bin")
+	out, err = run(bad.URL, dir2)
+	if err == nil || !strings.Contains(out, "does not match") {
+		t.Fatalf("a bad checksum installed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir2, "janetcode")); err == nil {
+		t.Fatal("the mismatched binary was written")
 	}
 }

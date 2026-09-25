@@ -66,6 +66,7 @@ type options struct {
 	cont         bool
 	resume       string
 	showVersion  bool
+	selfUpdate   bool
 	listSess     bool
 	initProject  bool
 	initCfg      bool
@@ -112,7 +113,7 @@ var helpGroups = []struct {
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
-	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "version"}},
+	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
 }
@@ -131,6 +132,7 @@ var briefHelp = []struct{ flag, arg, text string }{
 	{"yolo", "", "run every tool call without asking"},
 	{"bg", "", "run the prompt in the background; --answer settles its asks"},
 	{"doctor", "", "check the config, the key and a live model call"},
+	{"update", "", "install the latest release in place of this one"},
 	{"version", "", "print the version"},
 }
 
@@ -266,6 +268,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.cont, "continue", false, "resume the latest session for this directory")
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
+	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
 	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")

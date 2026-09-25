@@ -8,6 +8,14 @@ Ollama).
 
 ## Install
 
+On Linux or macOS, from the latest release (checked against its
+`SHA256SUMS`, installed to `~/.local/bin`):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/xmonader/janetcode/master/install.sh | sh
+janetcode --update  # later: the newest release, checked the same way
+```
+
 From source (Go 1.25+):
 
 ```sh

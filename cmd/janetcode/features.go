@@ -74,6 +74,7 @@ var flagWhen = map[string]string{
 	"continue":               "carry on where the last session in this directory left off",
 	"resume":                 "reopen one session by id",
 	"version":                "you are reporting a bug, or a script needs the build",
+	"update":                 "a new release is out and you installed janetcode from a release binary",
 	"sessions":               "you want the ids before choosing one to resume",
 	"init":                   "first run: a config file to edit rather than a blank one to invent",
 	"mcp-auth":               "a remote MCP server needs an OAuth login once",

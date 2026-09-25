@@ -27,6 +27,8 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 	switch {
 	case o.showVersion:
 		fmt.Println("janetcode", version)
+	case o.selfUpdate:
+		return true, selfUpdate()
 	case o.initCfg:
 		if p, err := config.Path(); err == nil {
 			if _, err := os.Stat(p); err == nil {
