@@ -312,7 +312,7 @@ func (a *Agent) mustPrompt(t tool.Tool, u *llm.Block, mustAsk bool, verdict perm
 	modes := a.Settings()
 	autoEdit := (modes.AutoEdits || modes.AutoMode) && editTool(u.Name)
 	autoSafe := modes.AutoMode && a.autoAllows(*u)
-	return !modes.AutoApprove && !autoEdit && !autoSafe && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed
+	return !modes.AutoApprove && !autoEdit && !autoSafe && !a.sessionAllows(u.Name) && verdict != perm.Allowed && !hookAllowed
 }
 
 // ask puts the call to the user and records what came back. suggested is

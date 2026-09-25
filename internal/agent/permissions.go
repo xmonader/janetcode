@@ -2,8 +2,11 @@ package agent
 
 import (
 	"context"
+	"sort"
+	"sync"
 
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/shell"
 )
 
@@ -65,8 +68,30 @@ type permissions struct {
 	Protected *perm.Protected
 
 	// allowed are the tools the user allowed for the rest of the session
-	// (Decision AllowSession).
-	allowed map[string]bool
+	// (Decision AllowSession). allowedMu guards it: a turn writes it while
+	// a front-end may be reading it for /permissions.
+	allowedMu sync.Mutex
+	allowed   map[string]bool
+}
+
+// sessionAllows reports whether name was allowed for the session.
+func (p *permissions) sessionAllows(name string) bool {
+	p.allowedMu.Lock()
+	defer p.allowedMu.Unlock()
+	return p.allowed[name]
+}
+
+// SessionAllowed lists the tools allowed for the rest of this session,
+// sorted.
+func (p *permissions) SessionAllowed() []string {
+	p.allowedMu.Lock()
+	defer p.allowedMu.Unlock()
+	var out []string
+	for n := range p.allowed {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // allowSession marks name as allowed for the rest of this session,
@@ -81,8 +106,35 @@ type permissions struct {
 // here, at the point the map is actually written, is safe under every
 // caller rather than only the ones remembered to set it up first.
 func (p *permissions) allowSession(name string) {
+	p.allowedMu.Lock()
+	defer p.allowedMu.Unlock()
 	if p.allowed == nil {
 		p.allowed = map[string]bool{}
 	}
 	p.allowed[name] = true
+}
+
+// Permissions gathers what decides a tool call — mode, rules, session
+// allowances, protected paths, sandbox — for present.PermissionSummary.
+func (a *Agent) Permissions() present.Permissions {
+	m := a.Settings()
+	rs := a.RulesSnapshot()
+	p := present.Permissions{
+		AutoApprove: m.AutoApprove, AutoMode: m.AutoMode, AutoEdits: m.AutoEdits,
+		ReadOnly: m.ReadOnly, PlanMode: m.PlanMode,
+		SessionAllowed: a.SessionAllowed(),
+	}
+	for _, r := range rs.Allow {
+		p.Allow = append(p.Allow, r.String())
+	}
+	for _, r := range rs.Deny {
+		p.Deny = append(p.Deny, r.String())
+	}
+	if a.Protected != nil && !a.Off["protected"] {
+		p.Protected = len(a.Protected.Patterns())
+	}
+	if a.Sandbox.Enabled() {
+		p.Sandbox = a.Sandbox.ProfileName()
+	}
+	return p
 }

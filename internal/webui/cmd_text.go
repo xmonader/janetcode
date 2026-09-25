@@ -16,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -397,34 +398,8 @@ func (s *server) openText(arg string) string {
 func (s *server) permissionsText() string {
 	ag := s.opts.Agent
 	var sb strings.Builder
-	modes := ag.Settings()
-	if modes.AutoApprove {
-		sb.WriteString("YOLO · every tool runs without asking\n")
-	}
-	if modes.AutoMode {
-		sb.WriteString("AUTO · in-workspace edits and known-safe reads run, other commands ask\n")
-	}
-	if modes.AutoEdits {
-		sb.WriteString("auto-edits · file changes go through, commands still ask\n")
-	}
-	if modes.ReadOnly {
-		sb.WriteString("read-only · mutating tools are hidden\n")
-	}
-	if modes.PlanMode {
-		sb.WriteString("plan mode\n")
-	}
 	rs := ag.RulesSnapshot()
-	switch {
-	case len(rs.Allow) == 0 && len(rs.Deny) == 0 && sb.Len() == 0:
-		sb.WriteString("no saved rules · y/a/r at a prompt\n")
-	default:
-		for _, r := range rs.Deny {
-			fmt.Fprintf(&sb, "deny  %s\n", r.String())
-		}
-		for _, r := range rs.Allow {
-			fmt.Fprintf(&sb, "allow %s\n", r.String())
-		}
-	}
+	sb.WriteString(present.PermissionSummary(ag.Permissions(), "the mode chip beside the composer switches modes · r at a prompt saves a rule for that call") + "\n")
 	if lines := perm.CandidateLines(ag.Ledger, rs); len(lines) > 0 {
 		sb.WriteString("approved often, not saved:\n")
 		for _, l := range lines {

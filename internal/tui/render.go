@@ -584,11 +584,17 @@ func wrapAtDots(s string, width int, hang string) string {
 	var out []string
 	for _, line := range strings.Split(s, "\n") {
 		cur := ""
-		for i, part := range strings.Split(line, " · ") {
+		parts := strings.Split(line, " · ")
+		for i, part := range parts {
+			// A part that is not the last needs room for the " ·" after it.
+			tail := " ·"
+			if i == len(parts)-1 {
+				tail = ""
+			}
 			switch {
 			case i == 0:
 				cur = part
-			case lipgloss.Width(cur+" · "+part+" ·") <= width:
+			case lipgloss.Width(cur+" · "+part+tail) <= width:
 				cur += " · " + part
 			default:
 				out = append(out, cur+" ·")

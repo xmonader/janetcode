@@ -60,15 +60,7 @@ func (m *model) permissionsCommand(args []string) {
 	}
 	var sb strings.Builder
 	rules := ag.RulesSnapshot()
-	if len(rules.Allow) == 0 && len(rules.Deny) == 0 {
-		sb.WriteString("no permission rules yet\n")
-	}
-	for _, r := range rules.Deny {
-		sb.WriteString("deny   " + r.String() + "\n")
-	}
-	for _, r := range rules.Allow {
-		sb.WriteString("allow  " + r.String() + "\n")
-	}
+	sb.WriteString(present.PermissionSummary(ag.Permissions(), "") + "\n\n")
 	if o != nil && len(o.Project.Allow) > 0 && !o.ProjectTrusted {
 		sb.WriteString(perm.ProjectFile + " has allow rules that are not trusted yet; run /permissions trust to enable them\n")
 	}
@@ -78,7 +70,7 @@ func (m *model) permissionsCommand(args []string) {
 			sb.WriteString("  " + l + "\n")
 		}
 	}
-	sb.WriteString("/permissions allow bash(go test *) adds a rule (deny likewise); press r at a prompt to save one for that call")
+	sb.WriteString("shift+tab cycles ask → plan → auto → yolo · r at a prompt saves a rule\n/permissions allow bash(go test *) adds one (deny likewise)")
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 

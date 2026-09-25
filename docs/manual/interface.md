@@ -475,6 +475,26 @@ the wrong messages. The preview says so in as many words.
 
 ### Permission rules
 
+`/permissions` (in the terminal or the browser) starts with a plain
+summary of what all of this adds up to right now: what runs without
+asking, what asks first, what never runs, and whether commands run in a
+sandbox. It follows the mode, the rules, what you allowed for this
+session and the protected paths, so it is the one place to check before
+leaving a session to work:
+
+```
+ask: changing files, running commands and network access ask first
+
+  runs         reading and searching
+  asks first   file edits
+               shell commands
+               web fetches and searches
+               MCP tools that change things
+               protected paths (dotfiles, git hooks, keys), in every mode
+  never runs   commands that would wreck the machine
+  where        commands run on this machine, as you (no sandbox)
+```
+
 Approval is normally per call (`y`), or per tool for the session (`a`).
 Press `r` at a prompt to save a rule instead, so matching calls never ask
 again in any session; the prompt shows the rule it would save, such as

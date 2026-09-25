@@ -1773,3 +1773,21 @@ func TestHelpBriefAndAll(t *testing.T) {
 		t.Errorf("/help all did not print the full reference")
 	}
 }
+
+// /permissions opens with the plain summary of what runs and what asks,
+// and it follows the mode.
+func TestPermissionsShowsTheSummary(t *testing.T) {
+	h := newHarness(t)
+	h.m.transcript.entries = nil
+	h.m.permissionsCommand(nil)
+	got := h.m.transcript.entries[len(h.m.transcript.entries)-1].text
+	if !strings.Contains(got, "ask: ") || !strings.Contains(got, "asks first   file edits") {
+		t.Fatalf("summary:\n%s", got)
+	}
+	h.m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.AutoEdits = true })
+	h.m.permissionsCommand(nil)
+	got = h.m.transcript.entries[len(h.m.transcript.entries)-1].text
+	if !strings.Contains(got, "auto-edits: ") || strings.Contains(got, "asks first   file edits") {
+		t.Fatalf("summary under /edits:\n%s", got)
+	}
+}
