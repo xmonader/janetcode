@@ -289,11 +289,14 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		if b := verdictBrief(m.lastVerdict); b != "" {
 			m.status = b + " · " + m.status
 		}
-		if m.lastTurn != "" {
-			m.status += " · " + m.lastTurn
-		}
+		// What changed and how to take it back come before the cost: a
+		// status too long for the line is cut from the end, and it was
+		// "/undo reverts" that went.
 		if n := m.filesChangedLastTurn(); n > 0 {
 			m.status += fmt.Sprintf(" · %s changed · /undo reverts", textfmt.Plural(n, "file"))
+		}
+		if m.lastTurn != "" {
+			m.status += " · " + m.lastTurn
 		}
 		if m.lastTurnTokens != "" {
 			m.status += " · " + m.lastTurnTokens

@@ -131,6 +131,32 @@ func TestFindScrollsToMatches(t *testing.T) {
 	}
 }
 
+// TestStatusNamesTheUndoBeforeTheCost: a status too long for the line is
+// cut from its end, and "/undo reverts" was the part after the cost and
+// the turn's figures, so it was the one cut. It now comes right after
+// what changed.
+func TestStatusNamesTheUndoBeforeTheCost(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x\n"}`)}}}, StopReason: llm.StopToolUse, Usage: llm.Usage{InputTokens: 1000, OutputTokens: 50}},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "written"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 1000, OutputTokens: 50}},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Agent.Price = &llm.Price{Input: 1, Output: 2}
+	h.keys("make n.txt")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	undo := strings.Index(h.m.status, "/undo reverts")
+	if undo < 0 || h.m.lastTurn == "" || !strings.Contains(h.m.status, "$") {
+		t.Fatalf("status = %q (last turn %q)", h.m.status, h.m.lastTurn)
+	}
+	if strings.Index(h.m.status, h.m.lastTurn) < undo {
+		t.Fatalf("the turn's figures come before /undo: %q", h.m.status)
+	}
+	if tok := strings.Index(h.m.status, "in 2k"); tok >= 0 && tok < undo {
+		t.Fatalf("the token counts come before /undo: %q", h.m.status)
+	}
+}
+
 func TestUndoCommand(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x\n"}`)}}}, StopReason: llm.StopToolUse},
