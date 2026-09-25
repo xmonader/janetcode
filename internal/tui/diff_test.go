@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"strings"
 	"testing"
 )
@@ -62,5 +64,39 @@ func TestNonDiffPreviewStillRenders(t *testing.T) {
 	}
 	if out := plain(renderPreview(defaultStyles(), "would delete 3 files\n  a.txt\n", 60, 10, true)); !strings.Contains(out, "would delete 3 files") {
 		t.Fatalf("plain preview lost:\n%s", out)
+	}
+}
+
+// A changed line is a tinted band across the width, the changed words in a
+// stronger tint rather than inverse video; a context line has no band.
+func TestDiffLinesAreTintedBands(t *testing.T) {
+	hunks, ok := parseUnifiedDiff("@@ -1,3 +1,3 @@\n ctx\n-\treturn a + b\n+\treturn a - b\n")
+	if !ok {
+		t.Fatal("not parsed")
+	}
+	saved := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(saved)
+	sty := defaultStyles()
+	lines := strings.Split(renderDiff(sty, hunks, 60, 50, false), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("lines = %q", lines)
+	}
+	if strings.Contains(lines[0], "48;") {
+		t.Fatalf("context line tinted: %q", lines[0])
+	}
+	for _, l := range lines[1:] {
+		if !strings.Contains(l, "48;") || strings.Contains(l, "\x1b[7m") || strings.Contains(l, ";7m") {
+			t.Fatalf("changed line not a tinted band: %q", l)
+		}
+		if w := lipgloss.Width(l); w != 58 {
+			t.Fatalf("band %d wide, want the width: %q", w, l)
+		}
+	}
+	// A palette of ANSI indices cannot be tinted: inverse video stays.
+	p := defaultPalette
+	p.diffAdd = lipgloss.AdaptiveColor{Light: "2", Dark: "2"}
+	if s := buildStyles(p); s.diffTint {
+		t.Fatal("tinted an ANSI palette")
 	}
 }

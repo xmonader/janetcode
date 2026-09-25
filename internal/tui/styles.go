@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
@@ -99,7 +100,12 @@ type styles struct {
 	accent, dim, faint, warn, err, ok lipgloss.Style
 	user, userBody, tool              lipgloss.Style
 	diffAdd, diffDel                  lipgloss.Style
-	header, headerHi, key, heading    lipgloss.Style
+	// The diff's line tints: a changed line's background across the width,
+	// and a stronger one behind the words that changed. diffTint is false
+	// for a palette they cannot be mixed from (ANSI indices).
+	diffAddBg, diffDelBg, diffAddHi, diffDelHi lipgloss.Style
+	diffTint                                   bool
+	header, headerHi, key, heading             lipgloss.Style
 
 	// Every box the footer can show is the same rounded border; only its
 	// colour changes, and it says whose turn it is:
@@ -162,6 +168,16 @@ func buildStyles(p palette) *styles {
 	s.tool = lipgloss.NewStyle().Foreground(p.tool)
 	s.diffAdd = lipgloss.NewStyle().Foreground(p.diffAdd)
 	s.diffDel = lipgloss.NewStyle().Foreground(p.diffDel)
+	addBg, ok1 := tint(p.diffAdd, 0.2)
+	delBg, ok2 := tint(p.diffDel, 0.2)
+	addHi, ok3 := tint(p.diffAdd, 0.42)
+	delHi, ok4 := tint(p.diffDel, 0.42)
+	if s.diffTint = ok1 && ok2 && ok3 && ok4; s.diffTint {
+		s.diffAddBg = s.diffAdd.Background(addBg)
+		s.diffDelBg = s.diffDel.Background(delBg)
+		s.diffAddHi = s.diffAdd.Background(addHi).Bold(true)
+		s.diffDelHi = s.diffDel.Background(delHi).Bold(true)
+	}
 	s.header = lipgloss.NewStyle().Background(p.headBg).Foreground(p.headFg)
 	s.headerHi = lipgloss.NewStyle().Background(p.headBg).Foreground(p.accent).Bold(true)
 	s.key = lipgloss.NewStyle().Foreground(p.accent).Bold(true)
@@ -188,4 +204,28 @@ func applyColorProfile(env func(string) string) (termenv.Profile, bool) {
 	}
 	p := lipgloss.ColorProfile()
 	return p, p == termenv.ANSI
+}
+
+// tint is c laid thinly over the terminal's background: mixed into black
+// on the dark side and into white on the light one, frac of the way. It
+// reports false for a colour that is not a hex value on both sides.
+func tint(c lipgloss.AdaptiveColor, frac float64) (lipgloss.AdaptiveColor, bool) {
+	dark, ok1 := mixHex(c.Dark, [3]float64{0, 0, 0}, frac)
+	light, ok2 := mixHex(c.Light, [3]float64{255, 255, 255}, frac)
+	return lipgloss.AdaptiveColor{Light: light, Dark: dark}, ok1 && ok2
+}
+
+func mixHex(hex string, base [3]float64, frac float64) (string, bool) {
+	if len(hex) != 7 || hex[0] != '#' {
+		return "", false
+	}
+	var rgb [3]int
+	if _, err := fmt.Sscanf(hex[1:], "%02x%02x%02x", &rgb[0], &rgb[1], &rgb[2]); err != nil {
+		return "", false
+	}
+	var out [3]int
+	for i := range rgb {
+		out[i] = int(base[i] + (float64(rgb[i])-base[i])*frac + 0.5)
+	}
+	return fmt.Sprintf("#%02x%02x%02x", out[0], out[1], out[2]), true
 }

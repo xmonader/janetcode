@@ -25,7 +25,9 @@ import (
 // The gutter is sized to the file, hunks are separated by a count of what
 // lies between them, each hunk keeps three lines of context, and when a
 // hunk is one line replaced by one line only the tokens that differ are
-// picked out in inverse video.
+// picked out: each changed line is tinted across the width, and the words
+// that changed in a stronger tint (inverse video where the theme's colours
+// cannot be tinted).
 
 // diffContext is how many unchanged lines are kept around a change.
 const diffContext = 3
@@ -160,28 +162,45 @@ func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable b
 			hiDel, hiAdd = d, a
 		}
 		oldN, newN := h.oldStart, h.newStart
+		tinted := sty.diffTint && !sty.ansiOnly
 		for j, l := range h.lines {
 			n := newN
-			style := sty.dim
+			style, hi := sty.dim, lipgloss.NewStyle().Reverse(true)
 			switch l.kind {
 			case '+':
 				style, newN = sty.diffAdd, newN+1
+				if tinted {
+					style, hi = sty.diffAddBg, sty.diffAddHi
+				}
 			case '-':
 				n, style, oldN = oldN, sty.diffDel, oldN+1
+				if tinted {
+					style, hi = sty.diffDelBg, sty.diffDelHi
+				}
 			default:
 				oldN, newN = oldN+1, newN+1
+			}
+			if !tinted {
+				hi = style.Reverse(true)
 			}
 			text := l.text
 			switch j {
 			case hiDel:
-				text = highlightChanged(l.text, h.lines[hiAdd].text, style)
+				text = highlightChanged(l.text, h.lines[hiAdd].text, style, hi)
 			case hiAdd:
-				text = highlightChanged(l.text, h.lines[hiDel].text, style)
+				text = highlightChanged(l.text, h.lines[hiDel].text, style, hi)
 			default:
 				text = style.Render(text)
 			}
 			gutter := sty.faint.Render(fmt.Sprintf("  %*d │ ", gw, n))
-			out = append(out, fitLine(gutter+style.Render(string(l.kind))+text, width-2))
+			line := fitLine(gutter+style.Render(string(l.kind))+text, width-2)
+			if tinted && l.kind != ' ' {
+				// The tint runs to the edge, so a change reads as a band.
+				if pad := width - 2 - lipgloss.Width(line); pad > 0 {
+					line += style.Render(strings.Repeat(" ", pad))
+				}
+			}
+			out = append(out, line)
 		}
 		prevEnd = newN
 	}
@@ -196,15 +215,15 @@ func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable b
 }
 
 // highlightChanged renders line with the run of characters that differs
-// from other in inverse video.
-func highlightChanged(line, other string, style lipgloss.Style) string {
+// from other in hi: a stronger tint, or inverse video where there is none.
+func highlightChanged(line, other string, style, hi lipgloss.Style) string {
 	from, to := changedSpan(line, other)
 	if from >= to {
 		return style.Render(line)
 	}
 	a := []rune(line)
 	return style.Render(string(a[:from])) +
-		style.Reverse(true).Render(string(a[from:to])) +
+		hi.Render(string(a[from:to])) +
 		style.Render(string(a[to:]))
 }
 

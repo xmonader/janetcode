@@ -103,7 +103,8 @@ func TestTranscriptPermissionAndErrors(t *testing.T) {
 	call := agent.ToolCall{ID: "t9", Name: "bash", Input: json.RawMessage(`{"command":"rm -rf build"}`)}
 	edit := agent.ToolCall{ID: "t8", Name: "edit_file", Input: json.RawMessage(`{"path":"f"}`), Preview: "--- f\n+++ f\n@@ -1,1 +1,1 @@\n-old line\n+new line\n"}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &edit})
-	if out := plain(tr.render(renderOpts{width: 80, pending: &permissionMsg{call: edit}})); !strings.Contains(out, "-old line\n") || !strings.Contains(out, "+new line") || strings.Contains(out, "+++ f") {
+	// A changed line's tint runs to the edge; the text is what is checked.
+	if out := trimLineEnds(plain(tr.render(renderOpts{width: 80, pending: &permissionMsg{call: edit}}))); !strings.Contains(out, "-old line\n") || !strings.Contains(out, "+new line") || strings.Contains(out, "+++ f") {
 		t.Fatalf("diff preview missing:\n%s", out)
 	}
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &edit, Output: "Edited f"})
@@ -1118,4 +1119,12 @@ func TestMarkdownTablesFitTheirContent(t *testing.T) {
 			t.Fatalf("line %d wide at width 60: %q", lipgloss.Width(l), l)
 		}
 	}
+}
+
+func trimLineEnds(s string) string {
+	ls := strings.Split(s, "\n")
+	for i, l := range ls {
+		ls[i] = strings.TrimRight(l, " ")
+	}
+	return strings.Join(ls, "\n")
 }
