@@ -152,11 +152,38 @@ Web UI
 - `--doctor --output-format json`; `--doctor --fix` makes a config file
   other users can read 0600.
 - `/mcp search <words>` prints the `/mcp add` line for servers in the
-  official MCP registry; it installs nothing.
+  official MCP registry; it installs nothing. Results are ranked (a local
+  package with a repository first) and a publisher's near-duplicates fold
+  into one line.
 - `make dist` builds release binaries with `SHA256SUMS`; a `Dockerfile`
   and a tag-triggered release workflow (binaries and a GHCR image).
 - CI runs the markdown XSS corpus, the contrast checks and three browser
   suites, one of them real turns against a scripted model (`make ui-turn`).
+
+### First week
+- Install without Go: `install.sh` downloads the release binary for the
+  machine and checks it against `SHA256SUMS`; `janetcode --update` does
+  the same in place.
+- `docs/getting-started.md`: the first ten minutes, from install to a
+  reviewed change.
+- `--help` is one screen of everyday flags (`--help all` for all 76);
+  `/help` is one screen of everyday keys and commands (`/help all`).
+- `/permissions` opens with one plain summary of what runs, what asks
+  first and what never runs, in the terminal and the browser alike.
+- The first-run banner says `/connect` rather than pointing at a closed
+  dialog, and wraps between its items with a hanging indent.
+- `--plain` (or `JANETCODE_PLAIN=1`, on by itself when `TERM=linux`)
+  draws the terminal interface in ASCII with a still spinner.
+- The web's folded tool bursts colour only their "(n failed)" count red.
+- Fixed: the web's paperclip file picker did nothing (a second
+  `uploadFiles` shadowed the first and called `forEach` on a FileList).
+- A long session no longer slows every frame: the transcript's viewport
+  stopped measuring every line's width on each change (39 ms to 8 ms a
+  frame at 20,000 lines). Startup, keystroke, new-line, resize and memory
+  budgets are now tests.
+- `app.js` is split: renderers, the trajectory view, the terminal tab and
+  the connect dialog are their own files; every browser suite fails on
+  any uncaught exception in the page.
 
 ### Known limitations
 - The Anthropic provider has been tested against a fake server only; the

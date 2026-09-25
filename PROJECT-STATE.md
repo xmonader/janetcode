@@ -14,17 +14,23 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Verified live: Dashscope `qwen3.7-plus`, OpenRouter `deepseek/deepseek-v4-flash`
   and others. Anthropic path verified only against a fake server.
 - Windows: compile-checked (`make cross`), never run.
-- Last release tag: v0.2.0; ~880 commits since.
+- Last release tag: v0.2.0; ~1040 commits since.
 - Polish pass 2026-09-24/25: CLI, TUI and web audited end to end (frames in
   the session scratchpad); every item fixed except the Anthropic path (held).
   Summary in CHANGELOG "Polish". Browser checks: `make ui-test`, `make ui-turn`.
 - Lessons from ~/wspace/diwan applied 2026-09-25 (CHANGELOG "Robustness",
   "Web, background runs and operations"). Not taken: diwan's native Gemini
   client (weaker than the OpenAI-compatible path), schema-enum drift test.
+- "Apple-grade" list done 2026-09-25 except Anthropic and Windows (CHANGELOG
+  "First week"). Release pipeline rehearsed locally: `make dist`, install.sh
+  and `--update` against a fake GitHub layout. The GitHub repo answers 404
+  anonymously, so install.sh/--update need it public (or a mirror via
+  JANETCODE_RELEASES) before they work for anyone else.
 
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).
-- Cut a release with a CHANGELOG.
+- Cut v0.3.0: push, make the repo public, push the tag (release.yml does
+  the rest). Needs the user's go-ahead.
 - Open GitHub issues #1-#3, #5-#12 (trust, permissions, dry-run, egress,
   session leases, audit/replay).
 
@@ -37,7 +43,11 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Eval Wilson CI pools repeated runs as iid.
 - Mid-turn Jev consumer rejected twice on measurements (docs/notes/jev.md);
   revisit only with a harness-side "did the state change" check.
-- Open UI questions: shared view model for TUI/web; visual-diff gate.
+- Open UI questions: shared view model for TUI/web. app.js is still ~2,000
+  lines: the transcript, composer, sessions rail and workspace pane share
+  mutable state and were left together.
+- `update.Newer` compares only vX.Y.Z: a v0.3.0-rc build does not update to
+  v0.3.0.
 
 ## Key Decisions
 - Go + bubbletea; product name is janetcode, not the Janet language (2026-09-07).
