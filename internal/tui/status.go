@@ -579,6 +579,11 @@ func (m *model) footerView() string {
 	if n := m.inputHeight(); n < len(lines) {
 		lines = lines[:n] // the rest is the textarea's blank padding
 	}
+	if m.pending != nil && m.mode() != modeDeny && m.input.Value() == "" {
+		// A permission prompt's keys are what to press, not a hint to
+		// type over: the keys stand out and what they do is dimmed.
+		lines = []string{keyLine(m.styles, m.input.Placeholder)}
+	}
 	for i := range lines {
 		if i == 0 {
 			lines[i] = prompt + lines[i]
@@ -594,4 +599,29 @@ func (m *model) footerView() string {
 		out = indent(out, strings.Repeat(" ", g))
 	}
 	return out
+}
+
+// keyLine colours a permission prompt's key line: each key (y, a, r, n,
+// c at the start of a segment) bold in the warning colour, the words
+// after it faint. The segments are the ones permissionKeysAt joins, with
+// three spaces, two spaces or " · " between them.
+func keyLine(sty *styles, s string) string {
+	key := sty.warn.Bold(true)
+	var sb strings.Builder
+	rest := 0
+	for i := 0; i < len(s); i++ {
+		if !strings.ContainsRune("yarnc", rune(s[i])) {
+			continue
+		}
+		start := i == 0 || strings.HasSuffix(s[:i], "  ") || strings.HasSuffix(s[:i], "· ")
+		end := i+1 == len(s) || s[i+1] == ' '
+		if !start || !end {
+			continue
+		}
+		sb.WriteString(sty.faint.Render(s[rest:i]))
+		sb.WriteString(key.Render(s[i : i+1]))
+		rest = i + 1
+	}
+	sb.WriteString(sty.faint.Render(s[rest:]))
+	return sb.String()
 }

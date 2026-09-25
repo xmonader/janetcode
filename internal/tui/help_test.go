@@ -40,3 +40,32 @@ func TestHelpSheetScans(t *testing.T) {
 		t.Errorf("the text changed under the colour:\n%s", got)
 	}
 }
+
+// TestPermissionKeyLineMarksTheKeys: the prompt's key line was the input
+// box's faint placeholder, so y, a, n and c read as part of the prose.
+// Each key is now bold in the warning colour, and only the keys: an "a"
+// or a "c" inside a word stays faint.
+func TestPermissionKeyLineMarksTheKeys(t *testing.T) {
+	saved := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(saved)
+
+	sty := defaultStyles()
+	key := sty.warn.Bold(true)
+	for _, line := range []string{
+		"y allow once   a always for bash this session   n deny (and say why)   c cancel the turn",
+		"y once · a all write_file this session · r save write_file(./*) ←→ 2/3 · n deny · c cancel",
+		"y  a session  r save write_file  n deny  c cancel",
+	} {
+		out := keyLine(sty, line)
+		if ansi.Strip(out) != line {
+			t.Fatalf("the text changed: %q", ansi.Strip(out))
+		}
+		if n := strings.Count(out, key.Render("y")) + strings.Count(out, key.Render("a")) + strings.Count(out, key.Render("n")) + strings.Count(out, key.Render("c")); n != 4 {
+			t.Errorf("%d of the keys y, a, n, c marked in %q", n, out)
+		}
+		if strings.Contains(line, "r save") && !strings.Contains(out, key.Render("r")) {
+			t.Errorf("r not marked in %q", out)
+		}
+	}
+}
