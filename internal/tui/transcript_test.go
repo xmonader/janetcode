@@ -1078,3 +1078,44 @@ func TestMarkdownHeadingsDropTheirMarks(t *testing.T) {
 		}
 	}
 }
+
+// A table is as wide as what it holds, inside a border, not stretched
+// across the terminal with its last column running to the edge.
+func TestMarkdownTablesFitTheirContent(t *testing.T) {
+	const src = "Files:\n\n| File | Lines |\n|---|--:|\n| `hello.go` | 12 |\n| hello_test.go \\| x | 25 |\n\nafter\n"
+	tr := newTranscriptStyled("dark", defaultStyles())
+	tr.apply(agent.Event{Kind: agent.EvText, Text: src})
+	tr.apply(agent.Event{Kind: agent.EvTurnDone})
+	out := plain(tr.render(renderOpts{width: 100, renderer: builtinRenderers}))
+	var rows []string
+	for _, l := range strings.Split(out, "\n") {
+		if strings.ContainsAny(l, "│╭╰├") {
+			rows = append(rows, l)
+		}
+	}
+	if len(rows) != 6 || !strings.HasPrefix(strings.TrimSpace(rows[0]), "╭") {
+		t.Fatalf("table rows = %d:\n%s", len(rows), out)
+	}
+	for _, r := range rows {
+		if w := lipgloss.Width(r); w > 40 {
+			t.Fatalf("table row %d wide, stretched to the terminal:\n%s", w, out)
+		}
+	}
+	if !strings.Contains(out, "hello_test.go | x") || strings.Contains(out, "`") {
+		t.Fatalf("cells not rendered:\n%s", out)
+	}
+	// Right-aligned column: "12" sits against the right border.
+	if !strings.Contains(out, " 12 │") {
+		t.Fatalf("alignment lost:\n%s", out)
+	}
+	// A table wider than the terminal is wrapped to fit it.
+	wide := "| a | b |\n|---|---|\n| " + strings.Repeat("word ", 40) + "| x |\n"
+	tr = newTranscriptStyled("dark", defaultStyles())
+	tr.apply(agent.Event{Kind: agent.EvText, Text: wide})
+	tr.apply(agent.Event{Kind: agent.EvTurnDone})
+	for _, l := range strings.Split(plain(tr.render(renderOpts{width: 60, renderer: builtinRenderers})), "\n") {
+		if lipgloss.Width(l) > 60 {
+			t.Fatalf("line %d wide at width 60: %q", lipgloss.Width(l), l)
+		}
+	}
+}

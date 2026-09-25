@@ -336,6 +336,9 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 			out = t.renderDiagram(src, width, expanded, o.noMermaid)
 		}
 		if out == "" {
+			out = t.renderTable(src, width)
+		}
+		if out == "" {
 			var err error
 			out, err = t.renderer.Render(joinListSoftBreaks(src))
 			if err != nil {
