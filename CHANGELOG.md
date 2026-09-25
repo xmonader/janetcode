@@ -201,8 +201,9 @@ Web UI
   any uncaught exception in the page.
 
 ### Look and feel
-- New palette in both interfaces: system greys, a clearer blue accent, and
-  system green, red and orange for status, in light and dark. In the web
+- New palette in both interfaces: system greys, an iris accent (the brand
+  colour, with an iris-to-aqua gradient for the mark), and system green,
+  red and orange for status, in light and dark. In the web
   UI, faint text now reaches 4.5:1 contrast. The previous terminal palette
   is still available as the `classic` theme.
 - Web: the permission card has filled buttons and shows Deny in red; the
@@ -218,6 +219,24 @@ Web UI
   their text too. The input hint uses the theme's faint colour, so on a
   light terminal it no longer looks like typed text. When the status line
   is short of room, the cache rate goes first and `/undo` stays.
+- A brand: a spark-dotted "j" mark in the web UI (sidebar, empty page,
+  favicon) and a gradient `✦ janetcode` wordmark in the terminal header
+  and welcome, which is now two lines.
+- Web: tool calls are cards, with an icon per kind; an edit opens on its
+  diff with +/- counts, and a command on a terminal-style block showing
+  its output tail. Thinking is set in the reading face and shimmers while
+  it streams. The model and effort share one pill; the connection dot
+  shows only when the connection is lost. A live entry rises in, the
+  verdict lands, and the streaming caret breathes (all off under reduced
+  motion). Code highlighting has its own palette per theme, with calls,
+  types, attributes, strings and numbers each in their own colour and at
+  least 4.5:1 contrast. The empty page suggests work from the project:
+  reviewing uncommitted changes, a TODO in the code, checking the last
+  commit, or adding tests to an untested Go package.
+- Terminal: markdown headings no longer show their `##`. Tables are as
+  wide as their content, in a rounded border with an accent header,
+  instead of stretched across the terminal. Edit diffs are tinted bands,
+  with the changed words in a stronger tint.
 
 ### Known limitations
 - The Anthropic provider has been tested against a fake server only; the

@@ -29,6 +29,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Look-and-feel pass 2026-09-25 (CHANGELOG "Look and feel"): system palette
   in web + TUI (old TUI palette = `classic` theme). Web review: shots via
   shot.mjs into a scratch dir; TUI review: pty frames rendered to PNG.
+- Brand/"lickable" pass 2026-09-25: iris accent + iris→aqua gradient (chosen
+  by the agent; alternatives offered to user), tool cards, TUI tables/diff
+  bands, hljs palette (`--hl-*`, a11y-checked), project-aware empty chips
+  (`/api/suggest`; pinned in shot.mjs so baselines ignore the worktree).
 - Qwen/Claude parity 2026-09-25 (vs qwen-code ffea2d0 on herobox): 14 hook
   events + Claude/Qwen hook configs read as-is; `status_line` command
   (TUI only; Qwen's preset mode refused); `vision_model` bridge (images
