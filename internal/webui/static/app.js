@@ -1631,7 +1631,7 @@
   let soundOn = localStorage.getItem("janetcode-sound") === "1";
   function paintSound() {
     const b = document.getElementById("sound-btn");
-    if (b) b.textContent = soundOn ? "Sound on" : "Sound off";
+    if (b) b.setAttribute("aria-checked", soundOn ? "true" : "false");
   }
   function ding() {
     if (!soundOn) return;

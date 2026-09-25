@@ -265,6 +265,18 @@ check('Tab reaches the composer, send, model, palette, settings and help', missi
 ringless = [...new Set(ringless)];
 check('every control Tab lands on shows where focus is', ringless.length === 0, JSON.stringify(ringless.slice(0, 10)));
 
+// The sound setting is a switch: its sentence toggles it, and it says
+// its state to assistive tech.
+const sw = await evaljs(`(() => {
+  const b = document.getElementById('sound-btn');
+  const before = b.getAttribute('aria-checked');
+  b.closest('label').querySelector('span').click();
+  const after = b.getAttribute('aria-checked');
+  b.click();
+  return { role: b.getAttribute('role'), before, after, back: b.getAttribute('aria-checked') };
+})()`);
+check('the sound switch toggles from its label and reports aria-checked', sw.role === 'switch' && sw.before === 'false' && sw.after === 'true' && sw.back === 'false', JSON.stringify(sw));
+
 // A dialog opened from the keyboard takes focus, and Escape gives it back
 // to the composer.
 await evaljs(`document.getElementById('input').focus(); 1`);
