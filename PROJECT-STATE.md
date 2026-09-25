@@ -29,6 +29,12 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Look-and-feel pass 2026-09-25 (CHANGELOG "Look and feel"): system palette
   in web + TUI (old TUI palette = `classic` theme). Web review: shots via
   shot.mjs into a scratch dir; TUI review: pty frames rendered to PNG.
+- Qwen/Claude parity 2026-09-25 (vs qwen-code ffea2d0 on herobox): 14 hook
+  events + Claude/Qwen hook configs read as-is; `status_line` command
+  (TUI only; Qwen's preset mode refused); `vision_model` bridge (images
+  described for a text-only model, cached per image). All live-verified
+  on Dashscope. Not done: Qwen's full-turn switch to an agent-capable
+  vision model; `tool_name`/`tool_input` stay janetcode's own.
 
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).
