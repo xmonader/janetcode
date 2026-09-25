@@ -6,6 +6,9 @@ as a diff before it happens. Works with Anthropic's Messages API and any
 OpenAI-compatible endpoint (OpenAI, xAI, Qwen, DeepSeek, OpenRouter, vLLM,
 Ollama).
 
+New here? [Getting started](docs/getting-started.md) is ten minutes from
+install to a reviewed change.
+
 ## Install
 
 On Linux or macOS, from the latest release (checked against its

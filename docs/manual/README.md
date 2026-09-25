@@ -1,6 +1,6 @@
 # janetcode manual
 
-The [README](../../README.md) covers install, quick start and what has been measured. These pages are the rest.
+The [README](../../README.md) covers install, quick start and what has been measured. [Getting started](../getting-started.md) is the first ten minutes; these pages are the rest.
 
 - [The interface](interface.md)
 - [Configuration](configuration.md)
