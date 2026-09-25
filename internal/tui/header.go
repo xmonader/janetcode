@@ -19,7 +19,7 @@ func (m *model) headerView() string {
 	if g := m.gutter(); g > 0 {
 		lead = m.styles.header.Render(strings.Repeat(" ", g))
 	}
-	left := lead + m.styles.headerHi.Render(" ◆ janetcode ") + m.styles.header.Render(m.headerModel())
+	left := lead + m.styles.headerHi.Render(" "+brandSpark+" janetcode ") + m.styles.header.Render(m.headerModel())
 	title := ""
 	if m.opts.Session != nil && m.opts.Session.Meta.Title != "" {
 		title = " · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3))

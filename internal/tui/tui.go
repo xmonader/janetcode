@@ -277,19 +277,20 @@ func (m *model) welcome(resumed string) string {
 		fmt.Fprintf(&sb, " on %s", m.branch)
 	}
 	sb.WriteString("\n")
+	// One line of what to know first: what runs without asking, and the
+	// three things a new user would not guess. The keys at a permission
+	// prompt are on the prompt itself when it comes.
 	switch modes := m.opts.Agent.Settings(); {
 	case modes.AutoApprove:
-		sb.WriteString("auto-approve is on: tools run without asking · esc cancels the turn")
+		sb.WriteString("yolo: tools run without asking · esc cancels")
 	case modes.AutoMode:
-		sb.WriteString("auto mode: in-workspace edits and known-safe reads run · other commands ask")
+		sb.WriteString("auto: workspace edits and safe reads run, the rest asks")
 	case modes.AutoEdits:
-		sb.WriteString("edits go through, commands ask (/edits) · esc denies")
+		sb.WriteString("edits go through, commands ask")
 	default:
-		// esc at a prompt denies the one call; c stops the whole turn.
-		sb.WriteString("edits and commands ask first · y allow · a this session · n or esc deny · c cancels")
+		sb.WriteString("edits and commands ask first")
 	}
-	sb.WriteString(" · /help\n")
-	sb.WriteString("@file attaches · !cmd runs and shares the output · /undo reverts a bad change")
+	sb.WriteString(" · @file attaches · !cmd runs · /undo reverts · /help")
 	return sb.String()
 }
 

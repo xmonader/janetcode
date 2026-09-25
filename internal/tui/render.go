@@ -248,7 +248,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	}
 	switch e.kind {
 	case entryBanner:
-		return t.styles.dim.Render(wrapAtDots(e.text, width-2, "  "))
+		return t.renderBanner(e.text, width)
 	case entryInfo:
 		return t.styles.dim.Render(wrap(e.text))
 	case entryHelp:
@@ -783,4 +783,20 @@ func helpSheet(sty *styles, text string, width int) string {
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// renderBanner draws the opening banner dimmed, with the name at the
+// start of its first line in the brand's colours.
+func (t *transcript) renderBanner(text string, width int) string {
+	const name = "janetcode "
+	if !strings.HasPrefix(text, name) {
+		return t.styles.dim.Render(wrapAtDots(text, width-2, "  "))
+	}
+	lines := strings.Split(wrapAtDots(brandSpark+" "+text, width-2, "  "), "\n")
+	head := strings.TrimPrefix(lines[0], brandSpark+" "+name)
+	lines[0] = brandName(t.styles, t.styleName != "light") + " " + t.styles.dim.Render(head)
+	for i := 1; i < len(lines); i++ {
+		lines[i] = t.styles.dim.Render(lines[i])
+	}
+	return strings.Join(lines, "\n")
 }

@@ -369,7 +369,9 @@ func TestSuggestedRuleUsesShortPaths(t *testing.T) {
 func TestBannerMatchesPermissionKeys(t *testing.T) {
 	h := newHarness(t)
 	v := plain(h.m.View())
-	if !strings.Contains(v, "n or esc deny") || strings.Contains(v, "esc cancels") {
+	// In ask mode esc denies the one call at a prompt; a banner saying
+	// it cancels would teach the wrong key. The keys are on the prompt.
+	if !strings.Contains(v, "edits and commands ask first") || strings.Contains(v, "esc cancels") {
 		t.Fatalf("banner:\n%s", v)
 	}
 }

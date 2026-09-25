@@ -1,7 +1,7 @@
-   ◆ janetcode fake/m                                                                  /home/u/proj
-  janetcode test · working in /home/u/proj
-  edits and commands ask first · y allow · a this session · n or esc deny · c cancels · /help
-  @file attaches · !cmd runs and shares the output · /undo reverts a bad change
+   ✦ janetcode fake/m                                                                  /home/u/proj
+  ✦ janetcode test · working in /home/u/proj
+  edits and commands ask first · @file attaches · !cmd runs · /undo reverts · /help
+
 
 
 
