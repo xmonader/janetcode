@@ -306,8 +306,9 @@ func (m *model) statusView() string {
 	}
 	// In a short window the cache rate is the first thing to go: the
 	// scroll hint and the gauge both say something you must act on.
+	cache := ""
 	if pct, ok := m.opts.Agent.CacheRate(); ok && !m.tight() {
-		parts = append(parts, m.styles.faint.Render(fmt.Sprintf("cache %d%%", pct)))
+		cache = m.styles.faint.Render(fmt.Sprintf("cache %d%%", pct))
 	}
 	// The status line shares the gutter: its left margin is the gutter, or
 	// the single space it has always had when the gutter has collapsed.
@@ -326,20 +327,31 @@ func (m *model) statusView() string {
 		usage = m.usagePart()
 	}
 	gauges := m.contextGauges()
-	build := func(u, g string) []string {
+	build := func(c, u, g string) []string {
 		p := append([]string{}, parts...)
+		if c != "" {
+			p = append(p, c)
+		}
 		if u != "" {
 			p = append(p, u)
 		}
 		return append(p, g)
 	}
-	chosen := build("", gauges[len(gauges)-1])
+	// The cache rate is the first to yield, before the token counts and
+	// the gauge's figures: a status cut to "/undo…" beside "cache 32%"
+	// kept the least useful of them.
+	chosen := build(cache, "", gauges[len(gauges)-1])
+	fit := false
 	for _, u := range []string{usage, ""} {
-		fit := false
-		for _, g := range gauges {
-			cand := build(u, g)
-			if m.width-lipgloss.Width(strings.Join(cand, "  "))-lead-2 >= lipgloss.Width(left) {
-				chosen, fit = cand, true
+		for _, c := range []string{cache, ""} {
+			for _, g := range gauges {
+				cand := build(c, u, g)
+				if m.width-lipgloss.Width(strings.Join(cand, "  "))-lead-2 >= lipgloss.Width(left) {
+					chosen, fit = cand, true
+					break
+				}
+			}
+			if fit {
 				break
 			}
 		}

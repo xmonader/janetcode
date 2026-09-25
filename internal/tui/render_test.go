@@ -77,6 +77,28 @@ func TestSplitMarkdownBlocks(t *testing.T) {
 	}
 }
 
+// TestStatusTextOutranksTheCacheRate: a long status ("done in 15.2s ·
+// $0.0008 · 1 file changed · /undo reverts it") was cut to "/undo…" while
+// "cache 32%" kept its place beside it. The cache rate now yields before
+// the status text is cut.
+func TestStatusTextOutranksTheCacheRate(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 100, CacheReadTokens: 900}})
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	if v := plain(h.m.statusView()); !strings.Contains(v, "cache 90%") {
+		t.Fatalf("the cache rate is missing with room to spare: %q", v)
+	}
+	h.m.status = strings.Repeat("x", h.m.width-40) + " end"
+	v := plain(h.m.statusView())
+	if !strings.Contains(v, " end") {
+		t.Fatalf("the status text was cut while the cache rate stayed: %q", v)
+	}
+	if strings.Contains(v, "cache 90%") {
+		t.Fatalf("the cache rate did not yield: %q", v)
+	}
+}
+
 func TestFooterShowsCacheRate(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 100, CacheReadTokens: 900}})
 	if strings.Contains(plain(h.m.View()), "cache ") {
