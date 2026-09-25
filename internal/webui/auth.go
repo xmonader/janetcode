@@ -11,12 +11,12 @@ import (
 	"strings"
 )
 
-// A server bound off loopback is reachable by anyone on the network, and
-// it runs commands. It then requires a token, the way Jupyter does: Run
-// prints a link that carries it, opening the link trades it for a cookie,
-// and every request after that carries the cookie. Scripts can send it as
-// "Authorization: Bearer <token>". On loopback there is no token; the
-// origin and Host checks in guard are what keep other pages out there.
+// The server runs commands, so it requires a token, the way Jupyter does:
+// Run prints a link that carries it, opening the link trades it for a
+// cookie, and every request after that carries the cookie. Scripts can
+// send it as "Authorization: Bearer <token>". Loopback is no exception:
+// any other user or process on the machine can reach 127.0.0.1, and the
+// origin and Host checks in guard only keep other web pages out.
 
 // tokenEnv sets the token instead of a random one, for a URL that stays
 // the same across restarts.
@@ -106,7 +106,7 @@ main{width:min(26rem,100vw - 32px)}h1{font-size:1.2rem;margin:0 0 .5rem}p{color:
 .bad{color:var(--bad)}form{display:flex;gap:.5rem}input{flex:1;min-width:0;padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:inherit}
 button{padding:.55rem 1rem;border:0;border-radius:8px;background:var(--fg);color:var(--bg);font:inherit;cursor:pointer}
 </style></head><body><main><h1>This janetcode needs its access token</h1>
-<p>It is reachable from the network, so it asks for the token it printed when it started. Open that link, or paste the token.</p>` + note + `
+<p>It runs commands on this machine, so it asks for the token in the link it printed when it started. Open that link, or paste the token.</p>` + note + `
 <form method="get" action="/"><input name="token" type="password" autocomplete="off" aria-label="Access token" placeholder="Access token" autofocus><button>Open</button></form>
 </main></body></html>`))
 }

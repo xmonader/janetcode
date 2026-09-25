@@ -102,17 +102,20 @@ harness-bench-large: build
 # drag-resize, drawer stacking. Needs node >= 22 (global WebSocket) and
 # a chrome binary (CHROME=/path/to/chrome if not on PATH).
 UI_PORT ?= 18991
+# The web UI requires its access token; the ui-* runs fix it so the
+# browser can be pointed at the link.
+UI_TOKEN := uitest-token
 CHROME ?= google-chrome
 ui-test: build
 	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode; \
 	printf '%s' '{"provider":"stub","model":"stub/stub-model","providers":{"stub":{"type":"openai","base_url":"http://127.0.0.1:9/v1","api_key":"sk-test","models":["stub-model"]}}}' > $$tmp/janetcode/config.json; \
-	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_PORT) >/dev/null 2>&1 & \
+	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_PORT) >/dev/null 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_PORT)/ && break; sleep 0.5; done; \
 	rm -rf /tmp/janetcode-chrome-cdp; \
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=/tmp/janetcode-chrome-cdp about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
-	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/; \
+	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/?token=$(UI_TOKEN); \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp /tmp/janetcode-chrome-cdp; exit $$rc
 
 # First run in a real browser: --web with no config and no key opens on
@@ -121,12 +124,12 @@ ui-test: build
 UI_FIRSTRUN_PORT ?= 18993
 ui-firstrun: build
 	@tmp=$$(mktemp -d); \
-	env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_FIRSTRUN_PORT) </dev/null >$$tmp/server.log 2>&1 & \
+	env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_FIRSTRUN_PORT) </dev/null >$$tmp/server.log 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ && break; sleep 0.5; done; \
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9225 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
-	node internal/webui/uitest/firstrun.mjs http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ 9225 18994 $$tmp/janetcode/config.json; \
+	node internal/webui/uitest/firstrun.mjs http://127.0.0.1:$(UI_FIRSTRUN_PORT)/?token=$(UI_TOKEN) 9225 18994 $$tmp/janetcode/config.json; \
 	rc=$$?; [ $$rc = 0 ] || cat $$tmp/server.log; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
 
 # Real turns in a real browser: the server talks to a scripted model
@@ -137,12 +140,12 @@ UI_TURN_MODEL_PORT ?= 18996
 ui-turn: build
 	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode $$tmp/work; \
 	printf '%s' '{"provider":"scripted","model":"scripted/turn-model","providers":{"scripted":{"type":"openai","base_url":"http://127.0.0.1:$(UI_TURN_MODEL_PORT)/v1","api_key":"sk-test","models":["turn-model"]}}}' > $$tmp/janetcode/config.json; \
-	(cd $$tmp/work && env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp XDG_STATE_HOME=$$tmp $(CURDIR)/bin/janetcode --web --web-addr 127.0.0.1:$(UI_TURN_PORT) </dev/null >$$tmp/server.log 2>&1) & \
+	(cd $$tmp/work && env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp XDG_STATE_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) $(CURDIR)/bin/janetcode --web --web-addr 127.0.0.1:$(UI_TURN_PORT) </dev/null >$$tmp/server.log 2>&1) & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_TURN_PORT)/ && break; sleep 0.5; done; \
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9226 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
-	node internal/webui/uitest/turn.mjs http://127.0.0.1:$(UI_TURN_PORT)/ 9226 $(UI_TURN_MODEL_PORT) $$tmp/work; \
+	node internal/webui/uitest/turn.mjs http://127.0.0.1:$(UI_TURN_PORT)/?token=$(UI_TOKEN) 9226 $(UI_TURN_MODEL_PORT) $$tmp/work; \
 	rc=$$?; [ $$rc = 0 ] || tail -40 $$tmp/server.log; pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
 
 # Visual regression gate: boots the webui like ui-test, shoots every state
@@ -154,12 +157,12 @@ UI_VISUAL_PORT ?= 18992
 ui-visual: build
 	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode $$tmp/shots; \
 	printf '%s' '{"provider":"stub","model":"stub/stub-model","providers":{"stub":{"type":"openai","base_url":"http://127.0.0.1:9/v1","api_key":"sk-test","models":["stub-model"]}}}' > $$tmp/janetcode/config.json; \
-	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_VISUAL_PORT) >/dev/null 2>&1 & \
+	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_VISUAL_PORT) >/dev/null 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_VISUAL_PORT)/ && break; sleep 0.5; done; \
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1440,900 --remote-debugging-port=9224 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
-	node internal/webui/uitest/shot.mjs http://127.0.0.1:$(UI_VISUAL_PORT)/ $$tmp/shots 9224 >/dev/null && \
+	node internal/webui/uitest/shot.mjs http://127.0.0.1:$(UI_VISUAL_PORT)/?token=$(UI_TOKEN) $$tmp/shots 9224 >/dev/null && \
 	node internal/webui/uitest/shotdiff.mjs 9224 $$tmp/shots internal/webui/uitest/baseline $(if $(UPDATE),--update); \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; \
 	if [ $$rc -ne 0 ]; then mkdir -p ui-shots && cp $$tmp/shots/* ui-shots/ && echo "new shots and diffs copied to ui-shots/"; fi; \

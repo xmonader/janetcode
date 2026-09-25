@@ -137,8 +137,9 @@ Web UI
   bodies), keeping their paths; thinking tokens are shown in the usage line.
 
 ### Web, background runs and operations
-- `--web` bound off loopback requires the access token in the URL it
-  prints (`JANETCODE_WEB_TOKEN` fixes it); a hidden tab raises a desktop
+- `--web` requires the access token in the URL it prints, on loopback
+  too: other users and processes on the machine can reach 127.0.0.1
+  (`JANETCODE_WEB_TOKEN` fixes it). A hidden tab raises a desktop
   notification when an approval is waiting.
 - `--bg` no longer runs `--yolo` unless told to, and keeps the permission
   flags it is given (before, even `--bg --readonly` ran `--yolo`); what

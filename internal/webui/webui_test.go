@@ -1005,10 +1005,13 @@ func TestRunFallsBackToARandomPortWhenTheAddressIsBusy(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Run never reported its URL")
 	}
-	if strings.HasSuffix(url, ":"+port) {
+	base, token, _ := strings.Cut(url, "/?token=")
+	if strings.HasSuffix(base, ":"+port) {
 		t.Fatalf("fell back onto the busy port: %s", url)
 	}
-	res, err := http.Get(url + "/api/state")
+	req, _ := http.NewRequest("GET", base+"/api/state", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1038,7 +1041,7 @@ func TestRunUsesAFreeExplicitPortAsAsked(t *testing.T) {
 	}()
 	select {
 	case url := <-opened:
-		if !strings.HasSuffix(url, addr[strings.LastIndex(addr, ":"):]) {
+		if base, _, _ := strings.Cut(url, "/?token="); !strings.HasSuffix(base, addr[strings.LastIndex(addr, ":"):]) {
 			t.Fatalf("served %s, asked for %s", url, addr)
 		}
 	case <-time.After(3 * time.Second):

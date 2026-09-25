@@ -160,7 +160,7 @@ Environment:
   JANETCODE_OFF=<names>       disables behaviours for a session (see --eval-off)
   JANETCODE_SYSTEM_MD=<file>  replaces the base system prompt
   JANETCODE_DEBUG=<file>      appends a timestamped event log
-  JANETCODE_WEB_TOKEN=<token> the --web access token off loopback
+  JANETCODE_WEB_TOKEN=<token> the --web access token (default: random)
   JANETCODE_NOTIFY=<command>  run when a --bg run waits for --answer
 
 Config file: $XDG_CONFIG_HOME/janetcode/config.json

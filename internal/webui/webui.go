@@ -48,8 +48,8 @@ type Options struct {
 	Version  string
 	// Addr is the listen address. Empty means 127.0.0.1:8787.
 	Addr string
-	// Token, when set, is required from every request (see auth.go). Run
-	// sets one when the server is bound off loopback.
+	// Token is required from every request (see auth.go). Run makes one
+	// when it is empty.
 	Token string
 	// Opened reports the URL once the listener is bound (tests, logs).
 	Opened func(url string)
@@ -142,15 +142,13 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	url := "http://" + displayAddr(ln.Addr())
-	if !Loopback(ln.Addr().String()) && opts.Token == "" {
+	if opts.Token == "" {
 		if opts.Token, err = newToken(); err != nil {
 			ln.Close()
 			return fmt.Errorf("web: making an access token: %w", err)
 		}
 	}
-	if opts.Token != "" {
-		url += "/?token=" + opts.Token
-	}
+	url += "/?token=" + opts.Token
 	if opts.Opened != nil {
 		opts.Opened(url)
 	} else {

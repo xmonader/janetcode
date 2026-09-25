@@ -41,7 +41,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
 | `--web` | serve the session in a browser instead of the terminal |
-| `--web-addr <host:port>` | listen address for `--web` (default `127.0.0.1:8787`). Loopback unless you name another host; off loopback the page requires the access token in the printed URL (`JANETCODE_WEB_TOKEN` fixes it) |
+| `--web-addr <host:port>` | listen address for `--web` (default `127.0.0.1:8787`). Loopback unless you name another host. The page requires the access token in the printed URL, on loopback too, since other users of the machine can reach it (`JANETCODE_WEB_TOKEN` fixes it) |
 | `--inspect <subject>` | print one part of the session state and exit; `list` names them |
 | `--inspect features` | print the whole feature catalogue: commands, keys, flags, tools, config keys. `--inspect "features <query>"` searches it and the embedded manual |
 | `--doctor` | check config, credentials, providers, tools and report what is wrong. It ends with the repairs it could make itself, as `would fix: …` lines |

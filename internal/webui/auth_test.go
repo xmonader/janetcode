@@ -57,13 +57,13 @@ func TestTokenGuardsEveryRequest(t *testing.T) {
 	}
 }
 
-// Run makes a token by itself when bound off loopback, and puts it in the
-// URL it reports; on loopback there is none.
-func TestRunAddsATokenOffLoopback(t *testing.T) {
+// Run makes a token by itself, on loopback too: other users of the
+// machine can reach 127.0.0.1. The URL it reports carries it.
+func TestRunAddsAToken(t *testing.T) {
 	for _, c := range []struct {
 		addr      string
 		wantToken bool
-	}{{"127.0.0.1:0", false}, {"0.0.0.0:0", true}} {
+	}{{"127.0.0.1:0", true}, {"0.0.0.0:0", true}} {
 		ctx, cancel := context.WithCancel(context.Background())
 		urls := make(chan string, 1)
 		done := make(chan error, 1)

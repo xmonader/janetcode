@@ -861,13 +861,13 @@ trusted .mcp.json &middot; starting its servers</code></pre>
     <div class="xterm" aria-hidden="true">
       <pre class="xterm-body"><code>$ janetcode --web
 janetcode 0.9.0 serving
-  http://127.0.0.1:8787
+  http://127.0.0.1:8787/?token=5f0c…
   (claude-opus-5 in ~/project)</code></pre>
     </div>
     <p class="why"><span class="why-label">Why it matters</span> &mdash;
-    it's loopback-only by default, and bound anywhere else it asks for the
-    access token in the URL it printed, so a port someone else can reach
-    does not hand them your shell.</p>
+    it's loopback-only by default and asks for the access token in the URL
+    it printed, so a port another user or process can reach does not hand
+    them your shell.</p>
   </article>
 
   <article class="feature" id="acp">

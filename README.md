@@ -87,7 +87,7 @@ The same session in a browser, on loopback:
 
 ```sh
 janetcode --web
-# janetcode serving http://127.0.0.1:8787
+# janetcode serving http://127.0.0.1:8787/?token=…   (open this link)
 ```
 
 One-shot, scriptable mode:
