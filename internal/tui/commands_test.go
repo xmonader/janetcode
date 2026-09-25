@@ -1616,7 +1616,7 @@ func TestSlashCommandInsideTheConnectDialog(t *testing.T) {
 	if h.m.connect != nil {
 		t.Fatal("/help inside the dialog did not close it")
 	}
-	if !strings.Contains(plain(h.m.transcript.render(renderOpts{width: 100})), "everyday") {
+	if !strings.Contains(plain(h.m.transcript.render(renderOpts{width: 100})), "/help all") {
 		t.Fatal("/help did not run")
 	}
 }
@@ -1738,5 +1738,38 @@ func TestConnectModelRowKeepsThePrice(t *testing.T) {
 	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
 	if v := plain(h.m.View()); !strings.Contains(v, "$0.8/$1.6 per M") {
 		t.Fatalf("the price was cut:\n%s", v)
+	}
+}
+
+// Plain /help fits an 80-column screen and names only real commands;
+// /help all is the full reference, and /help <words> still asks.
+func TestHelpBriefAndAll(t *testing.T) {
+	h := newHarness(t)
+	names := map[string]bool{}
+	for _, c := range h.m.allCommands() {
+		names[c.name] = true
+	}
+	for _, b := range briefHelp {
+		if !names[b.name] {
+			t.Errorf("briefHelp names %s, which is not a command", b.name)
+		}
+	}
+	brief := h.m.briefHelpText()
+	lines := strings.Split(brief, "\n")
+	if len(lines) > 30 {
+		t.Errorf("/help is %d lines", len(lines))
+	}
+	for _, l := range lines {
+		if lipgloss.Width(l) > 78 {
+			t.Errorf("/help line %d wide: %q", lipgloss.Width(l), l)
+		}
+	}
+	if !strings.Contains(brief, "/help all") || strings.Contains(brief, "/trajectory") {
+		t.Errorf("brief help:\n%s", brief)
+	}
+	h.m.transcript.entries = nil
+	h.m.cmdHelp("/help all", []string{"/help", "all"})
+	if n := len(h.m.transcript.entries); n != 1 || !strings.Contains(h.m.transcript.entries[0].text, "/trajectory") {
+		t.Errorf("/help all did not print the full reference")
 	}
 }

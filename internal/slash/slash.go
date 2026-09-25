@@ -17,7 +17,7 @@ type Command struct {
 var Commands = withIdle([]Command{
 	// No args here on purpose: enter on /help in the menu should print
 	// the sheet, not wait for a topic. /help <topic> still works typed.
-	{Name: "/help", Args: "", Help: "keys and commands, or /help <topic> to search every feature and the manual"},
+	{Name: "/help", Args: "", Help: "the everyday keys and commands; all lists every one; /help <topic> searches every feature and the manual"},
 	{Name: "/compact", Args: "", Help: "summarise the conversation to free context"},
 	{Name: "/compact-fast", Args: "", Help: "prune old tool results and thinking without a summary call"},
 	{Name: "/clear", Args: "", Help: "start a new session"},

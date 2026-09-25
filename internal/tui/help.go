@@ -7,6 +7,57 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// briefHelp is what plain /help lists: the commands a first week reaches
+// for. /help all prints every key and command, grouped.
+var briefHelp = []struct{ name, text string }{
+	{"/connect", "pick a provider and paste a key"},
+	{"/model", "switch the model"},
+	{"/undo", "revert what the last turn changed"},
+	{"/diff", "what changed against HEAD"},
+	{"/plan", "explore and write a plan before changing anything"},
+	{"/auto", "in-workspace edits and safe reads run without asking"},
+	{"/edits", "file edits run without asking; commands still ask"},
+	{"/compact", "summarise the conversation to free context"},
+	{"/clear", "start a new session"},
+	{"/resume", "reopen an earlier session"},
+	{"/init", "write the project's instruction file"},
+	{"/mcp", "MCP servers: list, search, add"},
+	{"/doctor", "check the setup"},
+	{"/quit", "exit"},
+}
+
+// briefHelpText is plain /help: the keys that matter from the first
+// prompt, the everyday commands, and where the rest are.
+func (m *model) briefHelpText() string {
+	var sb strings.Builder
+	sb.WriteString("keys\n")
+	sb.WriteString("  enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit\n")
+	sb.WriteString("  @path attaches a file · !command runs it and shares the output\n")
+	sb.WriteString("  shift+tab changes what asks first\n")
+	sb.WriteString("  permission prompt: y allow · a this session · n deny · c cancel\n")
+	sb.WriteString("\ncommands\n")
+	for _, b := range briefHelp {
+		fmt.Fprintf(&sb, "  %-10s %s\n", b.name, b.text)
+	}
+	builtin := map[string]bool{}
+	for _, c := range commands {
+		builtin[c.name] = true
+	}
+	var own []string
+	for _, c := range m.allCommands() {
+		if !builtin[c.name] {
+			own = append(own, c.name)
+		}
+	}
+	if len(own) > 0 {
+		sb.WriteString("\nyours\n")
+		sb.WriteString(wrapAtDots("  "+strings.Join(own, " · "), 76, "  "))
+		sb.WriteString("\n")
+	}
+	fmt.Fprintf(&sb, "\n/help all        every key and all %d commands\n/help <question> what does what, e.g. /help undo a change", len(m.allCommands()))
+	return sb.String()
+}
+
 func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString("keys\n")

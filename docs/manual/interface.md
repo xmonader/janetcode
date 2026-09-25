@@ -1509,7 +1509,8 @@ and the tool's description says so.
 
 ### Asking janetcode about janetcode
 
-`/help` alone is still the keys-and-commands sheet. `/help <topic>` is a
+`/help` alone is a one-screen sheet of the everyday keys and commands,
+and `/help all` the full one. `/help <topic>` is a
 search: it ranks janetcode's whole feature catalogue — every slash
 command, key, command-line flag, tool, configuration key, and everything
 the harness does on its own — against the words you typed, and then
