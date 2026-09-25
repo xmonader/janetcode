@@ -295,7 +295,10 @@
       const open = openTools.has(e.id);
       let bar = "";
       if (e.run_head) {
-        bar = `<button type="button" class="run-bar${/failed/.test(e.run_label || "") ? " bad" : ""}" data-run="${esc(e.run)}"><span class="chev">${icon(folded ? "chevron-right" : "chevron-down")}</span><span>${esc(e.run_label || "")}</span></button>`;
+        // Only the "(n failed)" count is red: the bar is a summary, and
+        // the failed call inside it carries its own red mark.
+        const label = esc(e.run_label || "").replace(/\(\d+ failed\)/g, '<span class="bad">$&</span>');
+        bar = `<button type="button" class="run-bar" data-run="${esc(e.run)}"><span class="chev">${icon(folded ? "chevron-right" : "chevron-down")}</span><span>${label}</span></button>`;
       }
       const bodyHidden = e.run_head && folded;
       let html = bar + `<div class="tool ${stCls}"${bodyHidden ? " hidden" : ""}><div class="head"><span class="st">${st}</span><b>${esc(e.name || "")}</b><span class="sum">${esc(e.summary || "")}${e.dur ? " · " + esc(e.dur) : ""}</span></div>`;
