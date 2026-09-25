@@ -161,7 +161,11 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 		} else if expired {
 			m.refresh(false)
 		}
-		return tick(), true
+		return tea.Batch(tick(), m.runStatusLine()), true
+
+	case statusLineMsg:
+		m.showStatusLine(msg)
+		return nil, true
 
 	case flashDoneMsg:
 		// The flash has faded: one redraw puts the ordinary mark back on

@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/statusline"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/weburl"
 	"github.com/xmonader/janetcode/internal/xdg"
@@ -105,6 +106,12 @@ type Config struct {
 	// Hooks run for every project. Project-specific ones go in
 	// <project>/.janetcode/hooks.json and need a one-time approval.
 	Hooks hook.Config `json:"hooks,omitempty"`
+	// StatusLine is a command whose output the terminal interface shows
+	// under the input; it gets the session as JSON on stdin.
+	StatusLine *statusline.Config `json:"status_line,omitempty"`
+	// StatusLineCompat is the same object under the name Claude Code and
+	// Qwen Code settings give it, so one can be pasted in as it is.
+	StatusLineCompat *statusline.Config `json:"statusLine,omitempty"`
 	// Permissions are persistent allow/deny rules, e.g. "bash(go test *)".
 	// Project rules go in <project>/.janetcode/permissions.json; its allow
 	// rules need a one-time approval, its deny rules always apply.
@@ -745,6 +752,14 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 	if err := cfg.Hooks.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
+	}
+	if cfg.StatusLine == nil {
+		cfg.StatusLine, cfg.StatusLineCompat = cfg.StatusLineCompat, nil
+	}
+	if cfg.StatusLine != nil {
+		if err := cfg.StatusLine.Validate(); err != nil {
+			return nil, badf("%s: %v", path, err)
+		}
 	}
 	if _, err := cfg.Permissions.Rules(); err != nil {
 		return nil, badf("%s: permissions: %v", path, err)

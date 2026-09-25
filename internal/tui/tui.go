@@ -106,6 +106,8 @@ type model struct {
 	connectGen     int
 	quitting       bool
 	branch         string
+	// sline is the user's status line command's output (see statusline.go).
+	sline statusLine
 	// gutterOff is the hysteresis latch for the transcript margin: it
 	// turns off below gutterCollapseWidth and stays off until the
 	// terminal is at least gutterRestoreWidth, so resizing around 88

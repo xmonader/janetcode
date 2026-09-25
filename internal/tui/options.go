@@ -4,6 +4,7 @@ package tui
 
 import (
 	"context"
+	"github.com/xmonader/janetcode/internal/statusline"
 	"io"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -106,6 +107,9 @@ type Options struct {
 	CD      *agent.CD
 	Resumed int // messages loaded from a resumed session
 	Version string
+	// StatusLine, when set, is the user's status line command, whose
+	// output is drawn under the input.
+	StatusLine *statusline.Config
 	// Theme is "auto"/"" (detect), "dark", "light", or the name of a
 	// builtin or user theme.
 	Theme string

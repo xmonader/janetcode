@@ -132,6 +132,8 @@ var configWhen = map[string][2]string{
 	"routes":               {"send a model name, or a prefix, to the provider that serves it", "you want to ask for a model by name alone"},
 	"mcp_servers":          {"MCP servers started for every project", "a tool server you use everywhere"},
 	"hooks":                {"commands run around tool calls and turns", "you want a formatter, a guard or a notifier in the loop"},
+	"status_line":          {"a command whose output is shown under the input", "you want the branch, the cost or anything a script can print always in view"},
+	"statusLine":           {"status_line, under the name Claude Code and Qwen Code give it", "you are pasting a status line from their settings"},
 	"permissions":          {"persistent allow and deny rules", "the same approval keeps coming up, or something must never run"},
 	"protected_paths":      {"extra paths a write always asks about, appended to the built-in set", "a file of yours has effects that outlive the session"},
 	"embedding_model":      {"model asked of /embeddings so memory recall ranks by meaning", "word overlap is not finding the memory you meant"},

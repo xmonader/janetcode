@@ -605,3 +605,25 @@ func TestSandboxKeyRoundTrip(t *testing.T) {
 		t.Fatalf("default sandbox = %q err = %v", cfg.Sandbox, err)
 	}
 }
+
+func TestStatusLineIsReadUnderEitherName(t *testing.T) {
+	for _, body := range []string{
+		`{"status_line":{"command":"date","refresh_interval":5}}`,
+		`{"statusLine":{"type":"command","command":"date","refreshInterval":5}}`,
+	} {
+		path := filepath.Join(t.TempDir(), "config.json")
+		os.WriteFile(path, []byte(body), 0o600)
+		cfg, err := load(path, env(map[string]string{"ANTHROPIC_API_KEY": "sk"}), Overrides{})
+		if err != nil {
+			t.Fatalf("%s: %v", body, err)
+		}
+		if cfg.StatusLine == nil || cfg.StatusLine.Command != "date" || cfg.StatusLine.RefreshInterval != 5 {
+			t.Fatalf("%s: status line = %+v", body, cfg.StatusLine)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"statusLine":{"type":"preset","items":["model"]}}`), 0o600)
+	if _, err := load(path, env(map[string]string{"ANTHROPIC_API_KEY": "sk"}), Overrides{}); err == nil || !strings.Contains(err.Error(), "only command status lines") {
+		t.Fatalf("preset status line: err = %v", err)
+	}
+}

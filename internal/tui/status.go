@@ -592,6 +592,7 @@ func (m *model) footerView() string {
 		}
 	}
 	parts = append(parts, box.Width(m.width-2-m.gutter()).Render(strings.Join(lines, "\n")))
+	parts = append(parts, m.statusLineView()...)
 	out := strings.Join(parts, "\n")
 	// The whole footer — the notice row, the menu and the input box —
 	// shares the gutter with the transcript and header above it.

@@ -16,19 +16,27 @@ import (
 // hookInput is the part of every hook's stdin the agent knows about any
 // event: where, which session, under which mode.
 func (a *Agent) hookInput(event string) hook.Input {
-	in := hook.Input{Event: event, Mode: a.Settings().hookMode()}
+	in := hook.Input{Event: event, Mode: a.Settings().ModeName()}
 	if h := a.HookRunner(); h != nil {
 		in.Cwd = h.Cwd
 	}
-	if p, ok := a.Log.(interface{ Path() string }); ok && p.Path() != "" {
-		in.TranscriptPath = p.Path()
-		in.SessionID = strings.TrimSuffix(filepath.Base(p.Path()), ".jsonl")
-	}
+	in.SessionID, in.TranscriptPath = a.SessionRef()
 	return in
 }
 
-// hookMode names the session's permission mode the way hooks read it.
-func (s Settings) hookMode() string {
+// SessionRef is the session's id and the path of its transcript, or two
+// empty strings for a session that is not written down.
+func (a *Agent) SessionRef() (id, path string) {
+	p, ok := a.Log.(interface{ Path() string })
+	if !ok || p.Path() == "" {
+		return "", ""
+	}
+	return strings.TrimSuffix(filepath.Base(p.Path()), ".jsonl"), p.Path()
+}
+
+// ModeName names the session's permission mode the way hooks and the
+// status line command read it.
+func (s Settings) ModeName() string {
 	switch {
 	case s.ReadOnly:
 		return "read_only"
