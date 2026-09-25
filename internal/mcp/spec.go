@@ -210,3 +210,58 @@ func plural(n int, what string) string {
 	}
 	return fmt.Sprintf("%d %ss", n, what)
 }
+
+// SplitArgs splits an /mcp line into words the way a shell would for the
+// cases a server entry needs: 'single' and "double" quotes keep spaces in
+// one word ("--header 'Authorization: Bearer x'"), and a backslash
+// outside single quotes takes the next character as it is. An unclosed
+// quote is an error rather than a guess.
+func SplitArgs(s string) ([]string, error) {
+	var words []string
+	var cur strings.Builder
+	inWord := false
+	var quote rune
+	escaped := false
+	for _, r := range s {
+		switch {
+		case escaped:
+			cur.WriteRune(r)
+			escaped = false
+		case quote == '\'':
+			if r == '\'' {
+				quote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+		case r == '\\':
+			escaped, inWord = true, true
+		case quote == '"':
+			if r == '"' {
+				quote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+		case r == '\'' || r == '"':
+			quote, inWord = r, true
+		case r == ' ' || r == '\t' || r == '\n':
+			if inWord {
+				words = append(words, cur.String())
+				cur.Reset()
+				inWord = false
+			}
+		default:
+			cur.WriteRune(r)
+			inWord = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("unclosed %c quote", quote)
+	}
+	if escaped {
+		cur.WriteRune('\\')
+	}
+	if inWord {
+		words = append(words, cur.String())
+	}
+	return words, nil
+}

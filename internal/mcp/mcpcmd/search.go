@@ -190,10 +190,8 @@ func hitOf(s registryServer) Hit {
 				continue
 			}
 			v := placeholders.ReplaceAllString(orWord(hd.Value, "<value>"), "<$1>")
-			if strings.ContainsAny(v, " \t") {
-				// /mcp add splits on spaces; a value with one in it has to
-				// go in the config by hand.
-				h.Notes = append(h.Notes, fmt.Sprintf("needs the header %s: %s, which /mcp add cannot take on one line; add it to the entry in %s", hd.Name, v, "the config or .mcp.json"))
+			if strings.ContainsAny(v, " \t'") {
+				parts = append(parts, "--header", "'"+hd.Name+": "+strings.ReplaceAll(v, "'", "")+"'")
 				continue
 			}
 			parts = append(parts, "--header", hd.Name+"="+v)

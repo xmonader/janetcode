@@ -252,3 +252,21 @@ func TestMCPSearchShowsAddLines(t *testing.T) {
 		t.Fatal("a search wrote the project file")
 	}
 }
+
+// A quoted header value keeps its space: "Authorization: Bearer x" is one
+// header, not three words /mcp add refuses.
+func TestMCPAddTypedFormQuotedHeader(t *testing.T) {
+	h := newHarness(t)
+	withMCP(t, h)
+	h.keys(`/mcp add remote --header 'Authorization: Bearer tok en' http://127.0.0.1:1/mcp`)
+	h.enter()
+	h.pump(func() bool { _, ok := projectServers(t, h)["remote"]; return ok })
+	if got := projectServers(t, h)["remote"].Headers["Authorization"]; got != "Bearer tok en" {
+		t.Fatalf("header = %q", got)
+	}
+	h.keys(`/mcp add bad --header 'open`)
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "unclosed ' quote") {
+		t.Fatalf("an unclosed quote is not reported:\n%s", v)
+	}
+}

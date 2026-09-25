@@ -52,7 +52,13 @@ func (s *server) mcpCommand(arg string) {
 			s.showResult(mcpcmd.SearchResult(q, hits), err)
 		})
 	case "add":
-		s.mcpAdd(strings.Fields(rest))
+		// Quotes keep a header value with a space in it one argument.
+		args, err := mcp.SplitArgs(rest)
+		if err != nil {
+			s.errf("/mcp add: %v", err)
+			return
+		}
+		s.mcpAdd(args)
 	case "remove", "rm":
 		s.mcpRemove(strings.Fields(rest))
 	default:

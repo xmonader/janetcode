@@ -104,3 +104,24 @@ func TestDescribe(t *testing.T) {
 		t.Fatalf("describe: %q", got)
 	}
 }
+
+func TestSplitArgs(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{`add remote --header 'Authorization: Bearer x y' https://h/mcp`, []string{"add", "remote", "--header", "Authorization: Bearer x y", "https://h/mcp"}},
+		{`add a --env "K=v w" -- npx -y pkg`, []string{"add", "a", "--env", "K=v w", "--", "npx", "-y", "pkg"}},
+		{`a\ b 'it''s' ""`, []string{"a b", "its", ""}},
+		{"  spaced   out  ", []string{"spaced", "out"}},
+	}
+	for _, c := range cases {
+		got, err := SplitArgs(c.in)
+		if err != nil || strings.Join(got, "|") != strings.Join(c.want, "|") || len(got) != len(c.want) {
+			t.Errorf("SplitArgs(%s) = %q, %v; want %q", c.in, got, err, c.want)
+		}
+	}
+	if _, err := SplitArgs(`add x --header 'open`); err == nil {
+		t.Error("an unclosed quote was accepted")
+	}
+}

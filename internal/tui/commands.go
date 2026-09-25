@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
@@ -154,7 +155,13 @@ var dispatch = map[string]cmdHandler{
 	"/features": (*model).cmdFeatures,
 	"/jev":      (*model).cmdJev,
 	"/mcp": func(m *model, text string, fields []string) (tea.Cmd, bool) {
-		if cmd := m.mcpCommand(fields[1:]); cmd != nil {
+		// Quotes keep a header value with a space in it one argument.
+		args, err := mcp.SplitArgs(strings.TrimPrefix(strings.TrimSpace(text), fields[0]))
+		if err != nil {
+			m.transcript.errorf("/mcp: %v", err)
+			return nil, false
+		}
+		if cmd := m.mcpCommand(args); cmd != nil {
 			return cmd, true
 		}
 		return nil, false

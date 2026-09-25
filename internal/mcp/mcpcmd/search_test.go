@@ -48,7 +48,7 @@ func TestSearchBuildsAddLines(t *testing.T) {
 	want := []string{
 		"/mcp add pg-server --env PG_PASSWORD=<pg_password> npx -y @acme/pg-mcp <dsn>",
 		"/mcp add py-tool uvx acme-mcp",
-		"/mcp add hosted https://server.example/mcp",
+		"/mcp add hosted --header 'Authorization: Bearer <smithery_api_key>' https://server.example/mcp",
 		"/mcp add events-sse --transport sse --header X-Key=<key> https://sse.example/sse",
 		"",
 	}
@@ -63,13 +63,17 @@ func TestSearchBuildsAddLines(t *testing.T) {
 			continue
 		}
 		// The line is one /mcp add accepts.
-		spec, err := mcp.ParseAdd(strings.Fields(strings.TrimPrefix(h.Add, "/mcp add ")))
+		args, err := mcp.SplitArgs(strings.TrimPrefix(h.Add, "/mcp add "))
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec, err := mcp.ParseAdd(args)
 		if err != nil || spec.Name == "" {
 			t.Errorf("hit %d: /mcp add would reject %q: %v", i, h.Add, err)
 		}
-	}
-	if len(hits[2].Notes) != 1 || !strings.Contains(hits[2].Notes[0], "Authorization: Bearer <smithery_api_key>") {
-		t.Errorf("the header with a space is not explained: %v", hits[2].Notes)
+		if i == 2 && spec.Config.Headers["Authorization"] != "Bearer <smithery_api_key>" {
+			t.Errorf("the quoted header did not survive: %+v", spec.Config.Headers)
+		}
 	}
 	if len(hits[4].Notes) != 1 || !strings.Contains(hits[4].Notes[0], "https://example.org") {
 		t.Errorf("an entry with nothing to add says nothing: %v", hits[4].Notes)
