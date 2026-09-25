@@ -51,6 +51,16 @@ const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} 
 check('build stamped into page', await evaljs(`window.__janetUIBuild && window.__janetUIBuild !== "__JANET_UI_BUILD__"`), await evaljs(`window.__janetUIBuild`));
 
 // 1. handles exist and are visible
+// The empty page's chips are read from the repository the server runs in
+// (this one), and a chip puts its prompt in the input.
+const chip = await evaljs(`new Promise((done) => setTimeout(() => {
+  const bs = [...document.querySelectorAll('#empty .chip')];
+  const c = bs.find((b) => b.textContent === 'Check the last commit');
+  if (c) c.click();
+  const t = document.getElementById('input'), v = t.value; t.value = '';
+  done({ labels: bs.map((b) => b.textContent), prompt: v });
+}, 800))`);
+check('empty-page chips come from the project', chip.labels.length === 4 && /^Explain what commit [0-9a-f]{7,} /.test(chip.prompt), JSON.stringify(chip));
 check('nav handle visible', await evaljs(`!!document.getElementById('nav-resize') && getComputedStyle(document.getElementById('nav-resize')).cursor === 'col-resize'`));
 
 // 2. nav drag +80px

@@ -5,6 +5,7 @@
   const fmtDur = JanetFmt.duration;
   const log = document.getElementById("log");
   const empty = document.getElementById("empty");
+  let suggestedFor = null; // the cwd the empty page's chips were read for
   const input = document.getElementById("input");
   const form = document.getElementById("composer");
   const statusEl = document.getElementById("status");
@@ -457,6 +458,7 @@
     paintTitle();
     const leaf = (h.cwd || "").replace(/\\/g, "/").split("/").filter(Boolean).pop();
     if (leaf) document.getElementById("empty-lead").textContent = "What should we change in " + leaf + "?";
+    if ((h.cwd || "") !== suggestedFor) loadSuggestions(h.cwd || "");
     loadSessions();
     if (!connected && wasConnected) openConnect();
   }
@@ -693,6 +695,7 @@
         openAnswers.clear();
         openRuns.clear();
         empty.hidden = false;
+        if (suggestedFor !== null) loadSuggestions(suggestedFor);
         curTitle = "";
         firstUserText = "";
         lastPrompt = "";
@@ -1560,6 +1563,7 @@
         setCollapsed("nav-collapsed", true);
       }
       empty.hidden = false;
+      if (suggestedFor !== null) loadSuggestions(suggestedFor);
       refreshWorkspace();
       loadSessions();
       input.focus();
@@ -1612,6 +1616,7 @@
       openAnswers.clear();
       openRuns.clear();
       empty.hidden = false;
+      if (suggestedFor !== null) loadSuggestions(suggestedFor);
       refreshWorkspace();
       loadSessions();
     }
@@ -1775,6 +1780,25 @@
       document.getElementById("new-chat").click();
     }
   });
+
+  // The empty page's chips come from the project: its uncommitted work, a
+  // TODO, its last commit. The ones in the page stay when the call fails.
+  function loadSuggestions(cwd) {
+    suggestedFor = cwd;
+    fetch("/api/suggest").then((r) => (r.ok ? r.json() : null)).then((list) => {
+      if (!Array.isArray(list) || !list.length || suggestedFor !== cwd) return;
+      const box = document.querySelector("#empty .chips");
+      box.replaceChildren(...list.map((sg) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.dataset.q = sg.prompt;
+        b.textContent = sg.label;
+        b.title = sg.prompt;
+        return b;
+      }));
+    }).catch(() => {});
+  }
 
   document.getElementById("empty").addEventListener("click", (ev) => {
     const chip = ev.target.closest(".chip");

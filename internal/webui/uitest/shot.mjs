@@ -40,6 +40,17 @@ await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
     constructor(url) { this.url = url; window.__es = this; setTimeout(() => this.onopen && this.onopen(), 0); }
     close() {}
   };
+  // The empty page's chips read the repository the server runs in; pin
+  // them so the shots do not follow the working tree.
+  const realFetch = window.fetch.bind(window);
+  window.fetch = (url, opts) => String(url).startsWith('/api/suggest')
+    ? Promise.resolve(new Response(JSON.stringify([
+        { label: 'Review my 3 changed files', prompt: 'Review my uncommitted changes' },
+        { label: 'Resolve a TODO in parser.go', prompt: 'Resolve the TODO at inifile/parser.go:88' },
+        { label: 'Check the last commit', prompt: 'Explain what commit 1a2b3c4 changed' },
+        { label: 'Add tests to inifile', prompt: 'The Go package in internal/inifile has no tests' },
+      ]), { headers: { 'Content-Type': 'application/json' } }))
+    : realFetch(url, opts);
 `});
 await cmd('Page.navigate', { url: APP });
 await sleep(2500);
