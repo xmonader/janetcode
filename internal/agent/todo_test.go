@@ -271,7 +271,8 @@ func TestAnOpenPlanSendsTheTurnBackOnce(t *testing.T) {
 	}
 	msgs := a.Messages
 	last := msgs[len(msgs)-1].Text()
-	for _, want := range []string{"2 open step(s)", "wire the CLI flag (in_progress)", "update the README (pending)"} {
+	// The note leaves room for a user who asked for part of the plan only.
+	for _, want := range []string{"2 open step(s)", "wire the CLI flag (in_progress)", "update the README (pending)", "If the user asked you to stop before them"} {
 		if !strings.Contains(last, want) {
 			t.Fatalf("the note back lacks %q:\n%s", want, last)
 		}

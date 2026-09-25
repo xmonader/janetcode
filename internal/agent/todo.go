@@ -376,7 +376,9 @@ func PlanDelta(prev, cur string) string {
 // is the evidence. It stands down when the plan came from an earlier turn
 // (a new request may have moved on from it), in plan mode (the steps are a
 // proposal awaiting approval), and when the answer ends in a question
-// (the model is waiting on the user, which is a legitimate stop).
+// (the model is waiting on the user, which is a legitimate stop). The note
+// leaves the model room to stop anyway where the user asked for part of
+// the plan only: the gate asks once, and the second stop goes through.
 func (a *Agent) openTodoGate(text string, nudged *bool, emit func(Event)) bool {
 	if *nudged || a.Off["opentodos"] || a.Off["todo"] || a.Settings().PlanMode {
 		return false
@@ -394,6 +396,6 @@ func (a *Agent) openTodoGate(text string, nudged *bool, emit func(Event)) bool {
 		steps = append(steps, "- "+t.Text+" ("+t.Status+")")
 	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("the plan still has %d open step(s); sent back to finish them", len(open))})
-	a.appendHarnessText(fmt.Sprintf("You ended your turn, but the plan you wrote this turn still has %d open step(s):\n%s\n\nCarry on with them. If one should not be done after all, update the plan to say so (mark it completed or drop it) and say why in your answer. If only the user can unblock you, ask them.", len(open), strings.Join(steps, "\n")))
+	a.appendHarnessText(fmt.Sprintf("You ended your turn, but the plan you wrote this turn still has %d open step(s):\n%s\n\nIf the user asked you to stop before them (to review, or to do only part of the plan), end your turn again and say which steps remain; that is not a failure. Otherwise carry on with them. If one should not be done after all, update the plan to say so (mark it completed or drop it) and say why. If only the user can unblock you, ask them.", len(open), strings.Join(steps, "\n")))
 	return true
 }
