@@ -146,6 +146,49 @@ can set its gutter to `0` to switch the margin off at every width. The
 vertical rhythm — one blank line between blocks — is unchanged; this is
 horizontal only.
 
+### Your own status line: `status_line`
+
+A command of yours can print a line or two under the input: the branch,
+the spend, a clock, whatever a script can work out. It goes in the config
+file (never a project's: it runs on every turn):
+
+```json
+"status_line": {
+  "command": "input=$(cat); echo \"$(echo \"$input\" | jq -r .model.display_name) · $(echo \"$input\" | jq -r '.git.branch // empty')\"",
+  "refresh_interval": 10
+}
+```
+
+The command gets the session as JSON on stdin, in the shape Claude Code
+and Qwen Code send theirs, so a script written for either works:
+
+| field | what it is |
+| --- | --- |
+| `session_id`, `transcript_path` | the session and its log |
+| `cwd`, `workspace.current_dir`, `workspace.project_dir` | where janetcode runs |
+| `version` | janetcode's version |
+| `permission_mode` | ask, auto, auto_edits, plan, yolo or read_only |
+| `model.id`, `model.display_name` | the model |
+| `git.branch` | the branch; `git` is absent outside a repository |
+| `context_window.current_usage` | tokens the conversation takes now |
+| `context_window.context_window_size`, `used_percentage`, `remaining_percentage` | only when the model's window is known |
+| `context_window.total_input_tokens`, `total_output_tokens` | the session's totals |
+| `cost.total_cost_usd` | only when the session's cost is known |
+
+It runs again when any of that changes (a turn starts or ends, a tool
+call finishes, the mode or the model or the branch changes), at most one
+run at a time, and every `refresh_interval` seconds as well if you set
+one. Up to two lines of its output are shown, cut to the width. Its own
+colours are kept; any other escape sequence is dropped, so it cannot move
+the cursor or retitle the terminal. A command that fails or takes longer
+than five seconds leaves the line blank and says why once.
+
+The same object is read under `"statusLine"`, with `type: "command"`,
+`refreshInterval` and `padding` (ignored), so one can be pasted from a
+Claude Code or Qwen Code settings file. Qwen Code's preset status lines
+(`type: "preset"`) are refused when the config loads. The status line is
+drawn by the terminal interface; `--web` does not show it.
+
 ### Mermaid diagrams are drawn, not printed
 
 When the model answers with a ```mermaid block, janetcode draws it with
