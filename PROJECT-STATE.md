@@ -26,6 +26,9 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   and `--update` against a fake GitHub layout. The GitHub repo answers 404
   anonymously, so install.sh/--update need it public (or a mirror via
   JANETCODE_RELEASES) before they work for anyone else.
+- Look-and-feel pass 2026-09-25 (CHANGELOG "Look and feel"): system palette
+  in web + TUI (old TUI palette = `classic` theme). Web review: shots via
+  shot.mjs into a scratch dir; TUI review: pty frames rendered to PNG.
 
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).
