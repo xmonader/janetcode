@@ -22,18 +22,18 @@ type palette struct {
 // defaultPalette is the "default" builtin, so a build that never applies a
 // theme (a test, an early frame) still draws the historical palette.
 var defaultPalette = palette{
-	accent:  lipgloss.AdaptiveColor{Light: "#0060c7", Dark: "#4aa3ff"},
+	accent:  lipgloss.AdaptiveColor{Light: "#5b3df5", Dark: "#a594ff"},
 	dim:     lipgloss.AdaptiveColor{Light: "#636366", Dark: "#98989f"},
 	faint:   lipgloss.AdaptiveColor{Light: "#6e6e73", Dark: "#7c7c82"},
 	warn:    lipgloss.AdaptiveColor{Light: "#a94f00", Dark: "#ffb340"},
 	err:     lipgloss.AdaptiveColor{Light: "#c8001a", Dark: "#ff6961"},
 	ok:      lipgloss.AdaptiveColor{Light: "#1a7f37", Dark: "#4cd964"},
-	user:    lipgloss.AdaptiveColor{Light: "#0a58ba", Dark: "#8ec5ff"},
-	tool:    lipgloss.AdaptiveColor{Light: "#8038a8", Dark: "#d59cf7"},
+	user:    lipgloss.AdaptiveColor{Light: "#4a2bd9", Dark: "#c9c0ff"},
+	tool:    lipgloss.AdaptiveColor{Light: "#007f8a", Dark: "#5fe3d8"},
 	headBg:  lipgloss.AdaptiveColor{Light: "#e8e8ed", Dark: "#2c2c2e"},
 	headFg:  lipgloss.AdaptiveColor{Light: "#1d1d1f", Dark: "#f2f2f7"},
 	border:  lipgloss.AdaptiveColor{Light: "#8e8e93", Dark: "#48484a"},
-	borderA: lipgloss.AdaptiveColor{Light: "#0060c7", Dark: "#4aa3ff"},
+	borderA: lipgloss.AdaptiveColor{Light: "#5b3df5", Dark: "#a594ff"},
 	diffAdd: lipgloss.AdaptiveColor{Light: "#1a7f37", Dark: "#6ee08a"},
 	diffDel: lipgloss.AdaptiveColor{Light: "#c8001a", Dark: "#ff8a80"},
 }
