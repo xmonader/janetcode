@@ -175,9 +175,9 @@ and Qwen Code send theirs, so a script written for either works:
 | `context_window.total_input_tokens`, `total_output_tokens` | the session's totals |
 | `cost.total_cost_usd` | only when the session's cost is known |
 
-It runs again when any of that changes (a turn starts or ends, a tool
-call finishes, the mode or the model or the branch changes), at most one
-run at a time, and every `refresh_interval` seconds as well if you set
+It runs again, checked twice a second, when any of that changes (the
+conversation grows, a turn starts or ends, the mode or the model or the
+branch changes), at most one run at a time, and every `refresh_interval` seconds as well if you set
 one. Up to two lines of its output are shown, cut to the width. Its own
 colours are kept; any other escape sequence is dropped, so it cannot move
 the cursor or retitle the terminal. A command that fails or takes longer
