@@ -22,20 +22,20 @@ type palette struct {
 // defaultPalette is the "default" builtin, so a build that never applies a
 // theme (a test, an early frame) still draws the historical palette.
 var defaultPalette = palette{
-	accent:  lipgloss.AdaptiveColor{Light: "#0b63c6", Dark: "#7cc4ff"},
-	dim:     lipgloss.AdaptiveColor{Light: "#6b7280", Dark: "#8b93a1"},
-	faint:   lipgloss.AdaptiveColor{Light: "#7c8494", Dark: "#6b7484"},
-	warn:    lipgloss.AdaptiveColor{Light: "#b45309", Dark: "#f5b642"},
-	err:     lipgloss.AdaptiveColor{Light: "#b91c1c", Dark: "#ff6b6b"},
-	ok:      lipgloss.AdaptiveColor{Light: "#15803d", Dark: "#5fd38d"},
-	user:    lipgloss.AdaptiveColor{Light: "#1d4ed8", Dark: "#9ad0ff"},
-	tool:    lipgloss.AdaptiveColor{Light: "#6d28d9", Dark: "#c4a7ff"},
-	headBg:  lipgloss.AdaptiveColor{Light: "#e5e7eb", Dark: "#2b2f36"},
-	headFg:  lipgloss.AdaptiveColor{Light: "#111827", Dark: "#e6e9ef"},
-	border:  lipgloss.AdaptiveColor{Light: "#8b95a6", Dark: "#4b5361"},
-	borderA: lipgloss.AdaptiveColor{Light: "#0b63c6", Dark: "#7cc4ff"},
-	diffAdd: lipgloss.AdaptiveColor{Light: "#166534", Dark: "#7ee2a8"},
-	diffDel: lipgloss.AdaptiveColor{Light: "#991b1b", Dark: "#ff8a8a"},
+	accent:  lipgloss.AdaptiveColor{Light: "#0060c7", Dark: "#4aa3ff"},
+	dim:     lipgloss.AdaptiveColor{Light: "#636366", Dark: "#98989f"},
+	faint:   lipgloss.AdaptiveColor{Light: "#6e6e73", Dark: "#7c7c82"},
+	warn:    lipgloss.AdaptiveColor{Light: "#a94f00", Dark: "#ffb340"},
+	err:     lipgloss.AdaptiveColor{Light: "#c8001a", Dark: "#ff6961"},
+	ok:      lipgloss.AdaptiveColor{Light: "#1a7f37", Dark: "#4cd964"},
+	user:    lipgloss.AdaptiveColor{Light: "#0a58ba", Dark: "#8ec5ff"},
+	tool:    lipgloss.AdaptiveColor{Light: "#8038a8", Dark: "#d59cf7"},
+	headBg:  lipgloss.AdaptiveColor{Light: "#e8e8ed", Dark: "#2c2c2e"},
+	headFg:  lipgloss.AdaptiveColor{Light: "#1d1d1f", Dark: "#f2f2f7"},
+	border:  lipgloss.AdaptiveColor{Light: "#8e8e93", Dark: "#48484a"},
+	borderA: lipgloss.AdaptiveColor{Light: "#0060c7", Dark: "#4aa3ff"},
+	diffAdd: lipgloss.AdaptiveColor{Light: "#1a7f37", Dark: "#6ee08a"},
+	diffDel: lipgloss.AdaptiveColor{Light: "#c8001a", Dark: "#ff8a80"},
 }
 
 // A terminal that reports only the sixteen ANSI colours cannot be given

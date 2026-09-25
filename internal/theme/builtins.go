@@ -6,8 +6,8 @@ package theme
 // one here and the same test holds it to the same bar; a pretty theme
 // nobody can read is worse than none.
 //
-// "default" is the palette janetcode has always drawn, kept exactly so an
-// upgrade changes nothing for anyone who never picks a theme. The rest are
+// "default" is calm system colours with a blue accent; "classic" is the
+// palette janetcode drew before v0.3, for anyone who preferred it. The rest are
 // genuinely distinct: solarized light and dark, a high-contrast accessible
 // theme, a low-saturation muted one, a near colourless mono theme built on
 // ANSI indices so it inherits the user's own sixteen colours, and a set of
@@ -38,7 +38,29 @@ func builtin(name string) Theme {
 var builtins = []Theme{
 	{
 		Name:    DefaultName,
-		Desc:    "the palette janetcode has always drawn; adapts to a light or dark terminal",
+		Desc:    "calm system colours, blue accent; adapts to a light or dark terminal",
+		Dark:    true,
+		Builtin: true,
+		Roles: map[string]Color{
+			RoleAccent:       adapt("#0060c7", "#4aa3ff"),
+			RoleDim:          adapt("#636366", "#98989f"),
+			RoleFaint:        adapt("#6e6e73", "#7c7c82"),
+			RoleWarn:         adapt("#a94f00", "#ffb340"),
+			RoleErr:          adapt("#c8001a", "#ff6961"),
+			RoleOK:           adapt("#1a7f37", "#4cd964"),
+			RoleUser:         adapt("#0a58ba", "#8ec5ff"),
+			RoleTool:         adapt("#8038a8", "#d59cf7"),
+			RoleHeadBg:       adapt("#e8e8ed", "#2c2c2e"),
+			RoleHeadFg:       adapt("#1d1d1f", "#f2f2f7"),
+			RoleBorder:       adapt("#8e8e93", "#48484a"),
+			RoleBorderActive: adapt("#0060c7", "#4aa3ff"),
+			RoleDiffAdd:      adapt("#1a7f37", "#6ee08a"),
+			RoleDiffDel:      adapt("#c8001a", "#ff8a80"),
+		},
+	},
+	{
+		Name:    "classic",
+		Desc:    "the palette janetcode drew before v0.3; adapts to a light or dark terminal",
 		Dark:    true,
 		Builtin: true,
 		Roles: map[string]Color{

@@ -75,9 +75,9 @@ ctrl+t           open the overlay of continuable subagents (/agents)
 A theme is a full named palette: every colour role the interface draws
 with (accent, dim, faint, warn, err, ok, user, tool, the header
 foreground and background, the two border colours, and the two diff
-colours), plus the transcript's left gutter. The `default` theme is the
-palette janetcode has always drawn and is what you get if you never pick
-one, so an upgrade changes nothing on screen.
+colours), plus the transcript's left gutter. The `default` theme is calm
+system colours with a blue accent, and is what you get if you never pick
+one; `classic` is the palette janetcode drew before v0.3.
 
 The terminal's background is asked for once at start. `theme: auto` (the
 default) uses that answer to draw the default palette light or dark;
