@@ -239,7 +239,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.themeFlag, "theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 	fs.BoolVar(&o.web, "web", false, "serve the session in a browser instead of the terminal")
 	fs.StringVar(&o.webAddr, "web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
-	fs.BoolVar(&o.bg, "bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>. It runs --yolo unless a permission flag is given; then what that mode asks about waits for --answer")
+	fs.BoolVar(&o.bg, "bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>. What its permission mode asks about waits for --answer; add --yolo to allow everything")
 	fs.Var(&o.addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
 	fs.Var(&o.sets, "set", "set a config key for this run, e.g. --set escalate_after=1 --set decisions.triage=true (repeatable). The keys are the ones /config takes, including the model slots and the decisions block; nothing is written to the config file. --inspect config lists them")
 	return fs, o

@@ -19,7 +19,7 @@ import (
 func TestBackgroundChildArgs(t *testing.T) {
 	got := backgroundChildArgs("sess-1", "write hi", []string{"/tmp/a", "/tmp/b"}, nil)
 	joined := strings.Join(got, " ")
-	if !strings.Contains(joined, "--resume sess-1") || !strings.Contains(joined, "-p write hi") || !strings.Contains(joined, "--yolo") {
+	if !strings.Contains(joined, "--resume sess-1") || !strings.Contains(joined, "-p write hi") || strings.Contains(joined, "--yolo") {
 		t.Fatalf("args = %v", got)
 	}
 	if strings.Contains(joined, "--bg") {
@@ -55,18 +55,19 @@ func TestBgPromptCarriesPipedStdin(t *testing.T) {
 	}
 }
 
-// The permission flags given with --bg reach the child; only with none of
-// them does it run --yolo. Before, --bg --readonly ran every tool.
+// The permission flags given with --bg reach the child, and with none it
+// asks (through --answer) rather than running --yolo.
 func TestBgPermissionArgs(t *testing.T) {
 	cases := []struct {
 		o    options
 		want string
 	}{
-		{options{}, "--yolo"},
+		{options{}, ""},
+		{options{yolo: true}, "--yolo"},
 		{options{readonly: true}, "--readonly"},
 		{options{autoEdits: true, deny: "bash(rm *)"}, "--auto-edits --deny bash(rm *)"},
 		{options{autoMode: true, sandboxOn: true}, "--auto --sandbox"},
-		{options{allow: "bash(go test *)"}, "--yolo --allow bash(go test *)"},
+		{options{allow: "bash(go test *)"}, "--allow bash(go test *)"},
 	}
 	for _, c := range cases {
 		if got := strings.Join(bgPermissionArgs(&c.o), " "); got != c.want {
@@ -76,6 +77,9 @@ func TestBgPermissionArgs(t *testing.T) {
 	args := strings.Join(backgroundChildArgs("s", "p", nil, []string{"--readonly"}), " ")
 	if strings.Contains(args, "--yolo") || !strings.Contains(args, "--readonly") {
 		t.Errorf("child args = %q", args)
+	}
+	if args := strings.Join(backgroundChildArgs("s", "p", nil, nil), " "); strings.Contains(args, "--yolo") {
+		t.Errorf("--bg with no permission flag runs %q", args)
 	}
 }
 

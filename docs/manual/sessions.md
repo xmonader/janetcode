@@ -29,10 +29,10 @@ id to `/resume`.
 the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`
 jobs are stored on the session and restored when that session is resumed.
 
-With no permission flag the child runs `--yolo`: nobody is there to ask.
-Give it one (`--auto-edits`, `--auto`, `--readonly`, plus any `--allow`
-and `--deny` rules) and it runs in that mode instead; a call the mode
-still asks about waits until you answer it:
+The child runs in the permission mode you give it (the default, or
+`--auto-edits`, `--auto`, `--readonly`, plus any `--allow` and `--deny`
+rules). A call that mode asks about waits until you answer it; nothing
+runs unasked unless you add `--yolo`:
 
 ```sh
 janetcode --bg --auto-edits "fix the tests"   # edits run, commands wait

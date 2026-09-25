@@ -75,11 +75,7 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 }
 
 func backgroundChildArgs(id, prompt string, extra, perms []string) []string {
-	args := []string{"--resume", id, "-p", prompt}
-	if len(perms) == 0 {
-		args = append(args, "--yolo")
-	}
-	args = append(args, perms...)
+	args := append([]string{"--resume", id, "-p", prompt}, perms...)
 	for _, d := range extra {
 		args = append(args, "--add-dir", d)
 	}
@@ -87,8 +83,9 @@ func backgroundChildArgs(id, prompt string, extra, perms []string) []string {
 }
 
 // bgPermissionArgs are the permission flags the user gave, for the child.
-// Before, the child always ran --yolo, so --bg --readonly ran every tool.
-// --allow and --deny rules add to a mode and do not replace --yolo.
+// With none, the child runs in the default mode, and what it asks about
+// waits for --answer: nobody is watching a background run, so it does not
+// get to run every tool unless --yolo says so.
 func bgPermissionArgs(o *options) []string {
 	var mode, rules []string
 	switch {
@@ -109,9 +106,6 @@ func bgPermissionArgs(o *options) []string {
 	}
 	if o.sandboxOn {
 		rules = append(rules, "--sandbox")
-	}
-	if len(mode) == 0 {
-		mode = []string{"--yolo"}
 	}
 	return append(mode, rules...)
 }

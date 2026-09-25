@@ -24,7 +24,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--readonly` | read, search and answer, but change nothing |
 | `--append-system-prompt "<text>"` | add text (or `@file`) to the system prompt for this run (TUI sessions too); `JANETCODE_SYSTEM_MD=<file>` replaces the base prompt instead. Both are recorded in eval results, so a prompt A/B stays traceable |
 | `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one (including one started with `--bg`) |
-| `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume`. It runs `--yolo` unless you give a permission flag; then calls that mode asks about wait for `--answer` (see [sessions](sessions.md)) |
+| `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume`. What its permission mode asks about waits for `--answer`; it runs `--yolo` only when given (see [sessions](sessions.md)) |
 | `--answer <id> [allow\|session\|deny]` | show, or settle, the permission request a `--bg` run is waiting on. `JANETCODE_NOTIFY=<command>` runs a command each time one starts waiting |
 | `--add-dir <path>` | extra local directory file tools may read and edit this session (repeatable) |
 | `--set <key>=<value>` | set a config key for this run only, repeatable: the keys `/config` takes, including the model slots (`route_cheap`, `strong_model`, `advisor_model`, `vision_model`), the features that use them (`escalate_after`, `advisor_mode`, `stale_check_nudge`) and the decisions block (`decisions.enabled`, `decisions.model`, `decisions.endpoint`, `decisions.triage`, …). Nothing is written to the config file, and a key or value the file would be refused for is refused here |

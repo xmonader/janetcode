@@ -140,8 +140,9 @@ Web UI
 - `--web` bound off loopback requires the access token in the URL it
   prints (`JANETCODE_WEB_TOKEN` fixes it); a hidden tab raises a desktop
   notification when an approval is waiting.
-- `--bg` keeps the permission flags it is given (before, `--bg --readonly`
-  ran `--yolo`); what that mode asks about waits for `janetcode --answer
+- `--bg` no longer runs `--yolo` unless told to, and keeps the permission
+  flags it is given (before, even `--bg --readonly` ran `--yolo`); what
+  its mode asks about waits for `janetcode --answer
   <id> allow|session|deny`, `JANETCODE_NOTIFY` runs a command when one
   starts waiting, and `--sessions` shows each run as running, waiting,
   done or failed.
