@@ -2389,11 +2389,40 @@ machine by itself):
 }
 ```
 
-Each hook gets the event as JSON on stdin (`event`, `cwd`, `tool`, `input`,
-and for `post_tool` the `output`/`is_error`, for `stop` the model's `text`,
-for `pre_compact` the estimated `tokens`) plus `JANETCODE_EVENT`,
-`JANETCODE_TOOL` and `JANETCODE_CWD` in the environment. `match` is a
-regexp on the tool name. What the hook prints decides:
+| event | when | `match` is tested on | what its answer can do |
+| --- | --- | --- | --- |
+| `pre_tool` | before a tool call is approved | the tool name | deny, allow, ask, rewrite the input, add a note |
+| `permission_request` | as a call is about to be put to you | the tool name | answer in your place: allow or deny |
+| `post_tool` | after a tool call | the tool name | add a note to the result |
+| `post_tool_failure` | after a tool call that failed | the tool name | add a note to the result |
+| `user_prompt` | before your message is sent | — | refuse it (nothing is sent or recorded), add context |
+| `session_start` | at a session's first turn | `source`: startup, resume, clear | add context |
+| `session_end` | when a session that ran a turn ends | `reason`: exit, clear, resume | — |
+| `stop` | when the model means to end its turn | — | send it back to work |
+| `stop_failure` | when a turn ends on an error | `error_type` | — |
+| `pre_compact` | before the conversation is compacted | `trigger`: auto, manual | add to the handoff note |
+| `post_compact` | after it was | `trigger` | — |
+| `notification` | when janetcode waits on you | `notification_type`: permission_prompt, idle_prompt | — |
+| `subagent_start` | as a subagent starts | its kind: a profile's name, general, editor, fork | add to its brief |
+| `subagent_stop` | when it finishes | its kind | — |
+
+Events marked — only observe: `session_end`, `stop_failure`,
+`notification` and `subagent_stop` run in the background (at most 30
+seconds; `session_end` is waited for, since janetcode may be exiting).
+Added context reaches the model as a block marked as a hook's.
+
+Each hook gets the event as JSON on stdin: `event`, `cwd`,
+`session_id`, `transcript_path`, `permission_mode` (ask, auto,
+auto_edits, plan, yolo, read_only), and what the event is about — `tool`
+and `input`, for `post_tool` the `output`/`is_error`, for `stop` the
+model's `text`, `prompt`, `source`, `reason`, `trigger`, `tokens`,
+`summary`, `notification_type` and `message`, `error_type` and `error`
+(`loop_detected`, `max_turns`, `rate_limit`, `authentication_failed`,
+`billing_error`, `server_error`, `invalid_request`, `unknown`), `agent`
+and `agent_id`. `JANETCODE_EVENT`, `JANETCODE_TOOL` and `JANETCODE_CWD`
+are in the environment. `match` is a regexp, anchored at neither end, on
+what the table says; `""`, `*` and `.*` match everything. What the hook
+prints decides:
 
 - exit code 2 blocks: a `pre_tool` call is denied with stderr as the
   reason; a `stop` sends the model back to work with stderr as the message
@@ -2407,6 +2436,31 @@ regexp on the tool name. What the hook prints decides:
 - any other exit code, a crash or a timeout (`timeout` in seconds on the
   hook, else `hooks.limits.timeout`) is logged and ignored: hooks fail
   open, so a broken hook cannot wedge a session.
+
+#### Hooks written for Claude Code or Qwen Code
+
+A `"hooks"` object copied from a Claude Code or Qwen Code settings file
+runs as it is. Their event names (`PreToolUse`, `PostToolUse`,
+`PostToolUseFailure`, `PermissionRequest`, `UserPromptSubmit`,
+`SessionStart`, `SessionEnd`, `Stop`, `StopFailure`, `PreCompact`,
+`PostCompact`, `Notification`, `SubagentStart`, `SubagentStop`) are read
+as the events above, and their `{"matcher": …, "hooks": [{"type":
+"command", …}]}` groups as hooks. A matcher may name their tools (`Bash`,
+`Read`, `Write`, `Edit|MultiEdit`, `WebFetch`, `Task`,
+`run_shell_command`, …), matched against the whole name. Only command
+hooks run; a `prompt` or `agent` hook is refused when the config loads.
+
+The stdin carries their field names too (`hook_event_name` in their
+spelling, `tool_name`, `tool_input`, `tool_response`,
+`last_assistant_message`, `compact_summary`, `agent_type`), and their
+answers are understood: `hookSpecificOutput.permissionDecision`
+(allow, deny, ask) with its reason, `updatedInput`, `additionalContext`,
+`decision.behavior` for `permission_request`, `continue: false` with
+`stopReason`, and `systemMessage`, which is shown to you rather than the
+model. `permission_request` hooks cannot rewrite the input; use
+`pre_tool` for that. Events those tools have and janetcode does not
+(`PreToolBatch`, `InstructionsLoaded`, `ConfigChange`, …) are refused by
+name when the config loads, rather than never running.
 
 Every hook runs on the critical path of a tool call, and what it prints
 is pasted into the conversation, so what hooks may cost is bounded. The

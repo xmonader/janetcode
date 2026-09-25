@@ -74,6 +74,16 @@ and measurements behind each round are in `docs/notes/history.md`.
 - `--what-if` reruns a recorded session against changed code, model or
   settings and compares the two runs; `--replay` reruns one at no token cost.
 - Acceptance tests the model cannot weaken (`/accept`).
+- Hooks fire at fourteen points instead of four: `permission_request`,
+  `post_tool_failure`, `user_prompt`, `session_start`, `session_end`,
+  `stop_failure`, `post_compact`, `notification`, `subagent_start` and
+  `subagent_stop` join `pre_tool`, `post_tool`, `pre_compact` and `stop`.
+  Each hook learns the session, its transcript and the permission mode.
+- Hooks written for Claude Code or Qwen Code run unchanged: their event
+  names, matcher groups, tool names, stdin fields and JSON answers are all
+  understood.
+- Fixed: a subagent left with no tools crashed the session instead of
+  reporting an error.
 
 ### Headless
 - The `--output-format json` result carries routing evidence (`routes[]`).
