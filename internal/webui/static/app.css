@@ -470,6 +470,23 @@ button:disabled { cursor: default; opacity: 0.55; }
   transition: background 0.12s ease, color 0.12s ease;
 }
 .effort-chip:hover { background: var(--surface-2); color: var(--ink); }
+/* The model and its effort are one pill with two halves. */
+.model-group { display: inline-flex; align-items: stretch; min-width: 0; flex: 0 1 auto; }
+.model-group .model-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.model-group .effort-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px 0 8px;
+  border: 0.5px solid var(--line-strong);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  color: var(--mute);
+}
+.model-group .effort-chip[hidden] { display: none; }
+.model-group .model-btn:has(+ .effort-chip[hidden]) { border-radius: 8px; }
+.effort-chip .i { width: 13px; height: 13px; }
 .mode-chip[data-mode="YOLO"] { background: var(--bad-soft); color: var(--bad); }
 .mode-chip[data-mode="AUTO"],
 .mode-chip[data-mode="EDITS"] { background: var(--ok-soft); color: var(--ok); }
@@ -494,6 +511,9 @@ button:disabled { cursor: default; opacity: 0.55; }
   box-shadow: 0 0 0 3px var(--ok-soft);
 }
 .conn.idle::before { background: var(--faint); box-shadow: none; }
+/* A healthy connection is the normal case and says nothing; the dot
+   appears when the page loses janetcode and says it is reconnecting. */
+.conn:not(.off) { display: none; }
 .conn.off { color: var(--bad); }
 .conn.off::before { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
 .icon-btn {

@@ -526,7 +526,10 @@
     chip.dataset.effort = effort || "";
     // A bare "effort" read as a stray word, and "effort default" as
     // jargon; "auto" says the model decides.
-    chip.textContent = "Effort: " + (effort || "auto");
+    // The chip is the right half of the model pill: a gauge and the level.
+    // Its name is read out whole.
+    chip.innerHTML = icon("gauge") + `<span>${esc(effort || "auto")}</span>`;
+    chip.setAttribute("aria-label", "Effort: " + (effort || "auto"));
     chip.title = effort ? "Reasoning effort " + effort + " — click to change" : "The model's own reasoning effort — click to set one";
     paintModel();
   }
