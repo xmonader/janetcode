@@ -294,6 +294,11 @@ func (r *recorder) event(e agent.Event) {
 		// them. Without this the answer would read "half anfull answer".
 		r.turnText.Reset()
 		r.started = map[string]bool{}
+		// The stream has already carried those deltas as text lines,
+		// which cannot be taken back: a line says they are void, or a
+		// consumer joining the deltas reads the half answer and the
+		// whole one run together.
+		r.emit(streamEvent{Type: "discard", Text: "the model call streaming the text above was cut off; its text deltas are void and the retry resends its whole answer"})
 	case agent.EvNotice:
 		r.emit(streamEvent{Type: "notice", Text: e.Text})
 	case agent.EvCompacted:

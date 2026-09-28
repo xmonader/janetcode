@@ -127,11 +127,14 @@ the run reports itself; it applies only to `-p` (and `--watch`).
 
 - `stream-json` prints one JSON object per line as things happen —
   `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,
-  `retry`, `compacted`, `verdict`, `turn_done` — and ends with the same
+  `retry`, `discard`, `compacted`, `verdict`, `turn_done` — and ends with the same
   `result` object as its last line. Everything is newline-delimited, so it
   can be read a line at a time. A `retry` line carries `attempts`,
   `wait_ms` and the provider's reason in `text`; it is written when the
   call finally answers, since until then there is nothing to report.
+  A `discard` line means the model call that streamed the `text` lines
+  before it was cut off mid-stream: those deltas are void, and the retry
+  streams its whole answer again after it.
   Every `tool_result` is preceded by a `tool_start` with the same `id`,
   including for a call that never ran — refused by a rule, hidden by
   `--readonly`, stopped by `--max-cost`, or naming a tool that does not

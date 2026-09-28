@@ -293,6 +293,21 @@ func TestDiscardResetsTheTurnText(t *testing.T) {
 	if r.answer != "whole answer" {
 		t.Fatalf("answer = %q", r.answer)
 	}
+	// The stream already carried "half an " as a text line, and a line
+	// cannot be taken back: a consumer concatenating text deltas read
+	// "half an whole answer" with nothing in the stream to say the first
+	// part was void. The discard is a line of its own.
+	var types []string
+	for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		var e struct{ Type string }
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatalf("%q: %v", l, err)
+		}
+		types = append(types, e.Type)
+	}
+	if got := strings.Join(types, ","); got != "text,discard,text,turn_done" {
+		t.Fatalf("stream = %s, want text,discard,text,turn_done", got)
+	}
 }
 
 // The routing evidence (github issue #4) reaches a headless reader: every
