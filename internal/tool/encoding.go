@@ -72,7 +72,12 @@ func decodeText(data []byte) (string, form) {
 		f.Charset = "latin-1"
 		s = decodeLatin1(data)
 	}
-	if strings.Contains(s, "\r\n") {
+	// CRLF only when every line ends that way. One \r\n among LF lines
+	// used to be enough, and the write-back then gave every LF line a \r
+	// too — the whole file rewritten by a one-line edit. A file with mixed
+	// endings is left as it is: its \r stays in the text, where it
+	// round-trips byte for byte, and whole-line matching already ignores it.
+	if n := strings.Count(s, "\r\n"); n > 0 && n == strings.Count(s, "\n") {
 		f.CRLF = true
 		s = strings.ReplaceAll(s, "\r\n", "\n")
 	}

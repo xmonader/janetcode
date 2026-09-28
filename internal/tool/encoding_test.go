@@ -167,6 +167,37 @@ func TestClippedOutputStaysValidUTF8(t *testing.T) {
 	}
 }
 
+// A file whose lines end both ways is not a CRLF file. It used to be
+// taken for one on the strength of a single \r\n, and the first edit
+// rewrote every LF line in it to CRLF — a one-line change that showed up
+// as the whole file in the diff. Its endings are now left exactly as they
+// are, whatever the edit touches.
+func TestEditKeepsMixedLineEndings(t *testing.T) {
+	root := t.TempDir()
+	p := filepath.Join(root, "a.txt")
+	orig := "one\ntwo\r\nthree\nfour\n"
+	os.WriteFile(p, []byte(orig), 0o644)
+	if _, err := (EditFile{Root: root}).Run(context.Background(), editIn("a.txt", "four", "FOUR")); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	if want := "one\ntwo\r\nthree\nFOUR\n"; string(data) != want {
+		t.Fatalf("file = %q, want %q", data, want)
+	}
+	// A line-range edit on the line that has the \r\n.
+	if _, err := (EditFile{Root: root}).Run(context.Background(), raw(`{"path":"a.txt","from_line":1,"to_line":1,"new_string":"ONE"}`)); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(p)
+	if want := "ONE\ntwo\r\nthree\nFOUR\n"; string(data) != want {
+		t.Fatalf("file = %q, want %q", data, want)
+	}
+	// Whole-line quoting still finds a line that ends in \r\n.
+	if _, err := (EditFile{Root: root}).Run(context.Background(), editIn("a.txt", "two\nthree\n", "2\n3\n")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func asPriorRead(err error, out **ErrPriorRead) bool {
 	pr, ok := err.(*ErrPriorRead)
 	if ok {
