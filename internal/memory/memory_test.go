@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +85,17 @@ func TestPutDedupesUpdatesAndScopes(t *testing.T) {
 	if e := Open(data, filepath.Dir(s.dir("project"))).Entries(); len(e) < 1 {
 		t.Fatal("reopen lost entries")
 	}
-	if gone, err := s.Remove("2"); err != nil || gone.Name == "" {
+	// The listing is newest first and the stored time has one-second
+	// resolution, so which entry is number 2 depends on whether the puts
+	// above straddled a second. Remove by the number of one that is not g.
+	num := ""
+	for i, e := range s.Entries() {
+		if e.Name != g.Name {
+			num = strconv.Itoa(i + 1)
+			break
+		}
+	}
+	if gone, err := s.Remove(num); err != nil || gone.Name == "" || gone.Name == g.Name {
 		t.Fatalf("remove by number: %+v %v", gone, err)
 	}
 	if _, err := s.Remove("nope"); err == nil {
