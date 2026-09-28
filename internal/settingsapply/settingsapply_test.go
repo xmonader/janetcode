@@ -6,6 +6,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -158,6 +159,25 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 				t.Errorf("after /config %s=%s, live agent field = %v, want %v", c.key, c.val, got, want)
 			}
 		})
+	}
+}
+
+// /config model switches the model the way /model does: the context
+// window and the price follow it. Setting only the name left a session
+// moved to a 200k model compacting against the 1M window it came from,
+// and pricing its calls at the old model's rates.
+func TestConfigModelSwitchesWindowAndPrice(t *testing.T) {
+	cfg := &config.Config{Models: map[string]config.ModelMeta{
+		"big":   {ContextWindow: 1_000_000},
+		"small": {ContextWindow: 200_000, Price: &llm.Price{Input: 1, Output: 2}},
+	}}
+	a := &agent.Agent{Tools: tool.NewRegistry()}
+	a.SwitchModel("big", nil, cfg.PriceFor("big"), 1_000_000)
+	if _, err := Apply(cfg, a, "", "model", "small"); err != nil {
+		t.Fatal(err)
+	}
+	if a.Model != "small" || a.ContextWindow != 200_000 || a.Price == nil || a.Price.Input != 1 {
+		t.Fatalf("after /config model=small: model %q window %d price %+v", a.Model, a.ContextWindow, a.Price)
 	}
 }
 

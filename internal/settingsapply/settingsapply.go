@@ -59,7 +59,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 	case "max_iterations":
 		a.UpdateSettings(func(s *agent.Settings) { s.MaxIterations = cfg.MaxIterations })
 	case "model":
-		a.UpdateSettings(func(s *agent.Settings) { s.Model = cfg.Model })
+		// The window and the price belong to the model: set alone, the
+		// session compacted against the old model's window and priced
+		// its calls at the old model's rates.
+		SwitchModel(cfg, a, cfg.Model, nil)
 	case "proof_notes":
 		a.UpdateSettings(func(s *agent.Settings) { s.ProofNotes = cfg.ProofNotesEnabled() })
 	case "route_cheap":
