@@ -614,6 +614,51 @@ func TestClickTogglesOneEntry(t *testing.T) {
 	}
 }
 
+// TestClickFindsTheEntryUnderTheStickyPlan: the click was mapped as if
+// the transcript always started on the row under the header, so with the
+// plan strip up every click landed on the entry that many lines further
+// down — or on none — and a click over a dialog, where no transcript is
+// drawn at all, still toggled whatever entry was hidden under it.
+func TestClickFindsTheEntryUnderTheStickyPlan(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.WriteTodos([]agent.Todo{
+		{Text: "explore the parser", Status: agent.TodoDone},
+		{Text: "write the parser", Status: agent.TodoDoing},
+		{Text: "add tests", Status: agent.TodoPending},
+	})
+	call := agent.ToolCall{ID: "b", Name: "bash", Input: json.RawMessage(`{"command":"echo clickme"}`)}
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: strings.Repeat("x\n", 40)})
+	h.m.layout()
+	h.m.refresh(false)
+	if h.m.planHeight() == 0 {
+		t.Fatal("the plan strip is not up")
+	}
+	row := -1
+	for i, l := range strings.Split(plain(h.m.View()), "\n") {
+		if strings.Contains(l, "echo clickme") {
+			row = i
+			break
+		}
+	}
+	if row < 0 {
+		t.Fatalf("the tool line is not on screen:\n%s", plain(h.m.View()))
+	}
+	e := h.m.transcript.findTool("b")
+	h.m.openOverlay(overlayTodos)
+	if h.m.clickTranscript(row) || e.expanded {
+		t.Fatal("a click over a dialog toggled the transcript entry hidden under it")
+	}
+	h.m.closeOverlay()
+	// The row above the tool line is the gap before it: nothing to open.
+	if h.m.clickTranscript(row-1) || e.expanded {
+		t.Fatalf("a click on row %d, above the tool line, opened it", row-1)
+	}
+	if !h.m.clickTranscript(row) || !e.expanded {
+		t.Fatalf("a click on row %d did not open the tool line drawn there", row)
+	}
+}
+
 // TestFoldedThoughtReopens: a thought folded to one line can be read again.
 func TestFoldedThoughtReopens(t *testing.T) {
 	tr := newTranscript()

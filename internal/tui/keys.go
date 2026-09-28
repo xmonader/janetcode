@@ -513,11 +513,14 @@ const strayKeyWindow = 1500 * time.Millisecond
 // whether the click landed on one; anything else falls through to the
 // viewport, which reads clicks as the start of a drag-scroll.
 func (m *model) clickTranscript(y int) bool {
-	if !m.ready || m.connect != nil {
+	// A dialog draws its own body where the transcript was: there is no
+	// entry under the pointer, only one hidden behind the dialog.
+	if !m.ready || m.mode().modal() {
 		return false
 	}
-	// The header owns row 0; the viewport starts under it.
-	row := y - 1
+	// The header owns row 0 and the sticky plan the rows under it; the
+	// viewport starts below both.
+	row := y - 1 - m.planHeight()
 	if row < 0 || row >= m.viewport.Height {
 		return false
 	}
