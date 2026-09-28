@@ -496,7 +496,7 @@ func printSessions() error {
 			}
 		}
 		if m := n.Mark(); m != "" {
-			aside = "  (" + m + ")"
+			aside += "  (" + m + ")"
 		}
 		if note := n.Note(); note != "" {
 			aside += "  (" + note + ")"

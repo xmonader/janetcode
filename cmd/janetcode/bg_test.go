@@ -83,6 +83,34 @@ func TestBgPermissionArgs(t *testing.T) {
 	}
 }
 
+// A settled session keeps its background status in --sessions: the
+// "(settled)" mark used to replace the aside instead of joining it.
+func TestSessionListingKeepsBgStatusOfSettledSession(t *testing.T) {
+	home, work := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Chdir(work)
+	dir, _ := session.Dir()
+	sess, err := session.New(dir, work, "openai", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.EnsureWritten()
+	if err := sess.SetSettled(true); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgDone, Started: time.Now(), Ended: time.Now(), Detail: "all done"}); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _ := captureStd(t)
+	if err := printSessions(); err != nil {
+		t.Fatal(err)
+	}
+	if got := stdout(); !strings.Contains(got, "[background: done") || !strings.Contains(got, "(settled)") {
+		t.Errorf("--sessions lost the settled mark or the background status:\n%s", got)
+	}
+}
+
 // A --bg run in a mode that still asks waits for --answer: the request is
 // in --sessions and --answer shows it, allow lets the command run, and the
 // run is recorded as done with its answer.
