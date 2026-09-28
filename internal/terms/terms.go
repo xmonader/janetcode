@@ -49,15 +49,26 @@ func Split(s string) []string {
 // Stem trims the commonest English suffixes; enough to match a query's
 // "compile" or "fail" against "compiling" and "failed" without a
 // dictionary, and cheap enough to run on every archived line.
+//
+// A final silent e goes too, since the suffixes take it with them:
+// "compiling" and "files" become "compil" and "fil", so "compile" and
+// "file" must as well. An s after s or u is not a plural ("pass",
+// "status"), so it stays, or the word would part from "passes".
 func Stem(w string) string {
 	for _, suf := range []string{"ing", "ies", "ed", "es", "s"} {
+		if suf == "s" && (strings.HasSuffix(w, "ss") || strings.HasSuffix(w, "us")) {
+			break
+		}
 		if strings.HasSuffix(w, suf) && len(w)-len(suf) >= 3 {
 			w = strings.TrimSuffix(w, suf)
 			if suf == "ies" {
-				w += "y"
+				return w + "y"
 			}
 			break
 		}
+	}
+	if strings.HasSuffix(w, "e") && len(w)-1 >= 3 {
+		w = strings.TrimSuffix(w, "e")
 	}
 	return w
 }
