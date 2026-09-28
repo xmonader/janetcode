@@ -135,9 +135,12 @@ func (r *Repo) restore(ctx context.Context, s Snap, skip map[string]bool) ([]str
 		return nil, err
 	}
 	var (
-		done    []string
-		errs    []error
-		restore []string
+		done []string
+		errs []error
+		// The ignore rules go back first, on their own: which of the
+		// other paths count as created since the snapshot depends on
+		// them (see keepIgnored).
+		rules, rest [][2]string
 	)
 	fields := strings.Split(out, "\x00")
 	for i := 0; i+1 < len(fields); i += 2 {
@@ -148,6 +151,74 @@ func (r *Repo) restore(ctx context.Context, s Snap, skip map[string]bool) ([]str
 		if skip != nil && skip[filepath.Join(r.Root, path)] {
 			continue
 		}
+		if filepath.Base(path) == ".gitignore" {
+			rules = append(rules, [2]string{status, path})
+		} else {
+			rest = append(rest, [2]string{status, path})
+		}
+	}
+	d, err := r.apply(ctx, idx, s, rules)
+	done, errs = append(done, d...), append(errs, err)
+	rest, err = r.keepIgnored(ctx, rest)
+	errs = append(errs, err)
+	d, err = r.apply(ctx, idx, s, rest)
+	done, errs = append(done, d...), append(errs, err)
+	return done, errors.Join(errs...)
+}
+
+// keepIgnored drops from items every created-since path the ignore rules
+// — as restored — exclude. The snapshot never records an ignored file, so
+// one it does not hold may simply have been ignored when it was taken:
+// a turn that deleted a line from .gitignore made the user's .env, or a
+// whole node_modules, read as created by the turn, and the restore
+// deleted them. Such a path is left alone. When git cannot say, nothing
+// is removed at all.
+func (r *Repo) keepIgnored(ctx context.Context, items [][2]string) ([][2]string, error) {
+	var created []byte
+	for _, it := range items {
+		if it[0][0] == 'A' {
+			created = append(append(created, it[1]...), 0)
+		}
+	}
+	if len(created) == 0 {
+		return items, nil
+	}
+	// --no-index: a created path is by definition not in the snapshot,
+	// and the real index is not what the snapshot was built from.
+	out, err := gitx.RunInput(ctx, r.Root, created, "check-ignore", "--no-index", "--stdin", "-z")
+	ignored := map[string]bool{}
+	switch {
+	case err == nil:
+		for _, p := range strings.Split(string(out), "\x00") {
+			ignored[p] = true
+		}
+	case gitx.ExitCode(err) == 1: // none of them is ignored
+	default:
+		ignored = nil
+	}
+	var kept [][2]string
+	for _, it := range items {
+		if it[0][0] == 'A' && (ignored == nil || ignored[it[1]]) {
+			continue
+		}
+		kept = append(kept, it)
+	}
+	if ignored == nil {
+		return kept, fmt.Errorf("files created since the snapshot were left in place, since git could not say which of them it ignores: %w", err)
+	}
+	return kept, nil
+}
+
+// apply removes the items created since the snapshot and checks the rest
+// out of it, returning a line per path.
+func (r *Repo) apply(ctx context.Context, idx string, s Snap, items [][2]string) ([]string, error) {
+	var (
+		done    []string
+		errs    []error
+		restore []string
+	)
+	for _, it := range items {
+		status, path := it[0], it[1]
 		abs := filepath.Join(r.Root, path)
 		switch status[0] {
 		case 'A': // created since the snapshot

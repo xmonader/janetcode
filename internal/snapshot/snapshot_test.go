@@ -119,6 +119,40 @@ func TestTakeAndRestoreCoversUntrackedAndDeleted(t *testing.T) {
 	}
 }
 
+// A file the snapshot does not hold because it was ignored when it was
+// taken is not a file created since. A turn that took a line out of
+// .gitignore made the user's ignored file read as the turn's own, and
+// the restore deleted it along with putting .gitignore back.
+func TestRestoreKeepsFilesIgnoredWhenTheSnapshotWasTaken(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	r, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "ignored.log"), "precious\n")
+	s, err := r.Take(ctx, "turn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The turn: un-ignore the log, and create a file of its own.
+	write(t, filepath.Join(root, ".gitignore"), "\n")
+	write(t, filepath.Join(root, "made.txt"), "made\n")
+	done, err := r.Restore(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read(filepath.Join(root, "ignored.log")) != "precious\n" {
+		t.Fatalf("the ignored file was deleted: %q", done)
+	}
+	if read(filepath.Join(root, ".gitignore")) != "ignored.log\n" {
+		t.Fatal(".gitignore not restored")
+	}
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the turn's own file was not removed")
+	}
+}
+
 func TestRestoreRefusesWhenHeadMoved(t *testing.T) {
 	root := initRepo(t)
 	ctx := context.Background()
