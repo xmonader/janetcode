@@ -246,6 +246,49 @@ func TestSetStartRoundTripsAndForks(t *testing.T) {
 	}
 }
 
+// A fork carries on under the conditions its conversation was working
+// in: the extra roots, the armed loops and above all the /accept lock.
+// A resumed fork used to come back with none of them, so the acceptance
+// tests it had been approved against were unlocked.
+func TestForkKeepsWorkspaceLoopsAndAcceptLock(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/work", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, s, llm.TextMessage(llm.RoleUser, "hi"))
+	if err := s.SetExtraDirs([]string{"/other"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetLoops([]LoopSpec{{ID: "l1", Every: "5m", Prompt: "check ci"}}); err != nil {
+		t.Fatal(err)
+	}
+	lock := &AcceptMeta{Phase: AcceptLocked, Files: []string{"/work/a_test.go"}, Hashes: map[string]string{"/work/a_test.go": "h"}, Command: "go test ./..."}
+	if err := s.SetAccept(lock); err != nil {
+		t.Fatal(err)
+	}
+	f, err := Fork(dir, s, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	re, _, err := Open(dir, f.Meta.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(re.Meta.ExtraDirs) != 1 || re.Meta.ExtraDirs[0] != "/other" {
+		t.Fatalf("fork extra dirs = %v", re.Meta.ExtraDirs)
+	}
+	if len(re.Meta.Loops) != 1 || re.Meta.Loops[0].Prompt != "check ci" {
+		t.Fatalf("fork loops = %v", re.Meta.Loops)
+	}
+	if re.Meta.Accept == nil || re.Meta.Accept.Phase != AcceptLocked || re.Meta.Accept.Command != "go test ./..." {
+		t.Fatalf("fork accept = %+v", re.Meta.Accept)
+	}
+	if f.Meta.Accept == s.Meta.Accept {
+		t.Fatal("fork shares the original's accept state")
+	}
+}
+
 // TestEmptySessionLeavesNoFile: a session that never records an event —
 // a start with no key, a TUI opened and closed — leaves nothing on disk
 // and nothing in the list; the first event creates the file with its
