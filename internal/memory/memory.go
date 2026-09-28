@@ -317,7 +317,9 @@ func (s *Store) write(e Entry) error {
 	if e.SupersededBy != "" {
 		meta["superseded_by"] = e.SupersededBy
 	}
-	return fsutil.AtomicWrite(e.Path, []byte(md.Render(meta, e.Body)))
+	// An entry is what the user told the agent about themselves and their
+	// work, so it is private like the session log it was learned from.
+	return fsutil.AtomicWriteMode(e.Path, []byte(md.Render(meta, e.Body)), fsutil.PrivateFileMode)
 }
 
 // Get finds an entry by name in either scope.
