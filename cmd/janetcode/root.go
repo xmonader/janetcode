@@ -273,16 +273,17 @@ func (r *root) permissionRules(cwd string) (rules, projRules perm.Rules, hash st
 		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
 	}
 	for _, spec := range []struct {
-		flag string
-		v    perm.Verdict
-	}{{r.opts.allow, perm.Allowed}, {r.opts.deny, perm.Denied}} {
+		name, flag string
+		v          perm.Verdict
+	}{{"allow", r.opts.allow, perm.Allowed}, {"deny", r.opts.deny, perm.Denied}} {
 		for _, part := range strings.Split(spec.flag, ",") {
 			if strings.TrimSpace(part) == "" {
 				continue
 			}
 			pr, perr := perm.Parse(part)
 			if perr != nil {
-				return rules, projRules, hash, trusted, perr
+				// The rule came from the command line: a usage error.
+				return rules, projRules, hash, trusted, headless.BadInput("--%s: %v", spec.name, perr)
 			}
 			rules.Add(spec.v, pr)
 		}

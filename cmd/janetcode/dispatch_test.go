@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
 )
 
@@ -81,6 +82,18 @@ func TestOnlySessionModesOpenTheUserRecords(t *testing.T) {
 		}
 		if m.hints != w {
 			t.Errorf("mode %q: hints = %v, want %v", m.name, m.hints, w)
+		}
+	}
+}
+
+// A malformed --allow or --deny rule is a usage error (exit 42), like any
+// other bad flag value, not a failed run.
+func TestBadPermissionFlagIsAUsageError(t *testing.T) {
+	for _, o := range []*options{{allow: "bash(go test"}, {deny: "edit_file,rm -rf"}} {
+		r := &root{cfg: &config.Config{}, opts: o}
+		_, _, _, _, err := r.permissionRules(t.TempDir())
+		if !errors.Is(err, headless.ErrBadInput) {
+			t.Errorf("%+v: err = %v, want a usage error", *o, err)
 		}
 	}
 }
