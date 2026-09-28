@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -99,6 +100,56 @@ func TestStreamableHTTP(t *testing.T) {
 	}
 	if v, _ := seen.Load("auth"); v != "Bearer tok" {
 		t.Fatalf("auth header = %v (env vars in headers must expand)", v)
+	}
+}
+
+// A reply stream that ends without the reply — a server restarted, a
+// proxy cut the connection — leaves nothing else the reply could come back
+// on. The call used to wait on it for good, since a tool call carries no
+// deadline of its own.
+func TestStreamableReplyStreamEndingWithoutAReplyFailsTheCall(t *testing.T) {
+	var cut atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		var msg rpcMessage
+		json.Unmarshal(body, &msg)
+		switch msg.Method {
+		case "initialize":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"r","version":"1"}}}`, *msg.ID)
+		case "tools/list":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{"tools":[{"name":"t","inputSchema":{"type":"object"}}]}}`, *msg.ID)
+		case "tools/call":
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, ": working\n\n")
+			w.(http.Flusher).Flush()
+			cut.Store(true) // and the stream ends here
+		case "prompts/list":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{}`) // a JSON reply that answers nothing
+		default:
+			w.WriteHeader(http.StatusAccepted)
+		}
+	}))
+	defer srv.Close()
+	c, err := Start(context.Background(), "r", ServerConfig{URL: srv.URL}, Options{HandshakeTimeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = c.CallTool(ctx, "t", nil)
+	if !cut.Load() || !errors.Is(err, ErrDisconnected) {
+		t.Fatalf("err = %v (want ErrDisconnected before the deadline)", err)
+	}
+	if _, err := c.call(ctx, "prompts/list", map[string]any{}); err == nil || ctx.Err() != nil {
+		t.Fatalf("a JSON reply without the response: err = %v, ctx = %v", err, ctx.Err())
 	}
 }
 

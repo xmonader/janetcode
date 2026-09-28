@@ -685,6 +685,26 @@ func (c *Client) handleRequest(req rpcMessage) {
 	}
 }
 
+// unanswered fails the call waiting on rawID, if it still is, with err: a
+// transport calls it when the only channel that reply could have come
+// back on has closed without it.
+func (c *Client) unanswered(rawID *json.RawMessage, err error) {
+	if rawID == nil {
+		return
+	}
+	var id int64
+	if json.Unmarshal(*rawID, &id) != nil {
+		return
+	}
+	c.pendMu.Lock()
+	ch := c.pending[id]
+	delete(c.pending, id)
+	c.pendMu.Unlock()
+	if ch != nil {
+		ch <- rpcReply{err: err}
+	}
+}
+
 func (c *Client) dropPending(id int64) {
 	c.pendMu.Lock()
 	delete(c.pending, id)

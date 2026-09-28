@@ -230,6 +230,12 @@ func (t *httpTransport) sendStreamable(ctx context.Context, msg rpcMessage) erro
 		t.mu.Unlock()
 		return se
 	}
+	// A request's reply comes back on this response and nowhere else:
+	// this client opens no standalone GET stream a server could redirect
+	// it to. Once the response is used up, a call still waiting would
+	// wait for good — a tools/call has no deadline but the user's
+	// patience — so it is failed instead.
+	isRequest := msg.Method != "" && msg.ID != nil
 	ct := resp.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "text/event-stream") {
 		// The stream ends when the server has sent the reply (and any
@@ -237,10 +243,16 @@ func (t *httpTransport) sendStreamable(ctx context.Context, msg rpcMessage) erro
 		go func() {
 			defer resp.Body.Close()
 			t.readSSE(resp.Body, nil)
+			if isRequest {
+				t.c.unanswered(msg.ID, fmt.Errorf("%w: the server's event stream for %s ended without a reply", ErrDisconnected, msg.Method))
+			}
 		}()
 		return nil
 	}
 	defer resp.Body.Close()
+	if isRequest {
+		defer t.c.unanswered(msg.ID, fmt.Errorf("the server's reply to %s carried no response to it", msg.Method))
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFrameBytes))
 	if err != nil {
 		return err
