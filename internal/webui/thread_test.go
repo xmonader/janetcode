@@ -94,3 +94,30 @@ func TestAPromptQueuedWhileATurnEndsIsNotLost(t *testing.T) {
 		t.Fatalf("prompts sent = %q, want both queued prompts in order", typed)
 	}
 }
+
+// A turn that ends with a prompt queued hands the session straight to it.
+// It used to be marked idle first and the queued turn begun afterwards: a
+// prompt sent in that gap saw an idle session and started ahead, the
+// queued prompt's begin then failed, and it was dropped without a word.
+func TestTheQueuedPromptKeepsTheSessionWhenATurnEnds(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	s.mu.Lock()
+	s.running = true
+	s.queued = []string{"queued"}
+	s.mu.Unlock()
+
+	next, ctx, _ := s.end(false)
+	if next != "queued" || ctx == nil {
+		t.Fatalf("end handed back %q with ctx %v", next, ctx)
+	}
+	if _, ok := s.begin("thinking"); ok {
+		t.Fatal("something else began in the gap before the queued prompt's turn")
+	}
+	s.mu.Lock()
+	cancel := s.cancel
+	s.mu.Unlock()
+	cancel()
+	if ctx.Err() == nil {
+		t.Fatal("esc does not reach the queued prompt's turn")
+	}
+}

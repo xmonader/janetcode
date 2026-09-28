@@ -78,10 +78,10 @@ func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
 	s.emitStatus()
 	go func() {
 		fn(ctx)
-		next, _ := s.end(false)
+		next, nextCtx, _ := s.end(false)
 		s.emitStatus()
 		if next != "" {
-			s.startTurn(next)
+			s.runTurn(nextCtx, next)
 		}
 	}()
 }

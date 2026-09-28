@@ -696,24 +696,33 @@ func (s *server) submit(text string) error {
 // of them may. esc cancels the context; end releases it.
 func (s *server) begin(phase string) (context.Context, bool) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.running {
-		s.mu.Unlock()
 		return nil, false
 	}
+	return s.beginLocked(phase), true
+}
+
+func (s *server) beginLocked(phase string) context.Context {
 	s.running = true
 	s.setPhaseLocked(phase)
 	s.started = time.Now()
 	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
-	s.mu.Unlock()
-	return ctx, true
+	return ctx
 }
 
-// end marks the session idle and hands back the next queued prompt —
+// end marks the work finished and hands back the next queued prompt —
 // taken under the lock, so one arriving in the same moment is not lost —
 // and how long the work took. A failed turn drops the queue: what was
 // queued was queued behind work that did not happen.
-func (s *server) end(failed bool) (next string, elapsed time.Duration) {
+//
+// When there is a next prompt the session never goes idle: its turn is
+// begun under the same lock, and nextCtx is its context for runTurn. It
+// used to be marked idle and the next turn started afterwards; a prompt
+// sent in between saw an idle session and started ahead of it, and the
+// queued prompt's own begin then failed and it was dropped without a word.
+func (s *server) end(failed bool) (next string, nextCtx context.Context, elapsed time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	elapsed = s.idleLocked()
@@ -722,8 +731,9 @@ func (s *server) end(failed bool) (next string, elapsed time.Duration) {
 		s.queued = nil
 	case len(s.queued) > 0:
 		next, s.queued = s.queued[0], s.queued[1:]
+		nextCtx = s.beginLocked("thinking")
 	}
-	return next, elapsed
+	return next, nextCtx, elapsed
 }
 
 // idle marks the session idle and leaves the queue alone, for work that
@@ -749,6 +759,11 @@ func (s *server) startTurn(text string) {
 	if !ok {
 		return
 	}
+	s.runTurn(ctx, text)
+}
+
+// runTurn sends text on a turn already begun with ctx.
+func (s *server) runTurn(ctx context.Context, text string) {
 	s.statusSet("")
 
 	s.add(entry{Kind: "user", Text: text})
@@ -779,7 +794,7 @@ func (s *server) finish(err error) {
 	// the thinking placeholder, half an answer — stayed live above the
 	// error card. Close them whatever the outcome.
 	s.closeOpen()
-	next, elapsed := s.end(err != nil)
+	next, nextCtx, elapsed := s.end(err != nil)
 	s.touchRuns()
 	switch {
 	case err == nil:
@@ -809,7 +824,7 @@ func (s *server) finish(err error) {
 		s.titleFromFirstPrompt()
 	}
 	if next != "" {
-		s.startTurn(next)
+		s.runTurn(nextCtx, next)
 		return
 	}
 	// An active goal keeps the session going after the turn, the way
