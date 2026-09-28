@@ -227,15 +227,44 @@ func (t Computer) press(ctx context.Context, key string) error {
 }
 
 func darwinKeystroke(key string) string {
+	// A chord such as ctrl+c: without this it fell through to keystroke
+	// "ctrl+c", which types the six characters into the focused window.
+	var using []string
+	if parts := strings.Split(key, "+"); len(parts) > 1 && parts[len(parts)-1] != "" {
+		for _, m := range parts[:len(parts)-1] {
+			switch strings.ToLower(strings.TrimSpace(m)) {
+			case "ctrl", "control":
+				using = append(using, "control down")
+			case "cmd", "command", "super", "meta":
+				using = append(using, "command down")
+			case "alt", "option", "opt":
+				using = append(using, "option down")
+			case "shift":
+				using = append(using, "shift down")
+			default:
+				return ""
+			}
+		}
+		key = strings.TrimSpace(parts[len(parts)-1])
+	}
+	var stroke string
 	switch strings.ToLower(key) {
 	case "return", "enter":
-		return `tell application "System Events" to keystroke return`
+		stroke = `keystroke return`
 	case "tab":
-		return `tell application "System Events" to keystroke tab`
+		stroke = `keystroke tab`
 	case "escape", "esc":
-		return `tell application "System Events" to key code 53`
+		stroke = `key code 53`
+	default:
+		if len(using) == 0 || len([]rune(key)) != 1 {
+			return ""
+		}
+		stroke = `keystroke "` + strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(key), `\`, `\\`), `"`, `\"`) + `"`
 	}
-	return ""
+	if len(using) > 0 {
+		stroke += " using {" + strings.Join(using, ", ") + "}"
+	}
+	return `tell application "System Events" to ` + stroke
 }
 
 func xdotoolKey(key string) string {

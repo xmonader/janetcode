@@ -84,6 +84,30 @@ func TestComputerRunKeepsStderrOutOfTheOutput(t *testing.T) {
 	}
 }
 
+func TestDarwinKeystrokeChords(t *testing.T) {
+	for key, want := range map[string]string{
+		"ctrl+c":      `keystroke "c" using {control down}`,
+		"cmd+shift+T": `keystroke "t" using {command down, shift down}`,
+		"ctrl+Return": `keystroke return using {control down}`,
+		"Return":      `keystroke return`,
+		"esc":         `key code 53`,
+		"a":           "",
+		"ctrl+":       "",
+		"hyper+x":     "",
+	} {
+		got := darwinKeystroke(key)
+		if want == "" {
+			if got != "" {
+				t.Errorf("%q = %q, want the plain keystroke fallback", key, got)
+			}
+			continue
+		}
+		if got != `tell application "System Events" to `+want {
+			t.Errorf("%q = %q, want %q", key, got, want)
+		}
+	}
+}
+
 func fakePNG(w, h int) []byte {
 	buf := bytes.Repeat([]byte{0}, 24)
 	buf[0] = 0x89
