@@ -94,7 +94,10 @@ var lineRules = []lineRule{
 		re:   regexp.MustCompile(`(?m)/dev/tcp/[^\s/]+/\d+|\b(nc|ncat|netcat)\b[^\n]*\s-(e|c)\s|\bbash\s+-i\s*>&|mkfifo[^\n]*\b(nc|ncat)\b|socket\.socket\([^\n]*\)[^\n]*subprocess`)},
 	{name: "deletes the home or root directory", severity: Critical,
 		need: []string{"rm "},
-		re:   regexp.MustCompile(`(?m)\brm\s+(-[a-zA-Z]*[rR][a-zA-Z]*\s+)+(--no-preserve-root\s+)?(/|/\*|~/?|~/\*|\$HOME/?|\$\{HOME\}/?)(\s|$|;|&)`)},
+		// Flags may come apart (rm -r -f) and in any order, the command
+		// may be quoted (sh -c "rm -rf ~"), and $HOME/* is the home
+		// directory as much as ~/* is.
+		re: regexp.MustCompile(`(?m)\brm\s+(-{1,2}[a-zA-Z-]+\s+)*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\s+(-{1,2}[a-zA-Z-]+\s+)*(/|/\*|~/?|~/\*|(\$HOME|\$\{HOME\})(/\*?)?)(\s|$|[;&|"'` + "`" + `)])`)},
 	{name: "fork bomb", severity: Critical,
 		need: []string{":()"},
 		re:   regexp.MustCompile(`(?m):\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:`)},
@@ -116,10 +119,10 @@ var lineRules = []lineRule{
 		re:   regexp.MustCompile(`(?m)>>?\s*["']?(~|\$HOME|/root|/home/[^/\s]+)/\.ssh/authorized_keys`)},
 	{name: "tells the model to ignore its instructions", severity: Critical, instructionOnly: true,
 		need: []string{"ignore", "disregard", "forget"},
-		re:   regexp.MustCompile(`(?mi)\b(ignore|disregard|forget)\s+(all\s+|any\s+)?(the\s+)?(previous|prior|above|earlier|system)\s+(instructions|prompts?|rules)`)},
+		re:   regexp.MustCompile(`(?mi)\b(ignore|disregard|forget)\s+(all\s+|any\s+)?(the\s+|your\s+)?(previous|prior|above|earlier|system)\s+(instructions|prompts?|rules)`)},
 	{name: "tells the model to hide actions from the user", severity: Critical, instructionOnly: true,
 		need: []string{"the user"},
-		re:   regexp.MustCompile(`(?mi)\b(do\s+not|don't|never)\s+(tell|inform|show|mention\s+(it\s+)?to|reveal\s+(it\s+)?to|let)\s+(this\s+to\s+)?the\s+user\b|\bwithout\s+(telling|informing|notifying)\s+the\s+user\b`),
+		re:   regexp.MustCompile(`(?mi)\b(do\s+not|don['’]t|never)\s+(tell|inform|show|mention\s+((it|this|that)\s+)?to|reveal\s+((it|this|that)\s+)?to|let)\s+(this\s+to\s+)?the\s+user\b|\bwithout\s+(telling|informing|notifying)\s+the\s+user\b`),
 		// "Do not tell the user to run it; run it yourself" is advice.
 		unless: regexp.MustCompile(`(?i)\b(tell|let|show)\s+the\s+user\s+(to|how)\b`)},
 	{name: "tells the model to skip permission", severity: Warning, instructionOnly: true,
