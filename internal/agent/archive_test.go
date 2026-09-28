@@ -114,6 +114,16 @@ func TestArchiveEvictsOldest(t *testing.T) {
 	if ar.IDFor("u1") != "" {
 		t.Fatal("evicted entry still mapped")
 	}
+
+	// A call id refiled under a newer entry keeps it when the older one
+	// under the same id is evicted.
+	ar = NewArchive(t.TempDir())
+	ar.Put("u", "bash", big)
+	ar.Put("u", "bash", big[1:])
+	ar.Put("x", "bash", "small")
+	if got := ar.IDFor("u"); got != "ctx-2" {
+		t.Fatalf("evicting ctx-1 took the call's newer entry with it: IDFor = %q", got)
+	}
 }
 
 type bigTool struct{ out string }

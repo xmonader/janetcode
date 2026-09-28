@@ -224,7 +224,10 @@ func (ar *Archive) evict() {
 		}
 		if os.Remove(filepath.Join(ar.Dir, e.ID+".txt")) == nil {
 			total -= int64(e.Size)
-			delete(ar.byUse, e.ToolUse)
+			if ar.byUse[e.ToolUse] == e.ID {
+				// A call id can name a newer entry by now (see PutSubject).
+				delete(ar.byUse, e.ToolUse)
+			}
 		}
 	}
 	ar.bytes = total
