@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -112,10 +113,15 @@ func (t Computer) run(ctx context.Context, name string, args ...string) ([]byte,
 	if t.Exec != nil {
 		return t.Exec(ctx, name, args...)
 	}
+	// stdout alone is the result: grim and import write the PNG there, and
+	// a warning on stderr mixed into it is a corrupt image. stderr is kept
+	// for the error it explains.
 	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return out, fmt.Errorf("%s: %w (%s)", name, err, strings.TrimSpace(string(out)))
+		return out, fmt.Errorf("%s: %w (%s)", name, err, strings.TrimSpace(stderr.String()))
 	}
 	return out, nil
 }

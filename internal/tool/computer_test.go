@@ -68,6 +68,22 @@ func TestComputerUnknownAction(t *testing.T) {
 	}
 }
 
+// grim and import write the PNG to stdout; a warning they print on stderr
+// must not end up inside the image.
+func TestComputerRunKeepsStderrOutOfTheOutput(t *testing.T) {
+	if _, err := os.Stat("/bin/sh"); err != nil {
+		t.Skip("no /bin/sh")
+	}
+	out, err := Computer{}.run(context.Background(), "/bin/sh", "-c", "printf image; printf warning >&2")
+	if err != nil || string(out) != "image" {
+		t.Fatalf("out = %q, %v", out, err)
+	}
+	_, err = Computer{}.run(context.Background(), "/bin/sh", "-c", "printf why >&2; exit 3")
+	if err == nil || !strings.Contains(err.Error(), "why") {
+		t.Fatalf("a failure lost its stderr: %v", err)
+	}
+}
+
 func fakePNG(w, h int) []byte {
 	buf := bytes.Repeat([]byte{0}, 24)
 	buf[0] = 0x89
