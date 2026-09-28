@@ -537,6 +537,9 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	// the advisor sees the same transcript the executor will.
 	a.adviseAtTurnStart(ctx, firstText(blocks), emit)
 	a.loops.reset()
+	// A stop the detector called in a step that then ended on an error
+	// was never consumed; it belongs to that turn, not this one.
+	a.stuck = false
 	a.turnStart, a.warned = time.Now(), false
 	a.modelRouter.newTurn()
 	a.integ.userText = firstText(blocks)

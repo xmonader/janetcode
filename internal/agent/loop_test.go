@@ -313,3 +313,35 @@ func TestLoopDetectorIgnoresTheResultText(t *testing.T) {
 		t.Fatalf("call %d did not stop the turn: reason = %q", loopStopAt, d.reason)
 	}
 }
+
+// The loop detector's stop is carried to the end of the tool step in
+// a.stuck. A step that ended on an error first — here an approver that
+// could not answer, in the batch whose read tripped the detector — left it
+// set, and the next turn, which had repeated nothing, ended with ErrStuck
+// after its very first tool call.
+func TestStuckFlagDoesNotOutliveItsTurn(t *testing.T) {
+	boom := errors.New("the front-end went away")
+	read := `{"path":"a.txt"}`
+	var responses []*llm.Response
+	for i := 1; i < loopStopAt; i++ {
+		responses = append(responses, toolCall(fmt.Sprint(i), "read_file", read))
+	}
+	responses = append(responses, &llm.Response{
+		Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "r", Name: "read_file", Input: []byte(read)},
+			{Type: llm.BlockToolUse, ID: "w", Name: "write_file", Input: []byte(`{"path":"b.txt","content":"x\n"}`)},
+		}},
+		StopReason: llm.StopToolUse,
+		Usage:      llm.Usage{InputTokens: 1, OutputTokens: 1},
+	})
+	// The next turn: one ordinary call, then an answer.
+	responses = append(responses, toolCall("n", "read_file", `{"path":"a.txt","offset":1}`), text("done"))
+	f := &fake{responses: responses}
+	a, _ := newAgent(t, f, brokenApprover{err: boom})
+	if err := a.Run(context.Background(), "go", nil); !errors.Is(err, boom) {
+		t.Fatalf("first turn: err = %v, want the approver's error", err)
+	}
+	if err := a.Run(context.Background(), "again", nil); err != nil {
+		t.Fatalf("second turn: err = %v, want none", err)
+	}
+}
