@@ -25,6 +25,8 @@ func TestDir(t *testing.T) {
 	}{
 		{"config from XDG", "linux", map[string]string{cfg: "/x/cfg", "HOME": "/home/u"}, cfg, dotConfig, filepath.Join("/x/cfg", "janetcode"), ""},
 		{"config from HOME", "linux", map[string]string{"HOME": "/home/u"}, cfg, dotConfig, filepath.Join("/home/u", ".config", "janetcode"), ""},
+		{"relative XDG is ignored", "linux", map[string]string{data: "share", "HOME": "/home/u"}, data, dotShare, filepath.Join("/home/u", ".local", "share", "janetcode"), ""},
+		{"dot-relative XDG is ignored", "linux", map[string]string{cfg: "./cfg", "HOME": "/home/u"}, cfg, dotConfig, filepath.Join("/home/u", ".config", "janetcode"), ""},
 		{"empty XDG falls back", "darwin", map[string]string{cfg: "", "HOME": "/Users/u"}, cfg, dotConfig, filepath.Join("/Users/u", ".config", "janetcode"), ""},
 		{"data from XDG", "linux", map[string]string{data: "/x/data"}, data, dotShare, filepath.Join("/x/data", "janetcode"), ""},
 		{"data from HOME", "linux", map[string]string{"HOME": "/home/u"}, data, dotShare, filepath.Join("/home/u", ".local", "share", "janetcode"), ""},

@@ -28,7 +28,14 @@ func DataDir(getenv func(string) string) (string, error) {
 }
 
 func dir(goos string, getenv func(string) string, env, fallback string) (string, error) {
-	if base := getenv(env); base != "" {
+	// The XDG spec says a relative value is invalid and to be ignored. It
+	// matters here: taken as given, it resolved against whatever directory
+	// janetcode was started in, so every project got its own sessions and
+	// memory — conversation transcripts — written inside its working tree,
+	// one careless commit away from being published. A leading slash or
+	// backslash counts as rooted on every platform, so the rule reads the
+	// same whichever OS evaluates it.
+	if base := getenv(env); base != "" && (filepath.IsAbs(base) || base[0] == '/' || base[0] == '\\') {
 		return filepath.Join(base, App), nil
 	}
 	home, err := homeDir(goos, getenv)
