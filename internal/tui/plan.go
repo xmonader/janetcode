@@ -19,11 +19,27 @@ const (
 	planCapCompact = 1
 )
 
+// planTodos is the plan as the strip and /todos draw it. Its steps are
+// the model's text, which can carry what a file it read told it to
+// write; with control characters left in, an escape sequence in a step
+// (clear the screen, set the clipboard with OSC 52) went to the terminal
+// to be obeyed rather than shown.
 func (m *model) planTodos() []agent.Todo {
 	if m.opts.Agent == nil {
 		return nil
 	}
-	return m.opts.Agent.Todos()
+	todos := m.opts.Agent.Todos()
+	for i := range todos {
+		todos[i].Text = sanitize(todos[i].Text)
+		if b := todos[i].BlockedBy; len(b) > 0 {
+			clean := make([]string, len(b))
+			for j, s := range b {
+				clean[j] = sanitize(s)
+			}
+			todos[i].BlockedBy = clean
+		}
+	}
+	return todos
 }
 
 func (m *model) planHeight() int {
