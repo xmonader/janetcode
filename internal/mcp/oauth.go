@@ -170,7 +170,11 @@ func (s *TokenStore) Bearer(ctx context.Context, client *http.Client, serverURL 
 	if t.RefreshToken == "" {
 		return "", true, fmt.Errorf("%w: the token expired and cannot be refreshed", ErrAuthRequired)
 	}
-	form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {t.RefreshToken}, "client_id": {t.ClientID}}
+	// resource names the MCP server again, as the authorization did: an
+	// authorization server that scopes tokens by audience would otherwise
+	// hand back one for its default audience, which this server rejects,
+	// and the user would be sent back to /mcp auth after every expiry.
+	form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {t.RefreshToken}, "client_id": {t.ClientID}, "resource": {normalizeURL(serverURL)}}
 	if t.ClientSecret != "" {
 		form.Set("client_secret", t.ClientSecret)
 	}

@@ -104,6 +104,11 @@ func NewAuthServer(t *testing.T) (*httptest.Server, *AuthServer) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		// RFC 8707, which the MCP authorization spec requires on every
+		// token request: the token is for this MCP server and no other.
+		if got := r.Form.Get("resource"); got != srv.URL+"/mcp" {
+			t.Errorf("%s token request resource = %q", r.Form.Get("grant_type"), got)
+		}
 		switch r.Form.Get("grant_type") {
 		case "authorization_code":
 			sum := sha256.Sum256([]byte(r.Form.Get("code_verifier")))
