@@ -19,6 +19,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/pipewrite"
 	"github.com/xmonader/janetcode/internal/procgroup"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // maxRestarts bounds how often one server is restarted after dying.
@@ -91,6 +92,11 @@ func start(ctx context.Context, root string, command []string, log func(string))
 	}
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Dir = root
+	// A language server runs the project's code (rust-analyzer builds
+	// build.rs and proc macros; others load project plugins), so it gets
+	// the environment every project-controlled child gets: without the
+	// agent's provider credentials.
+	cmd.Env = shell.ScrubEnv(os.Environ())
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
