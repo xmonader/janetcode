@@ -643,9 +643,15 @@ func (s *server) emit(e envelope) {
 	s.mu.Lock()
 	s.seq++
 	e.Seq = s.seq
-	s.log = append(s.log, e)
-	if len(s.log) > 2000 {
-		s.log = s.log[len(s.log)-1500:]
+	// "connect" is a request to open the connect form now, not session
+	// state: kept in the log it was replayed to every page that loaded or
+	// reconnected afterwards, and the form popped open again long after
+	// the provider was connected.
+	if e.Type != "connect" {
+		s.log = append(s.log, e)
+		if len(s.log) > 2000 {
+			s.log = s.log[len(s.log)-1500:]
+		}
 	}
 	for ch := range s.subs {
 		select {

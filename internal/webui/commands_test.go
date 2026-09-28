@@ -213,3 +213,20 @@ func TestRoutineNoticeIsNotShownOnTheWeb(t *testing.T) {
 		t.Fatalf("a routine notice was added: %+v", s.entries[len(s.entries)-1])
 	}
 }
+
+// /connect asks the pages open now to show the connect form. Kept in the
+// replay log, it reopened the form on every later page load and every
+// reconnect, long after the provider was connected.
+func TestConnectRequestIsNotReplayed(t *testing.T) {
+	s := newServer(context.Background(), Options{})
+	if err := s.runCommand("/connect"); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.log {
+		if e.Type == "connect" {
+			t.Fatalf("connect envelope kept in the replay log: %+v", s.log)
+		}
+	}
+}
