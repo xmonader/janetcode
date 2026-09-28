@@ -76,12 +76,19 @@ func Latest(ctx context.Context, client *http.Client, base string) (string, erro
 	return tag, nil
 }
 
-var semver = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)`)
+var (
+	semver = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)(.*)$`)
+	// describeTail is what git describe appends past a tag: commits since
+	// it, the commit, and whether the tree was dirty.
+	describeTail = regexp.MustCompile(`(-\d+-g[0-9a-f]+)?(-dirty)?$`)
+)
 
 // Newer reports whether tag is a later release than current. A build
 // from a commit past a tag ("v0.3.0-12-gabc") counts as that tag, so it
-// is not "updated" to the release it already contains. ok is false when
-// current is not a release version at all (a dev build).
+// is not "updated" to the release it already contains. A prerelease
+// ("v0.3.0-rc1") comes before its release, as in semver, so an rc build
+// does update to the release it led to. ok is false when current is not
+// a release version at all (a dev build).
 func Newer(tag, current string) (newer, ok bool) {
 	t, c := semver.FindStringSubmatch(tag), semver.FindStringSubmatch(current)
 	if t == nil || c == nil {
@@ -94,7 +101,53 @@ func Newer(tag, current string) (newer, ok bool) {
 			return a > b, true
 		}
 	}
-	return false, true
+	return comparePre(prerelease(t[4]), prerelease(c[4])) > 0, true
+}
+
+// prerelease is the semver prerelease in what follows vX.Y.Z, with git
+// describe's tail and any +build metadata dropped: "-rc1-3-gabc-dirty"
+// is "rc1", "-12-gabc" is "".
+func prerelease(rest string) string {
+	rest, _, _ = strings.Cut(rest, "+")
+	rest = describeTail.ReplaceAllString(rest, "")
+	return strings.TrimPrefix(rest, "-")
+}
+
+// comparePre orders two prereleases by semver's rules: none is later than
+// any; otherwise dot-separated identifiers compare in turn, numeric ones
+// as numbers and below alphanumeric ones, and a longer list wins a tie.
+func comparePre(a, b string) int {
+	switch {
+	case a == b:
+		return 0
+	case a == "":
+		return 1
+	case b == "":
+		return -1
+	}
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) && i < len(bs); i++ {
+		x, xerr := strconv.ParseUint(as[i], 10, 64)
+		y, yerr := strconv.ParseUint(bs[i], 10, 64)
+		switch {
+		case xerr == nil && yerr == nil:
+			if x != y {
+				if x > y {
+					return 1
+				}
+				return -1
+			}
+		case xerr == nil:
+			return -1
+		case yerr == nil:
+			return 1
+		default:
+			if c := strings.Compare(as[i], bs[i]); c != 0 {
+				return c
+			}
+		}
+	}
+	return len(as) - len(bs)
 }
 
 // Result says what Run did.

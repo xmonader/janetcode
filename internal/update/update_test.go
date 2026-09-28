@@ -113,6 +113,17 @@ func TestNewer(t *testing.T) {
 		{"v1.0.0", "v0.99.0-3-gabc", true, true},
 		{"v0.3.0", "v0.3.0-dirty", false, true},
 		{"v0.3.0", "dev", false, false},
+		// A prerelease comes before its release, and a describe tail on
+		// either does not change that.
+		{"v0.3.0", "v0.3.0-rc1", true, true},
+		{"v0.3.0", "v0.3.0-rc1-4-gabc123", true, true},
+		{"v0.3.0", "v0.3.0-rc.2-dirty", true, true},
+		{"v0.3.0-rc1", "v0.3.0", false, true},
+		{"v0.3.0-rc2", "v0.3.0-rc1", true, true},
+		{"v0.3.0-rc.10", "v0.3.0-rc.9", true, true},
+		{"v0.3.0-rc.1", "v0.3.0-rc.1-2-gabc", false, true},
+		{"v0.3.0", "v0.3.0-7-gabc123-dirty", false, true},
+		{"v0.2.9", "v0.3.0-rc1", false, true},
 	} {
 		n, ok := Newer(c.tag, c.cur)
 		if n != c.newer || ok != c.okay {
