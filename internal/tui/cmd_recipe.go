@@ -133,7 +133,21 @@ func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 	m.term.turnEnded(res.Error == "" && res.Handover == "", m.status)
 	m.refresh(false)
 	if res.Handover != "" {
+		// What was queued meanwhile waits behind the handover turn,
+		// whose end sends it.
 		return m.submit(res.Handover)
 	}
-	return nil
+	return m.sendQueued()
+}
+
+// sendQueued starts the first prompt queued while something ran that was
+// not a turn (/verify, /recipe run), the way the end of a turn does.
+// Without it a prompt queued "until this turn ends" waited for the end of
+// some later turn instead.
+func (m *model) sendQueued() tea.Cmd {
+	next, ok := m.turn.dequeue()
+	if !ok {
+		return nil
+	}
+	return m.submit(next)
 }

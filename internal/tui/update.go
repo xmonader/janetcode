@@ -277,8 +277,9 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		m.turn.setPhase("")
 		if msg.err != nil {
 			m.transcript.errorf("%s: %v", msg.command, msg.err)
+			cmd := m.sendQueued()
 			m.refresh(false)
-			return nil, true
+			return cmd, true
 		}
 		return m.submit(msg.text), true
 
@@ -355,8 +356,9 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 
 	case verifyDoneMsg:
 		m.finishVerify(msg)
+		cmd := m.sendQueued()
 		m.refresh(false)
-		return nil, true
+		return cmd, true
 
 	case mcpAuthMsg:
 		switch {

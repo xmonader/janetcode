@@ -8,6 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/recipe"
 )
 
 // TestConnectEscFromAPresetURLGoesBackToTheList: a preset goes from the
@@ -56,7 +57,32 @@ func TestTrajectoryPageUpStaysInTheList(t *testing.T) {
 	}
 }
 
-// TestConnectIgnoresAModelListFromAnEarlierVisit:the model step's list
+// TestQueuedPromptSentAfterVerifyAndRecipe: a prompt typed while /verify
+// or /recipe run ran is queued "until this turn ends", but neither's end
+// sent the queue: the prompt sat there until some later turn finished.
+func TestQueuedPromptSentAfterVerifyAndRecipe(t *testing.T) {
+	for name, done := range map[string]tea.Msg{
+		"verify": verifyDoneMsg{},
+		"recipe": recipeDoneMsg{recipe: recipe.Recipe{Name: "r"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+			h.m.startTurn("working")
+			h.keys("and then this")
+			h.enter()
+			if len(h.m.turn.queued) != 1 {
+				t.Fatalf("queued = %q", h.m.turn.queued)
+			}
+			h.update(done)
+			if len(h.m.turn.queued) != 0 || !h.m.turn.running {
+				t.Fatalf("after %s the queue is %q and running=%v; want it sent", name, h.m.turn.queued, h.m.turn.running)
+			}
+			h.pump(func() bool { return !h.m.turn.running })
+		})
+	}
+}
+
+// TestConnectIgnoresAModelListFromAnEarlierVisit: the model step's list
 // was matched by dialog only, so a list still in flight from an earlier
 // visit to the step (a key since replaced) landed in the new one.
 func TestConnectIgnoresAModelListFromAnEarlierVisit(t *testing.T) {
