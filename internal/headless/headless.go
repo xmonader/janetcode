@@ -121,6 +121,12 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 			return nil
 		}
 		out, exit := check(ctx, opts.Cwd, opts.Until)
+		if err := ctx.Err(); err != nil {
+			// The interrupt killed the check; it did not fail. Reading
+			// it as a failed round exited 1 ("did not pass") instead of
+			// 130, or started another turn to fix a check nobody broke.
+			return err
+		}
 		if exit == 0 {
 			// The turn's verdict was printed before this check ran and may
 			// have said "unverified"; the check that just passed is the

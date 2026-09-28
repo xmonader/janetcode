@@ -402,3 +402,29 @@ func TestWatchedCommandOutputIsStripped(t *testing.T) {
 		t.Fatalf("safeLine kept an escape: %q", got)
 	}
 }
+
+// An interrupt that lands while the --until check is running kills the
+// check, and the dead check was read as a failed round: the last round
+// reported the check as not passing and exited 1 instead of 130, and an
+// earlier one printed a bogus failure and started another turn.
+func TestUntilInterruptedDuringTheCheckExitsAsCancelled(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var out, errOut bytes.Buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		cancel()
+	}()
+	err := Run(ctx, Options{Agent: ag, Prompt: "x", Stdout: &out, Stderr: &errOut, Until: "sleep 30", UntilRounds: 1, Cwd: root})
+	if code := ExitCode(err); code != ExitCancelled {
+		t.Fatalf("exit = %d (%v), want %d\n%s", code, err, ExitCancelled, errOut.String())
+	}
+	if strings.Contains(errOut.String(), "failed") {
+		t.Fatalf("an interrupted check was reported as a failed round:\n%s", errOut.String())
+	}
+}
