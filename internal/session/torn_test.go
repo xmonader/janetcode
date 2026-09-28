@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -109,5 +110,38 @@ func TestIntactSessionIsNotMarkedTorn(t *testing.T) {
 	}
 	if reopened.torn {
 		t.Fatal("a complete log was flagged torn")
+	}
+}
+
+// A repair that itself fails — the directory has gone read-only, the
+// disk is full — must leave the session still marked torn. It used to
+// clear the flag before trying, so the write after the failed one
+// appended straight onto the partial line and the next Open refused the
+// whole session.
+func TestFailedRepairStaysTorn(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs a directory the process cannot write")
+	}
+	dir := t.TempDir()
+	id := tornSession(t, dir).Meta.ID
+	reopened, _, err := Open(dir, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	msg := llm.TextMessage(llm.RoleUser, "lost")
+	if _, err := reopened.Append(Event{Type: TypeUserMessage, Surface: true, Message: &msg}); err == nil {
+		t.Fatal("append into a read-only directory succeeded")
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	put(t, reopened, llm.TextMessage(llm.RoleUser, "second"))
+	if _, msgs, err := Open(dir, id); err != nil {
+		t.Fatalf("reopen after a failed repair: %v", err)
+	} else if len(msgs) != 2 || msgs[1].Text() != "second" {
+		t.Fatalf("messages = %v, want first then second", msgs)
 	}
 }

@@ -336,16 +336,23 @@ func (s *Session) Append(e Event) (int, error) {
 	if e.Time.IsZero() {
 		e.Time = time.Now().UTC()
 	}
+	b, err := json.Marshal(eventLine{Type: "event", Event: e})
+	if err != nil {
+		return 0, err
+	}
 	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return 0, err
 	}
-	w := bufio.NewWriter(f)
-	if err := writeLine(w, eventLine{Type: "event", Event: e}); err != nil {
-		f.Close()
-		return 0, err
-	}
-	if err := w.Flush(); err != nil {
+	// The record and its newline go down in one write. Through a
+	// bufio.Writer a line longer than its buffer was two — the JSON, then
+	// the newline — and another process appending to the same log between
+	// them glued its record onto this one. A write that fails part way
+	// (a full disk) leaves a partial line on disk exactly as a crash does,
+	// so it is marked torn the same way and the next write rewrites the
+	// file from memory instead of appending onto the wreckage.
+	if _, err := f.Write(append(b, '\n')); err != nil {
+		s.torn = true
 		f.Close()
 		return 0, err
 	}
@@ -574,7 +581,6 @@ func (s *Session) rewrite() error {
 
 // rewriteLocked is rewrite for a caller already holding s.mu.
 func (s *Session) rewriteLocked() error {
-	s.unwritten, s.torn = false, false
 	var buf bytes.Buffer
 	w := bufio.NewWriter(&buf)
 	if err := writeLine(w, line{Type: "meta", Meta: &s.Meta}); err != nil {
@@ -588,7 +594,15 @@ func (s *Session) rewriteLocked() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	return fsutil.WriteFileAtomic(s.path, buf.Bytes(), fsutil.PrivateFileMode)
+	// The flags are cleared only once the file is replaced: a rewrite that
+	// fails (a full disk, a directory gone read-only) leaves the torn file
+	// where it was, and the next Append has to know to rewrite it again
+	// rather than append onto its partial last line.
+	if err := fsutil.WriteFileAtomic(s.path, buf.Bytes(), fsutil.PrivateFileMode); err != nil {
+		return err
+	}
+	s.unwritten, s.torn = false, false
+	return nil
 }
 
 func writeLine(w *bufio.Writer, v any) error {
