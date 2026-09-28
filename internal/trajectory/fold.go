@@ -108,6 +108,13 @@ func Fold(events []session.Event) Ledger {
 			}
 
 		case session.TypeToolResult:
+			if e.CallID == "" && e.Message != nil {
+				// The step's results as the history message the model is
+				// sent, not one call's answer: each call's own result is
+				// its own event, and a call with none — cancelled mid-run
+				// — must stay unanswered rather than take this for one.
+				continue
+			}
 			i, ok := byCall[e.CallID]
 			if !ok {
 				// A refused or recovered call can be logged without its

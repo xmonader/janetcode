@@ -243,3 +243,24 @@ func TestFoldAttachesAnIdlessResultToTheWaitingCall(t *testing.T) {
 		t.Fatalf("the result did not reach its call: %+v", r)
 	}
 }
+
+// A step's tool results also go on the log as one surface message, the
+// history the model is sent: no call id, no name, no output. A call that
+// was cancelled mid-run has no result of its own, and that message was
+// taken for its answer — the call read "(no output)", finished, instead
+// of the cancelled call it was.
+func TestFoldTheStepsResultMessageAnswersNoCall(t *testing.T) {
+	base := time.Now()
+	tr := llm.ToolResultMessage(llm.ToolResult("c1", "Cancelled by user before the tool finished.", true))
+	ev := []session.Event{
+		{Seq: 1, Time: at(base, 0), Type: session.TypeStepStart, Turn: 1, Step: 1},
+		{Seq: 2, Time: at(base, 1), Type: session.TypeToolCall, Turn: 1, Step: 1,
+			CallID: "c1", Name: "bash", Arguments: `{"command":"sleep 100"}`},
+		{Seq: 3, Time: at(base, 900), Type: session.TypeToolResult, Turn: 1, Step: 1,
+			Surface: true, Message: &tr},
+	}
+	l := Fold(ev)
+	if len(l.All) != 1 || !l.All[0].Running {
+		t.Fatalf("the cancelled call no longer reads as unanswered: %+v", l.All)
+	}
+}
