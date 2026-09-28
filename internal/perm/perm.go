@@ -179,7 +179,7 @@ func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
 		return Denied, Rule{Tool: c.Tool}, why
 	}
 	for _, r := range rs.Deny {
-		if r.matchesCall(c) {
+		if r.matchesCall(c) || r.matchesSegment(c) {
 			return Denied, r, ""
 		}
 	}
@@ -261,6 +261,32 @@ func (r Rule) matchesCall(c Call) bool {
 		}
 	}
 	return true
+}
+
+// matchesSegment reports whether a bare bash pattern matches any one
+// command of a compound line (split at pipes, &&, ||, ; and newlines, see
+// shell.Segments). It is what a deny rule is also matched with: a rule is
+// a prefix, so bash(rm *) matched against the whole line was walked past
+// by `ls && rm -rf src`, and a deny that the model can step around by
+// putting any command first denies nothing. Allow rules are not matched
+// this way — one allowed segment must not allow the rest of the line.
+func (r Rule) matchesSegment(c Call) bool {
+	if c.Tool != "bash" || (r.Tool != "bash" && r.Tool != "*") || r.Pattern == "" {
+		return false
+	}
+	if r = r.compile(); r.paramRule {
+		return false
+	}
+	segs := shell.Segments(c.Subject)
+	if len(segs) < 2 {
+		return false
+	}
+	for _, s := range segs {
+		if s = strings.TrimSpace(s); s != "" && Match(r.Pattern, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // otherSpelling is the second way a file tool's path names the same
