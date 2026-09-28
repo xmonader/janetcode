@@ -157,6 +157,16 @@ func (m *model) openThemePicker() tea.Cmd {
 			if name == "" {
 				name = typed
 			}
+			// A typed name that is no theme is refused below; the
+			// preview that was up when the list ran out of matches
+			// must not stay in force as though it had been kept.
+			switch strings.ToLower(strings.TrimSpace(name)) {
+			case "auto", "dark", "light":
+			default:
+				if !set.Has(name) {
+					m.applyThemeChoice(saved, false)
+				}
+			}
 			m.applyThemeChoice(name, true)
 			return nil
 		},

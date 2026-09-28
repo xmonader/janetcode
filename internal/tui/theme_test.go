@@ -62,6 +62,35 @@ func TestThemeSwitchLiveAndPersisted(t *testing.T) {
 	}
 }
 
+// TestThemePickerUnknownNameRestores: typing past every match and pressing
+// enter hands the typed text over as a theme name. An unknown one was
+// refused, but the theme last previewed stayed on screen and in the
+// session's config as though it had been kept.
+func TestThemePickerUnknownNameRestores(t *testing.T) {
+	h := newHarness(t)
+	set, err := theme.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.m.opts.Themes = set
+	h.m.opts.Config = &config.Config{Theme: "auto"}
+	h.m.opts.Theme = "auto"
+	h.keys("/theme")
+	h.enter()
+	h.keys("matrix")
+	if h.m.styles.themeName != "matrix" {
+		t.Fatalf("highlight should preview matrix, got %q", h.m.styles.themeName)
+	}
+	h.keys("zzz")
+	h.enter()
+	if h.m.picker != nil {
+		t.Fatal("enter should close the picker")
+	}
+	if h.m.opts.Theme != "auto" || h.m.opts.Config.Theme != "auto" || h.m.styles.themeName != theme.DefaultName {
+		t.Fatalf("an unknown name left the preview in force: theme %q config %q palette %q", h.m.opts.Theme, h.m.opts.Config.Theme, h.m.styles.themeName)
+	}
+}
+
 func TestThemePickerListsMatrixAndPreviewsBeforeApply(t *testing.T) {
 	h := newHarness(t)
 	set, err := theme.Build(nil)
