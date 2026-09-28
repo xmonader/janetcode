@@ -124,15 +124,13 @@ func expandImports(text, dir, root string, seen map[string]bool, depth int, budg
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
 			fenced = !fenced
 		}
-		ref, ok := importRef(line)
-		if !ok || fenced {
-			b.WriteString(line)
-			if i < len(lines)-1 {
-				b.WriteByte('\n')
+		out := line
+		if ref, ok := importRef(line); ok && !fenced {
+			if s, ok := importedText(ref, dir, root, seen, depth, budget); ok {
+				out = s
 			}
-			continue
 		}
-		b.WriteString(importedText(ref, dir, root, seen, depth, budget))
+		b.WriteString(out)
 		if i < len(lines)-1 {
 			b.WriteByte('\n')
 		}
@@ -155,7 +153,10 @@ func importRef(line string) (string, bool) {
 	return ref, true
 }
 
-func importedText(ref, dir, root string, seen map[string]bool, depth int, budget *int) string {
+// importedText is what an @ref line becomes. ok is false when ref names
+// no file in the project (an @handle, a package name, a directory): the
+// line was not an import, and is kept as the author wrote it.
+func importedText(ref, dir, root string, seen map[string]bool, depth int, budget *int) (string, bool) {
 	target := ref
 	if !filepath.IsAbs(target) {
 		target = filepath.Join(dir, target)
@@ -163,22 +164,25 @@ func importedText(ref, dir, root string, seen map[string]bool, depth int, budget
 	key := resolvePath(target)
 	switch {
 	case !within(key, root):
-		return fmt.Sprintf("[import of %s skipped: it is outside the project]", ref)
+		return fmt.Sprintf("[import of %s skipped: it is outside the project]", ref), true
 	case seen[key]:
-		return fmt.Sprintf("[import of %s skipped: it is already included]", ref)
+		return fmt.Sprintf("[import of %s skipped: it is already included]", ref), true
 	case depth >= maxImportDepth:
-		return fmt.Sprintf("[import of %s skipped: imports are only followed %d deep]", ref, maxImportDepth)
+		return fmt.Sprintf("[import of %s skipped: imports are only followed %d deep]", ref, maxImportDepth), true
+	}
+	if fi, err := os.Stat(target); err != nil || !fi.Mode().IsRegular() {
+		return "", false
 	}
 	data, err := os.ReadFile(target)
 	if err != nil {
-		return fmt.Sprintf("[import of %s skipped: %v]", ref, err)
+		return fmt.Sprintf("[import of %s skipped: %v]", ref, err), true
 	}
 	seen[key] = true
 	body := strings.TrimSpace(string(data))
 	if len(body) > *budget {
 		body = textfmt.CutBytes(body, max(*budget, 0)) + "\n... (truncated)"
 	}
-	return expandImports(body, filepath.Dir(target), root, seen, depth+1, budget)
+	return expandImports(body, filepath.Dir(target), root, seen, depth+1, budget), true
 }
 
 // within reports whether p is root or inside it, after symlinks.

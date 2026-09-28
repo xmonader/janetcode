@@ -116,6 +116,20 @@ func TestImportsAreBounded(t *testing.T) {
 	}
 }
 
+// A line shaped like an import that names no file in the project (a
+// handle, a package name, a directory) reads as the author wrote it,
+// not as an error message about a file that was never meant.
+func TestAnImportOfNoFileIsLeftAsWritten(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeFile(t, filepath.Join(root, "docs", "a.md"), "x\n")
+	writeFile(t, filepath.Join(root, "JANETCODE.md"), "Owners:\n  @alice\nNeeds:\n@types/node\n@docs\n")
+	text := Instructions(root)[0].Text
+	if strings.Contains(text, "skipped") || !strings.Contains(text, "\n  @alice\n") || !strings.Contains(text, "@types/node\n@docs") {
+		t.Fatalf("text = %q", text)
+	}
+}
+
 func TestOnlyAWholeLineIsAnImport(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
