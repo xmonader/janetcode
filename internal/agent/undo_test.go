@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -81,8 +82,14 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 	if err := a.Run(context.Background(), "write", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(a.UndoPath); err != nil {
+	st, err := os.Stat(a.UndoPath)
+	if err != nil {
 		t.Fatal("undo file not written after the turn")
+	}
+	// It is a session sidecar holding the contents of the files the turn
+	// changed, so it is as private as the session log beside it.
+	if perm := st.Mode().Perm(); runtime.GOOS != "windows" && perm&0o077 != 0 {
+		t.Fatalf("undo file is %v, want it readable by the user alone", perm)
 	}
 	// A fresh agent (a resumed session) picks the checkpoints up.
 	b := &Agent{}

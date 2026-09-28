@@ -204,7 +204,9 @@ func (k *checkpoints) SaveUndo() error {
 	if err != nil {
 		return err
 	}
-	return fsutil.AtomicWrite(k.UndoPath, data)
+	// A session sidecar: it holds the contents of the files the turns
+	// changed, so it is private like the log beside it.
+	return fsutil.AtomicWriteMode(k.UndoPath, data, fsutil.PrivateFileMode)
 }
 
 // LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.
