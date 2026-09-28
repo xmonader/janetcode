@@ -60,6 +60,31 @@ func TestCuratorPinArchiveRestore(t *testing.T) {
 	}
 }
 
+// Moving a skill file never replaces one of the same name: rename does,
+// silently, so restoring an archived auto-skill over one regenerated
+// since (or archiving over an older archived copy) lost a file.
+func TestCuratorDoesNotMoveOverAFileOfTheSameName(t *testing.T) {
+	cwd := t.TempDir()
+	skills := filepath.Join(cwd, ".janetcode", "skills")
+	write(t, filepath.Join(skills, "auto-skill-bar.md"), "---\nsource: auto-skill\n---\nOld bar.\n")
+	if _, err := Curate(cwd, nil, "archive auto-skill-bar"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(skills, "auto-skill-bar.md"), "---\nsource: auto-skill\n---\nNew bar.\n")
+	if _, err := Curate(cwd, nil, "restore auto-skill-bar"); err == nil {
+		t.Fatal("restore replaced a skill of the same name")
+	}
+	if data, _ := os.ReadFile(filepath.Join(skills, "auto-skill-bar.md")); !strings.Contains(string(data), "New bar.") {
+		t.Fatalf("current skill lost: %q", data)
+	}
+	if _, err := Curate(cwd, nil, "archive auto-skill-bar"); err == nil {
+		t.Fatal("archive replaced an archived skill of the same name")
+	}
+	if data, _ := os.ReadFile(filepath.Join(cwd, ".janetcode", "archived-skills", "auto-skill-bar.md")); !strings.Contains(string(data), "Old bar.") {
+		t.Fatalf("archived skill lost: %q", data)
+	}
+}
+
 func TestSkillOriginFromName(t *testing.T) {
 	s := Skill{Name: "auto-skill-bar"}
 	if !s.Auto() {

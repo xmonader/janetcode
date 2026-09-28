@@ -142,7 +142,7 @@ func archiveSkill(cwd, name string) (string, error) {
 		src = s.Dir
 	}
 	dst := filepath.Join(dstDir, filepath.Base(src))
-	if err := os.Rename(src, dst); err != nil {
+	if err := moveNew(src, dst); err != nil {
 		return "", err
 	}
 	return "archived " + s.Name + " → " + dst, nil
@@ -158,10 +158,22 @@ func restoreSkill(cwd, name string) (string, error) {
 		return "", err
 	}
 	dst := filepath.Join(dstDir, filepath.Base(src))
-	if err := os.Rename(src, dst); err != nil {
+	if err := moveNew(src, dst); err != nil {
 		return "", err
 	}
 	return "restored " + filepath.Base(src), nil
+}
+
+// moveNew renames src to dst unless something is already at dst: rename
+// replaces a file there without a word, which lost an auto-skill
+// regenerated since its namesake was archived.
+func moveNew(src, dst string) error {
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists; move or remove it first", dst)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.Rename(src, dst)
 }
 
 func findProjectAuto(cwd, name string) (Skill, error) {
