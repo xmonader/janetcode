@@ -61,6 +61,32 @@ func TestReadRecoversResponses(t *testing.T) {
 	}
 }
 
+// Compaction that strips thinking from earlier turns logs the rewritten
+// assistant message as a replacement event of the same type. It is not a
+// model call, and serving it as one handed a later request a stale reply.
+func TestReadSkipsReplacementEvents(t *testing.T) {
+	rec := recording + `{"type":"event","seq":7,"t":"assistant/message","turn":1,"surface":true,"surface_op":"replace","replaces":[3],"message":{"role":"assistant","blocks":[{"type":"text","text":"Looking."},{"type":"tool_use","id":"c1","name":"bash","input":{"command":"ls"}}]}}
+{"type":"event","seq":8,"t":"turn/start","turn":2}
+{"type":"event","seq":9,"t":"assistant/message","turn":2,"surface":true,"message":{"role":"assistant","blocks":[{"type":"text","text":"Second turn."}]}}
+`
+	p, err := Read(strings.NewReader(rec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Remaining() != 3 {
+		t.Fatalf("remaining = %d, want 3 model calls", p.Remaining())
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := p.Stream(context.Background(), llm.Request{}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil || r.Message.Text() != "Second turn." {
+		t.Fatalf("third response = %+v, %v; want the second turn's reply", r, err)
+	}
+}
+
 func TestStreamEmitsBlocks(t *testing.T) {
 	p, _ := Read(strings.NewReader(recording))
 	var kinds []llm.EventType

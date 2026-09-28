@@ -95,10 +95,11 @@ func Read(r io.Reader) (*Provider, error) {
 		var rec struct {
 			Type  string `json:"type"`
 			Event struct {
-				Type    string       `json:"t"`
-				Turn    int          `json:"turn"`
-				Message *llm.Message `json:"message"`
-				Usage   *llm.Usage   `json:"usage"`
+				Type      string       `json:"t"`
+				Turn      int          `json:"turn"`
+				SurfaceOp string       `json:"surface_op"`
+				Message   *llm.Message `json:"message"`
+				Usage     *llm.Usage   `json:"usage"`
 			}
 		}
 		// The log writes the event's fields alongside "type":"event", so
@@ -111,7 +112,12 @@ func Read(r io.Reader) (*Provider, error) {
 		}
 		switch rec.Event.Type {
 		case session.TypeAssistant:
-			if rec.Event.Message == nil {
+			// A replacement is the harness rewriting a message the model
+			// already sent — compaction dropping old thinking blocks — not
+			// a model call. Served as one, it answered a later request
+			// with a stale earlier message and put every reply after it
+			// out of step.
+			if rec.Event.Message == nil || rec.Event.SurfaceOp == session.SurfaceOpReplace {
 				continue
 			}
 			resp := &llm.Response{Message: *rec.Event.Message, StopReason: stopOf(*rec.Event.Message)}
