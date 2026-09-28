@@ -762,3 +762,46 @@ func TestAnEmptyManifestIsNotAMissingManifest(t *testing.T) {
 		})
 	}
 }
+
+// TestUndoRevertsAnIgnoredFile: git's snapshot does not record an
+// ignored file, and the git path of the undo returned without looking at
+// the file tools' copies — so a turn's edit to .env stayed, and the undo
+// reported nothing wrong.
+func TestUndoRevertsAnIgnoredFile(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":".env","content":"TURN=1\n"}`),
+		toolCall("t2", "write_file", `{"path":"made.log","content":"new\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".env\n*.log\n"), 0o644)
+	os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=orig\n"), 0o644)
+	gitInit(t, root)
+	repo, err := snapshot.Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	done, err := a.Undo(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, ".env")); string(data) != "SECRET=orig\n" {
+		t.Fatalf(".env = %q after undo (done: %q)", data, done)
+	}
+	if _, err := os.Stat(filepath.Join(root, "made.log")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the ignored file the turn created is still there")
+	}
+	// And redo brings the turn's version back.
+	if _, err := a.Redo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, ".env")); string(data) != "TURN=1\n" {
+		t.Fatalf(".env = %q after redo", data)
+	}
+}

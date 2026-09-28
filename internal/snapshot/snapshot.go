@@ -241,6 +241,108 @@ func (r *Repo) apply(ctx context.Context, idx string, s Snap, items [][2]string)
 	return done, errors.Join(errs...)
 }
 
+// Uncovered returns the paths among paths (absolute) that restoring the
+// snapshot does not account for: outside the work tree, inside .git,
+// below a symlink, or ignored and absent from the snapshot. Restore
+// neither puts such a path back nor removes it, so whoever holds another
+// copy of it — the file tools' own — has to.
+func (r *Repo) Uncovered(ctx context.Context, s Snap, paths []string) ([]string, error) {
+	idx, cleanup, err := r.tempIndex()
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	// The snapshot's own tree as the index: a path it holds is tracked,
+	// which check-ignore never reports, however the rules read now.
+	if _, err := r.run(ctx, idx, "read-tree", s.Commit); err != nil {
+		return nil, err
+	}
+	var (
+		out  []string
+		rels []string
+		abs  = map[string][]string{}
+	)
+	for _, p := range paths {
+		rel, ok := r.rel(p)
+		if !ok {
+			out = append(out, p)
+			continue
+		}
+		if abs[rel] == nil {
+			rels = append(rels, rel)
+		}
+		abs[rel] = append(abs[rel], p)
+	}
+	ignored := func(rels ...string) ([]string, error) {
+		var in []byte
+		for _, rel := range rels {
+			in = append(append(in, rel...), 0)
+		}
+		o, err := gitx.RunInputEnv(ctx, r.Root, []string{"GIT_INDEX_FILE=" + idx}, in, "check-ignore", "--stdin", "-z")
+		if gitx.ExitCode(err) == 1 {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return strings.Split(strings.TrimSuffix(string(o), "\x00"), "\x00"), nil
+	}
+	found, err := ignored(rels...)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, err
+		}
+		// One path git refuses outright (below a symlink, in a nested
+		// repository) fails the whole call. Asked one at a time, such a
+		// path is one `git add -A` did not record either.
+		found = nil
+		for _, rel := range rels {
+			f, err := ignored(rel)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if err != nil {
+				f = []string{rel}
+			}
+			found = append(found, f...)
+		}
+	}
+	for _, rel := range found {
+		out = append(out, abs[rel]...)
+	}
+	return out, nil
+}
+
+// rel is p relative to the work tree in git's spelling, or false when p
+// is not somewhere a snapshot records: outside the tree, or in .git. The
+// directory part is resolved through symlinks, since git reports the top
+// level with them resolved (/tmp is /private/tmp on macOS).
+func (r *Repo) rel(p string) (string, bool) {
+	dir, base := filepath.Dir(p), filepath.Base(p)
+	for {
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			p = filepath.Join(real, base)
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		base = filepath.Join(filepath.Base(dir), base)
+		dir = parent
+	}
+	root := r.Root
+	if real, err := filepath.EvalSymlinks(root); err == nil {
+		root = real
+	}
+	rel, err := filepath.Rel(root, p)
+	sep := string(filepath.Separator)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+sep) || rel == ".git" || strings.HasPrefix(rel, ".git"+sep) {
+		return "", false
+	}
+	return filepath.ToSlash(rel), true
+}
+
 // Moved reports whether HEAD is no longer where the snapshot was taken,
 // which is exactly what makes Restore refuse with ErrHeadMoved. A caller
 // that wants to say so before touching anything (see /undo turn) asks

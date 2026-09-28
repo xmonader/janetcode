@@ -210,6 +210,12 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 			// restore. Refuse instead, with nothing changed.
 			return UndoReport{}, fmt.Errorf("%w: the repository moved since turn %d was snapshotted, so its work tree cannot be put back", err, tr.Turn)
 		}
+		// The paths git does not record, which the preview listed from
+		// the file copies, go back from those copies.
+		rest, uerr := uncoveredCopies(context.WithoutCancel(ctx), repo, *cp.Snap, cp.Files)
+		d, cerrs := restoreCopies(rest, cp, false)
+		done = append(done, d...)
+		err = errors.Join(append([]error{err, uerr}, cerrs...)...)
 	} else {
 		// Unscoped, like the git branch above: this command restores the
 		// whole tree to before the turn, not just what the turn changed.

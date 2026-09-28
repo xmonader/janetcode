@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -150,6 +151,46 @@ func TestRestoreKeepsFilesIgnoredWhenTheSnapshotWasTaken(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "made.txt")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("the turn's own file was not removed")
+	}
+}
+
+// Uncovered names exactly the paths a restore leaves to somebody else:
+// ignored and not in the snapshot, outside the tree, or in .git.
+func TestUncovered(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	r, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := r.Take(ctx, "turn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A link to the tree: paths through it are still the tree's.
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Skip(err)
+	}
+	outside := filepath.Join(t.TempDir(), "x.txt")
+	paths := []string{
+		filepath.Join(root, "a.txt"),              // tracked
+		filepath.Join(root, "new.txt"),            // untracked, not ignored
+		filepath.Join(root, "ignored.log"),        // ignored
+		filepath.Join(link, "sub", "ignored.log"), // ignored, through a link, in a directory not there yet
+		filepath.Join(link, "c.txt"),              // tracked, through a link
+		filepath.Join(root, ".git", "config"),
+		outside,
+	}
+	got, err := r.Uncovered(ctx, s, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(got)
+	want := []string{filepath.Join(root, ".git", "config"), filepath.Join(root, "ignored.log"), filepath.Join(link, "sub", "ignored.log"), outside}
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("Uncovered = %q\nwant %q", got, want)
 	}
 }
 

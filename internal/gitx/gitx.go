@@ -109,6 +109,12 @@ func RunInput(ctx context.Context, dir string, input []byte, args ...string) ([]
 	return run(ctx, dir, nil, input, args)
 }
 
+// RunInputEnv is RunInput with env appended to the process environment,
+// as Run takes it.
+func RunInputEnv(ctx context.Context, dir string, env []string, input []byte, args ...string) ([]byte, error) {
+	return run(ctx, dir, env, input, args)
+}
+
 func run(ctx context.Context, dir string, env []string, input []byte, args []string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir

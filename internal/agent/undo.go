@@ -749,8 +749,14 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint, scoped bool) ([]stri
 		}
 		cancel()
 		if err == nil || !errors.Is(err, snapshot.ErrHeadMoved) {
+			// What git does not record — an ignored file, one outside the
+			// work tree — only the file tools' copies can put back.
+			// Returning here without them left a turn's edit to .env in
+			// place and reported the undo done.
+			rest, uerr := uncoveredCopies(context.WithoutCancel(ctx), repo, *cp.Snap, cp.Files)
 			repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
-			return append(done, reverted...), err
+			d, cerrs := restoreCopies(rest, cp, scoped)
+			return append(append(done, reverted...), d...), errors.Join(append([]error{err, uerr}, cerrs...)...)
 		}
 		if len(cp.Files) == 0 {
 			return nil, fmt.Errorf("%w: undo only knows how to revert this turn's shell changes through git, and HEAD is no longer where the snapshot was taken", err)
@@ -758,12 +764,58 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint, scoped bool) ([]stri
 		errs = append(errs, fmt.Errorf("%w; only the changes made through file tools were reverted", err))
 		repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
 	}
+	d, cerrs := restoreCopies(cp.Files, cp, scoped)
+	return append(done, d...), errors.Join(append(errs, cerrs...)...)
+}
+
+// uncoveredCopies are the file copies of the paths a git restore of snap
+// leaves untouched (see snapshot.Repo.Uncovered). A Snapshotter that
+// cannot say — a test's fake — covers everything, as a git restore was
+// always taken to.
+func uncoveredCopies(ctx context.Context, repo Snapshotter, snap snapshot.Snap, files []Snapshot) ([]Snapshot, error) {
+	u, ok := repo.(interface {
+		Uncovered(context.Context, snapshot.Snap, []string) ([]string, error)
+	})
+	if !ok || len(files) == 0 {
+		return nil, nil
+	}
+	paths := make([]string, len(files))
+	for i, f := range files {
+		paths[i] = f.Path
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	out, err := u.Uncovered(ctx, snap, paths)
+	if err != nil {
+		return nil, fmt.Errorf("git could not say which of the edited files it tracks, so any it ignores or that lie outside the repository were not reverted: %w", err)
+	}
+	want := make(map[string]bool, len(out))
+	for _, p := range out {
+		want[p] = true
+	}
+	var rest []Snapshot
+	for _, f := range files {
+		if want[f.Path] {
+			rest = append(rest, f)
+		}
+	}
+	return rest, nil
+}
+
+// restoreCopies puts back the file tools' copies of the state before the
+// turn: the fallback when git cannot restore, and the whole story for a
+// path git does not record. scoped is restore's.
+func restoreCopies(files []Snapshot, cp Checkpoint, scoped bool) ([]string, []error) {
+	var (
+		done []string
+		errs []error
+	)
 	// Restore in reverse so a file created then edited ends up removed.
 	// (This was a sort.SliceStable whose "less" compared the indices it
 	// was handed rather than the elements at them, which is not an
 	// ordering at all and only reversed the slice by accident of the
 	// algorithm in use.)
-	files := append([]Snapshot(nil), cp.Files...)
+	files = slices.Clone(files)
 	slices.Reverse(files)
 	// The same manifest guard the git path gets. Without it this branch —
 	// every workspace that is not a git repository, and a git one whose
@@ -799,5 +851,5 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint, scoped bool) ([]stri
 			done = append(done, "removed "+f.Path)
 		}
 	}
-	return done, errors.Join(errs...)
+	return done, errs
 }
