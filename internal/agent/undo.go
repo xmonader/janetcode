@@ -14,7 +14,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -717,20 +716,23 @@ func (a *Agent) rollbackConversation(cp Checkpoint) {
 	if cp.Turn <= 0 || cp.Messages < 0 || cp.Messages >= len(a.Messages) {
 		return
 	}
-	removed := len(a.Messages) - cp.Messages
-	note := llm.HarnessMessage(llm.RoleUser, fmt.Sprintf("The user undid the previous turn: its file changes were reverted and its %d message(s) removed from this conversation. The files are as they were before it; read them again before relying on their contents.", removed))
-	a.setMessages(append(a.Messages[:cp.Messages:cp.Messages], note))
-	a.undoRemoved = removed
-	if a.Log == nil {
+	// The recorded count is an index into a history a compaction may have
+	// rewritten since; cutting there without checking dropped whatever sat
+	// past it, and shadowing the turn's events by number took the
+	// compaction's summary with them. rewindCut checks it against the log,
+	// as /undo turn does; when the turn's start cannot be found the
+	// conversation is left whole and the model is told what happened.
+	keep, ok, _ := a.rewindCut(cp)
+	if !ok {
+		a.appendHarnessText("[harness] The user undid a previous turn: its file changes were reverted, and the files are as they were before it. Read them again before relying on what an earlier message said about them.")
 		return
 	}
-	var seqs []int
-	for _, e := range a.Log.Events() {
-		if e.Surface && e.Turn >= cp.Turn && cp.Turn > 0 {
-			seqs = append(seqs, e.Seq)
-		}
+	removed := len(a.Messages) - keep
+	note := llm.HarnessMessage(llm.RoleUser, fmt.Sprintf("The user undid the previous turn: its file changes were reverted and its %d message(s) removed from this conversation. The files are as they were before it; read them again before relying on their contents.", removed))
+	if !a.rewindThroughLog(keep, note) {
+		a.setMessages(append(a.Messages[:keep:keep], note))
 	}
-	a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: seqs, Message: &note})
+	a.undoRemoved = removed
 }
 
 // restore puts the tree back to a checkpoint: through git when it holds a

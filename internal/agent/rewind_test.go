@@ -296,6 +296,40 @@ func TestRewindLeavesCompactionAccountingConsistent(t *testing.T) {
 	}
 }
 
+// TestUndoLeavesAMovedConversationUncut: plain /undo cut the conversation
+// at the checkpoint's recorded message count without checking it still
+// pointed at the turn's start, so after a compaction it dropped whatever
+// happened to sit past that index — and shadowed every logged message of
+// the turn on, the compaction summary included, so a resume lost the
+// head of the conversation as well.
+func TestUndoLeavesAMovedConversationUncut(t *testing.T) {
+	a, _, _, _ := loggedTurns(t, writeTurns("one", "two"))
+	for _, p := range []string{"do one", "do two"} {
+		if err := a.Run(context.Background(), p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cps := a.Checkpoints()
+	cut := cps[len(cps)-1].Messages
+	// Stand in for a compaction: a history long enough that the recorded
+	// count still indexes it, but no longer at the turn's start.
+	var moved []llm.Message
+	moved = append(moved, llm.HarnessMessage(llm.RoleUser, "summary of the conversation so far"))
+	for len(moved) < cut+3 {
+		moved = append(moved, llm.TextMessage(llm.RoleAssistant, "kept"), llm.TextMessage(llm.RoleUser, "kept"))
+	}
+	a.setMessages(moved)
+	if _, err := a.Undo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Messages) < len(moved) || !strings.Contains(a.Messages[0].Text(), "summary") {
+		t.Fatalf("the undo cut a conversation it could no longer locate the turn in: %d messages, was %d", len(a.Messages), len(moved))
+	}
+	if !strings.Contains(messageTexts(a.Messages), "undid") {
+		t.Fatal("nothing told the model its turn's files went back")
+	}
+}
+
 // TestRewindRefusesWhenTheContextMoved: a compaction replaces a whole
 // head with one summary, and the checkpoint's message count then points
 // somewhere else entirely. Rather than cutting the conversation at the
