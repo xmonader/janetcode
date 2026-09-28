@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -109,5 +110,44 @@ func TestParallelCancelFillsAllResults(t *testing.T) {
 	res := a.Messages[2].Blocks
 	if len(res) != 2 || !res[0].IsError || !res[1].IsError {
 		t.Fatalf("results = %+v", res)
+	}
+}
+
+// registeringTool adds a tool to the registry while it runs, the way
+// tool_search activating a deferred tool or an MCP server connecting
+// mid-turn changes the registry's version during a parallel batch.
+type registeringTool struct {
+	reg  *tool.Registry
+	name string
+}
+
+func (r registeringTool) Name() string          { return r.name }
+func (registeringTool) Description() string     { return "registers a tool" }
+func (registeringTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (registeringTool) Mutating() bool          { return false }
+func (r registeringTool) Run(context.Context, json.RawMessage) (string, error) {
+	r.reg.Add(panicTool{})
+	return "registered", nil
+}
+
+// Every read-only call in a batch measures the context for the oversized
+// check, and that measure caches the tool definitions' size by registry
+// version. A call that changed the version mid-batch had the parallel
+// calls after it all rewriting the cache at once: a data race under -race.
+func TestParallelCallsMeasureTheContextWithoutARace(t *testing.T) {
+	reg := tool.NewRegistry()
+	var uses []llm.Block
+	for i := 0; i < 6; i++ {
+		name := fmt.Sprintf("reg%d", i)
+		reg.Add(registeringTool{reg: reg, name: name})
+		uses = append(uses, llm.Block{Type: llm.BlockToolUse, ID: fmt.Sprint(i), Name: name, Input: json.RawMessage(`{}`)})
+	}
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: uses}, StopReason: llm.StopToolUse},
+		text("ok"),
+	}}
+	a := &Agent{Provider: f, Tools: reg, Model: "m"}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
 	}
 }

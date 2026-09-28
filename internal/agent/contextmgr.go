@@ -48,7 +48,10 @@ type contextManager struct {
 	lastInputTokens int
 	lastInputMsgs   int
 	// Estimated size of the tool definitions and the registry version it
-	// was measured at; see toolTokens.
+	// was measured at; see toolTokens. Guarded by toolTokensMu: the
+	// read-only calls of a batch each measure the context in parallel,
+	// and one of them can change the registry version under the rest.
+	toolTokensMu  sync.Mutex
 	toolTokensFor int
 	toolTokensAt  uint64
 	// estimate is the last EstimateTokens, published for the status bar.

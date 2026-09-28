@@ -154,6 +154,8 @@ func lastAssistantStart(msgs []llm.Message) int {
 // keystroke while the user types. The registry's version says when the
 // answer can still be reused.
 func (a *Agent) toolTokens() int {
+	a.toolTokensMu.Lock()
+	defer a.toolTokensMu.Unlock()
 	v := a.Tools.Version()
 	if a.toolTokensAt == v && a.toolTokensFor != 0 {
 		return a.toolTokensFor
