@@ -110,6 +110,30 @@ func TestTrimNeverEvictsTheUsersEntries(t *testing.T) {
 	}
 }
 
+// An automatic update of a /remember entry — the extractor reusing its
+// name, or a description close enough to merge — must not demote it to an
+// automatic one, which the cap and /dream are then free to delete.
+func TestAutomaticUpdateKeepsTheUsersAuthorship(t *testing.T) {
+	s := Open(t.TempDir(), t.TempDir())
+	if _, _, err := s.Put(Entry{Name: "mine", Description: "My own note", Body: "keep me", Source: "user"}); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := s.Apply([]Extracted{{Name: "mine", Description: "My own note", Body: "keep me, and why"}}); err != nil || len(changed) != 1 {
+		t.Fatalf("apply = %v, %v", changed, err)
+	}
+	if e := mustGet(t, s, "mine"); e.Source != "user" {
+		t.Fatalf("source after an automatic update = %q, want user", e.Source)
+	}
+	for i := 0; i < MaxEntries+5; i++ {
+		if _, _, err := s.Put(Entry{Name: "auto-" + itoa(i), Description: "Auto " + itoa(i), Body: "b", Source: "auto"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, ok := s.Get("mine"); !ok {
+		t.Fatal("the user's entry was evicted after an automatic update")
+	}
+}
+
 // Touch records the use both as a count and as a timestamp, and the file
 // round-trips the history.
 func TestTouchRecordsUseHistory(t *testing.T) {

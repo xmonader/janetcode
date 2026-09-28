@@ -403,6 +403,14 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 			}
 			e.Created, e.Uses, e.Updated, e.Path = old.Created, old.Uses, now, old.Path
 			e.Used = old.Used
+			if old.Source == "user" {
+				// An automatic update does not take away the user's
+				// authorship: Source is what keeps an entry out of the
+				// cap's eviction and /dream's drops, and an extraction
+				// that merged into a /remember entry used to demote it to
+				// "auto", so the next flood could delete it.
+				e.Source = "user"
+			}
 			if len(e.Concerns) == 0 {
 				e.Concerns = old.Concerns
 			}
