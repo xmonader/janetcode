@@ -50,8 +50,7 @@ type modelRouter struct {
 	// provider (see resolveCheap): whether it has been attempted,
 	// whether it failed (routing is then off for the rest of the
 	// session and the one notice already fired), and, on success, the
-	// provider, its resolved model name, and whether that provider is
-	// the one Model already runs on.
+	// provider and its resolved model name.
 	routeCheapState routeCheapState
 	// routeMu guards RouteCheap and routeCheapState: /config route_cheap
 	// changes them from a front-end while the turn goroutine routes.

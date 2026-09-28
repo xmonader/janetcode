@@ -255,3 +255,20 @@ func TestRouteStepDoesNotRouteToTheSessionsOwnModel(t *testing.T) {
 		t.Fatalf("a different cheap model must still route: ok=%v model=%q", ok, model)
 	}
 }
+
+// The cache rule compares the cheap slot's provider with the one the
+// session is on now, not the one it was on when route_cheap was first
+// resolved: a fallback or a /model switch that moves the session to
+// another backend makes a route to the old one a cross-provider route,
+// and a large conversation must not be re-warmed from cold for it.
+func TestRouteStepCacheRuleFollowsTheSessionsCurrentProvider(t *testing.T) {
+	a := routableAgent(true)
+	if _, _, _, ok := a.routeStep(func(Event) {}); !ok {
+		t.Fatal("a same-provider route should resolve and route")
+	}
+	a.UpdateSettings(func(s *Settings) { s.Provider = &fake{name: "deepseek"} })
+	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, strings.Repeat("word ", routeCheapSmallContext)))
+	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
+		t.Fatal("the session moved providers; a large conversation must not route back to the old one")
+	}
+}

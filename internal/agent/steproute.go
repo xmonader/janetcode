@@ -131,18 +131,22 @@ const routeCheapSmallContext = 20_000
 // routeCheapState caches the one-time resolution of RouteCheap: whether it
 // has been attempted, whether it failed (in which case routing is off for
 // the rest of the session and the one notice already fired), and, on
-// success, the provider, its resolved model name, and whether that
-// provider is the one Model already runs on.
+// success, the provider and its resolved model name. Whether that
+// provider is the one Model runs on is not cached: a fallback or a
+// /model switch moves the session to another backend without touching
+// route_cheap, and the answer from before the move would then be wrong.
 type routeCheapState struct {
 	resolved bool
 	disabled bool
 	prov     llm.Provider
 	model    string
-	// sameProvider is Provider.Name() equality with a.Provider: not
-	// pointer identity, which a per-task provider sibling (see
-	// llm.ForTaskOr) would defeat even when the two are the very same
-	// configured backend.
-	sameProvider bool
+}
+
+// sameBackend is Provider.Name() equality: not pointer identity, which a
+// per-task provider sibling (see llm.ForTaskOr) would defeat even when the
+// two are the very same configured backend.
+func sameBackend(a, b llm.Provider) bool {
+	return a != nil && b != nil && a.Name() == b.Name()
 }
 
 // resolveCheap resolves RouteCheap through Route once per session (or
@@ -156,7 +160,7 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 	name, st := r.RouteCheap, r.routeCheapState
 	r.routeMu.Unlock()
 	if st.resolved {
-		return st.prov, st.model, st.sameProvider, !st.disabled
+		return st.prov, st.model, sameBackend(st.prov, cur), !st.disabled
 	}
 	// Route runs without the lock; only the turn goroutine resolves, and a
 	// /config that changed the name meanwhile wins over this result.
@@ -180,7 +184,6 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 			prov = cur
 		}
 		st.prov, st.model = prov, model
-		st.sameProvider = cur != nil && prov.Name() == cur.Name()
 	}
 	r.routeMu.Lock()
 	if r.RouteCheap == name {
@@ -191,7 +194,7 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 		emit(Event{Kind: EvNotice, Text: notice})
 		return nil, "", false, false
 	}
-	return st.prov, st.model, st.sameProvider, true
+	return st.prov, st.model, sameBackend(st.prov, cur), true
 }
 
 // routeStep decides, for the call about to be made, whether it goes to
