@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // costly is a scripted response that bills a known amount.
@@ -157,4 +158,22 @@ func TestParseBudgetRefusesWhatIsNotAnAmount(t *testing.T) {
 			t.Errorf("ParseBudget(%q) = %v, %v; want %v", arg, v, err, want)
 		}
 	}
+}
+
+// A reply can carry a tool call and still stop for a reason other than
+// tool use — a refusal that cut in after the call began, a paused turn.
+// The turn ends without running it, but the call is in the history, and
+// left unanswered the next request was refused for an unpaired tool_use.
+func TestToolCallsInANonToolStopAreAnswered(t *testing.T) {
+	r := toolCall("1", "read_file", `{"path":"a.txt"}`)
+	r.StopReason = llm.StopRefusal
+	f := &fake{responses: []*llm.Response{r}}
+	a, _ := newAgent(t, f, nil)
+	mem := &session.Memory{}
+	a.Log = mem
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	assertPaired(t, a.Messages)
+	assertLogFoldsToHistory(t, a, mem)
 }

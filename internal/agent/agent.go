@@ -488,6 +488,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			continue
 		}
 		if resp.StopReason != llm.StopToolUse {
+			// A reply can carry tool calls and still stop for another
+			// reason (a refusal mid-call, a paused turn). They are not
+			// run, but they are in the history and must be answered, or
+			// the next request is refused for an unpaired tool_use.
+			a.answerUnrun(resp.Message.ToolUses(), fmt.Sprintf("the reply stopped (%s) instead of asking for tools", resp.StopReason), emit)
 			if a.finishTurn(ctx, resp, &gates, emit) {
 				return nil
 			}
