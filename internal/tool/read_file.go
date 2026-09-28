@@ -77,8 +77,13 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 		if err != nil {
 			return "", err
 		}
-		if st2, e2 := statOf(ctx, t.WS, p); e2 == nil {
-			t.Cache.Put(p, st2.ModTime(), st2.Size(), data)
+		// Filed under the identity stat'ed before the read, never after
+		// it: a file rewritten while it was being read would otherwise
+		// have its old bytes cached under its new mtime and size, and be
+		// served stale until it next changed. Filed early, a change can
+		// only make the entry miss.
+		if serr == nil {
+			t.Cache.Put(p, st.ModTime(), st.Size(), data)
 		}
 	}
 	if extracted, ok := extractReadable(ctx, in.Path, data); ok {

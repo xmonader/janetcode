@@ -122,3 +122,57 @@ func TestIOCacheMissesWhenFileChangesOnDisk(t *testing.T) {
 		t.Fatalf("served stale bytes: %q", out)
 	}
 }
+
+// changesAfterRead is a local host on which the file is rewritten the
+// moment a read of it returns: a formatter or the user saving, landing
+// between the read and whatever the reader does next.
+type changesAfterRead struct {
+	Local
+	then []byte
+	done bool
+}
+
+func (h *changesAfterRead) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	data, err := h.Local.ReadFile(ctx, path)
+	if err == nil && !h.done {
+		h.done = true
+		os.WriteFile(path, h.then, 0o644)
+	}
+	return data, err
+}
+
+// The bytes a read got belong to the file as it was before the read, not
+// to whatever is there once it returns. They used to be cached under the
+// identity stat'ed after the read, so a file rewritten in between had its
+// old content filed under its new mtime and size — and every later read
+// served the old content as current, for as long as the file stayed put,
+// while the stale-read check on disk kept refusing the edit made from it.
+func TestIOCacheDoesNotFileOldBytesUnderANewIdentity(t *testing.T) {
+	for _, tool := range []string{"read_file", "read_many_files"} {
+		root := t.TempDir()
+		p := filepath.Join(root, "a.txt")
+		os.WriteFile(p, []byte("one\n"), 0o644)
+		old := time.Now().Add(-time.Hour)
+		os.Chtimes(p, old, old)
+		ws := &Workspace{host: &changesAfterRead{Local: Local{root: root}, then: []byte("two is longer\n")}}
+		cache := &IOCache{}
+		var run func() (string, error)
+		if tool == "read_file" {
+			r := ReadFile{WS: ws, Cache: cache}
+			run = func() (string, error) { return r.Run(context.Background(), raw(`{"path":"a.txt"}`)) }
+		} else {
+			r := ReadManyFiles{WS: ws, Cache: cache}
+			run = func() (string, error) { return r.Run(context.Background(), raw(`{"paths":["a.txt"]}`)) }
+		}
+		if _, err := run(); err != nil {
+			t.Fatal(err)
+		}
+		out, err := run()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "two is longer") {
+			t.Fatalf("%s: served the pre-change bytes as current: %q", tool, out)
+		}
+	}
+}

@@ -99,8 +99,9 @@ func (t ReadManyFiles) Run(ctx context.Context, input json.RawMessage) (string, 
 				fmt.Fprintf(&sb, "===== %s =====\n(error: %v)\n\n", rel, err)
 				continue
 			}
-			if st2, e2 := statOf(ctx, t.WS, p); e2 == nil {
-				t.Cache.Put(p, st2.ModTime(), st2.Size(), data)
+			// The pre-read identity, as read_file does: see there.
+			if serr == nil {
+				t.Cache.Put(p, st.ModTime(), st.Size(), data)
 			}
 		}
 		if isBinary(data) {
