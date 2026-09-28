@@ -214,6 +214,29 @@ func TestRoutineNoticeIsNotShownOnTheWeb(t *testing.T) {
 	}
 }
 
+// /open refuses what the terminal's /open refuses: a binary file, which
+// it printed whole into the thread, and a line past the end, answered
+// with a backwards range over nothing.
+func TestOpenRefusesBinaryAndLinesPastTheEnd(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.bin"), []byte("ELF\x00\x01\x02"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\ntwo\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := newServer(context.Background(), Options{Cwd: dir})
+	if got := s.openText("a.bin"); !strings.Contains(got, "binary") || strings.Contains(got, "ELF") {
+		t.Fatalf("/open a.bin = %q", got)
+	}
+	if got := s.openText("a.txt:99"); got != "a.txt has 3 lines" {
+		t.Fatalf("/open a.txt:99 = %q", got)
+	}
+	if got := s.openText("a.txt:2"); !strings.Contains(got, "▶2 │ two") {
+		t.Fatalf("/open a.txt:2 = %q", got)
+	}
+}
+
 // /connect asks the pages open now to show the connect form. Kept in the
 // replay log, it reopened the form on every later page load and every
 // reconnect, long after the provider was connected.

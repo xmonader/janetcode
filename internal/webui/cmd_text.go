@@ -369,7 +369,17 @@ func (s *server) openText(arg string) string {
 	if err != nil {
 		return err.Error()
 	}
+	// The terminal's /open refuses these two; the page printed a binary
+	// whole into the thread (megabytes sent to every open page and kept
+	// in the replay log) and answered a line past the end with a header
+	// reading "lines 9970-100 of 100" over nothing.
+	if bytes.IndexByte(data, 0) >= 0 {
+		return fmt.Sprintf("%s is binary (%s)", path, textfmt.Bytes(int64(len(data))))
+	}
 	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if line > len(lines) {
+		return fmt.Sprintf("%s has %d lines", path, len(lines))
+	}
 	from, to := 1, len(lines)
 	if line > 0 {
 		from, to = line-30, line+30
