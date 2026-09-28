@@ -256,12 +256,25 @@ func replace(exe string, bin []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if runtime.GOOS == "windows" {
-		old := exe + ".old"
-		_ = os.Remove(old)
-		if err := os.Rename(exe, old); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if runtime.GOOS != "windows" {
+		return os.Rename(tmp.Name(), exe)
+	}
+	old := exe + ".old"
+	_ = os.Remove(old)
+	moved := true
+	if err := os.Rename(exe, old); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		moved = false
 	}
-	return os.Rename(tmp.Name(), exe)
+	if err := os.Rename(tmp.Name(), exe); err != nil {
+		// The old binary is aside; put it back, or janetcode is gone
+		// from where it was installed.
+		if moved {
+			_ = os.Rename(old, exe)
+		}
+		return err
+	}
+	return nil
 }
