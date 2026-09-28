@@ -171,7 +171,13 @@ func (a *Agent) toolTokens() int {
 // character-class estimate (see estimateTokens) for what was added since.
 // It must be called from the goroutine running the turn.
 func (a *Agent) EstimateTokens() int {
-	est := estimateTokens(a.systemPrompt()) + a.toolTokens()
+	// The real count already includes the system prompt and the tool
+	// schemas — a provider bills them inside every call's input — so they
+	// are only estimated when there is no real count to start from.
+	est := 0
+	if a.lastInputTokens == 0 {
+		est = estimateTokens(a.systemPrompt()) + a.toolTokens()
+	}
 	for i, m := range a.Messages {
 		if i < a.lastInputMsgs {
 			continue

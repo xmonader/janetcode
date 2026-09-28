@@ -262,6 +262,26 @@ func TestEstimateTokensUsesRealUsage(t *testing.T) {
 	}
 }
 
+// TestEstimateTokensCountsThePrefixOnce holds that the system prompt and
+// the tool schemas, which every provider bills inside a call's input
+// tokens, are not added a second time on top of that count. They were:
+// with a realistic prefix the estimate ran thousands of tokens high, so
+// compaction fired early and every gauge overstated the context.
+func TestEstimateTokensCountsThePrefixOnce(t *testing.T) {
+	f := &fake{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 9000, CacheReadTokens: 1000}}}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", System: strings.Repeat("system prompt text ", 2000)}
+	a.CompactAt = -1
+	if estimateTokens(a.System) < 5000 {
+		t.Fatalf("the fixture's prefix is too small to show the double count: %d", estimateTokens(a.System))
+	}
+	if err := a.Run(context.Background(), "hi", nil); err != nil {
+		t.Fatal(err)
+	}
+	if est := a.EstimateTokens(); est < 10000 || est > 10100 {
+		t.Fatalf("estimate = %d, want the 10000 the provider reported plus the reply", est)
+	}
+}
+
 func TestPruneDedupesReadsAndTrimsOldOutput(t *testing.T) {
 	root := t.TempDir()
 	reg := tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root})
