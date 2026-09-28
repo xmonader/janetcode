@@ -62,6 +62,11 @@ func TreeState(root string) string {
 	git := func(args ...string) (string, bool) {
 		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = root
+		// git status refreshes the index and writes it back under
+		// index.lock when it can; run this often in the background and a
+		// commit the user makes meanwhile fails on the lock. Optional
+		// locks off is git's own setting for exactly this kind of caller.
+		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 		out, err := cmd.Output()
 		if err != nil {
 			return "", false

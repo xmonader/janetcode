@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // A second edit to a file that is already modified leaves its status
@@ -41,5 +42,33 @@ func TestTreeStateSeesRepeatedEditsFromASubdirectory(t *testing.T) {
 	}
 	if after := TreeState(sub); after == before {
 		t.Fatalf("fingerprint unchanged by an edit to an already-modified file:\n%s", after)
+	}
+}
+
+// The fingerprint runs before every shell command, so it must not take
+// index.lock to write a refreshed index back: a commit the user makes in
+// another terminal at that moment would fail on the lock.
+func TestTreeStateLeavesTheIndexAlone(t *testing.T) {
+	dir := repo(t)
+	index := filepath.Join(dir, ".git", "index")
+	// A tracked file with a new modification time and the same content
+	// is what makes git status want to refresh and rewrite the index.
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(dir, "a.txt"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if TreeState(dir) == "" {
+		t.Fatal("no fingerprint inside a repository")
+	}
+	after, err := os.Stat(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("the index was rewritten: %v -> %v", before.ModTime(), after.ModTime())
 	}
 }
