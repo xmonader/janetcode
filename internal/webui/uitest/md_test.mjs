@@ -17,7 +17,7 @@ globalThis.hljs = hlmod.default || hlmod;
 const mdi = require(join(here, '../static/vendor/markdown-it.min.js'));
 globalThis.markdownit = mdi.default || mdi;
 
-const { render, renderOutput } = require(join(here, '../static/markdown.js'));
+const { render, renderOutput, codeBlocks } = require(join(here, '../static/markdown.js'));
 const fmt = require(join(here, '../static/format.js'));
 
 let pass = 0, fail = 0;
@@ -123,6 +123,20 @@ check('escape amp', render('a & b', true).includes('a &amp; b'));
   check('huge output stays plain', renderOutput('read_file', 'a.go', huge) === huge);
   const noLang = renderOutput('list_dir', '/tmp', 'a\nb');
   check('no-language output escaped', noLang.includes('a\nb'));
+}
+
+// --- streaming a long code block does not keep every prefix of it ---------
+{
+  const before = codeBlocks.size;
+  let src = 'intro\n\n```go\n', out = '';
+  for (let i = 0; i < 500; i++) { src += `x := ${i}\n`; out = render(src, false); }
+  const grown = codeBlocks.size - before;
+  check('streamed block keeps one copy source, not one per chunk', grown <= 2, `${grown} entries`);
+  const bid = (/data-bid="([^"]+)"/.exec(out) || [])[1];
+  check('streaming block copy source is the latest', codeBlocks.get(bid) === src.slice(src.indexOf('```go\n') + 6).replace(/\n$/, ''));
+  const fin = render(src + '```', true);
+  const fbid = (/data-bid="([^"]+)"/.exec(fin) || [])[1];
+  check('finished block copy source kept', (codeBlocks.get(fbid) || '').endsWith('x := 499'));
 }
 
 // --- streaming sanity: prefixes of one document stay well-formed -------------

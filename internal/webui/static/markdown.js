@@ -94,6 +94,7 @@
   function codeBlockHTML(lang, code, final) {
     const bid = "cb" + ++codeSeq;
     codeBlocks.set(bid, code);
+    if (tailBids) tailBids.push(bid);
     // Streaming renders the growing block with the cheap tokenizer;
     // finished blocks and tool output get the real highlighter.
     const body = final ? hljsHighlight(code, lang) : highlight(code, lang);
@@ -164,13 +165,30 @@
 
   const blockCache = new Map();
   const BLOCK_MAX = 800;
+  // The last block of a streaming reply is different on every chunk, so
+  // it is rendered fresh and never cached, and the code it registered
+  // for its Copy button is dropped when the next chunk replaces it.
+  // Cached and kept, a 3,000-line block streamed a line at a time held
+  // every prefix of itself: 40 MB in codeBlocks alone.
+  let tailBids = null;
+  let lastTailBids = [];
   function render(src, final) {
     src = String(src ?? "");
     currentFinal = !!final;
     const parser = mdit();
     if (!parser) return `<p>${esc(src)}</p>`;
+    if (!final) {
+      for (const bid of lastTailBids) codeBlocks.delete(bid);
+      lastTailBids = [];
+    }
     const out = [];
-    for (const block of splitBlocks(src)) {
+    const blocks = splitBlocks(src);
+    blocks.forEach((block, i) => {
+      if (!final && i === blocks.length - 1) {
+        tailBids = lastTailBids;
+        try { out.push(parser.render(block)); } finally { tailBids = null; }
+        return;
+      }
       const key = (final ? "F" : "S") + block;
       let html = blockCache.get(key);
       if (html == null) {
@@ -179,7 +197,7 @@
         blockCache.set(key, html);
       }
       out.push(html);
-    }
+    });
     return out.join("");
   }
 
