@@ -451,14 +451,15 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		dst := filepath.Join(dir, fmt.Sprintf("%d-%s", time.Now().Unix(), name))
-		out, err := os.Create(dst)
+		dst, out, err := createUpload(dir, name)
 		if err == nil {
 			_, err = io.Copy(out, src)
 		}
 		src.Close()
 		if err != nil {
-			out.Close()
+			if out != nil {
+				out.Close()
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -466,4 +467,22 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, textfmt.RelTo(s.cwd(), dst))
 	}
 	writeJSON(w, map[string]any{"ok": "1", "paths": paths})
+}
+
+// createUpload makes a new file for an upload named name in dir, stamped
+// with the time. It never opens one that exists: two files with one name
+// in one second (shot.png from two folders) used to land on one path, the
+// second overwriting the first, so they get a number instead.
+func createUpload(dir, name string) (string, *os.File, error) {
+	stamp := time.Now().Unix()
+	for i := 0; ; i++ {
+		dst := filepath.Join(dir, fmt.Sprintf("%d-%s", stamp, name))
+		if i > 0 {
+			dst = filepath.Join(dir, fmt.Sprintf("%d-%d-%s", stamp, i, name))
+		}
+		f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil || !os.IsExist(err) || i >= 100 {
+			return dst, f, err
+		}
+	}
 }

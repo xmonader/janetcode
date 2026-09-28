@@ -7,7 +7,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -225,5 +227,47 @@ func TestUploadReturnsAWorkspaceRelativePath(t *testing.T) {
 	}
 	if len(resp.Paths) != 1 || strings.Contains(resp.Paths[0], "..") || !strings.Contains(resp.Paths[0], "note.txt") {
 		t.Fatalf("paths = %v", resp.Paths)
+	}
+}
+
+// Two files with one name in one upload (shot.png from two folders) both
+// arrive in the same second. The second used to overwrite the first, and
+// the prompt then attached the same file twice.
+func TestUploadKeepsTwoFilesWithOneName(t *testing.T) {
+	dir := t.TempDir()
+	s := newServer(context.Background(), Options{Cwd: dir})
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for _, body := range []string{"first", "second"} {
+		part, err := mw.CreateFormFile("files", "shot.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mw.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/upload", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+	s.handler().ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("upload %d %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Paths []string `json:"paths"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Paths) != 2 || resp.Paths[0] == resp.Paths[1] {
+		t.Fatalf("paths = %v, want two distinct files", resp.Paths)
+	}
+	for i, want := range []string{"first", "second"} {
+		got, err := os.ReadFile(filepath.Join(dir, resp.Paths[i]))
+		if err != nil || string(got) != want {
+			t.Fatalf("%s = %q (%v), want %q", resp.Paths[i], got, err, want)
+		}
 	}
 }
