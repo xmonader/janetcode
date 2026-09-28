@@ -332,6 +332,9 @@ func (m *model) command(text string) tea.Cmd {
 // command, a user-invocable skill, or an MCP prompt, in that order.
 func (m *model) runUserCommand(text string, fields []string) (tea.Cmd, bool) {
 	if c, ok := m.custom[fields[0]]; ok {
+		if m.waitForTurn(fields[0]) {
+			return nil, true
+		}
 		args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 		return m.submit(c.Expand(args)), true
 	}
@@ -341,6 +344,9 @@ func (m *model) runUserCommand(text string, fields []string) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if sk.UserInvocable && "/"+sk.Name == fields[0] {
+			if m.waitForTurn(fields[0]) {
+				return nil, true
+			}
 			m.note("running skill " + sk.Name + " (" + shortPath(sk.Path) + ")")
 			return m.submit(sk.Expand(strings.TrimPrefix(text, fields[0]))), true
 		}
@@ -349,6 +355,19 @@ func (m *model) runUserCommand(text string, fields []string) (tea.Cmd, bool) {
 		return cmd, true
 	}
 	return nil, false
+}
+
+// waitForTurn refuses a user command while a turn runs, and says so. A
+// custom command, a skill and an MCP prompt each start a turn of their
+// own, and one started beside the running turn ran two RunBlocks over
+// one history and took the running turn's cancel away from esc.
+func (m *model) waitForTurn(name string) bool {
+	if !m.turn.running {
+		return false
+	}
+	m.transcript.errorf("%s waits for the turn to finish (esc cancels it, ctrl+s steers it)", name)
+	m.refresh(false)
+	return true
 }
 
 // /help alone is the keys-and-commands sheet it has always been.

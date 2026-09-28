@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/prompt"
 )
 // TestPastedPromptHistoryKeepsThePaste: a prompt sent with a paste chip
 // was written to the history file as the chip. The chip numbering starts
@@ -52,7 +54,42 @@ func TestPasteWithCarriageReturnsIsLines(t *testing.T) {
 	}
 }
 
-// TestCommandArgumentsGetTheirPastes:a paste chip typed after a command
+// TestUserCommandWaitsForTheTurn: a custom command, a skill or an MCP
+// prompt typed while a turn ran went straight to submit, which started a
+// second turn on the same agent beside the first — two goroutines in
+// RunBlocks over one history, and turn.cancel pointing at the new one so
+// esc could no longer stop the old.
+func TestUserCommandWaitsForTheTurn(t *testing.T) {
+	b := &blocking{started: make(chan struct{})}
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = b
+	h.m.custom["/hello"] = prompt.Custom{Name: "hello", Body: "say hi"}
+	h.keys("slow")
+	h.enter()
+	<-b.started
+	cancel := h.m.turn.cancel
+	h.keys("/hello")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "/hello waits for the turn to finish") {
+		t.Fatalf("a custom command ran during a turn:\n%s", v)
+	}
+	if fmt.Sprintf("%p", h.m.turn.cancel) != fmt.Sprintf("%p", cancel) {
+		t.Fatal("a second turn replaced the running one's cancel")
+	}
+	// A built-in that hands a prompt over (/plan <task>) queues it.
+	h.keys("/plan add a cache")
+	h.enter()
+	if fmt.Sprintf("%p", h.m.turn.cancel) != fmt.Sprintf("%p", cancel) {
+		t.Fatal("/plan <task> started a second turn beside the running one")
+	}
+	if len(h.m.turn.queued) != 1 || h.m.turn.queued[0] != "add a cache" {
+		t.Fatalf("queued = %q, want the plan task", h.m.turn.queued)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	h.pump(func() bool { return !h.m.turn.running })
+}
+
+// TestCommandArgumentsGetTheirPastes: a paste chip typed after a command
 // ("/btw " then a pasted stack trace) reached the command as the chip.
 // /btw asked the model about "[paste #1 +30 lines]", and /goal and /loop
 // stored the chip as their objective, to be re-sent long after the

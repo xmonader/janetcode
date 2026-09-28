@@ -101,6 +101,9 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 			if !ok {
 				return nil, false
 			}
+			if m.waitForTurn(name) {
+				return nil, true
+			}
 			args := map[string]string{}
 			words := strings.Fields(rest)
 			for i, a := range p.Arguments {

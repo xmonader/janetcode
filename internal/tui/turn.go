@@ -137,6 +137,16 @@ func (m *model) submit(text string) tea.Cmd { return m.submitAs(text, "") }
 // plan...)".
 func (m *model) submitAs(text, note string) tea.Cmd {
 	text = m.inflatePastes(text)
+	// A command that hands a prompt over (/plan <task>, /accept <request>)
+	// may run while a turn does. Starting a second turn beside it ran two
+	// RunBlocks over one history and left esc cancelling only the new one;
+	// the prompt waits in the queue instead, as typed text does.
+	if m.turn.running {
+		m.turn.queued = append(m.turn.queued, text)
+		m.status = fmt.Sprintf("queued %d · sends when this turn ends", len(m.turn.queued))
+		m.refresh(false)
+		return nil
+	}
 	if m.opts.Agent.Settings().Provider == nil {
 		m.transcript.errorf("not connected to a provider yet: run /connect")
 		m.refresh(false)
