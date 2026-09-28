@@ -438,16 +438,15 @@ func (r *Runner) runMutants(ctx context.Context, mutants []Mutant) (Report, erro
 			return rep, fmt.Errorf("mutant %s: %w", m, err)
 		}
 		lines := strings.Split(string(original), "\n")
-		if m.Line > len(lines) {
-			continue
-		}
 		// The worktree is a checkout of a snapshot taken after Generate
 		// read the working tree, so the line should be the one the mutant
 		// was built from. When it is not — a concurrent edit, a snapshot
 		// that did not capture something — mutating by line number would
 		// silently corrupt an unrelated line and score the result as if
 		// it meant something. Skip it instead.
-		if strings.TrimSpace(lines[m.Line-1]) != m.Before {
+		// A file that has since grown shorter no longer holds the line at all;
+		// that is the same case, and is not scored either.
+		if m.Line < 1 || m.Line > len(lines) || strings.TrimSpace(lines[m.Line-1]) != m.Before {
 			rep.Total--
 			if r.Log != nil {
 				r.Log(fmt.Sprintf("mutant %d/%d skipped: %s no longer holds the recorded line", i+1, len(mutants), m))

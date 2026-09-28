@@ -353,3 +353,25 @@ func TestMutantCommandDoesNotSeeTheAgentsCredentials(t *testing.T) {
 		t.Fatalf("the mutant command saw the key or missed the scrubbed environment: %+v", rep)
 	}
 }
+
+// A mutant past the end of a file that has since grown shorter is the
+// same case as one whose line moved: it is not scored. It used to be
+// skipped yet still counted, so the report read "0/1 mutants killed" and
+// passed with a mutant that had never run.
+func TestRunnerSkipsAMutantPastTheEndOfItsFile(t *testing.T) {
+	root := t.TempDir()
+	run(t, root, "git", "init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "m.go"), []byte("package m\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, root, "git", "add", "-A")
+	run(t, root, "git", "commit", "-qm", "base")
+	r := &Runner{Root: root, Command: "true", Timeout: 10 * time.Second}
+	got, err := r.runMutants(context.Background(), []Mutant{{Path: "m.go", Line: 40, From: "==", To: "!=", Before: "a == b", After: "a != b"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != 0 || got.Killed != 0 || len(got.Survived) != 0 {
+		t.Fatalf("a mutant past the end of its file must not be scored: %+v", got)
+	}
+}
