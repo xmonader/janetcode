@@ -311,6 +311,12 @@ type Agent struct {
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).
 	settingsMu sync.Mutex
+	// offToggled holds the switches a front-end flipped mid-session
+	// (ToggleOff), guarded by settingsMu. They are kept apart from Off
+	// because Off is read without a lock all over the turn loop, and a
+	// map written while another goroutine reads it is a race the runtime
+	// can kill the process over.
+	offToggled map[string]bool
 	// featMu guards the feature knobs a front-end changes mid-session --
 	// the cascade's round count, the forced advisor, the stale-check
 	// nudge, the advisor slot, the decision provider and its consumers.

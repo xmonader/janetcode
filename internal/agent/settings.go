@@ -73,23 +73,30 @@ func (a *Agent) settingsLocked() Settings {
 func (a *Agent) RoutingOff() bool {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
-	return a.Off["routing"]
+	return a.offLocked("routing")
+}
+
+// offLocked is a switch's live state: as Off set it at build time,
+// flipped once for every ToggleOff since. Called with settingsMu held.
+func (a *Agent) offLocked(name string) bool {
+	return a.Off[name] != a.offToggled[name]
 }
 
 // ToggleOff flips one ablation switch and reports the new state, so a
 // front-end can veto a named behaviour for the rest of the session
 // without a rebuild. Only the switch this pair guards — "routing" —
-// is read under the lock at runtime (routeStep via RoutingOff); the
-// other Off entries are written before the first turn and read after
-// it, so plain map reads elsewhere stay safe.
+// is read under the lock at runtime (routeStep via RoutingOff). The flip
+// is recorded beside Off rather than in it: every other Off entry is read
+// on the turn goroutine without a lock, and writing the map those reads
+// look in — even under a key they never ask for — raced them.
 func (a *Agent) ToggleOff(name string) bool {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
-	if a.Off == nil {
-		a.Off = map[string]bool{}
+	if a.offToggled == nil {
+		a.offToggled = map[string]bool{}
 	}
-	a.Off[name] = !a.Off[name]
-	return a.Off[name]
+	a.offToggled[name] = !a.offToggled[name]
+	return a.offLocked(name)
 }
 
 // UpdateSettings changes the live settings atomically: change sees the
