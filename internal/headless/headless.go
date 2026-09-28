@@ -343,6 +343,13 @@ type stdinApprover struct {
 	src         io.Reader
 	interactive func() bool
 
+	// asking admits one prompt at a time. Parallel subagents that bubble
+	// their approvals, or a background fork beside the main agent, ask
+	// at once; with both prompts printed, the line typed went to
+	// whichever happened to be waiting, so a "y" meant for one call
+	// could approve the other.
+	asking chan struct{}
+
 	start     sync.Once
 	lines     chan lineRead
 	done      chan struct{}
@@ -375,7 +382,7 @@ func NewStdinApprover(in *os.File, out io.Writer) ClosableApprover {
 }
 
 func newStdinApprover(in *os.File, out io.Writer) *stdinApprover {
-	return &stdinApprover{in: in, out: out, lines: make(chan lineRead), done: make(chan struct{})}
+	return &stdinApprover{in: in, out: out, asking: make(chan struct{}, 1), lines: make(chan lineRead), done: make(chan struct{})}
 }
 
 // Close stops the line reader. A prompt after Close is denied.
@@ -425,6 +432,14 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
 	if !a.canAsk() {
 		fmt.Fprintf(a.out, "[permission] %s denied: stdin is not a terminal (use --yolo to auto-approve)\n", call.Name)
+		return agent.Deny, "", nil
+	}
+	select {
+	case a.asking <- struct{}{}:
+		defer func() { <-a.asking }()
+	case <-ctx.Done():
+		return agent.Deny, "", ctx.Err()
+	case <-a.done:
 		return agent.Deny, "", nil
 	}
 	if call.Preview != "" {
