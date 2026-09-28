@@ -162,18 +162,131 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 		}
 	}
 	worst, reason := RiskOrdinary, ""
-	for _, seg := range Segments(command) {
-		toks := Words(seg)
-		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
-			cwd, cwdKnown = dir, known
-			continue
-		}
-		r, why := classifyOne(seg, toks, root, cwd, cwdKnown, depth)
+	note := func(r Risk, why string) {
 		if r > worst {
 			worst, reason = r, why
 		}
 	}
+	entryCwd, entryKnown, moved := cwd, cwdKnown, false
+	for _, seg := range Segments(command) {
+		toks := Words(seg)
+		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
+			cwd, cwdKnown, moved = dir, known, true
+			continue
+		}
+		note(classifyOne(seg, toks, root, cwd, cwdKnown, depth))
+	}
+	// A substitution is a command line of its own, run before the
+	// command that holds it — `echo $(rm -rf /)` runs the rm. Where on
+	// the line it sits is not tracked, so after a cd it is also judged
+	// from an unknown directory.
+	for _, body := range substitutions(command) {
+		note(classifyAt(body, root, entryCwd, entryKnown, depth+1))
+		if moved {
+			note(classifyAt(body, root, "", false, depth+1))
+		}
+	}
 	return worst, reason
+}
+
+// substitutions returns the bodies of the command and process
+// substitutions in s — $(…), `…`, <(…) and >(…) — outside single quotes.
+// Double quotes do not stop them: `echo "$(rm -rf x)"` runs the rm. The
+// bodies are not searched here for substitutions of their own; judging a
+// body as a command line does that.
+func substitutions(s string) []string {
+	var out []string
+	quote := byte(0)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case quote == '\'':
+			if c == '\'' {
+				quote = 0
+			}
+			continue
+		case quote == '$':
+			if c == '\\' {
+				i++
+			} else if c == '\'' {
+				quote = 0
+			}
+			continue
+		case c == '\\':
+			i++
+			continue
+		case c == '"':
+			if quote == '"' {
+				quote = 0
+			} else {
+				quote = '"'
+			}
+			continue
+		case quote == 0 && c == '$' && i+1 < len(s) && s[i+1] == '\'':
+			quote = '$'
+			i++
+			continue
+		case quote == 0 && c == '\'':
+			quote = '\''
+			continue
+		}
+		switch {
+		case c == '`':
+			end := i + 1
+			for end < len(s) && s[end] != '`' {
+				if s[end] == '\\' {
+					end++
+				}
+				end++
+			}
+			end = min(end, len(s))
+			out = append(out, s[i+1:end])
+			i = end
+		case c == '$' && strings.HasPrefix(s[i+1:], "(("):
+			// Arithmetic. Its text can still hold a substitution, which
+			// the scan finds as it carries on.
+			i += 2
+		case (c == '$' || (quote == 0 && (c == '<' || c == '>'))) && i+1 < len(s) && s[i+1] == '(':
+			end := closeParen(s, i+2)
+			out = append(out, s[i+2:end])
+			i = end
+		}
+	}
+	return out
+}
+
+// closeParen returns the index of the parenthesis that closes one opened
+// just before s[j], skipping quoted text, or len(s) when there is none —
+// an unclosed body runs to the end of the line, which is the most it can
+// hold.
+func closeParen(s string, j int) int {
+	depth := 1
+	quote := byte(0)
+	for ; j < len(s); j++ {
+		c := s[j]
+		switch {
+		case quote == '\'':
+			if c == '\'' {
+				quote = 0
+			}
+		case c == '\\':
+			j++
+		case quote == '"':
+			if c == '"' {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+			if depth == 0 {
+				return j
+			}
+		}
+	}
+	return len(s)
 }
 
 // cdTokens parses a segment that is nothing but `cd <dir>` (Segments has
@@ -540,16 +653,28 @@ func WriteTargets(command, root string) []string {
 		seen[p] = true
 		out = append(out, p)
 	}
-	cwd, cwdKnown := root, root != ""
+	writeTargetsAt(command, root, root, root != "", 0, add)
+	return out
+}
+
+// writeTargetsAt is WriteTargets for one command line run from cwd, which
+// is how a substitution's body is read.
+func writeTargetsAt(command, root, cwd string, cwdKnown bool, depth int, add func(string)) {
+	if depth > MaxWrapperDepth {
+		return
+	}
+	entryCwd, entryKnown := cwd, cwdKnown
 	for _, seg := range Segments(command) {
 		toks := Words(seg)
 		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
 			cwd, cwdKnown = dir, known
 			continue
 		}
-		collectWriteTargets(seg, toks, root, cwd, cwdKnown, 0, add)
+		collectWriteTargets(seg, toks, root, cwd, cwdKnown, depth, add)
 	}
-	return out
+	for _, body := range substitutions(command) {
+		writeTargetsAt(body, root, entryCwd, entryKnown, depth+1, add)
+	}
 }
 
 func collectWriteTargets(seg string, toks []string, root string, cwd string, cwdKnown bool, depth int, add func(string)) {
@@ -629,6 +754,14 @@ func safeRead(command string, depth int) bool {
 	}
 	for _, seg := range Segments(command) {
 		if !safeSegment(seg, depth) {
+			return false
+		}
+	}
+	// `echo $(rm -rf x)` is an echo whose argument is worked out by
+	// running rm: a line is a safe read only if everything it
+	// substitutes is one too.
+	for _, body := range substitutions(command) {
+		if !safeRead(body, depth+1) {
 			return false
 		}
 	}
