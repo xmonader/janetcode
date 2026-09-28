@@ -2,6 +2,9 @@ package agent
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -64,10 +67,46 @@ func touchedPaths(t tool.Tool, input json.RawMessage) []string {
 	return out
 }
 
+// projectRelative adds, for every absolute path inside root, the same
+// path relative to root. Rules and skills name project-relative globs
+// ("db/migrations/*.sql"), while a model often passes the absolute path
+// and the file tools' Touches always resolve to one; matched as it was,
+// such a call never brought its rule in. A path outside root is left as
+// it is. An empty root is the process working directory.
+func projectRelative(paths []string, root string) []string {
+	if root == "" {
+		root, _ = os.Getwd()
+	}
+	if root == "" {
+		return paths
+	}
+	roots := []string{filepath.Clean(root)}
+	if r, err := filepath.EvalSymlinks(root); err == nil && r != roots[0] {
+		roots = append(roots, r)
+	}
+	out := paths
+	for _, p := range paths {
+		if !filepath.IsAbs(p) {
+			continue
+		}
+		for _, r := range roots {
+			rel, err := filepath.Rel(r, p)
+			if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				continue
+			}
+			if !slices.Contains(out, rel) {
+				out = append(out, rel)
+			}
+			break
+		}
+	}
+	return out
+}
+
 // applyPathRules asks for the rules a call's paths bring in and queues
 // them for the next model call.
 func (a *Agent) applyPathRules(t tool.Tool, input json.RawMessage, emit func(Event)) {
-	paths := touchedPaths(t, input)
+	paths := projectRelative(touchedPaths(t, input), a.RootDir())
 	if len(paths) == 0 {
 		return
 	}

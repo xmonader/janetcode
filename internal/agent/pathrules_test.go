@@ -3,10 +3,12 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -22,6 +24,33 @@ func TestTouchedPathsFromInputAndToucher(t *testing.T) {
 	}
 	if got := touchedPaths(tool.ReadFile{Root: "."}, json.RawMessage(`{"paths":["x.go","y.go"]}`)); len(got) != 2 {
 		t.Fatalf("paths = %v", got)
+	}
+}
+
+// A rule names paths relative to the project, and a model that passes
+// the absolute path of a file in it (or a file tool that resolves one)
+// still brings the rule in.
+func TestPathRuleMatchesAnAbsolutePathInTheProject(t *testing.T) {
+	f := &fake{}
+	a, root := newAgent(t, f, nil)
+	a.Root = root
+	in := &rules.Injector{Rules: func() []rules.Rule {
+		return []rules.Rule{{Name: "mig", Paths: []string{"db/migrations/*.sql"}, Body: "append-only"}}
+	}}
+	a.PathRules = in.For
+	abs := filepath.Join(root, "db", "migrations", "001.sql")
+	input, _ := json.Marshal(map[string]string{"path": abs})
+	a.applyPathRules(tool.ReadFile{Root: root}, input, func(Event) {})
+	if !in.Sent("mig") {
+		t.Fatalf("a rule for db/migrations/*.sql did not match %s", abs)
+	}
+	// A path outside the project is not made to look like one inside it.
+	in2 := &rules.Injector{Rules: in.Rules}
+	a.PathRules = in2.For
+	input, _ = json.Marshal(map[string]string{"path": filepath.Join(filepath.Dir(root), "db", "migrations", "001.sql")})
+	a.applyPathRules(tool.ReadFile{Root: root}, input, func(Event) {})
+	if in2.Sent("mig") {
+		t.Fatal("a path outside the project brought the rule in")
 	}
 }
 
