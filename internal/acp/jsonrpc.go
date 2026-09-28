@@ -168,22 +168,57 @@ func (c *conn) replyError(id json.RawMessage, code int, msg string) error {
 	return c.send(message{ID: id, Error: &rpcError{Code: code, Message: msg}})
 }
 
-// readLoop reads frames until the stream ends, handing requests and
-// notifications to handle and responses to the caller that is waiting.
-// Each request runs in its own goroutine: a prompt takes minutes, and
-// session/cancel has to arrive while it is running. When the input ends,
-// the loop waits for the handlers still running — a client that writes
-// its requests and closes the pipe must still get their answers.
+// readLoop reads frames until the stream ends or ctx does, handing
+// requests and notifications to handle and responses to the caller that
+// is waiting. Each request runs in its own goroutine: a prompt takes
+// minutes, and session/cancel has to arrive while it is running. When the
+// input ends, the loop waits for the handlers still running — a client
+// that writes its requests and closes the pipe must still get their
+// answers.
+//
+// The reading itself happens on a goroutine of its own, because a Read
+// on stdin cannot be interrupted: with the scanner in the loop, a
+// cancelled ctx (SIGTERM) was never noticed until the editor happened to
+// close the pipe, and the adapter outlived the signal meant to stop it.
+// The handlers see the same ctx, so they end promptly too.
 func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.Context, message)) error {
 	var wg sync.WaitGroup
 	// Deferred first, so it runs last: the handlers still in flight are
 	// woken by stop before anything waits for them.
 	defer wg.Wait()
 	defer c.stop()
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for sc.Scan() {
-		line := sc.Bytes()
+
+	lines := make(chan []byte)
+	readErr := make(chan error, 1)
+	quit := make(chan struct{})
+	defer close(quit)
+	go func() {
+		sc := bufio.NewScanner(in)
+		sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+		for sc.Scan() {
+			// The scanner reuses its buffer; the line is handed on.
+			line := append([]byte(nil), sc.Bytes()...)
+			select {
+			case lines <- line:
+			case <-quit:
+				return
+			}
+		}
+		readErr <- sc.Err()
+	}()
+
+	for {
+		var line []byte
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-readErr:
+			if err != nil && !errors.Is(err, io.EOF) {
+				return err
+			}
+			return nil
+		case line = <-lines:
+		}
 		if len(line) == 0 {
 			continue
 		}
@@ -202,8 +237,4 @@ func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.C
 			handle(ctx, m)
 		}(m)
 	}
-	if err := sc.Err(); err != nil && !errors.Is(err, io.EOF) {
-		return err
-	}
-	return nil
 }
