@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/shell"
 )
@@ -190,30 +191,48 @@ func Lines(out string) []string {
 
 var (
 	// Any escape sequence: CSI, OSC (ended by BEL or ST), or a two-byte one.
-	escapeSeq = regexp.MustCompile(`\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])`)
+	escapeSeq = regexp.MustCompile(`^\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])`)
+	colourSeq = regexp.MustCompile(`^\x1b\[[0-9;:]*m`)
 	stripSGR  = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 )
 
 // clean keeps a line's colours and drops every other escape and control
 // character; a tab is a space.
+//
+// It is one pass from left to right, and what it keeps is never looked
+// at again. Removing sequences and then keeping whatever escapes were
+// left let a removal splice its neighbours into a new sequence:
+// "\x1b[2" + "\x1bX" + "J" lost the middle and came out as "\x1b[2J",
+// clearing the screen. Here an escape that does not start a whole colour
+// sequence is dropped on its own, and the text after it is plain text.
 func clean(l string) string {
-	l = escapeSeq.ReplaceAllStringFunc(l, func(seq string) string {
-		if stripSGR.MatchString(seq) && stripSGR.FindString(seq) == seq {
-			return seq
+	var sb strings.Builder
+	for i := 0; i < len(l); {
+		if l[i] == '\x1b' {
+			rest := l[i:]
+			if seq := colourSeq.FindString(rest); seq != "" {
+				sb.WriteString(seq)
+				i += len(seq)
+				continue
+			}
+			if seq := escapeSeq.FindString(rest); seq != "" {
+				i += len(seq)
+				continue
+			}
+			i++ // a lone escape
+			continue
 		}
-		return ""
-	})
-	return strings.Map(func(r rune) rune {
+		r, size := utf8.DecodeRuneInString(l[i:])
+		i += size
 		switch {
 		case r == '\t':
-			return ' '
-		case r == '\x1b':
-			return r // only colour sequences are left
+			sb.WriteByte(' ')
 		case r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0):
-			return -1
+		default:
+			sb.WriteRune(r)
 		}
-		return r
-	}, l)
+	}
+	return sb.String()
 }
 
 func firstLine(s string) string {

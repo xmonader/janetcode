@@ -40,6 +40,28 @@ func TestOutputIsTwoLinesOfTextAndColour(t *testing.T) {
 	}
 }
 
+// TestTakingASequenceOutCannotMakeAnother: the escapes were removed and
+// whatever escape bytes were left were kept, so dropping the sequence in
+// the middle of "\x1b[2" "\x1bX" "J" joined its neighbours into
+// "\x1b[2J", which clears the screen.
+func TestTakingASequenceOutCannotMakeAnother(t *testing.T) {
+	for _, in := range []string{
+		"a\x1b[2\x1bXJb",
+		"a\x1b[2\x1b]0;t\x07Jb",
+		"a\x1b\x1b[Hb",
+		"a\x1b[\x1b[31mb",
+		"a\x1b",
+	} {
+		got := clean(in)
+		if strings.Contains(stripSGR.ReplaceAllString(got, ""), "\x1b") {
+			t.Errorf("clean(%q) = %q: an escape other than a colour survived", in, got)
+		}
+	}
+	if got := clean("\x1b[31mred\x1b[0m"); got != "\x1b[31mred\x1b[0m" {
+		t.Fatalf("colour lost: %q", got)
+	}
+}
+
 func TestASlowOrFailingCommandIsAnError(t *testing.T) {
 	if _, err := Run(context.Background(), Config{Command: "echo nope >&2; exit 1"}, t.TempDir(), Input{}); err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Fatalf("err = %v", err)
