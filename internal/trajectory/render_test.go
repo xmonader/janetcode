@@ -1,9 +1,13 @@
 package trajectory
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 func TestFormatIsOneLinePerRecordWithStructure(t *testing.T) {
@@ -157,5 +161,21 @@ func TestFormatLastKeepsTheEndAndSaysWhatItDropped(t *testing.T) {
 	}
 	if strings.Contains(out, "#1 ") || strings.Contains(out, "run the tests") {
 		t.Fatalf("Last=2 kept the beginning:\n%s", out)
+	}
+}
+
+// The tail of a long session is its last records, not a heading for every
+// turn the elision emptied: forty earlier turns printed forty headings
+// with nothing under them above the records that were asked for.
+func TestFormatLastDropsTheHeadingsOfElidedTurns(t *testing.T) {
+	base := time.Now()
+	var ev []session.Event
+	for turn := 1; turn <= 3; turn++ {
+		ev = append(ev, session.Event{Seq: turn, Time: at(base, turn), Type: session.TypeUserMessage, Turn: turn,
+			Message: msg(llm.RoleUser, "request "+strconv.Itoa(turn))})
+	}
+	out := Format(Fold(ev), Options{Width: 100, Last: 1})
+	if strings.Contains(out, "turn 1") || strings.Contains(out, "turn 2") || !strings.Contains(out, "turn 3") {
+		t.Fatalf("Last=1 over three turns:\n%s", out)
 	}
 }

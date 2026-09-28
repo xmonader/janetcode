@@ -2,6 +2,7 @@ package trajectory
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,10 +78,17 @@ func Format(l Ledger, o Options) string {
 	if elided > 0 {
 		fmt.Fprintf(&sb, "%s\n", textfmt.Clip(fmt.Sprintf("… %s before this; /trajectory all shows them", textfmt.Plural(elided, "record")), o.width()))
 	}
-	for ti, t := range turns {
-		if ti > 0 {
+	printed := 0
+	for _, t := range turns {
+		if len(keep) > 0 && !slices.ContainsFunc(t.Records(), func(r Record) bool { return keep[r.Index] }) {
+			// Every record of this turn was elided: its heading would
+			// stand over nothing, once for every earlier turn.
+			continue
+		}
+		if printed > 0 {
 			sb.WriteString("\n")
 		}
+		printed++
 		fmt.Fprintf(&sb, "%s\n", textfmt.Clip(turnHeader(t), o.width()))
 		for _, g := range t.Groups {
 			shown := g.Records
