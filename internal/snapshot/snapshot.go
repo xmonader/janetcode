@@ -50,6 +50,12 @@ func Open(ctx context.Context, dir string) (*Repo, error) {
 type Snap struct {
 	Commit string `json:"commit"`
 	Head   string `json:"head"` // HEAD when it was taken; "" on an unborn branch
+	// Root is the work tree it was taken of. Two worktrees of one
+	// repository share their objects and can stand at the same HEAD, so
+	// without it a session that moved (/cd) from one to the other
+	// restored the first one's tree over the second. "" in a snapshot
+	// recorded before this field existed.
+	Root string `json:"root,omitempty"`
 }
 
 // Take records the current work tree (tracked, modified and untracked
@@ -89,7 +95,7 @@ func (r *Repo) Take(ctx context.Context, label string) (Snap, error) {
 	if _, err := r.run(ctx, "", "update-ref", RefPrefix+commit, commit); err != nil {
 		return Snap{}, err
 	}
-	return Snap{Commit: commit, Head: head}, nil
+	return Snap{Commit: commit, Head: head, Root: r.Root}, nil
 }
 
 // Restore puts the work tree back to the snapshot: files changed or
@@ -113,6 +119,9 @@ func (r *Repo) restore(ctx context.Context, s Snap, skip map[string]bool) ([]str
 	}
 	if head != s.Head {
 		return nil, ErrHeadMoved
+	}
+	if s.Root != "" && s.Root != r.Root {
+		return nil, fmt.Errorf("%w: the snapshot is of %s, not %s", ErrHeadMoved, s.Root, r.Root)
 	}
 	if _, err := r.run(ctx, "", "cat-file", "-e", s.Commit+"^{commit}"); err != nil {
 		return nil, fmt.Errorf("snapshot %s is gone: %w", gitx.Short(s.Commit), err)
@@ -352,7 +361,7 @@ func (r *Repo) Moved(ctx context.Context, s Snap) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return head != s.Head, nil
+	return head != s.Head || s.Root != "" && s.Root != r.Root, nil
 }
 
 // Drop deletes the ref anchoring a snapshot so gc can reclaim it.

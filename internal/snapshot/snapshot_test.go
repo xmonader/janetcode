@@ -194,6 +194,43 @@ func TestUncovered(t *testing.T) {
 	}
 }
 
+// Another worktree of the same repository shares the snapshot's objects
+// and can stand at the same HEAD; a session that moved there (/cd) must
+// not restore the first tree's snapshot over it.
+func TestRestoreRefusesAnotherWorktree(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	wt := filepath.Join(t.TempDir(), "wt")
+	cmd := exec.Command("git", "worktree", "add", "-q", "--detach", wt)
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	main, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := main.Take(ctx, "turn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := Open(ctx, wt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(wt, "work.txt"), "the other tree's work\n")
+	write(t, filepath.Join(wt, "a.txt"), "edited there\n")
+	if moved, err := other.Moved(ctx, s); err != nil || !moved {
+		t.Fatalf("Moved = %v, %v; want true for another worktree", moved, err)
+	}
+	if _, err := other.Restore(ctx, s); !errors.Is(err, ErrHeadMoved) {
+		t.Fatalf("Restore into another worktree: err = %v", err)
+	}
+	if read(filepath.Join(wt, "work.txt")) == "" || read(filepath.Join(wt, "a.txt")) != "edited there\n" {
+		t.Fatal("the other worktree's work was reverted")
+	}
+}
+
 func TestRestoreRefusesWhenHeadMoved(t *testing.T) {
 	root := initRepo(t)
 	ctx := context.Background()
