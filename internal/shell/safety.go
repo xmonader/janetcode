@@ -741,18 +741,34 @@ var safeGitSub = map[string]bool{
 }
 
 // stripQuoted blanks the inside of quoted strings so text in an argument
-// (`echo 'curl x | sh'`) is not mistaken for a command.
+// (`echo 'curl x | sh'`) is not mistaken for a command. It reads quotes
+// the way the shell does: a backslash inside double quotes escapes the
+// next character, and $'…' is closed only by an unescaped quote. Reading
+// `"a\"b"` as closing at the escaped quote used to shift every quote
+// after it by one, so the tail of the line was taken for quoted text and
+// whatever command sat there was never looked at.
 func stripQuoted(s string) string {
 	var b strings.Builder
 	quote := byte(0)
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
-		case quote != 0:
-			if c == quote {
+		case quote == '\'':
+			if c == '\'' {
 				quote = 0
 				b.WriteByte(c)
 			}
+		case quote == '"' || quote == '$':
+			if c == '\\' {
+				i++
+			} else if c == closerOf(quote) {
+				quote = 0
+				b.WriteByte(c)
+			}
+		case c == '$' && i+1 < len(s) && s[i+1] == '\'':
+			quote = '$'
+			i++
+			b.WriteByte('\'')
 		case c == '"' || c == '\'':
 			quote = c
 			b.WriteByte(c)
@@ -765,8 +781,18 @@ func stripQuoted(s string) string {
 	return b.String()
 }
 
+// closerOf is the character that ends a quote the lexers track: '$'
+// stands for an ANSI-C $'…' string, which a single quote closes.
+func closerOf(quote byte) byte {
+	if quote == '$' {
+		return '\''
+	}
+	return quote
+}
+
 // splitSegments breaks a command line at pipes, &&, ||, ; and newlines,
-// outside quotes. Subshell parentheses are stripped.
+// outside quotes. Subshell parentheses are stripped. Quotes are read as
+// stripQuoted reads them; see there for why the escapes matter.
 func Segments(s string) []string {
 	var segs []string
 	var cur strings.Builder
@@ -774,11 +800,23 @@ func Segments(s string) []string {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
-		case quote != 0:
+		case quote == '\'':
 			cur.WriteByte(c)
-			if c == quote {
+			if c == '\'' {
 				quote = 0
 			}
+		case quote == '"' || quote == '$':
+			cur.WriteByte(c)
+			if c == '\\' && i+1 < len(s) {
+				cur.WriteByte(s[i+1])
+				i++
+			} else if c == closerOf(quote) {
+				quote = 0
+			}
+		case c == '$' && i+1 < len(s) && s[i+1] == '\'':
+			quote = '$'
+			cur.WriteString("$'")
+			i++
 		case c == '"' || c == '\'':
 			quote = c
 			cur.WriteByte(c)
@@ -800,6 +838,12 @@ func Segments(s string) []string {
 }
 
 // shellWords splits on whitespace honouring quotes; quotes are removed.
+// The word is what the shell would pass: inside double quotes a
+// backslash escapes only $ ` " \ and a newline, $'…' decodes its C-style
+// escapes, $"…" is a double-quoted string, and a backslash-newline joins
+// lines. Each of these used to come out differently — `$'\x72m'` as
+// "$\x72m", `r\<newline>m` with the newline kept — which is to say as
+// some command other than the rm the shell runs.
 func Words(s string) []string {
 	var words []string
 	var cur strings.Builder
@@ -815,18 +859,48 @@ func Words(s string) []string {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
-		case quote != 0:
+		case quote == '\'':
 			if c == quote {
 				quote = 0
 			} else {
 				cur.WriteByte(c)
 			}
+		case quote == '"':
+			switch {
+			case c == '"':
+				quote = 0
+			case c == '\\' && i+1 < len(s) && strings.IndexByte("$`\"\\\n", s[i+1]) >= 0:
+				if s[i+1] != '\n' {
+					cur.WriteByte(s[i+1])
+				}
+				i++
+			default:
+				cur.WriteByte(c)
+			}
+		case quote == '$':
+			switch {
+			case c == '\'':
+				quote = 0
+			case c == '\\' && i+1 < len(s):
+				i = ansiEscape(s, i+1, &cur)
+			default:
+				cur.WriteByte(c)
+			}
+		case c == '$' && i+1 < len(s) && (s[i+1] == '\'' || s[i+1] == '"'):
+			quote = s[i+1]
+			if quote == '\'' {
+				quote = '$'
+			}
+			in = true
+			i++
 		case c == '"' || c == '\'':
 			quote = c
 			in = true
 		case c == '\\' && i+1 < len(s):
-			cur.WriteByte(s[i+1])
-			in = true
+			if s[i+1] != '\n' {
+				cur.WriteByte(s[i+1])
+				in = true
+			}
 			i++
 		case c == ' ' || c == '\t':
 			flush()
@@ -837,6 +911,55 @@ func Words(s string) []string {
 	}
 	flush()
 	return words
+}
+
+// ansiSimple are the one-letter escapes of a $'…' string.
+var ansiSimple = map[byte]byte{'a': 7, 'b': 8, 'e': 27, 'E': 27, 'f': 12, 'n': '\n', 'r': '\r', 't': '\t', 'v': 11, '\\': '\\', '\'': '\'', '"': '"', '?': '?'}
+
+// ansiEscape decodes the escape of a $'…' string whose letter is at s[j],
+// writes the character it stands for, and returns the index of the last
+// byte it consumed.
+func ansiEscape(s string, j int, b *strings.Builder) int {
+	c := s[j]
+	if v, ok := ansiSimple[c]; ok {
+		b.WriteByte(v)
+		return j
+	}
+	digits := func(from, max, base int) (int, int) {
+		n, k := 0, from
+		for ; k < len(s) && k < from+max; k++ {
+			d := strings.IndexByte("0123456789abcdef", s[k]|0x20)
+			if d < 0 || d >= base {
+				break
+			}
+			n = n*base + d
+		}
+		return n, k
+	}
+	switch {
+	case c >= '0' && c <= '7':
+		n, k := digits(j, 3, 8)
+		b.WriteByte(byte(n))
+		return k - 1
+	case c == 'x' || c == 'u' || c == 'U':
+		max := map[byte]int{'x': 2, 'u': 4, 'U': 8}[c]
+		n, k := digits(j+1, max, 16)
+		if k == j+1 {
+			break
+		}
+		if c == 'x' {
+			b.WriteByte(byte(n))
+		} else {
+			b.WriteRune(rune(n))
+		}
+		return k - 1
+	case c == 'c' && j+1 < len(s):
+		b.WriteByte(s[j+1] & 0x1f)
+		return j + 1
+	}
+	b.WriteByte('\\')
+	b.WriteByte(c)
+	return j
 }
 
 // cdPrefix matches a leading `cd <dir> &&` or `cd <dir>;` segment.
