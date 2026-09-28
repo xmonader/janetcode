@@ -119,3 +119,35 @@ func TestEditByAnchorSurvivesItsOwnBatch(t *testing.T) {
 		t.Fatal("a stale anchor must be refused")
 	}
 }
+
+// A blank line has an anchor like any other, and read_file prints it; an
+// edit aimed at one has to land. It used to be refused unconditionally —
+// "line 2 now reads \"\"" — because an empty line was taken for a line
+// past the end of the file. A blank line is not followed when it has
+// moved, though: blank lines are everywhere, and the nearest one is not
+// evidence of being the one that was read.
+func TestResolveAnchorOnABlankLine(t *testing.T) {
+	lines := []string{"package x", "", "func A() {}", "", "func B() {}"}
+	ref, err := parseAnchor(Anchor(2, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := resolveAnchor(ref, lines); err != nil || n != 2 {
+		t.Fatalf("a blank line in place: %d %v", n, err)
+	}
+	ws, _ := parseAnchor(Anchor(2, "   \t"))
+	if n, err := resolveAnchor(ws, lines); err != nil || n != 2 {
+		t.Fatalf("a whitespace-only anchor on a blank line: %d %v", n, err)
+	}
+	// Line 2 is no longer blank; the blank line one below is not taken for
+	// it.
+	moved := []string{"package x", "import \"y\"", "", "func A() {}"}
+	if n, err := resolveAnchor(ref, moved); err == nil {
+		t.Fatalf("a moved blank line must be refused, not guessed: got line %d", n)
+	}
+	// Past the end is still refused.
+	far, _ := parseAnchor(Anchor(9, ""))
+	if _, err := resolveAnchor(far, lines); err == nil {
+		t.Fatal("an anchor past the end must be refused")
+	}
+}

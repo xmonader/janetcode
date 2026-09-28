@@ -101,19 +101,31 @@ func resolveAnchor(ref anchorRef, lines []string) (int, error) {
 		}
 		return lines[n-1]
 	}
+	// matches is separate from at because a blank line is a line: taking
+	// "" to mean "no line here" made every anchor on a blank line — which
+	// read_file prints like any other — unresolvable.
+	matches := func(n int) bool {
+		return n >= 1 && n <= len(lines) && lineAnchor(lines[n-1]) == ref.hash
+	}
 	if ref.hash == "" {
 		if ref.line > len(lines) {
 			return 0, fmt.Errorf("line %d is past the end of the file, which has %d line(s)", ref.line, len(lines))
 		}
 		return ref.line, nil
 	}
-	if l := at(ref.line); l != "" && lineAnchor(l) == ref.hash {
+	if matches(ref.line) {
 		return ref.line, nil
 	}
 	var found []int
 	for d := 1; d <= anchorRadius; d++ {
+		// A blank line is not followed once it has moved: there is one
+		// every few lines, so the nearest is not evidence of being the one
+		// that was read, and taking it would edit the wrong place.
+		if ref.hash == lineAnchor("") {
+			break
+		}
 		for _, n := range [2]int{ref.line - d, ref.line + d} {
-			if l := at(n); l != "" && lineAnchor(l) == ref.hash {
+			if matches(n) {
 				found = append(found, n)
 			}
 		}
