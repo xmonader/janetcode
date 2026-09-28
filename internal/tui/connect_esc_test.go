@@ -1,0 +1,53 @@
+package tui
+
+import (
+	"errors"
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// TestConnectEscFromAPresetURLGoesBackToTheList: a preset goes from the
+// list straight to its URL, but esc stepped back to stepName, a step it
+// never showed, where typing a word renamed the provider being set up.
+func TestConnectEscFromAPresetURLGoesBackToTheList(t *testing.T) {
+	h := newHarness(t)
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return &listing{}, nil })
+	h.keys("/connect")
+	h.enter()
+	h.keys("openrouter")
+	h.enter()
+	if h.m.connect.step != stepURL {
+		t.Fatalf("step = %d, want the URL", h.m.connect.step)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.connect == nil || h.m.connect.step != stepPick {
+		t.Fatalf("esc from a preset's URL went to step %d, want the provider list", h.m.connect.step)
+	}
+}
+
+// TestConnectIgnoresAModelListFromAnEarlierVisit: the model step's list
+// was matched by dialog only, so a list still in flight from an earlier
+// visit to the step (a key since replaced) landed in the new one.
+func TestConnectIgnoresAModelListFromAnEarlierVisit(t *testing.T) {
+	h := newHarness(t)
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) {
+		return &listing{err: errors.New("401 unauthorized")}, nil
+	})
+	h.m.openConnect(stepModel)
+	stale := h.m.fetchModels()
+	h.m.enterStep(stepModel) // the step visited again, with its own list on the way
+	h.update(stale())
+	if !h.m.connect.loading || h.m.connect.step != stepModel {
+		t.Fatalf("a stale list landed: loading=%v step=%d", h.m.connect.loading, h.m.connect.step)
+	}
+}

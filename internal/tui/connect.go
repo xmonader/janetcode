@@ -57,9 +57,13 @@ type connect struct {
 	// slot names the model slot being filled (see slots.go) when the
 	// dialog was opened by /model <slot>. Empty is the session's own
 	// model, which is the only choice that switches the running agent.
-	slot      string
-	name      string
-	prov      config.Provider
+	slot string
+	name string
+	prov config.Provider
+	// custom is whether the provider was a custom entry, which is the
+	// only kind that walks through stepName: esc from the URL goes back
+	// to the list for every other one.
+	custom    bool
 	field     textinput.Model
 	providers []row
 	models    []row
@@ -188,6 +192,13 @@ func (m *model) enterStep(step connectStep) tea.Cmd {
 	case stepModel:
 		c.field.Placeholder = "search models, or type a model id"
 		c.models, c.loadErr, c.loading = nil, "", true
+		// Each visit lists afresh, under a generation of its own: a list
+		// still in flight from an earlier visit (a key since replaced, a
+		// URL since changed) must not land in this one, least of all an
+		// authentication failure, which sends the dialog back to the keys
+		// and drops the ones just typed.
+		m.connectGen++
+		c.gen = m.connectGen
 		cmd = tea.Batch(m.fetchModels(), m.spinner.Tick)
 	}
 	m.refresh(false)
@@ -378,6 +389,11 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.closeConnect("")
 		case c.step == stepModel && !c.prov.NeedsKey():
 			return m.enterStep(stepURL), true
+		case c.step == stepURL && !c.custom:
+			// A preset or configured provider went from the list straight
+			// to its URL; one step back is the list, not a name step it
+			// never showed, where typing renamed the provider.
+			return m.enterStep(stepPick), true
 		default:
 			return m.enterStep(c.step - 1), true
 		}
@@ -427,7 +443,7 @@ func (m *model) connectEnter() tea.Cmd {
 			return m.fail("no provider matches")
 		}
 		r := rows[idx]
-		c.name, c.prov = r.name, r.prov
+		c.name, c.prov, c.custom = r.name, r.prov, r.custom
 		if r.custom {
 			return m.enterStep(stepName)
 		}
