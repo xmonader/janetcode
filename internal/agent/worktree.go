@@ -36,12 +36,18 @@ func newWorktree(ctx context.Context, root string) (*worktree, error) {
 		return nil, fmt.Errorf("snapshot for the worktree: %w", err)
 	}
 	w.snap, w.base = &snap, snap.Commit
+	// Until the checkout exists the caller has nothing to remove, so a
+	// failure here drops the base snapshot's ref (and whatever a failed
+	// add left in the directory) itself rather than leaking them.
 	dir, err := os.MkdirTemp("", "janetcode-wt-")
 	if err != nil {
+		repo.Drop(context.WithoutCancel(ctx), snap)
 		return nil, err
 	}
 	os.Remove(dir) // git wants to create it
 	if out, err := gitRun(ctx, repo.Root, "worktree", "add", "--detach", "-q", dir, w.base); err != nil {
+		os.RemoveAll(dir)
+		repo.Drop(context.WithoutCancel(ctx), snap)
 		return nil, fmt.Errorf("git worktree add: %v: %s", err, out)
 	}
 	w.Dir = dir
