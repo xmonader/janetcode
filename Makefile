@@ -3,7 +3,8 @@ PKG := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test race lint check clean dist run eval eval-baseline eval-train cross harness-bench harness-bench-large
+.PHONY: build install test race lint check clean dist run eval eval-baseline eval-train cross harness-bench harness-bench-large \
+	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-visual ui-shot
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
