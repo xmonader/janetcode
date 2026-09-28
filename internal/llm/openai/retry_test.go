@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -191,6 +192,23 @@ func TestNegativeMaxRetriesDisablesRetrying(t *testing.T) {
 	}
 	if n := calls.Load(); n != 1 {
 		t.Fatalf("%d requests, want 1", n)
+	}
+}
+
+// An exhausted account is not a rate limit, and must not slow every later
+// request down as if it were — even when a verbose gateway puts the word
+// that says so past the display cap of the error message.
+func TestExhaustedAccountPastTheCapDoesNotWidenThePacer(t *testing.T) {
+	body := `{"error":{"message":"` + strings.Repeat("trace ", 80) + `insufficient_quota"}}`
+	p := newTestProviderWith(t, Config{MaxRetries: -1}, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, body, http.StatusTooManyRequests)
+	})
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err == nil || strings.Contains(err.Error(), "insufficient_quota") {
+		t.Fatalf("err = %v; the test needs the quota word past the cap", err)
+	}
+	if gap := p.pace.Gap(); gap != 0 {
+		t.Fatalf("pacer gap = %s after an exhausted account, want 0", gap)
 	}
 }
 

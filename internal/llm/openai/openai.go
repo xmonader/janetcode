@@ -330,7 +330,10 @@ attempts:
 			// A rate limit widens the gap for later requests, so a long run
 			// stops walking into the same wall; retrying only rescues this one.
 			var rl *APIError
-			if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(rl.Error()) {
+			// ClassifyText, not Error(): the display copy is cut, and an
+			// exhausted account whose quota word sits past the cut is not
+			// a limit that pacing later requests will ever get under.
+			if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(llm.ClassifyText(rl)) {
 				p.pace.Refused()
 				pendingGap = p.pace.Gap()
 			}
