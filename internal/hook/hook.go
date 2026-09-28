@@ -685,7 +685,9 @@ type capped struct {
 
 func (c *capped) Write(p []byte) (int, error) {
 	if room := c.max - c.buf.Len(); room > 0 {
-		if room > len(p) {
+		// >=, not >: a write that exactly fills the room is kept whole,
+		// and the loop below would otherwise read p[len(p)].
+		if room >= len(p) {
 			room = len(p)
 		} else {
 			// Stop on a rune boundary: the kept text is pasted into the

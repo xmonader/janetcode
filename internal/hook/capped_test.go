@@ -54,3 +54,24 @@ func TestMatchReIsCachedAndSafe(t *testing.T) {
 		t.Fatal("a broken pattern must be reported")
 	}
 }
+
+// A write that exactly fills the room left must not index past its own
+// end looking for a rune boundary: os/exec copies a hook's output in
+// 32 KiB chunks, so two full chunks against the 64 KiB default did this,
+// and the panic in the copying goroutine took the whole process down.
+func TestCappedExactFit(t *testing.T) {
+	c := &capped{max: 8}
+	if _, err := c.Write([]byte("abcd")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Write([]byte("efgh")); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.String(); got != "abcdefgh" {
+		t.Fatalf("String() = %q", got)
+	}
+	c.Write([]byte("i"))
+	if got := c.String(); !strings.HasPrefix(got, "abcdefgh\n[1 more bytes") {
+		t.Fatalf("String() = %q", got)
+	}
+}
