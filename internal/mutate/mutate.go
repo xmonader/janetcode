@@ -469,7 +469,9 @@ func (r *Runner) runMutants(ctx context.Context, mutants []Mutant) (Report, erro
 		// hung forever, past its own timeout and past ctrl+c.
 		shell.Supervise(cmd)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1", "JANETCODE_MUTANT="+m.String())
+		// Scrubbed of the agent's credentials, as verify's commands are:
+		// this runs the tests the model just wrote.
+		cmd.Env = append(shell.ScrubEnv(os.Environ()), "JANETCODE_VERIFY=1", "JANETCODE_MUTANT="+m.String())
 		out, runErr := cmd.CombinedOutput()
 		// A test command that exits 0 but leaks a grandchild holding its
 		// pipes (a server a package test starts and forgets) surfaces as

@@ -330,3 +330,26 @@ func TestRunInSubdirectoryOfRepository(t *testing.T) {
 		t.Fatalf("report = %+v", rep)
 	}
 }
+
+// The test command runs code the model wrote, the same as a verify
+// command does, so it gets the same environment: without the agent's own
+// credentials. The command here fails — kills the mutant — only when the
+// key reached it.
+func TestMutantCommandDoesNotSeeTheAgentsCredentials(t *testing.T) {
+	root := t.TempDir()
+	run(t, root, "git", "init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "m.go"), []byte("package m\n\nvar X = 1 == 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, root, "git", "add", "-A")
+	run(t, root, "git", "commit", "-qm", "base")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-must-not-leak")
+	r := &Runner{Root: root, Command: `test -z "$ANTHROPIC_API_KEY" && test "$CI" = true`, Timeout: 30 * time.Second}
+	rep, err := r.runMutants(context.Background(), Mutate("m.go", 3, "var X = 1 == 1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Total != 1 || rep.Killed != 0 {
+		t.Fatalf("the mutant command saw the key or missed the scrubbed environment: %+v", rep)
+	}
+}
