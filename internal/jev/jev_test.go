@@ -368,6 +368,41 @@ func TestSuccessResetsTheErrorStreak(t *testing.T) {
 	}
 }
 
+// A call the caller abandoned — the user interrupted the turn — says
+// nothing about the service. Counting it opened the circuit after three
+// interrupted gate failures, and triage paused itself for the cooldown
+// with a notice blaming "repeated errors" on a service that never
+// failed once.
+func TestACallerCancellationDoesNotTripTheBreaker(t *testing.T) {
+	srv, hits := fakeServer(t, 200, okBody)
+	c := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0"}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for i := 0; i < maxConsecErrors+1; i++ {
+		if _, err := c.Evaluate(ctx, "s", testQuestions()); err == nil {
+			t.Fatal("a cancelled call answered")
+		}
+	}
+	if !c.Available() {
+		t.Fatal("caller cancellations opened the circuit")
+	}
+	if _, err := c.Evaluate(context.Background(), "s", testQuestions()); err != nil || hits.Load() != 1 {
+		t.Fatalf("after the cancellations: err %v, hits %d", err, hits.Load())
+	}
+
+	// A half-open probe the caller abandons settles nothing either way:
+	// the next call may probe at once rather than wait a fresh cooldown.
+	now := time.Unix(0, 0)
+	d := &Client{BaseURL: srv.URL, Key: "k", Model: "jev-1.13.0", now: func() time.Time { return now }}
+	d.open, d.openedAt = true, now.Add(-2*DefaultCooldown)
+	if _, err := d.Evaluate(ctx, "s", testQuestions()); err == nil {
+		t.Fatal("a cancelled probe answered")
+	}
+	if !d.Available() {
+		t.Fatal("an abandoned probe re-opened the circuit for another cooldown")
+	}
+}
+
 func TestTimeoutClampedAndEnforced(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(300 * time.Millisecond)

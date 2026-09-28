@@ -441,6 +441,26 @@ func (c *Client) record(d time.Duration, err error, probe bool) {
 	}
 }
 
+// recordFailure is record for a call that never got an answer, unless
+// the caller gave up on it first — the user interrupted the turn — which
+// says nothing about the service. Such a call is counted but feeds
+// neither breaker, and an abandoned probe only releases its claim, so the
+// next call may probe at once.
+func (c *Client) recordFailure(caller context.Context, d time.Duration, err error, probe bool) {
+	if caller.Err() == nil {
+		c.record(d, err, probe)
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	c.errs++
+	c.totalTime += d
+	if probe {
+		c.probing = false
+	}
+}
+
 // p50 is the lower median of the first n elements, in place.
 func p50(vs *[LatencyWindow]time.Duration, n int) time.Duration {
 	s := append([]time.Duration(nil), vs[:n]...)
@@ -473,6 +493,7 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 	if err != nil {
 		return nil, err
 	}
+	caller := ctx
 	ctx, cancel := context.WithTimeout(ctx, c.timeout())
 	defer cancel()
 	start := time.Now()
@@ -496,13 +517,13 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 	resp, err := hc.Do(req)
 	d := time.Since(start)
 	if err != nil {
-		c.record(d, err, probe)
+		c.recordFailure(caller, d, err, probe)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		c.record(d, err, probe)
+		c.recordFailure(caller, d, err, probe)
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
