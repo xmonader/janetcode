@@ -31,6 +31,26 @@ func TestExtractTakesThePlanAndNothingElse(t *testing.T) {
 	}
 }
 
+// A heading inside a code fence is text being quoted, not the reply's
+// own heading: a question that quoted a doc's "## Plan" section, or a
+// shell snippet with a "# plan …" comment, was written to plan.md as a
+// plan, and a reply that quoted one before its real plan had the plan
+// start at the quote.
+func TestExtractIgnoresHeadingsInsideCodeFences(t *testing.T) {
+	for _, s := range []string{
+		"Should I keep this section of the README?\n\n```markdown\n## Plan\nold roadmap\n```\n",
+		"Which step first?\n\n~~~sh\n# plan the rollout before migrating\nmake migrate\n~~~\n",
+	} {
+		if body, ok := Extract(s); ok {
+			t.Errorf("a heading inside a fence was taken for the plan: %q", body)
+		}
+	}
+	body, ok := Extract("The README says:\n\n```md\n## Plan\nold roadmap\n```\n\n## Plan\n1. rewrite it\n")
+	if !ok || body != "## Plan\n1. rewrite it" {
+		t.Fatalf("body = %q ok = %v, want the plan after the fence", body, ok)
+	}
+}
+
 func TestWriteKeepsOneVersionBackAndRewritesNothingUnchanged(t *testing.T) {
 	root := t.TempDir()
 	if changed, err := Write(root, "## Plan\nfirst"); err != nil || !changed {

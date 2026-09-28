@@ -52,8 +52,21 @@ func PrevFile(root string) string { return File(root) + ".prev" }
 // plan file is never written from chatter.
 func Extract(text string) (body string, ok bool) {
 	lines := strings.Split(text, "\n")
+	fence := "" // the open code fence's marker, "" outside one
 	for i, line := range lines {
 		t := strings.TrimSpace(line)
+		// A heading inside a code fence is quoted text — a doc's own
+		// "## Plan", a shell comment — not the reply's heading.
+		if fence != "" {
+			if strings.HasPrefix(t, fence) && strings.Trim(t, fence[:1]) == "" {
+				fence = ""
+			}
+			continue
+		}
+		if m := fenceMarker(t); m != "" {
+			fence = m
+			continue
+		}
 		if !strings.HasPrefix(t, "#") {
 			continue
 		}
@@ -68,6 +81,17 @@ func Extract(text string) (body string, ok bool) {
 		return body, strings.TrimSpace(body) != ""
 	}
 	return "", false
+}
+
+// fenceMarker is the run of backticks or tildes that opens a code fence
+// on line t, or "".
+func fenceMarker(t string) string {
+	for _, c := range []string{"`", "~"} {
+		if n := len(t) - len(strings.TrimLeft(t, c)); n >= 3 {
+			return strings.Repeat(c, n)
+		}
+	}
+	return ""
 }
 
 // ErrNoRoot is returned by Write when there is no project root to put the
