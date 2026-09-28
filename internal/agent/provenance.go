@@ -64,7 +64,7 @@ func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 		if !exists && !p.existed || exists && p.existed && bytes.Equal(data, p.data) {
 			continue
 		}
-		a.record(Change{Turn: a.Stats().Turns, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data})
+		a.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data})
 	}
 }
 
@@ -305,7 +305,7 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 	}
 	a.markUndone(seq)
 	now, _ := os.ReadFile(c.Path)
-	a.record(Change{Turn: a.Stats().Turns, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now})
+	a.record(Change{Turn: a.turnN, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now})
 	// Relative to the session's root: the line is shown to the user and
 	// handed to the model, and an absolute path is noise to both.
 	return verb + " " + textfmt.RelTo(a.displayRoot(), c.Path), nil

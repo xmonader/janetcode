@@ -172,3 +172,29 @@ func TestProvenanceBlameAndUndoOneChange(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A resumed session numbers its turns on from the log (RestoreFromLog),
+// while the per-process stats counter starts again at zero. A change was
+// stamped with the stats counter, so in a resumed session it named a turn
+// of the old run: the triage state saw no changed files for the running
+// turn, and a proof note folded the verdict of the wrong turn.
+func TestChangeTurnIsTheLoggedTurnAfterResume(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c1", "write_file", `{"path":"a.txt","content":"x\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	a.turnN = 4 // what RestoreFromLog leaves after a four-turn session
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	changes := a.Changes()
+	if len(changes) != 1 || changes[0].Turn != a.turnN || a.turnN != 5 {
+		t.Fatalf("turnN = %d, changes = %+v", a.turnN, changes)
+	}
+	if files := a.turnChangedFiles(); len(files) != 1 {
+		t.Fatalf("turn's changed files = %q", files)
+	}
+}
