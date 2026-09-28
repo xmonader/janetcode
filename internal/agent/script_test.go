@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -153,6 +154,27 @@ func TestScriptFailureIsReported(t *testing.T) {
 	out := runScript(t, s, "print('before')\nraise SystemExit(3)\n")
 	if !strings.Contains(out, "before") || !strings.Contains(out, "the script failed") {
 		t.Fatalf("got %q", out)
+	}
+}
+
+// A script that starts something in the background and exits left the
+// tool waiting on the output pipe the background process still held: the
+// turn hung until that process ended, or for the whole five-minute limit
+// and then reported a script that had finished as killed.
+func TestAScriptsBackgroundChildDoesNotHoldTheTool(t *testing.T) {
+	pythonOrSkip(t)
+	if _, err := exec.LookPath("sleep"); err != nil {
+		t.Skip("no sleep command")
+	}
+	root := t.TempDir()
+	_, s := scriptAgent(t, root)
+	start := time.Now()
+	out := runScript(t, s, "import subprocess\nsubprocess.Popen(['sleep', '30'])\nprint('started')\n")
+	if took := time.Since(start); took > 20*time.Second {
+		t.Fatalf("the tool waited %s on the script's background child", took)
+	}
+	if !strings.Contains(out, "started") || strings.Contains(out, "failed") || strings.Contains(out, "killed") {
+		t.Fatalf("got %q, want the script's output reported as a success", out)
 	}
 }
 

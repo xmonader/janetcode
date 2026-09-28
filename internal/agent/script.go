@@ -321,10 +321,18 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 		"PYTHONDONTWRITEBYTECODE=1",
 		"PYTHONUNBUFFERED=1",
 	)
-	shell.SetProcessGroup(cmd)
+	// Supervise, not just a process group: without a bound on the pipe
+	// wait, a script that started something in the background and exited
+	// held the tool on the output pipe that process inherited — until it
+	// ended, or for the whole timeout.
+	shell.Supervise(cmd)
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	runErr := cmd.Run()
+	if errors.Is(runErr, exec.ErrWaitDelay) {
+		// The script itself exited cleanly; only its pipes were cut.
+		runErr = nil
+	}
 	ln.Close()
 	srv.shutdown()
 
