@@ -136,7 +136,9 @@ func keyProblem(err error) (llm.Failure, bool) {
 	}
 	switch ae.Status {
 	case 429, 401, 403, 402, 529:
-		return llm.ClassifyFailure(ae.Status, ae.Message), true
+		// The uncapped copy: "credit balance is too low" past the display
+		// cap would otherwise grade a dead account as a brief rate limit.
+		return llm.ClassifyFailure(ae.Status, ae.ErrorDetail()), true
 	}
 	return 0, false
 }
