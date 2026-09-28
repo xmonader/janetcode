@@ -263,6 +263,9 @@ func (m *model) resume(arg string) {
 	}
 	m.titleGen++ // a title generated for the session we just left must not land here
 	m.transcript = newTranscriptStyled(m.transcript.styleName, m.styles)
+	// As /clear does: without it every verdict and notice after a resume
+	// wrote its paths out absolute.
+	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
 	m.lastTurn, m.lastTurnTokens = "", ""

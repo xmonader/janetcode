@@ -143,6 +143,11 @@ func TestResumePicker(t *testing.T) {
 	if !strings.Contains(v, "resumed session "+old) || !strings.Contains(v, "old answer") {
 		t.Fatalf("after resume:\n%s", v)
 	}
+	// The new transcript writes paths relative to the working directory,
+	// as the one it replaced did.
+	if h.m.transcript.cwd != h.m.opts.Cwd {
+		t.Fatalf("after resume the transcript's cwd is %q, want %q", h.m.transcript.cwd, h.m.opts.Cwd)
+	}
 	h.keys("/resume 9")
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "no session numbered 9") {
