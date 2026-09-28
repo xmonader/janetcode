@@ -37,6 +37,7 @@ type model struct {
 	approver        *tuiApprover
 	asker           *tuiAsker
 	asking          *askState
+	waitingAsks     []askMsg // questions that arrived while others were up, in order
 	// send delivers messages from background goroutines into the loop.
 	send func(tea.Msg)
 	// titleGen invalidates generated titles once the user set one.

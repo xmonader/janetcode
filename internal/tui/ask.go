@@ -14,6 +14,8 @@ import (
 // askMsg is a batch of questions the model wants answered, delivered
 // from the agent goroutine into the UI loop.
 type askMsg struct {
+	// ctx is the asking caller's: once it is done nobody reads reply.
+	ctx       context.Context
 	questions []agent.Question
 	reply     chan []agent.Answer
 }
@@ -36,7 +38,7 @@ func (a *tuiAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer
 		return nil, fmt.Errorf("ask: no UI")
 	}
 	reply := make(chan []agent.Answer, 1)
-	a.send(askMsg{questions: qs, reply: reply})
+	a.send(askMsg{ctx: ctx, questions: qs, reply: reply})
 	select {
 	case v := <-reply:
 		return v, nil
@@ -67,6 +69,14 @@ func (m *model) openAsk(msg askMsg) {
 		msg.reply <- nil
 		return
 	}
+	if m.asking != nil {
+		// The ask tool is not mutating, so two calls in one reply run side
+		// by side. The second used to replace the first on screen, and the
+		// first call waited for an answer that could no longer be given,
+		// holding the whole turn with it. It waits its turn instead.
+		m.waitingAsks = append(m.waitingAsks, msg)
+		return
+	}
 	m.asking = &askState{
 		questions: qs,
 		answers:   make([]agent.Answer, len(qs)),
@@ -91,6 +101,16 @@ func (m *model) finishAsk() {
 	default:
 	}
 	m.refresh(false)
+	// The next batch of questions that was waiting behind this one, if
+	// its caller is still there to read the answers.
+	for m.asking == nil && len(m.waitingAsks) > 0 {
+		next := m.waitingAsks[0]
+		m.waitingAsks = m.waitingAsks[1:]
+		if next.ctx != nil && next.ctx.Err() != nil {
+			continue
+		}
+		m.openAsk(next)
+	}
 }
 
 func (m *model) handleAskKey(msg tea.KeyMsg) (tea.Cmd, bool) {
