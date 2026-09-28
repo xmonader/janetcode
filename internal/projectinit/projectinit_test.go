@@ -128,6 +128,28 @@ func TestNeverOverwritesWithoutConfirmation(t *testing.T) {
 	}
 }
 
+// A JANETCODE.md that is a symlink is not written through, with or without
+// force: a cloned repository can ship one dangling toward a file of the
+// user's that does not exist yet (a shell profile, say), and the page
+// written there carries the repository's own verify commands in backticks.
+func TestDoesNotWriteThroughASymlink(t *testing.T) {
+	dir, outside := t.TempDir(), t.TempDir()
+	write(t, dir, "go.mod", "module example.com/x\n")
+	target := filepath.Join(outside, ".profile")
+	if err := os.Symlink(target, filepath.Join(dir, File)); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	for _, force := range []bool{false, true} {
+		res, err := Run(dir, force)
+		if err == nil && res.Error == "" {
+			t.Errorf("force=%v: wrote through the symlink: %+v", force, res)
+		}
+		if _, err := os.Lstat(target); err == nil {
+			t.Fatalf("force=%v: the symlink's target was created", force)
+		}
+	}
+}
+
 // TestFileNameFollowsTheLoader keeps the generated file and the file the
 // prompt reads from drifting apart.
 func TestFileNameFollowsTheLoader(t *testing.T) {

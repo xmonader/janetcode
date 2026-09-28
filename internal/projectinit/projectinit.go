@@ -377,7 +377,15 @@ func Run(cwd string, force bool) (cmdresult.Result, error) {
 	if r, err := filepath.Rel(cwd, path); err == nil && !strings.HasPrefix(r, "..") {
 		rel = r
 	}
-	if _, err := os.Stat(path); err == nil && !force {
+	// Lstat, not Stat: a symlink is never written through, even with
+	// force. A cloned repository can ship one dangling toward a file of
+	// the user's that does not exist yet, and os.WriteFile would create
+	// it there, with the repository's own verify commands in the body.
+	fi, err := os.Lstat(path)
+	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return cmdresult.Result{Error: rel + " is a symlink and was not touched; remove it to write a new one"}, nil
+	}
+	if err == nil && !force {
 		res := cmdresult.Result{Error: rel + " already exists and was not touched"}
 		res.Tips = append(res.Tips, "/init force overwrites it, or open it and add what is missing")
 		if len(s.Existing) > 0 {
@@ -386,7 +394,20 @@ func Run(cwd string, force bool) (cmdresult.Result, error) {
 		return res, nil
 	}
 	body := s.Generate()
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	if !force {
+		// O_EXCL also refuses a symlink put there since the Lstat.
+		flags = os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	}
+	f, err := os.OpenFile(path, flags, 0o644)
+	if err != nil {
+		return cmdresult.Result{}, err
+	}
+	if _, err := f.WriteString(body); err != nil {
+		f.Close()
+		return cmdresult.Result{}, err
+	}
+	if err := f.Close(); err != nil {
 		return cmdresult.Result{}, err
 	}
 	res := cmdresult.Result{Sheet: body, SheetTitle: rel, Plain: true}
