@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -87,7 +88,10 @@ func ParseBudget(arg string) (float64, error) {
 		return 0, nil
 	}
 	usd, err := strconv.ParseFloat(strings.TrimPrefix(arg, "$"), 64)
-	if err != nil || usd <= 0 {
+	// ParseFloat also reads "nan" and "inf". NaN is not <= 0, and no
+	// spend is ever >= NaN, so it would read as a ceiling while bounding
+	// nothing; neither is an amount.
+	if err != nil || !(usd > 0) || math.IsInf(usd, 0) {
 		return 0, fmt.Errorf("%q is not an amount · /budget 0.50, or /budget off", arg)
 	}
 	return usd, nil

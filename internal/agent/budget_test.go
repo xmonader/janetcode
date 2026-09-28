@@ -142,3 +142,19 @@ func TestBudgetErrorNamesSubCentFigures(t *testing.T) {
 		t.Fatalf("the budget error rounded its own figures away: %s", msg)
 	}
 }
+
+// strconv.ParseFloat reads "nan" and "inf" as numbers, and NaN is not
+// <= 0, so /budget nan set a ceiling no spend is ever >= to: the status
+// said a budget was set while nothing bounded the run.
+func TestParseBudgetRefusesWhatIsNotAnAmount(t *testing.T) {
+	for _, arg := range []string{"nan", "NaN", "$nan", "inf", "+Inf", "-1", "x"} {
+		if v, err := ParseBudget(arg); err == nil {
+			t.Errorf("ParseBudget(%q) = %v, want an error", arg, v)
+		}
+	}
+	for arg, want := range map[string]float64{"0.5": 0.5, "$2": 2, "off": 0, "0": 0} {
+		if v, err := ParseBudget(arg); err != nil || v != want {
+			t.Errorf("ParseBudget(%q) = %v, %v; want %v", arg, v, err, want)
+		}
+	}
+}
