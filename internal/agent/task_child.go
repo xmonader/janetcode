@@ -165,6 +165,11 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 		Effort:        ps.Effort,
 		MaxIterations: maxIter,
 		CompactAt:     ps.CompactAt,
+		// The window is what sizes compaction and the oversized-output
+		// guard; without it the child that reads the most code ran with
+		// neither fitted to the model — compacting at a fixed 80k tokens
+		// on a 32k model, and taking any file whole.
+		ContextWindow: ps.ContextWindow,
 		AutoApprove:   false,
 	})
 	if err != nil {

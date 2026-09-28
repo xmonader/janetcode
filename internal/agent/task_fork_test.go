@@ -31,6 +31,29 @@ func (f *forkProbe) Stream(ctx context.Context, req llm.Request, emit func(llm.E
 	return text("ok"), nil
 }
 
+// The editing child and the fork were given the parent's context window;
+// the read-only child was not, so its compaction point and its guard
+// against oversized tool output were not fitted to the model.
+func TestEveryKindOfChildKnowsTheContextWindow(t *testing.T) {
+	parent := &Agent{Provider: &inFlight{}, Model: "m", System: "sys"}
+	parent.ContextWindow = 32_000
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: t.TempDir()}, task)
+	ro, err := task.child(nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fork, err := task.forkChild()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]*Agent{"read-only": ro, "fork": fork} {
+		if w := c.Settings().ContextWindow; w != 32_000 {
+			t.Errorf("%s child has context window %d, want the parent's 32000", name, w)
+		}
+	}
+}
+
 // inFlight answers every call after a short wait and remembers the most
 // calls it ever had open at once.
 type inFlight struct {
