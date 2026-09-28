@@ -296,9 +296,12 @@ var (
 		regexp.MustCompile(`(?is)<head\b.*?</head\s*>`),
 		regexp.MustCompile(`(?s)<!--.*?-->`),
 	}
-	reLi     = regexp.MustCompile(`(?i)<li\b[^>]*>`)
-	reLiEnd  = regexp.MustCompile(`(?i)</li\s*>`)
-	reBlock  = regexp.MustCompile(`(?i)</?(p|div|br|ul|ol|h[1-6]|tr|table|section|article|header|footer|pre|blockquote|dt|dd)\b[^>]*>`)
+	reLi    = regexp.MustCompile(`(?i)<li\b[^>]*>`)
+	reLiEnd = regexp.MustCompile(`(?i)</li\s*>`)
+	reBlock = regexp.MustCompile(`(?i)</?(p|div|br|ul|ol|h[1-6]|tr|table|section|article|header|footer|pre|blockquote|dt|dd)\b[^>]*>`)
+	// A table cell is a value of its own; stripped bare, "<td>go</td><td>1.22</td>"
+	// reads "go1.22".
+	reCell   = regexp.MustCompile(`(?i)</?(td|th)\b[^>]*>`)
 	reTag    = regexp.MustCompile(`(?s)<[^>]*>`)
 	reSpaces = regexp.MustCompile(`[ \t\r\f]+`)
 	reBlank  = regexp.MustCompile(`\n{3,}`)
@@ -312,6 +315,7 @@ func htmlToText(s string) string {
 	s = reLi.ReplaceAllString(s, "\n- ")
 	s = reLiEnd.ReplaceAllString(s, "")
 	s = reBlock.ReplaceAllString(s, "\n")
+	s = reCell.ReplaceAllString(s, " ")
 	s = reTag.ReplaceAllString(s, "")
 	s = unescape(s)
 	s = reSpaces.ReplaceAllString(s, " ")
