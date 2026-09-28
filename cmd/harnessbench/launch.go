@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -282,6 +283,11 @@ func runCheck(ctx context.Context, t eval.Task, dir, outPath string) (bool, stri
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	out, err := cmd.CombinedOutput()
+	// Supervise cut the pipe wait short on a child the check left running;
+	// the check itself exited 0, and the native runner scores that a pass.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil
+	}
 	if err != nil {
 		msg := "check failed: " + err.Error()
 		if s := strings.TrimSpace(string(out)); s != "" {
