@@ -374,15 +374,24 @@ func (t *httpTransport) openSSE(ready chan error) {
 	}
 	defer resp.Body.Close()
 	announced := false
+	var refused error
 	t.readSSE(resp.Body, func(event, data string) bool {
 		if event != "endpoint" {
 			return false
 		}
-		ep := strings.TrimSpace(data)
-		if base, err := url.Parse(t.url); err == nil {
-			if ref, err := url.Parse(ep); err == nil {
-				ep = base.ResolveReference(ref).String()
+		ep, err := sameOriginEndpoint(t.url, strings.TrimSpace(data))
+		if err != nil {
+			// Every POST carries the configured headers and the stored
+			// OAuth token, so an endpoint elsewhere would hand this
+			// server's credentials to whatever host the stream named.
+			// One that was already announced stays; a first one that is
+			// refused ends the attempt now rather than at the timeout.
+			t.c.logf("ignoring SSE endpoint: %v", err)
+			if !announced {
+				refused = err
+				cancel()
 			}
+			return true
 		}
 		t.mu.Lock()
 		t.endpoint = ep
@@ -393,7 +402,10 @@ func (t *httpTransport) openSSE(ready chan error) {
 		}
 		return true
 	})
-	if !announced {
+	switch {
+	case refused != nil:
+		fail(refused)
+	case !announced:
 		fail(errors.New("SSE stream ended before announcing an endpoint"))
 	}
 	select {
@@ -401,6 +413,41 @@ func (t *httpTransport) openSSE(ready chan error) {
 	default:
 		t.c.exited(errors.New("SSE stream closed"))
 	}
+}
+
+// sameOriginEndpoint resolves the endpoint a legacy SSE stream announced
+// against the server's URL and refuses one on another scheme, host or
+// port.
+func sameOriginEndpoint(serverURL, announced string) (string, error) {
+	base, err := url.Parse(serverURL)
+	if err != nil {
+		return "", err
+	}
+	ref, err := url.Parse(announced)
+	if err != nil {
+		return "", fmt.Errorf("bad endpoint %q: %w", announced, err)
+	}
+	ep := base.ResolveReference(ref)
+	if urlOrigin(ep) != urlOrigin(base) {
+		return "", fmt.Errorf("the server announced an endpoint on another origin (%s://%s), not %s://%s", ep.Scheme, ep.Host, base.Scheme, base.Host)
+	}
+	return ep.String(), nil
+}
+
+// urlOrigin is scheme://host:port, lower-cased, with the scheme's default
+// port spelled out so "https://h" and "https://h:443" agree.
+func urlOrigin(u *url.URL) string {
+	scheme := strings.ToLower(u.Scheme)
+	port := u.Port()
+	if port == "" {
+		switch scheme {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		}
+	}
+	return scheme + "://" + strings.ToLower(u.Hostname()) + ":" + port
 }
 
 // readSSE parses an event stream, handing "message" events to the client.

@@ -181,6 +181,54 @@ func TestLegacySSEFallback(t *testing.T) {
 	}
 }
 
+// A legacy SSE stream names where POSTs go, and every POST carries the
+// configured headers. An endpoint on another origin would hand this
+// server's credentials to whatever host the stream named.
+func TestLegacySSEEndpointOnAnotherOriginIsRefused(t *testing.T) {
+	var leaked atomic.Value
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked.Store(r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer elsewhere.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintf(w, "event: endpoint\ndata: %s/messages\n\n", elsewhere.URL)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	start := time.Now()
+	_, err := Start(context.Background(), "old", ServerConfig{URL: srv.URL + "/sse", Headers: map[string]string{"Authorization": "Bearer secret"}}, Options{HandshakeTimeout: 10 * time.Second})
+	if err == nil || !strings.Contains(err.Error(), "another origin") {
+		t.Fatalf("err = %v", err)
+	}
+	if v := leaked.Load(); v != nil {
+		t.Fatalf("the other origin received a request (Authorization %q)", v)
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("the refusal waited out the handshake timeout (%v)", d)
+	}
+	for _, ok := range []string{"/messages", "messages?x=1", "//" + strings.TrimPrefix(srv.URL, "http://") + "/m"} {
+		if _, err := sameOriginEndpoint(srv.URL+"/sse", ok); err != nil {
+			t.Errorf("%q refused: %v", ok, err)
+		}
+	}
+	if _, err := sameOriginEndpoint("https://h.test/sse", "https://h.test:443/m"); err != nil {
+		t.Errorf("explicit default port refused: %v", err)
+	}
+	if _, err := sameOriginEndpoint("https://h.test/sse", "http://h.test/m"); err == nil {
+		t.Error("a downgrade to http was accepted")
+	}
+}
+
 func TestHTTPErrors(t *testing.T) {
 	if _, err := Start(context.Background(), "x", ServerConfig{URL: "ftp://nope"}, Options{}); err == nil || !strings.Contains(err.Error(), "bad url") {
 		t.Fatalf("err = %v", err)
