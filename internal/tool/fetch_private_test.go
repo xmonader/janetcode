@@ -3,8 +3,10 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -61,6 +63,77 @@ func TestFetchRefusesPrivateTargetsAndCrossHostRedirects(t *testing.T) {
 	}
 	if !strings.Contains(out, "PNG image") || strings.Contains(out, "rest of the image") {
 		t.Fatalf("a lying Content-Type was believed: %q", out)
+	}
+}
+
+// A name that resolves to a private address passes a check that reads
+// only the URL: "localhost." with its root dot, a subdomain of localhost,
+// a wildcard-DNS name like 127.0.0.1.nip.io, a rebinding server. The
+// address judged has to be the one the socket connects to.
+func TestFetchRefusesANameThatResolvesToAPrivateAddress(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("secret"))
+	}))
+	defer srv.Close()
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
+	// No proxy from the environment: the test is about the direct dial.
+	client := &http.Client{Transport: &http.Transport{}}
+	tried := 0
+	for _, host := range []string{"localhost.", "janet.localhost"} {
+		if _, err := net.DefaultResolver.LookupIPAddr(context.Background(), host); err != nil {
+			t.Logf("%s does not resolve here: %v", host, err)
+			continue
+		}
+		tried++
+		target := "http://" + net.JoinHostPort(host, port) + "/"
+		in, _ := json.Marshal(map[string]string{"url": target})
+		out, err := FetchURL{Client: client}.Run(context.Background(), in)
+		if err == nil || strings.Contains(out, "secret") || !strings.Contains(err.Error(), "loopback") {
+			t.Errorf("%s resolves to loopback and was fetched: %q %v", target, out, err)
+		}
+		// The user naming the host is still what lets it through.
+		typed := &weburl.Set{}
+		typed.Note("look at " + target)
+		if out, err := (FetchURL{Client: client, Typed: typed}).Run(context.Background(), in); err != nil || !strings.Contains(out, "secret") {
+			t.Errorf("%s was named by the user and refused: %q %v", target, out, err)
+		}
+	}
+	if tried == 0 {
+		t.Skip("no localhost alias resolves on this machine")
+	}
+}
+
+// A proxy the user configured on a private address is still reachable:
+// the guard is for the target, and a proxy resolves the target itself.
+func TestFetchThroughAPrivateProxy(t *testing.T) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("via proxy for " + r.URL.Host))
+	}))
+	defer proxy.Close()
+	pu, _ := url.Parse(proxy.URL)
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(pu)}}
+	in, _ := json.Marshal(map[string]string{"url": "http://example.test/page"})
+	out, err := FetchURL{Client: client}.Run(context.Background(), in)
+	if err != nil || !strings.Contains(out, "via proxy for example.test") {
+		t.Fatalf("the configured proxy was refused: %q %v", out, err)
+	}
+}
+
+func TestFetchDialGuardJudgesTheConnectedAddress(t *testing.T) {
+	for addr, want := range map[string]bool{
+		"127.0.0.1:80":          true,
+		"[::1]:443":             true,
+		"169.254.169.254:80":    true,
+		"[fe80::1%eth0]:80":     true,
+		"10.1.2.3:80":           true,
+		"[::ffff:127.0.0.1]:80": true,
+		"0.0.0.0:80":            true,
+		"93.184.216.34:443":     false,
+		"[2606:4700::1]:443":    false,
+	} {
+		if err := refusePrivateDial("tcp", addr, nil); (err != nil) != want {
+			t.Errorf("%s: refused=%v, want %v (%v)", addr, err != nil, want, err)
+		}
 	}
 }
 

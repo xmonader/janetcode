@@ -104,8 +104,10 @@ var privateName = map[string]bool{
 
 // PrivateTarget reports why a URL points inside the local machine or
 // network, or "" when it does not. Only literal addresses and names that
-// can mean nothing else are judged: resolving every host before fetching
-// it would be slow, and would still lose the race with DNS.
+// can mean nothing else are judged: a name that resolves to a private
+// address is caught where the connection is made (PrivateIP, applied by
+// the fetch tool's dialer), since judging it here would lose the race
+// with DNS.
 func PrivateTarget(u *url.URL) string {
 	host := strings.ToLower(u.Hostname())
 	if privateName[host] || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
@@ -115,20 +117,29 @@ func PrivateTarget(u *url.URL) string {
 	if ip == nil {
 		return ""
 	}
+	if why := PrivateIP(ip); why != "" {
+		return host + " is " + why
+	}
+	return ""
+}
+
+// PrivateIP reports what kind of non-public address ip is ("the loopback
+// address", ...), or "" for a public one.
+func PrivateIP(ip net.IP) string {
 	switch {
 	case ip.IsLoopback():
-		return host + " is the loopback address"
+		return "the loopback address"
 	case ip.IsLinkLocalUnicast(), ip.IsLinkLocalMulticast():
-		return host + " is a link-local address (on a cloud instance this is the credentials endpoint)"
+		return "a link-local address (on a cloud instance this is the credentials endpoint)"
 	case ip.IsPrivate():
-		return host + " is a private network address"
+		return "a private network address"
 	case cgnat.Contains(ip):
 		// 100.64/10 is not "private" by net's definition, but nothing on
 		// it is the public internet: it is the carrier's own network, and
 		// on several clouds it is where internal services live.
-		return host + " is a carrier-internal address"
+		return "a carrier-internal address"
 	case ip.IsUnspecified():
-		return host + " is the unspecified address"
+		return "the unspecified address"
 	}
 	return ""
 }

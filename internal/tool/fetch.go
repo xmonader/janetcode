@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -58,8 +61,13 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "", fmt.Errorf("url must be absolute http(s): %q", in.URL)
 	}
-	if why := weburl.PrivateTarget(u); why != "" && !t.Typed.Has(u.Host) {
+	named := t.Typed.Has(u.Host)
+	if why := weburl.PrivateTarget(u); why != "" && !named {
 		return "", fmt.Errorf("refused: %s, and you were not asked to fetch it. Only a URL the user named themselves may point inside the local machine or network", why)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return "", err
 	}
 	client := t.Client
 	if client == nil {
@@ -81,11 +89,10 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		}
 		return nil
 	}
-	client = &guarded
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return "", err
+	if !named {
+		guarded.Transport = guardDial(client.Transport, req)
 	}
+	client = &guarded
 	req.Header.Set("User-Agent", "janetcode/1 (+https://github.com/xmonader/janetcode)")
 	req.Header.Set("Accept", "text/html, application/json, text/plain, */*")
 	resp, err := client.Do(req)
@@ -136,6 +143,70 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		return sb.String(), fmt.Errorf("HTTP %d from %s", resp.StatusCode, u.Host)
 	}
 	return sb.String(), nil
+}
+
+// guardDial returns rt with a dialer that refuses to connect to a private
+// address. PrivateTarget reads only what the URL spells, and a name can
+// resolve anywhere: "localhost." with its root dot, any subdomain of
+// localhost, a wildcard-DNS name like 127.0.0.1.nip.io, a server that
+// answers with a public address when asked early and 169.254.169.254 when
+// asked again. Judging the address the socket is about to connect to,
+// after resolution, covers every one of them and every redirect as well,
+// and leaves DNS no later moment to change its answer in.
+//
+// A proxy is exempt: it is the user's own configuration, may well sit on a
+// private address, and resolves the target itself, so for a proxied
+// request only the literal check applies. A RoundTripper that is not an
+// *http.Transport has no dialer to guard and is returned as is.
+func guardDial(rt http.RoundTripper, req *http.Request) http.RoundTripper {
+	var tr *http.Transport
+	switch v := rt.(type) {
+	case nil:
+		tr = http.DefaultTransport.(*http.Transport).Clone()
+	case *http.Transport:
+		tr = v.Clone()
+	default:
+		return rt
+	}
+	proxy := ""
+	if tr.Proxy != nil {
+		if p, err := tr.Proxy(req); err == nil && p != nil {
+			port := p.Port()
+			if port == "" {
+				port = map[string]string{"http": "80", "https": "443", "socks5": "1080", "socks5h": "1080"}[p.Scheme]
+			}
+			proxy = strings.ToLower(net.JoinHostPort(p.Hostname(), port))
+		}
+	}
+	direct := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	checked := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: refusePrivateDial}
+	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if proxy != "" && strings.ToLower(addr) == proxy {
+			return direct.DialContext(ctx, network, addr)
+		}
+		return checked.DialContext(ctx, network, addr)
+	}
+	// The transport is this call's alone; a connection left idle in it
+	// would outlive the call with nothing to reuse or close it.
+	tr.DisableKeepAlives = true
+	return tr
+}
+
+// refusePrivateDial is a net.Dialer Control: address is the resolved
+// ip:port about to be connected to.
+func refusePrivateDial(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("refused: cannot tell where %q is", address)
+	}
+	a, err := netip.ParseAddr(host)
+	if err != nil {
+		return fmt.Errorf("refused: cannot tell where %q is", address)
+	}
+	if why := weburl.PrivateIP(net.IP(a.WithZone("").AsSlice())); why != "" {
+		return fmt.Errorf("refused: the name resolves to %s, which is %s, and you were not asked to fetch it. Only a URL the user named themselves may point inside the local machine or network", a.WithZone(""), why)
+	}
+	return nil
 }
 
 // binaryMagic is the leading bytes of formats a fetch should never try to
