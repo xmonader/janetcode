@@ -111,6 +111,20 @@ func TestGoalStatusTwiceIsNotAnError(t *testing.T) {
 	}
 }
 
+// A status other than complete or blocked used to close the goal as
+// complete: a model saying the work was still in progress ended it.
+func TestGoalStatusRefusesAnUnknownStatus(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	id, _ := a.CreateGoal("ship the cache", 0)
+	tl := &GoalStatus{Parent: a}
+	if _, err := tl.Run(context.Background(), []byte(`{"status":"in_progress"}`)); err == nil {
+		t.Fatal("an unknown status was accepted")
+	}
+	if g := ActiveGoal(a.Log.Events()); g == nil || g.ID != id {
+		t.Fatalf("active goal = %+v, want %s still active", g, id)
+	}
+}
+
 func TestGoalStatusOnABlockedGoalReportsTheReason(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
 	id, _ := a.CreateGoal("ship the cache", 0)

@@ -392,9 +392,17 @@ func (g *GoalStatus) Run(_ context.Context, input json.RawMessage) (string, erro
 		// failed step and set it answering the whole request again.
 		return "No goal is set in this session, so there is nothing to mark. Finish with your answer; do not call goal_status.", nil
 	}
-	phase := GoalComplete
-	if in.Status == GoalBlocked || in.Status == "blocked" {
+	// Anything but the two statuses the schema names is refused: it used
+	// to count as complete, so a model reporting "in_progress" or
+	// "failed" closed the goal it meant to keep working on.
+	var phase string
+	switch strings.ToLower(strings.TrimSpace(in.Status)) {
+	case GoalComplete:
+		phase = GoalComplete
+	case GoalBlocked:
 		phase = GoalBlocked
+	default:
+		return "", fmt.Errorf("status must be complete or blocked, not %q; if the goal is not done, keep working and do not call goal_status", in.Status)
 	}
 	g.Parent.SetGoalPhase(cur.ID, phase, in.Reason)
 	return "goal " + cur.ID + " is now " + phase, nil
