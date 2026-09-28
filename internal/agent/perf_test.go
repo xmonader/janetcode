@@ -44,8 +44,13 @@ func TestApprovalTimeIsChargedToTheUserNotTheTool(t *testing.T) {
 	if tool.Calls != 1 {
 		t.Fatalf("write_file not recorded: %+v", st.Tools)
 	}
-	if tool.Time >= think {
-		t.Fatalf("the tool was charged the prompt: %s of a %s wait", tool.Time, think)
+	// The tool's slice and the user's slice are disjoint parts of the
+	// turn, so together they fit inside it. Charging the prompt to the
+	// tool counts it twice and overflows the turn. Comparing tool.Time
+	// with think instead measures the write itself (snapshot, hooks,
+	// coaching), which on a loaded machine alone can pass 40ms.
+	if tool.Time+st.WaitTime > st.TurnTime {
+		t.Fatalf("the tool was charged the prompt: tool %s + wait %s exceeds the turn's %s", tool.Time, st.WaitTime, st.TurnTime)
 	}
 	if st.TurnTime < think {
 		t.Fatalf("the turn's wall time (%s) does not even cover the prompt", st.TurnTime)
