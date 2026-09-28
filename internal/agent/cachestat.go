@@ -42,7 +42,7 @@ type cacheMiss struct {
 
 // cacheLedger accumulates misses across a session.
 type cacheLedger struct {
-	prevPrompt int // input + cache read of the previous call
+	prevPrompt int // input + cache read + cache write of the previous call
 	prevModel  string
 	prevAt     time.Time
 	reported   bool // the provider has reported a cache read at least once
@@ -55,7 +55,9 @@ type cacheLedger struct {
 // since the last call (a compaction or a prune), which legitimately
 // invalidates the prefix and is not counted as waste.
 func (l *cacheLedger) record(u llm.Usage, model string, turn int, at time.Time, rewritten bool) {
-	prompt := u.InputTokens + u.CacheReadTokens
+	// The whole prompt: Anthropic splits it three ways, and a miss there
+	// is the prefix written to the cache again, not billed as input.
+	prompt := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
 	if u.CacheReadTokens > 0 {
 		l.reported = true
 	}

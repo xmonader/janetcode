@@ -61,6 +61,25 @@ func TestCacheLedger(t *testing.T) {
 	}
 }
 
+// TestCacheLedgerCountsCacheWrites holds the ledger to the way Anthropic
+// reports usage: a prompt is split between fresh input, cache reads and
+// cache writes, and a miss shows up as the whole prefix written again
+// with nothing read. Leaving the writes out of the prompt size made every
+// such miss look like a call with a tiny prompt, and none was reported.
+func TestCacheLedgerCountsCacheWrites(t *testing.T) {
+	t0 := time.Now()
+	var l cacheLedger
+	l.record(llm.Usage{InputTokens: 10, CacheWriteTokens: 9000}, "m", 1, t0, false)
+	l.record(llm.Usage{InputTokens: 10, CacheReadTokens: 9000, CacheWriteTokens: 300}, "m", 2, t0.Add(time.Second), false)
+	if len(l.misses) != 0 {
+		t.Fatalf("a hit that also cached its new tail is not waste: %+v", l.misses)
+	}
+	l.record(llm.Usage{InputTokens: 10, CacheWriteTokens: 9400}, "m", 3, t0.Add(2*time.Second), false)
+	if len(l.misses) != 1 || l.misses[0].Tokens < 9000 {
+		t.Fatalf("the prefix written to the cache again was paid for twice: %+v", l.misses)
+	}
+}
+
 func TestCacheReport(t *testing.T) {
 	a := &Agent{Model: "m"}
 	if got := a.CacheReport(); !strings.Contains(got, "not enough calls") {
