@@ -161,6 +161,11 @@ func Run(ctx context.Context, opts Options) error {
 			fmt.Fprintln(os.Stderr, "bound off loopback: the page asks for the token in this link, and without TLS in front the token crosses the network in the clear")
 		}
 	}
+	// The guard decides from Addr whether to insist on a loopback Host.
+	// It gets the address actually bound, not the one typed: ":8787" or
+	// a bare port binds loopback, and read as typed it has no host, so
+	// the guard took it for every interface and let a rebound DNS name in.
+	opts.Addr = ln.Addr().String()
 	s := newServer(ctx, opts)
 	hs := &http.Server{Handler: s.handler()}
 	served := make(chan struct{})

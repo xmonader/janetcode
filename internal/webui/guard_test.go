@@ -53,6 +53,40 @@ func TestGuardRefusesOtherPages(t *testing.T) {
 	}
 }
 
+// --web-addr :8787 (or a bare port) binds loopback, as ListenAddr fills
+// the host in, but the guard was handed the address as typed, read it as
+// not loopback, and let any Host through: a rebound DNS name reached the
+// server it was meant to keep out.
+func TestGuardKnowsAPortWithoutAHostBindsLoopback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	opened := make(chan string, 1)
+	errc := make(chan error, 1)
+	go func() {
+		errc <- Run(ctx, Options{Agent: nil, Addr: ":0", Token: "tok", Version: "test", Opened: func(u string) { opened <- u }})
+	}()
+	var base string
+	select {
+	case u := <-opened:
+		base, _, _ = strings.Cut(u, "/?")
+	case err := <-errc:
+		t.Fatal(err)
+	}
+	r, _ := http.NewRequest("GET", base+"/api/state", nil)
+	r.Host = "evil.example"
+	r.Header.Set("Authorization", "Bearer tok")
+	res, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("a rebound name on a loopback server = %d, want 403", res.StatusCode)
+	}
+	cancel()
+	<-errc
+}
+
 // Bound to every interface, the server is reached by names the user
 // picks (a LAN address, a hostname), so only the origin check applies.
 func TestGuardOnAllInterfacesChecksOnlyOrigin(t *testing.T) {
