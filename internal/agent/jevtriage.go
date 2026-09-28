@@ -255,9 +255,10 @@ func (a *Agent) triageFailure(ctx context.Context, res verify.Result, emit func(
 	// The state goes on the event too. Without it a recorded gate
 	// failure cannot be replayed: `--decisions-replay` scores a corpus of
 	// {state, truth} rows, and a run that logged only the answers leaves
-	// nothing to re-score when the questions change. It is the same
-	// string that was sent, so it is already scrubbed at the wire and
-	// carries nothing the gate event does not.
+	// nothing to re-score when the questions change. It is the state as
+	// built, before the wire's scrub (a replay scrubs it again on the way
+	// out), and it carries nothing the gate event and the user's message
+	// on the same log do not already hold.
 	state := a.triageState(res)
 	a.logEvent(session.Event{Type: session.TypeDecision, Turn: a.turnN,
 		Name: "verify_triage", Extra: mustJSON(map[string]any{
