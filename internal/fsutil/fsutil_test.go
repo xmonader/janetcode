@@ -140,3 +140,45 @@ func TestAtomicWriteLeavesNoTempFiles(t *testing.T) {
 		t.Fatalf("directory holds %v, want only f.json", names)
 	}
 }
+
+// A symlink is a pointer to the file, and writing the file must go
+// through it. The rename used to land on the link itself, replacing it
+// with a regular file: CLAUDE.md -> AGENTS.md became two diverging
+// copies, and a dotfile managed by a symlink farm was silently detached
+// from it, with the file the link named left as it was.
+func TestAtomicWriteGoesThroughASymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "AGENTS.md")
+	link := filepath.Join(dir, "CLAUDE.md")
+	if err := os.WriteFile(target, []byte("old"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("AGENTS.md", link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	if err := AtomicWrite(link, []byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the link was replaced by a %v", st.Mode())
+	}
+	if data, _ := os.ReadFile(target); string(data) != "new" {
+		t.Fatalf("target = %q, want the new content", data)
+	}
+	if st, _ := os.Stat(target); st.Mode().Perm() != 0o640 {
+		t.Fatalf("target mode = %v, want 0640 kept", st.Mode().Perm())
+	}
+	// A dangling link has nothing to write through; the write still
+	// lands at the path it was given.
+	dangling := filepath.Join(dir, "gone")
+	if err := os.Symlink("nowhere", dangling); err != nil {
+		t.Fatal(err)
+	}
+	if err := AtomicWrite(dangling, []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+}

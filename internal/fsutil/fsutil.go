@@ -96,6 +96,17 @@ func AtomicWrite(p string, data []byte) error {
 // the user has deliberately opened up, or loosening one they have
 // tightened, is not this function's decision to make.
 func AtomicWriteMode(p string, data []byte, newFile os.FileMode) error {
+	// A symlink is written through, not replaced: the rename would
+	// otherwise land on the link itself and turn it into a regular file,
+	// leaving the file it named untouched — CLAUDE.md -> AGENTS.md edited
+	// into two diverging copies. The temp file then goes beside the
+	// target, which is where the rename has to happen anyway. A dangling
+	// link resolves to nothing and is written at p as before.
+	if st, err := os.Lstat(p); err == nil && st.Mode()&os.ModeSymlink != 0 {
+		if real, err := filepath.EvalSymlinks(p); err == nil {
+			p = real
+		}
+	}
 	mode := newFile
 	if st, err := os.Stat(p); err == nil {
 		mode = st.Mode().Perm()

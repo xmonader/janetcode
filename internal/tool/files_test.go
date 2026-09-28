@@ -525,6 +525,33 @@ func TestWriteThroughSymlinkedDirRejected(t *testing.T) {
 	}
 }
 
+// An edit to a file reached through a symlink inside the workspace
+// changes the file the link names and leaves the link a link. It used to
+// replace the link with an edited copy, so CLAUDE.md -> AGENTS.md split
+// into two files and AGENTS.md never saw the edit.
+func TestEditThroughAnInWorkspaceSymlinkKeepsTheLink(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("one\ntwo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("AGENTS.md", filepath.Join(root, "CLAUDE.md")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	for _, ws := range []*Workspace{nil, NewLocal(root)} {
+		e := EditFile{Root: root, WS: ws}
+		if _, err := e.Run(context.Background(), editIn("CLAUDE.md", "two", "three")); err != nil {
+			t.Fatal(err)
+		}
+		if st, err := os.Lstat(filepath.Join(root, "CLAUDE.md")); err != nil || st.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("the link is gone: %v %v", st, err)
+		}
+		if data, _ := os.ReadFile(filepath.Join(root, "AGENTS.md")); string(data) != "one\nthree\n" {
+			t.Fatalf("the target was not edited: %q", data)
+		}
+		os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("one\ntwo\n"), 0o644)
+	}
+}
+
 // A runaway model can emit a write far larger than any file in the
 // workspace before a token or cost budget notices — the write executes
 // first — so the size itself is the tripwire.
