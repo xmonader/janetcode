@@ -104,7 +104,11 @@ func (e *ErrPriorRead) Error() string {
 	case CauseDirectory:
 		return fmt.Sprintf("%s is a directory, not a file. list_dir shows what is in it and glob finds files by pattern; name a file inside it to %s.", e.Path, e.Verb)
 	case CauseBinary:
-		return fmt.Sprintf("%s is a binary file (a NUL byte in its first 4 KB), so it cannot be %sed as text. Use bash if you really have to change it.", e.Path, e.Verb)
+		done := "edited"
+		if e.Verb == "write" {
+			done = "written"
+		}
+		return fmt.Sprintf("%s is a binary file (a NUL byte in its first 4 KB), so it cannot be %s as text. Use bash if you really have to change it.", e.Path, done)
 	default:
 		return fmt.Sprintf("%s changed on disk since you last read it: the user edited it, a formatter ran, or another session touched it. %s", e.Path, e.reread())
 	}

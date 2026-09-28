@@ -132,4 +132,12 @@ func TestPriorReadCausesAreDistinct(t *testing.T) {
 	if !errors.As(err, &pr) || pr.Cause != CauseBinary {
 		t.Fatalf("binary: %v", err)
 	}
+	if !strings.Contains(err.Error(), "cannot be edited") {
+		t.Fatalf("binary edit message: %v", err)
+	}
+	// The verb is conjugated, not suffixed: "writeed" is what "%sed" made
+	// of a write.
+	if msg := (&ErrPriorRead{Path: "c.dat", Verb: "write", Cause: CauseBinary}).Error(); !strings.Contains(msg, "cannot be written") {
+		t.Fatalf("binary write message: %q", msg)
+	}
 }
