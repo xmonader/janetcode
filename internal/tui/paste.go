@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -43,6 +45,30 @@ const (
 )
 
 var pasteMarkerRe = regexp.MustCompile(`\[paste #(\d+) \+\d+ lines?\]`)
+
+// cleanPaste is a bracketed paste as text. Many terminals (VTE, xterm)
+// send a pasted newline as a carriage return, so a long paste used to be
+// kept behind its chip with no "\n" in it at all: the chip said "+1
+// line", the model was sent one line joined by CRs, and the transcript
+// echoed the CRs to the terminal, each one sending the cursor back to
+// column 0 over the text already drawn. Terminal output copied with its
+// colours carries escape sequences, which the chip likewise kept and
+// wrote back raw. The textarea sanitises a short paste on its own; this
+// gives the chip the same text.
+func cleanPaste(s string) string {
+	s = ansi.Strip(s)
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n' || r == '\t':
+			return r
+		case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
+			return -1
+		}
+		return r
+	}, s)
+}
 
 // bigPaste reports whether a paste is large enough to be worth a chip.
 func bigPaste(s string) bool {

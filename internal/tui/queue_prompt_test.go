@@ -29,7 +29,30 @@ func TestPastedPromptHistoryKeepsThePaste(t *testing.T) {
 	}
 }
 
-// TestCommandArgumentsGetTheirPastes: a paste chip typed after a command
+// TestPasteWithCarriageReturnsIsLines: VTE and xterm send a pasted
+// newline as a carriage return. A long paste was chipped with the CRs
+// kept: "+1 line", one CR-joined line to the model, and CRs echoed to
+// the terminal. Colour escapes copied from a terminal went the same way.
+func TestPasteWithCarriageReturnsIsLines(t *testing.T) {
+	h := newHarness(t)
+	var lines []string
+	for i := 0; i < 60; i++ {
+		lines = append(lines, "\x1b[31merror\x1b[0m: something failed here")
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(strings.Join(lines, "\r")), Paste: true})
+	if got := h.m.input.Value(); !strings.Contains(got, "+60 lines]") {
+		t.Fatalf("chip = %q, want 60 lines", got)
+	}
+	full := h.m.inflatePastes(h.m.input.Value())
+	if strings.ContainsAny(full, "\r\x1b") {
+		t.Fatalf("the chip keeps control characters: %q", full[:80])
+	}
+	if !strings.HasPrefix(full, "error: something failed here\nerror:") {
+		t.Fatalf("inflated paste = %q", full[:80])
+	}
+}
+
+// TestCommandArgumentsGetTheirPastes:a paste chip typed after a command
 // ("/btw " then a pasted stack trace) reached the command as the chip.
 // /btw asked the model about "[paste #1 +30 lines]", and /goal and /loop
 // stored the chip as their objective, to be re-sent long after the

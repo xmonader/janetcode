@@ -79,8 +79,10 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if mode := m.mode(); mode != modePrompt {
 		return modeKeys[mode](m, msg)
 	}
-	if msg.Paste && bigPaste(string(msg.Runes)) {
-		return m.chipPaste(string(msg.Runes))
+	if msg.Paste {
+		if text := cleanPaste(string(msg.Runes)); bigPaste(text) {
+			return m.chipPaste(text)
+		}
 	}
 	if act, ok := promptKeys[keyName(msg)]; ok {
 		return act(m, msg)
