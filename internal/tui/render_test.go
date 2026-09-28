@@ -1049,3 +1049,37 @@ func TestBannerWrapsBetweenItems(t *testing.T) {
 		}
 	}
 }
+
+// TestTheFrameCarriesNoTerminalControl: tool output, the model's text and
+// anything else the interface did not write went to the terminal as it
+// was, so a file the model cat'ed could write the user's clipboard with
+// OSC 52 or clear the screen. Headless mode stripped these; the terminal
+// interface did not. Its colours survive.
+func TestTheFrameCarriesNoTerminalControl(t *testing.T) {
+	h := newHarness(t)
+	evil := "before\x1b]52;c;aGVsbG8=\x07after\x1b[2Jcleared \x1b[31mred\x1b[0m"
+	in, _ := json.Marshal(map[string]string{"command": "cat evil"})
+	call := agent.ToolCall{ID: "1", Name: "bash", Input: in}
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: evil})
+	h.m.transcript.add(&entry{kind: entryAssistant, done: true, text: "model says " + evil})
+	h.m.transcript.user("user " + evil)
+	h.m.transcript.errorf("err %s", evil)
+	h.m.refresh(false)
+	v := h.m.View()
+	for _, bad := range []string{"\x1b]52", "\x1b[2J"} {
+		if strings.Contains(v, bad) {
+			t.Errorf("the frame carries %q", bad)
+		}
+	}
+	if !strings.Contains(v, "\x1b[31mred") {
+		t.Error("the tool's own colour was stripped too")
+	}
+	if !strings.Contains(plain(v), "cleared") {
+		t.Errorf("the text around the sequence was lost:\n%s", plain(v))
+	}
+	h.m.opts.Session.Meta.Title = "fix\x07\x1b]52;c;x\x07"
+	if title := h.m.windowTitle(); strings.ContainsAny(title, "\x07\x1b") {
+		t.Errorf("window title carries a control: %q", title)
+	}
+}

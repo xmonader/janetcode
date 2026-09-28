@@ -322,11 +322,20 @@ func tick() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
+// View is the frame the terminal is sent. Everything on it that the
+// interface did not write itself — tool output, the model's text, a
+// file /open shows, a session title — can carry escape sequences, and
+// the terminal would act on them: an OSC 52 in a file the model cat'ed
+// wrote the user's clipboard, a CSI 2J cleared the screen. Headless mode
+// has always stripped them on the way out; here the whole frame goes
+// through the same filter, which keeps the colours the interface draws
+// with and drops every sequence that changes the terminal's state.
 func (m *model) View() string {
+	v := textfmt.StripUnsafeANSI(m.view())
 	if m.opts.Plain {
-		return toPlain(m.view())
+		return toPlain(v)
 	}
-	return m.view()
+	return v
 }
 
 func (m *model) view() string {

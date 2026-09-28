@@ -124,5 +124,8 @@ func (m *model) windowTitle() string {
 	if name == "" {
 		name = filepath.Base(m.opts.Cwd)
 	}
-	return "janetcode · " + name
+	// The title rides inside an OSC sequence of its own: a BEL or an ESC
+	// in a generated title would end it early and send the rest to the
+	// terminal as a sequence of its own choosing.
+	return "janetcode · " + sanitize(name)
 }
