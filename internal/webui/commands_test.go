@@ -237,6 +237,27 @@ func TestOpenRefusesBinaryAndLinesPastTheEnd(t *testing.T) {
 	}
 }
 
+// A long tool result in a subagent's transcript is cut to its first 8 and
+// last 4 lines, and the note between them counts the lines it hides: it
+// said one fewer than it left out.
+func TestChildLogCountsTheLinesItHides(t *testing.T) {
+	var lines []string
+	for i := 1; i <= 30; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	log := agent.ChildLog{
+		ChildInfo: agent.ChildInfo{ID: "c1", Done: true},
+		Messages: []llm.Message{
+			{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "bash", Input: json.RawMessage(`{"command":"seq 30"}`)}}},
+			{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockToolResult, ToolUseID: "t1", Text: strings.Join(lines, "\n")}}},
+		},
+	}
+	out := formatChildLog(log)
+	if !strings.Contains(out, "line 8\n… 18 more lines\nline 27") {
+		t.Fatalf("transcript:\n%s", out)
+	}
+}
+
 // /connect asks the pages open now to show the connect form. Kept in the
 // replay log, it reopened the form on every later page load and every
 // reconnect, long after the provider was connected.

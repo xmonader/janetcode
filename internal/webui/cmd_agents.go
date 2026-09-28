@@ -282,7 +282,7 @@ func formatChildLog(log agent.ChildLog) string {
 				body := st.Result
 				if n := strings.Count(body, "\n"); n > 16 {
 					lines := strings.Split(body, "\n")
-					body = strings.Join(lines[:8], "\n") + fmt.Sprintf("\n… %d more lines\n", n-12) + strings.Join(lines[len(lines)-4:], "\n")
+					body = strings.Join(lines[:8], "\n") + fmt.Sprintf("\n… %d more lines\n", len(lines)-12) + strings.Join(lines[len(lines)-4:], "\n")
 				}
 				sb.WriteString(body)
 				if !strings.HasSuffix(body, "\n") {
