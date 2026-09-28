@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -131,7 +132,14 @@ func tailPath(p string, max int) string {
 }
 
 func shortPath(p string) string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home) {
+	// The home directory as a whole component only: /home/ann is not the
+	// home of /home/anna, which was shown as "~a".
+	home, err := os.UserHomeDir()
+	home = strings.TrimSuffix(home, string(filepath.Separator))
+	if err != nil || home == "" {
+		return p
+	}
+	if p == home || strings.HasPrefix(p, home+string(filepath.Separator)) {
 		return "~" + strings.TrimPrefix(p, home)
 	}
 	return p

@@ -46,6 +46,23 @@ func TestTailPath(t *testing.T) {
 	}
 }
 
+// TestShortPathNeedsAWholeHomeComponent: /home/ann/x is under ~, but
+// /home/anna is not, and was shown as "~a".
+func TestShortPathNeedsAWholeHomeComponent(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "ann")
+	t.Setenv("HOME", home)
+	for in, want := range map[string]string{
+		home:                         "~",
+		filepath.Join(home, "x"):     "~/x",
+		home + "a":                   home + "a",
+		filepath.Join(home+"a", "x"): filepath.Join(home+"a", "x"),
+	} {
+		if got := shortPath(in); got != want {
+			t.Errorf("shortPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // cutWords searches for a word boundary; the search has to count runes,
 // because a byte index used as a rune index either cuts a non-Latin
 // thought far too short or slices past the end of it and panics.
