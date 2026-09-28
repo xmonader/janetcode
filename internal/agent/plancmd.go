@@ -79,6 +79,16 @@ func (a *Agent) capturePlan(text string, emit func(Event)) {
 func (a *Agent) PlanCommand(arg string, running bool) (cmdresult.Result, error) {
 	arg = strings.TrimSpace(arg)
 	verb, rest, _ := strings.Cut(arg, " ")
+	// Every verb but comment takes no argument, and each is an ordinary
+	// English word: with text after it, it is the first word of a
+	// request ("/plan go through the handlers…", "/plan exit codes are
+	// wrong…"), which used to be approved, reviewed or switched off
+	// instead of planned.
+	if strings.TrimSpace(rest) != "" {
+		if v := strings.ToLower(verb); v != "comment" && v != "c" {
+			verb = ""
+		}
+	}
 	switch strings.ToLower(verb) {
 	case "review", "show", "read":
 		return a.planReview()

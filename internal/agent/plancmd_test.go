@@ -207,3 +207,26 @@ func TestPlanCommandKeepsTheModeItAlwaysHad(t *testing.T) {
 		t.Fatalf("/plan off: mode = %v res = %+v", a.Settings().PlanMode, res)
 	}
 }
+
+// The verbs that take no argument are ordinary English words, and a
+// request that happened to start with one was taken for the verb: "/plan
+// go through the handlers…" approved the plan (or refused, out of plan
+// mode), "/plan read the config loader…" showed the review, and "/plan
+// exit codes are wrong…" turned plan mode off. The request was lost each
+// time.
+func TestPlanRequestStartingWithAVerbIsARequest(t *testing.T) {
+	for _, req := range []string{
+		"go through every handler and add logging",
+		"read the config loader and propose a split",
+		"exit codes are wrong in headless mode, fix them",
+		"changes to the parser should be staged",
+		"review the auth middleware",
+	} {
+		a, _ := newAgent(t, &fake{}, nil)
+		a.Root = t.TempDir()
+		res, err := a.PlanCommand(req, false)
+		if err != nil || res.Handover != req || !a.Settings().PlanMode {
+			t.Errorf("/plan %s: handover = %q, mode = %v, res = %+v", req, res.Handover, a.Settings().PlanMode, res)
+		}
+	}
+}
