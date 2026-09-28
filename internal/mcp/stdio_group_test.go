@@ -42,6 +42,28 @@ func TestClosingAStdioServerTakesItsChildrenWithIt(t *testing.T) {
 	}
 }
 
+// A server that exits after starting a detached helper which kept its
+// stdout and stderr (a daemon started with setsid, out of reach of the
+// group signal) must still be noticed as gone. Waiting on the process
+// also waits for its output pipes, which the helper holds open, so the
+// connection stayed "up" — every call hanging, and Close waiting on it
+// forever — for as long as the helper lived.
+func TestAServerWhoseDetachedChildHoldsItsPipesIsStillSeenToExit(t *testing.T) {
+	pidfile := filepath.Join(t.TempDir(), "helper.pid")
+	c, _ := newStubClient()
+	script := "setsid sleep 30 </dev/null & echo $! > " + pidfile + "; exit 0"
+	if _, err := newStdioTransport(c, ServerConfig{Command: "sh", Args: []string{"-c", script}}, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	pid := waitForChildPid(t, pidfile)
+	defer syscall.Kill(pid, syscall.SIGKILL)
+	select {
+	case <-c.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("the server exited, but the client never noticed")
+	}
+}
+
 func waitForChildPid(t *testing.T, pidfile string) int {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)

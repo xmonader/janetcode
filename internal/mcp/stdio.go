@@ -57,6 +57,13 @@ func newStdioTransport(c *Client, cfg ServerConfig, root string) (*stdioTranspor
 	// one-liner), so the process janetcode starts is rarely the server.
 	// Its own group is what makes close() able to reach the real one.
 	procgroup.Set(cmd)
+	// Wait also waits for stdout and stderr to close, and a helper the
+	// server detached from its group (setsid, a daemon) can hold them for
+	// the rest of its life: the server's exit then went unnoticed, every
+	// call hung on a connection nothing could answer, and close() waited
+	// on done forever. Once the process itself is gone the pipes get a
+	// moment to drain and are then closed from this end.
+	cmd.WaitDelay = 2 * time.Second
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %q: %w", cfg.Command, err)
 	}
