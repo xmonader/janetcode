@@ -125,3 +125,18 @@ func TestSplitArgs(t *testing.T) {
 		t.Error("an unclosed quote was accepted")
 	}
 }
+
+func TestParsePairHeaderValueWithEquals(t *testing.T) {
+	for _, tc := range []struct{ in, k, v string }{
+		{"Authorization: Basic dXNlcjpwYXNz==", "Authorization", "Basic dXNlcjpwYXNz=="},
+		{"X-Key: a=b", "X-Key", "a=b"},
+		{"URL=http://example.test:8080/x", "URL", "http://example.test:8080/x"},
+		{"TOKEN=abc", "TOKEN", "abc"},
+		{"Authorization: Bearer t", "Authorization", "Bearer t"},
+	} {
+		k, v, err := ParsePair(tc.in)
+		if err != nil || k != tc.k || v != tc.v {
+			t.Errorf("ParsePair(%q) = %q, %q, %v; want %q, %q", tc.in, k, v, err, tc.k, tc.v)
+		}
+	}
+}

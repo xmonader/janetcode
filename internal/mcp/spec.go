@@ -158,8 +158,15 @@ func IsURL(s string) bool {
 
 // ParsePair reads one environment variable ("KEY=value") or one header
 // ("Name: value"), which the dialog and the command line both accept.
+//
+// Whichever separator comes first decides which it is. A header's value
+// often holds an "=" of its own — base64 padding in "Authorization: Basic
+// dXNlcg==", a query-style token — and cutting at that "=" made
+// "Authorization: Basic dXNlcg" the header's name, which no HTTP request
+// can carry.
 func ParsePair(s string) (key, value string, err error) {
-	if k, v, ok := strings.Cut(s, "="); ok && !strings.HasPrefix(k, " ") {
+	eq, colon := strings.Index(s, "="), strings.Index(s, ":")
+	if k, v, ok := strings.Cut(s, "="); ok && !strings.HasPrefix(k, " ") && (colon < 0 || eq < colon) {
 		if strings.TrimSpace(k) == "" {
 			return "", "", fmt.Errorf("%q has no name", s)
 		}
