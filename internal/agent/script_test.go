@@ -178,6 +178,22 @@ func TestAScriptsBackgroundChildDoesNotHoldTheTool(t *testing.T) {
 	}
 }
 
+// TestScriptDoesNotSeeTheAgentsKey: the script is code the model wrote,
+// run on the host. It gets the environment every other model-run command
+// gets — without the provider key — or one line of urllib sends the key
+// wherever the model was told to, and redacting the printed output does
+// nothing about that.
+func TestScriptDoesNotSeeTheAgentsKey(t *testing.T) {
+	pythonOrSkip(t)
+	t.Setenv("DEEPSEEK_API_KEY", "plain-value-the-redactor-would-not-catch")
+	root := t.TempDir()
+	_, s := scriptAgent(t, root)
+	out := runScript(t, s, "import os\nprint('key=' + repr(os.environ.get('DEEPSEEK_API_KEY')))\n")
+	if !strings.Contains(out, "key=None") {
+		t.Fatalf("the script saw the provider key: %q", out)
+	}
+}
+
 // TestScriptDescriptionListsTools keeps the description in step with what
 // the session actually has, and must not recurse through the registry.
 func TestScriptDescriptionListsTools(t *testing.T) {

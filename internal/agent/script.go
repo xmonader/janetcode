@@ -315,7 +315,11 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 
 	cmd := exec.CommandContext(ctx, py, script)
 	cmd.Dir = s.root()
-	cmd.Env = append(os.Environ(),
+	// The script is code the model wrote, run on the host: it gets the
+	// environment every model-run command gets, without the agent's
+	// credentials. Redacting its printed output would not stop one line
+	// of urllib sending the key somewhere.
+	cmd.Env = append(shell.ScrubEnv(os.Environ()),
 		"JANETCODE_RPC_SOCKET="+sock,
 		"PYTHONPATH="+dir,
 		"PYTHONDONTWRITEBYTECODE=1",
