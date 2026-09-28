@@ -67,10 +67,9 @@ type ContextItem struct {
 
 // Context computes the report from the current history.
 func (a *Agent) Context() ContextReport {
-	r := ContextReport{CompactAt: a.Settings().CompactAt}
-	if r.CompactAt == 0 {
-		r.CompactAt = DefaultCompactAt
-	}
+	// The threshold compaction runs at, window-derived one included; zero
+	// when it is off.
+	r := ContextReport{CompactAt: a.CompactThreshold()}
 	sys := a.SystemPrompt()
 	r.System = len(sys) / 4
 	r.Base, r.Project = splitPromptTokens(sys)

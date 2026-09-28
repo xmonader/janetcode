@@ -5,7 +5,21 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/tool"
 )
+
+// TestContextReportsTheThresholdInForce holds /context to the threshold
+// compaction actually uses. It read compact_at alone and fell back to the
+// default, so a model with a 32k window — compacted at 24k — was reported
+// as compacting at 80k.
+func TestContextReportsTheThresholdInForce(t *testing.T) {
+	a := &Agent{Tools: tool.NewRegistry()}
+	a.ContextWindow = 32_000
+	if got, want := a.Context().CompactAt, a.CompactThreshold(); got != want || got != 24_000 {
+		t.Fatalf("report says %d, compaction runs at %d", got, want)
+	}
+}
 
 func TestPinTextPassesThroughPlainText(t *testing.T) {
 	got, err := PinText(t.TempDir(), "remember this")
