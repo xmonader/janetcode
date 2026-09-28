@@ -495,6 +495,16 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if kid != nil {
 			last = kid.last
 		}
+		// Claimed here, under the same lock as the check: task calls run
+		// in parallel, and a claim taken later (after the start hook,
+		// which runs a command) let two continues of one finished child
+		// both pass the check and drive the same agent at once — and let
+		// a concurrent remember evict it, worktree and all, as finished
+		// while this call was about to run it.
+		if kid != nil && !running {
+			kid.done = false
+			kid.last = "starting"
+		}
 		t.mu.Unlock()
 		if kid == nil {
 			return "", fmt.Errorf("no subagent %q (it may have been retired; start a new one)", in.Continue)

@@ -2,11 +2,13 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -27,6 +29,68 @@ func (f *forkProbe) Stream(ctx context.Context, req llm.Request, emit func(llm.E
 		return toolCall("f1", "task", `{"description":"bg","prompt":"do it","fork":true}`), nil
 	}
 	return text("ok"), nil
+}
+
+// inFlight answers every call after a short wait and remembers the most
+// calls it ever had open at once.
+type inFlight struct {
+	mu        sync.Mutex
+	open, max int
+}
+
+func (f *inFlight) Name() string { return "fake" }
+func (f *inFlight) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	f.mu.Lock()
+	f.open++
+	f.max = max(f.max, f.open)
+	f.mu.Unlock()
+	time.Sleep(50 * time.Millisecond)
+	f.mu.Lock()
+	f.open--
+	f.mu.Unlock()
+	return text("report"), nil
+}
+
+// Two continues of one finished child, made in the same turn (task calls
+// run in parallel), both passed the "still running" check: the child was
+// only marked running after the start hook, so both drove the same agent
+// at once, interleaving its history.
+func TestTwoContinuesOfOneChildDoNotBothRunIt(t *testing.T) {
+	f := &inFlight{}
+	parent := &Agent{Provider: f, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: t.TempDir()}, task)
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"look"}`)); err != nil {
+		t.Fatal(err)
+	}
+	id := task.ChildIDs()[0]
+	// A start hook that takes a moment, as a real command does.
+	parent.Hooks = &hook.Runner{Cwd: t.TempDir(), Config: hook.Config{Hooks: hook.Hooks{
+		hook.SubagentStart: {{Command: "sleep 0.3"}},
+	}}}
+	outs := make([]string, 2)
+	var wg sync.WaitGroup
+	for i := range outs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out, err := task.Run(context.Background(), json.RawMessage(`{"prompt":"again","continue":"`+id+`"}`))
+			if err != nil {
+				t.Error(err)
+			}
+			outs[i] = out
+		}()
+	}
+	wg.Wait()
+	busy := 0
+	for _, o := range outs {
+		if strings.Contains(o, "still running") {
+			busy++
+		}
+	}
+	if busy != 1 {
+		t.Fatalf("want exactly one continue turned away, got %d: %q", busy, outs)
+	}
 }
 
 // A fork the model asks for starts inside the parent's tool step, when
@@ -58,7 +122,8 @@ func TestAModelSpawnedForkSendsAPairedHistory(t *testing.T) {
 	if !forkSeen {
 		t.Fatal("the fork never called the model; the test proves nothing")
 	}
-	if notes := task.FinishedForks(); len(notes) != 1 || strings.Contains(notes[0], "error") {
-		t.Fatalf("fork report = %v", notes)
+	log, ok := task.ChildLog(task.ChildIDs()[0])
+	if !ok || !log.Done || lastAssistantText(log.Messages) != "ok" {
+		t.Fatalf("fork did not finish with its report: %+v", log)
 	}
 }
