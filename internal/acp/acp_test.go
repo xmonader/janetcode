@@ -560,6 +560,12 @@ func TestBadInputDoesNotKillTheConnection(t *testing.T) {
 	if m.Error == nil || m.Error.Code != codeParse {
 		t.Fatalf("parse error = %+v", m.Error)
 	}
+	// JSON-RPC 2.0: when the request's id could not be read, the error
+	// response's id MUST be null. Omitting it made the reply look like a
+	// notification with no method, which a strict client rejects.
+	if string(m.ID) != "null" {
+		t.Fatalf("parse error id = %q, want null", m.ID)
+	}
 	// Cancelling an unknown session is a notification, so it is logged
 	// and ignored rather than answered or fatal.
 	c.notify("session/cancel", cancelParams{SessionID: "nope"})

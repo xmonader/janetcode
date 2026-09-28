@@ -224,7 +224,9 @@ func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.C
 		}
 		var m message
 		if err := json.Unmarshal(line, &m); err != nil {
-			_ = c.replyError(nil, codeParse, "invalid JSON: "+err.Error())
+			// The id could not be read, and JSON-RPC says the reply then
+			// carries id null rather than none at all.
+			_ = c.replyError(json.RawMessage("null"), codeParse, "invalid JSON: "+err.Error())
 			continue
 		}
 		if m.Method == "" {
