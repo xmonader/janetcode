@@ -445,8 +445,9 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		check := e.Name == "bash" && shell.IsCheck(cmd)
 		if e.Turn != turn {
 			// Earlier in the session: remember what was red, so a pass in
-			// this turn can be told from a check that was always green.
-			if check && runFailed(e) {
+			// this turn can be told from a check that was always green. A
+			// command that never started is not red, here as in this turn.
+			if check && runFailed(e) && !neverRan(e) {
 				failedBefore[cmd] = true
 			}
 			continue

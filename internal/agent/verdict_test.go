@@ -807,3 +807,23 @@ func TestUnverifiedOneFileSaysIt(t *testing.T) {
 		t.Fatalf("a text file edit: %q (%s)", txt.Verdict, txt.Why)
 	}
 }
+
+// A command that never started in an earlier turn — the binary was not
+// on PATH — was remembered as a red check, so the same command passing
+// in a later turn was reported as "tests that had been failing now
+// pass": a fix claimed for code no test had ever failed on.
+func TestAnEarlierCommandNotFoundIsNotAFailingCheck(t *testing.T) {
+	test := `{"command":"pytest tests/"}`
+	ev := []session.Event{
+		result(1, "bash", test, "bash: line 1: pytest: command not found\n\n[exit code 127]", false),
+		result(2, "edit_file", `{"path":"a.py"}`, "ok", false),
+		result(2, "bash", test, "3 passed in 0.02s\n[exit code 0]", false),
+	}
+	got := FoldOutcomeIn(ev, 2, "")
+	if got.Verdict != VerdictVerified {
+		t.Fatalf("verdict = %q (%s)", got.Verdict, got.Why)
+	}
+	if got.Flipped || strings.Contains(got.Why, FlippedWhy) {
+		t.Fatalf("a command that never ran counted as a red check now green: %+v", got)
+	}
+}
