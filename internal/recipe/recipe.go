@@ -178,10 +178,14 @@ func userText(m *llm.Message) string {
 // Param list Save should record (Default holding the literal it was cut
 // from). A value not found in any step is left out of the returned list:
 // a recipe should not advertise a parameter that does nothing.
+//
+// Braces the recorded calls themselves contain ("{{ message }}" in a Vue
+// or Jinja template the turn wrote) are escaped as they are saved, so
+// Expand gives them back as text rather than reading them as parameters:
+// a recipe that wrote a template failed every replay on an "unknown
+// parameter", and one whose template variable shared a parameter's name
+// had the template rewritten.
 func Parameterise(steps []Step, params map[string]string) ([]Step, []Param) {
-	if len(params) == 0 {
-		return steps, nil
-	}
 	// Longest value first: substituting a short value first can eat part
 	// of a longer one that was also asked for ("foo" inside "/tmp/foo").
 	// Ties break on the name, and the sort is stable, so two parameters
@@ -206,7 +210,14 @@ func Parameterise(steps []Step, params map[string]string) ([]Step, []Param) {
 			out[i] = st
 			continue
 		}
-		v = substitute(v, names, params, used)
+		// A step with nothing to rewrite keeps its bytes: re-marshalling
+		// reorders keys, escapes <, > and & and rounds large numbers.
+		changed := false
+		v = substitute(v, names, params, used, &changed)
+		if !changed {
+			out[i] = Step{Tool: st.Tool, Input: st.Input, Intent: st.Intent, Expect: st.Expect}
+			continue
+		}
 		data, err := json.Marshal(v)
 		if err != nil {
 			out[i] = st
@@ -223,26 +234,48 @@ func Parameterise(steps []Step, params map[string]string) ([]Step, []Param) {
 	return out, ps
 }
 
-func substitute(v any, names []string, params map[string]string, used map[string]bool) any {
+// escapedBraces is how a literal "{{" in a recorded call is saved: Expand
+// turns it back into "{{" and never reads it as a placeholder.
+const escapedBraces = `{{"{{"}}`
+
+func substitute(v any, names []string, params map[string]string, used map[string]bool, changed *bool) any {
 	switch t := v.(type) {
 	case string:
-		for _, n := range names {
-			val := params[n]
-			if !strings.Contains(t, val) {
+		// One pass over the recorded text: at each position the longest
+		// parameter value wins, then a literal "{{" is escaped. Replacing
+		// value by value on the text already rewritten could match a
+		// shorter value inside a placeholder an earlier one had put there.
+		var b strings.Builder
+	scan:
+		for i := 0; i < len(t); {
+			for _, n := range names {
+				if val := params[n]; strings.HasPrefix(t[i:], val) {
+					b.WriteString("{{" + n + "}}")
+					used[n] = true
+					i += len(val)
+					continue scan
+				}
+			}
+			if strings.HasPrefix(t[i:], "{{") {
+				b.WriteString(escapedBraces)
+				i += 2
 				continue
 			}
-			t = strings.ReplaceAll(t, val, "{{"+n+"}}")
-			used[n] = true
+			b.WriteByte(t[i])
+			i++
 		}
-		return t
+		if b.Len() != len(t) || b.String() != t {
+			*changed = true
+		}
+		return b.String()
 	case map[string]any:
 		for k, vv := range t {
-			t[k] = substitute(vv, names, params, used)
+			t[k] = substitute(vv, names, params, used, changed)
 		}
 		return t
 	case []any:
 		for i, vv := range t {
-			t[i] = substitute(vv, names, params, used)
+			t[i] = substitute(vv, names, params, used, changed)
 		}
 		return t
 	default:
@@ -250,8 +283,10 @@ func substitute(v any, names []string, params map[string]string, used map[string
 	}
 }
 
-// placeholderRe matches {{name}} inside a step's JSON string values.
-var placeholderRe = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_-]+)\s*\}\}`)
+// placeholderRe matches {{name}} inside a step's JSON string values, or
+// an escaped literal "{{" (see escapedBraces), in one pass so that
+// neither a substituted value nor an unescaped brace is read again.
+var placeholderRe = regexp.MustCompile(regexp.QuoteMeta(escapedBraces) + `|\{\{\s*([A-Za-z0-9_-]+)\s*\}\}`)
 
 // Expand substitutes every {{name}} in the recipe's steps with a value:
 // args[name] when given, else the parameter's own Default. It errors on
@@ -315,6 +350,9 @@ func expandValue(v any, values map[string]string) (any, error) {
 		out := placeholderRe.ReplaceAllStringFunc(t, func(m string) string {
 			if err != nil {
 				return m
+			}
+			if m == escapedBraces {
+				return "{{"
 			}
 			name := placeholderRe.FindStringSubmatch(m)[1]
 			val, ok := values[name]

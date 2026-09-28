@@ -164,6 +164,39 @@ func TestExpandErrorsOnUnknownAndMissing(t *testing.T) {
 	}
 }
 
+// Braces the recorded turn itself wrote (a Vue or Jinja template, a
+// mustache file) are text, not placeholders: a saved recipe replays them
+// as they were, with or without parameters, and a parameter that shares
+// a template variable's name does not rewrite it.
+func TestRecordedBracesAreNotPlaceholders(t *testing.T) {
+	content := "<p>{{ message }}</p>\n{{env}} {{{{raw}}}} {{\"{{\"}}\nstaging"
+	input, _ := json.Marshal(map[string]string{"path": "staging/view.vue", "content": content})
+	steps := []Step{{Tool: "write_file", Input: input}}
+	for _, params := range []map[string]string{nil, {"env": "staging"}} {
+		saved, ps := Parameterise(steps, params)
+		r := Recipe{Name: "tpl", Params: ps, Steps: saved}
+		got, err := Expand(r, nil)
+		if err != nil {
+			t.Fatalf("params %v: %v", params, err)
+		}
+		if !reflect.DeepEqual(mustUnmarshal(t, got[0].Input), mustUnmarshal(t, input)) {
+			t.Fatalf("params %v: replayed %s, recorded %s", params, got[0].Input, input)
+		}
+		if len(ps) == 0 {
+			continue
+		}
+		got, err = Expand(r, map[string]string{"env": "prod"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var in struct{ Path, Content string }
+		json.Unmarshal(got[0].Input, &in)
+		if in.Path != "prod/view.vue" || in.Content != strings.ReplaceAll(content, "staging", "prod") {
+			t.Fatalf("substituted %+v", in)
+		}
+	}
+}
+
 func mustUnmarshal(t *testing.T, raw json.RawMessage) any {
 	t.Helper()
 	var v any
