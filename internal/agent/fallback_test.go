@@ -178,3 +178,37 @@ func TestWorthFallbackReadsTheStatusAndWholeText(t *testing.T) {
 		}
 	}
 }
+
+// A fallback moves the session to another model, and the session's price
+// has to move with it: Settings.Price is what PriceOf answers for the
+// session model, so leaving the old one there billed every call on the
+// fallback at the rate of the model it replaced — in /cost, /usage and
+// the --max-cost ceiling alike.
+func TestFallbackRepricesTheSessionForTheModelItMovedTo(t *testing.T) {
+	big := text("done on the other model")
+	big.Usage = llm.Usage{InputTokens: 1_000_000}
+	f := &fake{
+		errs:      []error{errors.New("insufficient_quota: this plan is exhausted")},
+		responses: []*llm.Response{nil, big},
+	}
+	a, _ := newAgent(t, f, nil)
+	a.Price = &llm.Price{Input: 100}
+	a.Prices = func(model string) *llm.Price {
+		switch model {
+		case "m":
+			return &llm.Price{Input: 100}
+		case "backup-model":
+			return &llm.Price{Input: 1}
+		}
+		return nil
+	}
+	a.Fallbacks = []string{"backup-model"}
+	_, emit := collect()
+	if err := a.Run(context.Background(), "hi", emit); err != nil {
+		t.Fatal(err)
+	}
+	usd, _, _, ok := a.SessionCost()
+	if !ok || usd != 1 {
+		t.Fatalf("session cost = %v (ok=%v), want $1: a million tokens at the fallback's $1/M", usd, ok)
+	}
+}

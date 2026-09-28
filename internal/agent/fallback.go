@@ -126,7 +126,16 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "fallback", kind: "fallback", why: textfmt.FirstLine(cause.Error(), 70)}, emit)
 		if err == nil {
 			a.stats.fellBack()
-			a.UpdateSettings(func(s *Settings) { s.Provider, s.Model = prov, model })
+			// The price moves with the model: Settings.Price is what
+			// PriceOf answers for the session's model, and the old one
+			// left in place billed the fallback at the replaced model's
+			// rate. Nothing to look it up in leaves it unpriced, which
+			// says so, rather than wrong, which does not.
+			var price *llm.Price
+			if a.Prices != nil {
+				price = a.Prices(model)
+			}
+			a.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.Price = prov, model, price })
 			emit(Event{Kind: EvNotice, Text: "this session continues on " + model + "; /model switches back"})
 			return resp, nil
 		}
