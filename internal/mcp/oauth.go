@@ -382,14 +382,19 @@ func Authorize(ctx context.Context, o AuthOptions) (Token, error) {
 			return
 		}
 		qs := r.URL.Query()
-		var res result
-		switch {
 		// The redirect lands on a loopback port anything on this machine
 		// can reach, and state is the only thing that says the browser
 		// coming back is the one that was sent: compare it without
-		// leaking how much of it matched.
-		case subtle.ConstantTimeCompare([]byte(qs.Get("state")), []byte(state)) != 1:
-			res.err = errors.New("redirect carried a wrong state; ignoring it")
+		// leaking how much of it matched. A request without it is not
+		// the browser, so it is turned away without ending the flow —
+		// delivering it failed the authorization the user was still
+		// completing, and let any local process cancel it at will.
+		if subtle.ConstantTimeCompare([]byte(qs.Get("state")), []byte(state)) != 1 {
+			http.Error(w, "janetcode: this redirect carried a wrong state; ignoring it", http.StatusBadRequest)
+			return
+		}
+		var res result
+		switch {
 		case qs.Get("error") != "":
 			res.err = fmt.Errorf("%s: %s", qs.Get("error"), qs.Get("error_description"))
 		case qs.Get("code") == "":

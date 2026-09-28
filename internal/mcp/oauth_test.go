@@ -130,6 +130,42 @@ func TestOAuthAuthorizeAndBearer(t *testing.T) {
 
 func urlUnescape(s string) (string, error) { return url.QueryUnescape(s) }
 
+// The redirect listener is a loopback port anything on the machine can
+// reach. A request with the wrong state is not the browser coming back,
+// so it must not end the flow the user is still completing.
+func TestOAuthWrongStateDoesNotAbortTheFlow(t *testing.T) {
+	srv, _ := mcptest.NewAuthServer(t)
+	defer srv.Close()
+	store := &TokenStore{Path: filepath.Join(t.TempDir(), "mcp-auth.json")}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	tok, err := Authorize(ctx, AuthOptions{
+		ServerURL: srv.URL + "/mcp", Store: store,
+		OpenURL: func(u string) error {
+			pu, err := url.Parse(u)
+			if err != nil {
+				return err
+			}
+			cb := pu.Query().Get("redirect_uri")
+			go func() {
+				if resp, err := http.Get(cb + "?code=forged&state=wrong"); err == nil {
+					resp.Body.Close()
+				}
+				if resp, err := http.Get(u); err == nil {
+					resp.Body.Close()
+				}
+			}()
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("a stray callback ended the flow: %v", err)
+	}
+	if tok.AccessToken == "" {
+		t.Fatalf("token = %+v", tok)
+	}
+}
+
 func TestOAuthDiscoveryFallsBackToDefaults(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) }))
 	defer srv.Close()
