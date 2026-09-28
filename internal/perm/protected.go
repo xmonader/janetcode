@@ -160,8 +160,43 @@ func (p *Protected) Writes(c Call) (path, pattern string, ok bool) {
 		if pat, hit := p.MatchPath(t); hit {
 			return t, pat, true
 		}
+		// A write follows symlinks, so a path is also judged by where it
+		// lands: `scripts -> .git/hooks` inside the workspace makes
+		// scripts/pre-commit an ordinary-looking path that writes a git
+		// hook, and the file tools' confinement lets it through since the
+		// target is still inside the workspace. The spelled path is
+		// checked first so a protected home under a symlinked prefix
+		// (macOS's /var) still matches as written.
+		if real := resolveReal(t); real != t {
+			if pat, hit := p.MatchPath(real); hit {
+				return real, pat, true
+			}
+		}
 	}
 	return "", "", false
+}
+
+// resolveReal is abs with its symlinks resolved: all of them when the
+// path exists, and otherwise those of the deepest ancestor that does,
+// with the missing tail put back on, since a write usually creates the
+// file. It returns abs unchanged when nothing resolves.
+func resolveReal(abs string) string {
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		return real
+	}
+	rest := ""
+	dir := abs
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(real, rest)
+		}
+	}
 }
 
 // Reason is the line a prompt shows for a protected write, or "" when

@@ -186,3 +186,50 @@ func TestHardDenyNotOverridable(t *testing.T) {
 		t.Errorf("a file write hard-denied: %q", why)
 	}
 }
+
+// A path is protected for where it lands, not for how it is spelled: a
+// symlink inside the workspace that points at .git/hooks (or anything
+// else protected) is lexically an ordinary path, and the file tools
+// follow it. Both the edit tools and a shell redirect are judged by the
+// resolved target.
+func TestProtectedFollowsSymlinks(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	p := NewProtected(nil)
+	root := t.TempDir()
+	gitDir := filepath.Join(root, ".git")
+	if err := os.MkdirAll(filepath.Join(gitDir, "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(".git", "hooks"), filepath.Join(root, "scripts")); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(".git", "config"), filepath.Join(root, "settings.ini")); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ tool, key, val string }{
+		{"write_file", "path", "scripts/pre-commit"},             // missing file under a linked dir
+		{"edit_file", "path", "settings.ini"},                    // an existing linked file
+		{"bash", "command", "echo evil > scripts/pre-commit"},    // a redirect through the link
+		{"write_file", "path", filepath.Join(root, "scripts/x")}, // absolute spelling
+	} {
+		in, _ := json.Marshal(map[string]string{c.key: c.val})
+		if why := p.Reason(Call{Tool: c.tool, Input: in, Root: root}); why == "" {
+			t.Errorf("%s %s: a write through a symlink into .git was not protected", c.tool, c.val)
+		}
+	}
+	// A symlink to an ordinary file is still ordinary.
+	if err := os.WriteFile(filepath.Join(root, "main.go"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("main.go", filepath.Join(root, "alias.go")); err != nil {
+		t.Fatal(err)
+	}
+	in, _ := json.Marshal(map[string]string{"path": "alias.go"})
+	if why := p.Reason(Call{Tool: "write_file", Input: in, Root: root}); why != "" {
+		t.Errorf("a link to an ordinary file was protected: %s", why)
+	}
+}
