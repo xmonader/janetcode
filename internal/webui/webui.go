@@ -787,6 +787,14 @@ func (s *server) idleLocked() time.Duration {
 func (s *server) startTurn(text string) {
 	ctx, ok := s.begin("thinking")
 	if !ok {
+		// Something started between the caller finding the session idle
+		// and here: a prompt sent in the moment a turn ended, while the
+		// next queued one was on its way in. Returning dropped this one
+		// without a word; it waits at the head of the queue instead.
+		s.mu.Lock()
+		s.queued = append([]string{text}, s.queued...)
+		s.mu.Unlock()
+		s.emitStatus()
 		return
 	}
 	s.runTurn(ctx, text)

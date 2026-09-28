@@ -118,10 +118,10 @@ func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.Reci
 	// left a prompt sent during the run waiting until some later turn
 	// ended, then ran it out of order. A run that failed drops it, as a
 	// failed turn does.
-	next, _ := s.end(err != nil)
+	next, nextCtx, _ := s.end(err != nil)
 	s.showResult(res, nil)
 	s.emitStatus()
 	if next != "" {
-		s.startTurn(next)
+		s.runTurn(nextCtx, next)
 	}
 }

@@ -78,6 +78,17 @@ func TestAPromptQueuedWhileATurnEndsIsNotLost(t *testing.T) {
 
 	s.finish(nil) // the turn that was running ends
 
+	// Idle with an empty queue is not enough: that holds for a moment
+	// between "second" leaving the queue and its turn starting. Wait
+	// for the second answer.
+	waitFor(t, func() bool {
+		for _, e := range s.snapshotEntries() {
+			if e.Kind == "assistant" && e.Text == "two" && e.Done {
+				return true
+			}
+		}
+		return false
+	})
 	waitFor(t, func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -119,5 +130,24 @@ func TestTheQueuedPromptKeepsTheSessionWhenATurnEnds(t *testing.T) {
 	cancel()
 	if ctx.Err() == nil {
 		t.Fatal("esc does not reach the queued prompt's turn")
+	}
+}
+
+// Between a turn ending and the next queued prompt starting, the session
+// is idle for a moment, and a prompt sent then starts at once. The
+// dequeued prompt's startTurn then found the session busy and returned,
+// and that prompt was gone. It goes back to the head of the queue.
+func TestAPromptThatFindsTheSessionBusyIsQueued(t *testing.T) {
+	s, _ := planServer(t)
+	s.mu.Lock()
+	s.running = true // someone else's turn got in first
+	s.mu.Unlock()
+
+	s.startTurn("second")
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.queued) != 1 || s.queued[0] != "second" {
+		t.Fatalf("queued = %q, want the prompt kept", s.queued)
 	}
 }
