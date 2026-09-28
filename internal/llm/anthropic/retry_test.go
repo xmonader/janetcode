@@ -185,3 +185,65 @@ func TestCancellationEndsTheBackoff(t *testing.T) {
 		t.Fatalf("waited %v after cancellation", waited)
 	}
 }
+
+// An error event inside a 200 stream is the server's status arriving
+// late: overloaded_error is Anthropic's 529, sent after message_start
+// and before a single token. It must read and retry as a 529, not as an
+// "Overloaded (HTTP 200)" that is final because the status says success
+// and message_start counted as the model having said something.
+func TestOverloadedEventBeforeAnyContentIsRetried(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+			io.WriteString(w, event("error", `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`))
+			return
+		}
+		okStream(w)
+	}))
+	defer srv.Close()
+	p, err := New(Config{APIKey: "k", BaseURL: srv.URL, MaxRetries: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var discarded bool
+	resp, err := p.Stream(context.Background(), hi(), func(e llm.Event) {
+		if e.Type == llm.EventStreamDiscard {
+			discarded = true
+		}
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if calls.Load() != 2 || resp.Message.Text() != "ok" {
+		t.Fatalf("calls = %d text = %q", calls.Load(), resp.Message.Text())
+	}
+	if discarded {
+		t.Fatal("nothing was emitted, so there was nothing to discard")
+	}
+}
+
+// Once the model has spoken, the same event stays final, but it names
+// the real status rather than the 200 the stream opened with.
+func TestOverloadedEventAfterContentNamesItsStatus(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+		io.WriteString(w, event("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`))
+		io.WriteString(w, event("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"par"}}`))
+		io.WriteString(w, event("error", `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{APIKey: "k", BaseURL: srv.URL, MaxRetries: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = p.Stream(context.Background(), hi(), nil)
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Status != 529 || calls.Load() != 1 {
+		t.Fatalf("err = %v calls = %d", err, calls.Load())
+	}
+}

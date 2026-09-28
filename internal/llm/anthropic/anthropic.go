@@ -502,9 +502,18 @@ func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.Me
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}
 	sawStop := false
+	// produced means the caller has seen part of an answer, which is what
+	// makes a resend unsafe. message_start and the other bookkeeping
+	// frames emit nothing, so they do not count: an overloaded_error
+	// right after message_start left nothing to replay, and counting the
+	// frame made it final.
+	say := emit
+	emit = func(e llm.Event) {
+		produced = true
+		say(e)
+	}
 	for stream.Next() {
 		wd.Tick()
-		produced = true
 		ev := stream.Current()
 		if err := msg.Accumulate(ev); err != nil {
 			return nil, produced, llm.Truncate(fmt.Errorf("anthropic: accumulate: %w", err))
@@ -568,34 +577,62 @@ func mapError(ctx context.Context, err error) error {
 	}
 	var ae *sdk.Error
 	if errors.As(err, &ae) {
-		msg := http.StatusText(ae.StatusCode)
-		if msg == "" {
-			// A gateway's own status with no name in the RFCs: say the
-			// number rather than nothing, which read as " (request ...)".
-			msg = "HTTP " + strconv.Itoa(ae.StatusCode)
-		}
-		var detail string
 		var env struct {
 			Error struct {
+				Type    string `json:"type"`
 				Message string `json:"message"`
 			} `json:"error"`
 		}
-		if json.Unmarshal([]byte(ae.RawJSON()), &env) == nil && env.Error.Message != "" {
-			if m := llm.SafeErrorMessage(ae.StatusCode, env.Error.Message); m != "" {
+		parsed := json.Unmarshal([]byte(ae.RawJSON()), &env) == nil
+		status := ae.StatusCode
+		if status/100 == 2 {
+			// An error event inside a stream the server opened with 200:
+			// the SDK stamps it with that 200, which reads as "Overloaded
+			// (HTTP 200)" and is never retried. The error type is the
+			// status the server would have sent had it failed up front.
+			if s, ok := streamErrorStatus[env.Error.Type]; ok {
+				status = s
+			}
+		}
+		msg := http.StatusText(status)
+		if msg == "" {
+			// A gateway's own status with no name in the RFCs: say the
+			// number rather than nothing, which read as " (request ...)".
+			msg = "HTTP " + strconv.Itoa(status)
+		}
+		var detail string
+		if parsed && env.Error.Message != "" {
+			if m := llm.SafeErrorMessage(status, env.Error.Message); m != "" {
 				msg = m
 			}
-			detail = llm.SafeErrorDetail(ae.StatusCode, env.Error.Message)
+			detail = llm.SafeErrorDetail(status, env.Error.Message)
 		}
 		if ae.RequestID != "" {
 			msg += " (request " + ae.RequestID + ")"
 		}
-		out := &APIError{Status: ae.StatusCode, Message: msg, Detail: detail}
+		out := &APIError{Status: status, Message: msg, Detail: detail}
 		if ae.Response != nil {
-			out.RetryAfter = llm.RetryAfterFrom(ae.Response.Header, ae.StatusCode)
+			out.RetryAfter = llm.RetryAfterFrom(ae.Response.Header, status)
 		}
 		return out
 	}
 	return err
+}
+
+// streamErrorStatus maps the error types Anthropic documents to the HTTP
+// status each one is sent with, for an error that arrives as an event
+// inside an already-open stream.
+var streamErrorStatus = map[string]int{
+	"invalid_request_error": 400,
+	"authentication_error":  401,
+	"billing_error":         402,
+	"permission_error":      403,
+	"not_found_error":       404,
+	"request_too_large":     413,
+	"rate_limit_error":      429,
+	"api_error":             500,
+	"timeout_error":         504,
+	"overloaded_error":      529,
 }
 
 func toResponse(msg sdk.Message) (*llm.Response, error) {
