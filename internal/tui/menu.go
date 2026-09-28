@@ -173,19 +173,27 @@ func (m *model) complete() bool {
 	// narrows the list; otherwise take the highlighted row.
 	v := m.input.Value()
 	i := strings.LastIndexAny(v, " \n\t")
+	head, word := v[:i+1], v[i+1:]
+	// Most argument menus (/open, /resume, /model, /forget, /undo) offer
+	// the whole line, command included, not the word being typed: those
+	// replace the input rather than its last word. Appending them left
+	// "/open /open alpha.txt" after a tab.
+	if m.comp.args && strings.HasPrefix(c[idx].name, "/") {
+		head, word = "", v
+	}
 	name := c[idx].name
 	if idx == 0 && len(c) > 1 {
 		for _, o := range c[1:] {
 			name = commonPrefix(name, o.name)
 		}
-		if name == v[i+1:] { // nothing to extend: take the highlighted one
+		if name == word { // nothing to extend: take the highlighted one
 			name = c[idx].name
 		}
 	}
 	if !strings.HasSuffix(name, "/") && (len(c) == 1 || name == c[idx].name) {
 		name += " "
 	}
-	m.input.SetValue(v[:i+1] + name)
+	m.input.SetValue(head + name)
 	m.input.CursorEnd()
 	m.comp.pin(m.input.Value())
 	return true
