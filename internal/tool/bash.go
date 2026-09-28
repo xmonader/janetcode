@@ -175,7 +175,8 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	// and Wait reports ErrWaitDelay for a command that succeeded; that
 	// used to fall to the default case below, so the model got an opaque
 	// "WaitDelay expired" error and none of the output.
-	leftBehind := errors.Is(err, exec.ErrWaitDelay)
+	// A cancel or timeout that landed meanwhile still reads as one.
+	leftBehind := errors.Is(err, exec.ErrWaitDelay) && ctx.Err() == nil
 	if leftBehind {
 		err = nil
 	}
