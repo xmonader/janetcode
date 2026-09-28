@@ -256,7 +256,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.System = p.System + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork."
 	// /agents fork starts this from a front-end goroutine while the
 	// parent's turn may still be appending; copy under its lock.
-	child.Messages = copyMessages(p.MessagesSnapshot())
+	child.Messages = closeOpenCalls(copyMessages(p.MessagesSnapshot()))
 	child.Rules = p.RulesSnapshot()
 	child.Archive = p.Archive
 	child.Debug = p.Debug
@@ -274,6 +274,31 @@ func (t *Task) forkChild() (*Agent, error) {
 		child.Approver = bubbled{to: p.Approver, name: "fork"}
 	}
 	return child, nil
+}
+
+// closeOpenCalls answers the tool calls a copied history ends on. A fork
+// the model asks for is started from inside the parent's tool step: the
+// assistant message carrying the task call is already in the history and
+// its result is not, because that result is what the fork's start
+// returns. Sent as it was, the fork's first request held a tool_use with
+// no tool_result, which every provider refuses — so the fork failed on
+// its first call. The parent's history is left as it is; it answers
+// those calls itself when the step ends.
+func closeOpenCalls(msgs []llm.Message) []llm.Message {
+	n := len(msgs)
+	if n == 0 || msgs[n-1].Role != llm.RoleAssistant {
+		return msgs
+	}
+	uses := msgs[n-1].ToolUses()
+	if len(uses) == 0 {
+		return msgs
+	}
+	results := make([]llm.Block, 0, len(uses))
+	for _, u := range uses {
+		results = append(results, llm.ToolResult(replyID(u),
+			u.Name+" was still running in the parent conversation when this fork started; its result is not part of the fork's history.", false))
+	}
+	return append(msgs, llm.ToolResultMessage(results...))
 }
 
 func copyMessages(in []llm.Message) []llm.Message {
