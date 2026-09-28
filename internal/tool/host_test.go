@@ -148,7 +148,7 @@ test)
 ls) shift; [ "$1" = "-1Ap" ] && shift; ls -1Ap "$1" ;;
 mkdir) shift; mkdir -p "$2" ;;
 tee) shift; cat > "$1" ;;
-find) shift; find "$1" ;;
+find) shift; find "$@" ;;
 chmod) exit 0 ;;
 sh|bash) shift; [ "$1" = "-lc" ] && shift; eval "$1" ;;
 *) echo "unexpected: $*" >&2; exit 1 ;;
@@ -197,6 +197,44 @@ func TestDialSSHWithFakeBinary(t *testing.T) {
 	out, err := rf.Run(context.Background(), json.RawMessage(`{"path":"note.txt"}`))
 	if err != nil || !strings.Contains(out, "remote-hi") {
 		t.Fatalf("tool through ssh host: %q err=%v", out, err)
+	}
+}
+
+// A remote walk honours SkipDir the way filepath.WalkDir does: nothing
+// under a skipped directory is visited. It used to skip only the
+// directory's own entry, so a glob over ssh listed .git and node_modules.
+func TestRemoteWalkDirSkipsWhatIsUnderASkippedDirectory(t *testing.T) {
+	fs := installFakeSSH(t)
+	for _, p := range []string{"src/a.go", ".git/objects/x", "node_modules/m/i.js", "b.txt"} {
+		full := filepath.Join(fs, p)
+		os.MkdirAll(filepath.Dir(full), 0o755)
+		os.WriteFile(full, []byte("x"), 0o644)
+	}
+	h, err := DialSSH("user@host")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := NewLocal(t.TempDir())
+	ws.Set(h)
+	var got []string
+	err = walkOn(ws, context.Background(), fs, func(rel string, d os.DirEntry) error {
+		if d.IsDir() {
+			rel += "/"
+		}
+		got = append(got, rel)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(got, " ")
+	for _, want := range []string{"src/", "src/a.go", "b.txt"} {
+		if !strings.Contains(" "+joined+" ", " "+want+" ") {
+			t.Fatalf("missing %s in %q", want, joined)
+		}
+	}
+	if strings.Contains(joined, ".git") || strings.Contains(joined, "node_modules") {
+		t.Fatalf("walked into a skipped directory: %q", joined)
 	}
 }
 

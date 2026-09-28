@@ -173,15 +173,48 @@ func (h *remoteHost) WalkDir(ctx context.Context, root string, fn fs.WalkDirFunc
 	if err != nil {
 		return remoteErr("walk", root, out, err)
 	}
+	// Which entries are directories comes from one more find rather than
+	// a Stat per entry: that was two ssh or docker round trips for every
+	// file in the tree.
+	dirOut, err := h.argv(ctx, nil, "find", root, "-type", "d")
+	if err != nil {
+		return remoteErr("walk", root, dirOut, err)
+	}
+	dirs := map[string]bool{}
+	for _, p := range strings.Split(string(dirOut), "\n") {
+		if p = strings.TrimSpace(p); p != "" {
+			dirs[p] = true
+		}
+	}
+	// SkipDir has to skip what is under the directory, as filepath.WalkDir
+	// does. It used to skip only the directory's own entry, so a glob on
+	// a remote host went on into .git and node_modules — listing what the
+	// local walk leaves out. find prints a directory before its contents,
+	// so one skipped prefix at a time is enough.
+	skip := ""
 	for _, p := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		p = strings.TrimSpace(p)
 		if p == "" {
 			continue
 		}
-		info, serr := h.Stat(ctx, p)
-		d := remoteEntry{name: filepath.Base(p), dir: serr == nil && info.IsDir()}
-		if err := fn(p, d, serr); err != nil {
-			if err == fs.SkipDir {
+		if skip != "" && strings.HasPrefix(p, skip) {
+			continue
+		}
+		d := remoteEntry{name: filepath.Base(p), dir: dirs[p]}
+		if err := fn(p, d, nil); err != nil {
+			switch {
+			case err == fs.SkipAll:
+				return nil
+			case err == fs.SkipDir:
+				// On a file, SkipDir skips the rest of its directory.
+				dir := p
+				if !d.dir {
+					dir = filepath.Dir(p)
+				}
+				if dir == root {
+					return nil
+				}
+				skip = strings.TrimSuffix(dir, "/") + "/"
 				continue
 			}
 			return err
