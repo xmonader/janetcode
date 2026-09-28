@@ -170,10 +170,8 @@ func TestBashStillWorksWithoutPromotion(t *testing.T) {
 }
 
 func TestSedInPlaceIsPreviewedAsADiff(t *testing.T) {
-	if _, err := os.Stat("/bin/sed"); err != nil {
-		if _, err := os.Stat("/usr/bin/sed"); err != nil {
-			t.Skip("no sed")
-		}
+	if !sedHasSandbox() {
+		t.Skip("no sed with --sandbox")
 	}
 	dir := t.TempDir()
 	p := filepath.Join(dir, "a.txt")
@@ -200,6 +198,29 @@ func TestSedInPlaceIsPreviewedAsADiff(t *testing.T) {
 	in, _ = json.Marshal(map[string]string{"command": "go test ./..."})
 	if out, _ := b.Preview(context.Background(), in); out != "" {
 		t.Fatalf("preview = %q", out)
+	}
+}
+
+// The preview runs before the user has been asked, so it must not be a
+// way to run the command early. GNU sed's e command executes its
+// argument as a shell command and w writes a file: a `sed -i` whose
+// script used either did so the moment the call was described, in any
+// mode, approved or not.
+func TestSedPreviewRunsNothingAndWritesNothing(t *testing.T) {
+	if !sedHasSandbox() {
+		t.Skip("sed has no --sandbox; the preview is not run at all")
+	}
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("alpha\n"), 0o644)
+	b := Bash{Root: dir}
+	for _, script := range []string{"1e touch ran", "1w wrote"} {
+		in, _ := json.Marshal(map[string]string{"command": "sed -i '" + script + "' a.txt"})
+		b.Preview(context.Background(), in)
+	}
+	for _, f := range []string{"ran", "wrote"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+			t.Errorf("previewing a sed -i created %s before anyone approved it", f)
+		}
 	}
 }
 

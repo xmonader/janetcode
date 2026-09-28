@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/diff"
@@ -52,7 +53,7 @@ func sedInPlaceDiff(ctx context.Context, root, seg string) []string {
 		return nil
 	}
 	args, files, inPlace := splitSedArgs(toks[1:])
-	if !inPlace || len(files) == 0 {
+	if !inPlace || len(files) == 0 || !sedHasSandbox() {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -67,8 +68,9 @@ func sedInPlaceDiff(ctx context.Context, root, seg string) []string {
 		if err != nil || isBinary(before) {
 			continue
 		}
-		cmd := exec.CommandContext(ctx, "sed", append(append([]string(nil), args...), p)...)
+		cmd := exec.CommandContext(ctx, "sed", append(append([]string{"--sandbox"}, args...), p)...)
 		cmd.Dir = root
+		cmd.Env = shell.ScrubEnv(os.Environ())
 		var buf bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &buf, nil
 		if err := cmd.Run(); err != nil {
@@ -129,3 +131,18 @@ func splitSedArgs(toks []string) (args, files []string, inPlace bool) {
 	}
 	return args, files, inPlace
 }
+
+// The preview runs while the call is being described, before anyone has
+// been asked, so it must not be a way to run the command early. A sed
+// script is a program: GNU sed's e command runs its argument in a shell,
+// and w and r (in every sed) write and read arbitrary files. --sandbox
+// is GNU sed's switch that refuses all three, so a script using them
+// fails to preview and is left for the permission prompt to decide. A
+// sed without it (BSD's, on macOS) is not run at all: no preview is
+// what there was before previews existed, and an unasked write is not.
+var sedSandbox = sync.OnceValue(func() bool {
+	return exec.Command("sed", "--sandbox", "-n", "", os.DevNull).Run() == nil
+})
+
+// sedHasSandbox reports whether the sed on PATH takes --sandbox.
+func sedHasSandbox() bool { return sedSandbox() }
