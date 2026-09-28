@@ -9,26 +9,30 @@ import (
 	"testing"
 )
 
-func TestEditFeedbackSyntaxAndCoveringTest(t *testing.T) {
-	if _, err := exec.LookPath("gofmt"); err != nil {
-		t.Skip("gofmt not installed")
+// The Python check was `python3 -m py_compile`, which does not only
+// parse: it writes the compiled file into __pycache__ beside the source,
+// so every edit to a .py file left a directory in the user's tree that
+// nobody asked for — in git status, in the undo snapshot, in the diff.
+func TestPythonSyntaxCheckWritesNothingToTheTree(t *testing.T) {
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 not installed")
 	}
 	dir := t.TempDir()
-	good := filepath.Join(dir, "calc.go")
-	os.WriteFile(good, []byte("package calc\n\nfunc Add(a, b int) int { return a + b }\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "calc_test.go"), []byte("package calc\n"), 0o644)
-	if got := editFeedback(context.Background(), good); !strings.HasSuffix(strings.TrimSpace(got), "edited file): calc_test.go") || strings.Contains(got, "Syntax") {
-		t.Fatalf("good file: %q", got)
+	good := filepath.Join(dir, "good.py")
+	if err := os.WriteFile(good, []byte("x = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	bad := filepath.Join(dir, "broken.go")
-	os.WriteFile(bad, []byte("package calc\n\nfunc Add(a, b int) int { return a + b \n"), 0o644)
-	if got := editFeedback(context.Background(), bad); !strings.Contains(got, "Syntax check (gofmt) failed on broken.go") {
-		t.Fatalf("bad file: %q", got)
+	if note := syntaxFeedback(context.Background(), good); note != "" {
+		t.Fatalf("a valid file failed the check: %s", note)
 	}
-	if got := editFeedback(context.Background(), filepath.Join(dir, "calc_test.go")); got != "" {
-		t.Fatalf("test file itself should get no pointer: %q", got)
+	if _, err := os.Stat(filepath.Join(dir, "__pycache__")); err == nil {
+		t.Fatal("the syntax check wrote __pycache__ into the tree")
 	}
-	if got := editFeedback(context.Background(), filepath.Join(dir, "notes.txt")); got != "" {
-		t.Fatalf("unknown extension: %q", got)
+	bad := filepath.Join(dir, "bad.py")
+	if err := os.WriteFile(bad, []byte("def f(:\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if note := syntaxFeedback(context.Background(), bad); !strings.Contains(note, "SyntaxError") {
+		t.Fatalf("a syntax error was not reported: %q", note)
 	}
 }

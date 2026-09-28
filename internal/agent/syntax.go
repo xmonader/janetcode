@@ -22,8 +22,11 @@ const syntaxTimeout = 10 * time.Second
 // syntaxCheckers maps an extension to the command that parses one file.
 // Each must exit non-zero on a syntax error and print the reason.
 var syntaxCheckers = map[string][]string{
-	".go":   {"gofmt", "-e", "-l"},
-	".py":   {"python3", "-m", "py_compile"},
+	".go": {"gofmt", "-e", "-l"},
+	// compile() rather than -m py_compile, which also writes the
+	// compiled file into a __pycache__ beside the source: a check must
+	// not leave anything in the user's tree.
+	".py":   {"python3", "-c", `import sys; compile(open(sys.argv[1], "rb").read(), sys.argv[1], "exec")`},
 	".js":   {"node", "--check"},
 	".mjs":  {"node", "--check"},
 	".cjs":  {"node", "--check"},
