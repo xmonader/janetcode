@@ -81,6 +81,25 @@ func TestWriteGuardFollowsSymlinks(t *testing.T) {
 	}
 }
 
+// Where the filesystem folds case, so does the guard.
+func TestSelfPathFoldsCaseWhereTheFilesystemDoes(t *testing.T) {
+	root := t.TempDir()
+	old := foldCase
+	defer func() { foldCase = old }()
+	abs := filepath.Join(root, ".JANETCODE", "hooks.json")
+	foldCase = true
+	if SelfPath(root, abs) == "" {
+		t.Error(".JANETCODE/hooks.json is not guarded where case folds")
+	}
+	if SelfPath(root, filepath.Join(root, ".MCP.json")) == "" {
+		t.Error(".MCP.json is not guarded where case folds")
+	}
+	foldCase = false
+	if got := SelfPath(root, abs); got != "" {
+		t.Errorf(".JANETCODE is guarded on a case-sensitive filesystem: %q", got)
+	}
+}
+
 func TestShellFormsThatTouchTheSettingsAsk(t *testing.T) {
 	root := t.TempDir()
 	cfg := t.TempDir()

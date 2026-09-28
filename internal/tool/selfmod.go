@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -26,9 +27,9 @@ import (
 
 // SelfPath names the control surface an absolute path belongs to, or "".
 func SelfPath(root, abs string) string {
-	abs = filepath.Clean(abs)
+	abs = foldPath(filepath.Clean(abs))
 	if root != "" {
-		root = filepath.Clean(root)
+		root = foldPath(filepath.Clean(root))
 		if abs == filepath.Join(root, ".mcp.json") {
 			return "the project's MCP server list"
 		}
@@ -36,13 +37,27 @@ func SelfPath(root, abs string) string {
 			return "janetcode's project settings (hooks, permission rules, verification, rules, skills and commands)"
 		}
 	}
-	if d := janetConfigDir(); d != "" && under(abs, d) {
+	if d := janetConfigDir(); d != "" && under(abs, foldPath(d)) {
 		return "janetcode's own configuration"
 	}
-	if d := janetDataDir(); d != "" && under(abs, d) {
+	if d := janetDataDir(); d != "" && under(abs, foldPath(d)) {
 		return "janetcode's sessions and memory store"
 	}
 	return ""
+}
+
+// foldCase says paths compare without regard to case, as they do on the
+// default filesystems of macOS and Windows: there .JANETCODE/hooks.json
+// is the project's hook file, and a case-sensitive comparison let a write
+// to it through unasked. A variable so a test can exercise either answer.
+var foldCase = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+
+// foldPath is p as SelfPath compares it.
+func foldPath(p string) string {
+	if foldCase {
+		return strings.ToLower(p)
+	}
+	return p
 }
 
 // under reports whether abs is dir or lies inside it.
