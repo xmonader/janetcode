@@ -68,8 +68,17 @@ func TreeState(root string) string {
 		}
 		return string(out), true
 	}
-	head, ok := git("rev-parse", "HEAD")
+	// The top level comes with HEAD because status paths are relative to
+	// it, not to root: a session rooted in a subdirectory would otherwise
+	// stat paths that do not exist, and a second edit to a file already
+	// modified — same status line, new size and time — would leave the
+	// fingerprint as it was.
+	out, ok := git("rev-parse", "--show-toplevel", "HEAD")
 	if !ok {
+		return ""
+	}
+	top, head, ok := strings.Cut(out, "\n")
+	if !ok || top == "" {
 		return ""
 	}
 	status, ok := git("status", "--porcelain", "-z", "--untracked-files=all")
@@ -78,16 +87,25 @@ func TreeState(root string) string {
 	}
 	var sb strings.Builder
 	sb.WriteString(head)
-	for _, entry := range strings.Split(status, "\x00") {
+	entries := strings.Split(status, "\x00")
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
 		if len(entry) < 4 {
 			continue
 		}
 		sb.WriteString(entry)
-		p := filepath.Join(root, entry[3:])
+		p := filepath.Join(top, filepath.FromSlash(entry[3:]))
 		if st, err := os.Stat(p); err == nil {
 			fmt.Fprintf(&sb, "|%d|%d", st.Size(), st.ModTime().UnixNano())
 		}
 		sb.WriteByte('\n')
+		// A rename or copy is followed by its source path as an entry of
+		// its own, with no status columns to cut off.
+		if strings.ContainsAny(entry[:2], "RC") && i+1 < len(entries) {
+			i++
+			sb.WriteString(entries[i])
+			sb.WriteByte('\n')
+		}
 	}
 	return sb.String()
 }
