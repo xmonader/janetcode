@@ -67,7 +67,7 @@ func (a *Agent) Prune() int {
 			switch {
 			case useKey[b.ToolUseID] != "" && !keep[b.ToolUseID] && len(b.Text) > len(superseded):
 				a.setBlockText(i, j, superseded)
-			case len(b.Text) > pruneKeep:
+			case len(afterArchiveNote(b.Text)) > pruneKeep+pruneSlack:
 				a.setBlockText(i, j, a.trimOld(b.ToolUseID, label[b.ToolUseID][0], label[b.ToolUseID][1], b.Text))
 			}
 			saved += before - len(a.Messages[i].Blocks[j].Text)
@@ -93,6 +93,24 @@ func (a *Agent) Prune() int {
 		a.contextManager.rewritten()
 	}
 	return saved
+}
+
+// pruneSlack is how far past pruneKeep a result may run and still count
+// as trimmed: TruncateTo keeps pruneKeep bytes and adds its own omission
+// marker, and escaping the harness's delimiters can grow the preview a
+// little. Without it every later prune found each trimmed result a few
+// bytes over, cut it again — nesting a second marker inside the first —
+// and so rewrote old messages the cached prefix still held, and reported
+// the pass as having saved something.
+const pruneSlack = 128
+
+// afterArchiveNote is a tool result without the one-line archive note a
+// stash or an earlier trim put at its head: the part trimOld cuts.
+func afterArchiveNote(text string) string {
+	if i := strings.Index(text, "\n"); i > 0 && strings.HasPrefix(text, "[output is ") {
+		return text[i+1:]
+	}
+	return text
 }
 
 // pruneInputKeep is the size of a tool call's arguments above which an
