@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -147,6 +148,59 @@ func TestUserThemeValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOneSidedColourInheritsTheOtherSide: a role written as {"dark": …}
+// alone was documented to keep the base's light colour, but the parser
+// copied the dark colour into the light side before the base was
+// consulted, so the default's light-mode accent became the dark-mode one.
+// Without a base the one side still stands for both.
+func TestOneSidedColourInheritsTheOtherSide(t *testing.T) {
+	themes, err := ParseMap(rawThemes{
+		"withbase": []byte(`{"base":"default","roles":{"accent":{"dark":"#010203"}}}`),
+	}.raw())
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := Build(themes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	th, _ := set.Get("withbase")
+	def := set.Default().Get(RoleAccent)
+	if got := th.Get(RoleAccent); got.Dark != "#010203" || got.Light != def.Light {
+		t.Fatalf("accent = %+v, want dark #010203 and the default's light %s", got, def.Light)
+	}
+
+	// A base-less theme: the one side given is used for both.
+	roles := `"accent":{"light":"#111111"}`
+	for _, r := range Roles {
+		if r != RoleAccent {
+			roles += fmt.Sprintf(`,%q:"#222222"`, r)
+		}
+	}
+	lone, err := ParseTheme("lone", []byte(`{"roles":{`+roles+`}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err = Build(map[string]Theme{"lone": lone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	th, _ = set.Get("lone")
+	if got := th.Get(RoleAccent); got.Light != "#111111" || got.Dark != "#111111" {
+		t.Fatalf("base-less one-sided accent = %+v, want #111111 on both sides", got)
+	}
+}
+
+type rawThemes map[string][]byte
+
+func (r rawThemes) raw() map[string]json.RawMessage {
+	out := map[string]json.RawMessage{}
+	for k, v := range r {
+		out[k] = v
+	}
+	return out
 }
 
 func TestUserThemeOverridesBuiltin(t *testing.T) {

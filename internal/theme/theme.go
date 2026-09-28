@@ -253,11 +253,15 @@ func Build(userThemes map[string]Theme) (*Set, error) {
 			}
 		}
 		for role, c := range t.Roles {
-			if err := validColor(c.Light); err != nil {
-				return nil, fmt.Errorf("theme %q: role %q: %w", name, role, err)
-			}
-			if err := validColor(c.Dark); err != nil {
-				return nil, fmt.Errorf("theme %q: role %q: %w", name, role, err)
+			// One side may be empty (a one-sided {"light"|"dark"} object,
+			// filled in by flatten), but not both.
+			for _, side := range []string{c.Light, c.Dark} {
+				if side == "" && (c.Light != "" || c.Dark != "") {
+					continue
+				}
+				if err := validColor(side); err != nil {
+					return nil, fmt.Errorf("theme %q: role %q: %w", name, role, err)
+				}
 			}
 		}
 		raw[name] = t
@@ -297,6 +301,11 @@ func flatten(name string, raw map[string]Theme, seen []string) (Theme, error) {
 		// Copy the roles map so callers never share the builtin's.
 		out := t
 		out.Roles = cloneRoles(t.Roles)
+		// With no base to inherit from, a one-sided colour stands for
+		// both backgrounds.
+		for role, c := range out.Roles {
+			out.Roles[role] = c.filled(solid(c.Light + c.Dark))
+		}
 		return out, nil
 	}
 	base, err := flatten(t.Base, raw, append(seen, name))
@@ -316,9 +325,28 @@ func flatten(name string, raw map[string]Theme, seen []string) (Theme, error) {
 	}
 	merged.Roles = cloneRoles(base.Roles)
 	for role, c := range t.Roles {
-		merged.Roles[role] = c
+		// A side the child leaves empty is the base's; with no base
+		// colour for the role, the child's other side.
+		fill := solid(c.Light + c.Dark)
+		if b, ok := base.Roles[role]; ok {
+			fill = b
+		}
+		merged.Roles[role] = c.filled(fill)
 	}
 	return merged, nil
+}
+
+// filled is c with an empty side taken from fill. At most one side of a
+// parsed colour is empty, so c.Light+c.Dark in the callers is the side
+// that is there.
+func (c Color) filled(fill Color) Color {
+	if c.Light == "" {
+		c.Light = fill.Light
+	}
+	if c.Dark == "" {
+		c.Dark = fill.Dark
+	}
+	return c
 }
 
 func cloneRoles(in map[string]Color) map[string]Color {

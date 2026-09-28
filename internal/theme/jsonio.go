@@ -54,15 +54,15 @@ func (c *Color) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &pair); err != nil {
 		return fmt.Errorf("colour must be a string or {\"light\",\"dark\"}: %v", err)
 	}
+	if pair.Light == "" && pair.Dark == "" {
+		return fmt.Errorf("colour object needs \"light\", \"dark\" or both")
+	}
+	// The missing side is left empty here and filled when the theme is
+	// built (see flatten): from the base's colour for the role when there
+	// is a base, from the other side when there is not. Filling it here
+	// from the other side left the base nothing to fill, so {"dark": …}
+	// on a base replaced the base's light colour with a dark-mode one.
 	c.Light, c.Dark = pair.Light, pair.Dark
-	// A one-sided object fills the other side so a base-less use is still
-	// complete; a base fills any side left empty here.
-	if c.Light == "" {
-		c.Light = c.Dark
-	}
-	if c.Dark == "" {
-		c.Dark = c.Light
-	}
 	return nil
 }
 
