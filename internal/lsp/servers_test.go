@@ -55,6 +55,25 @@ func pollDefinition(ctx context.Context, m *Manager, c langCase) ([]Location, er
 	}
 }
 
+// pollReferences asks until the uses span more than one file. clangd
+// answers from the open file at once and from the rest of the project
+// only once its background index has read the compile database, so the
+// first query often finds main.c alone.
+func pollReferences(ctx context.Context, m *Manager, c langCase) ([]Location, error) {
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		refs, err := m.References(ctx, c.file, Point{Symbol: c.refSymbol})
+		files := map[string]bool{}
+		for _, r := range refs {
+			files[filepath.Base(r.Path)] = true
+		}
+		if err != nil || len(files) > 1 || time.Now().After(deadline) {
+			return refs, err
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 func run(t *testing.T, c langCase) {
 	t.Helper()
 	if _, err := exec.LookPath(c.bin); err != nil {
@@ -139,7 +158,7 @@ func run(t *testing.T, c langCase) {
 
 	// References: every use, not just the one the query pointed at. This
 	// is the whole reason to ask a server rather than grep.
-	refs, err := m.References(ctx, c.file, Point{Symbol: c.refSymbol})
+	refs, err := pollReferences(ctx, m, c)
 	if err != nil {
 		t.Fatalf("%s: references: %v", c.name, err)
 	}
