@@ -122,3 +122,29 @@ func TestNoWorkspaceStillRefusesAFifo(t *testing.T) {
 		return rf.Run(context.Background(), json.RawMessage(`{"path":"pipe"}`))
 	})
 }
+
+// list_dir opens the path it is given to read its entries, and opening a
+// FIFO blocks until a writer comes along — the directory read never got
+// as far as saying "not a directory". A path that is not a directory is
+// now refused on its stat.
+func TestListDirRefusesAFIFO(t *testing.T) {
+	root := t.TempDir()
+	if err := syscall.Mkfifo(filepath.Join(root, "pipe"), 0o644); err != nil {
+		t.Skip("no mkfifo:", err)
+	}
+	for _, ws := range []*Workspace{nil, NewLocal(root)} {
+		done := make(chan error, 1)
+		go func() {
+			_, err := (ListDir{Root: root, WS: ws}).Run(context.Background(), json.RawMessage(`{"path":"pipe"}`))
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err == nil || !strings.Contains(err.Error(), "not a directory") {
+				t.Fatalf("list_dir on a FIFO: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("list_dir on a FIFO blocked instead of being refused")
+		}
+	}
+}

@@ -63,6 +63,11 @@ func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
+	// Judged on the stat before anything is opened: opening a FIFO to
+	// read its "entries" blocks until some other process writes to it.
+	if st, serr := statOf(ctx, t.WS, p); serr == nil && !st.IsDir() {
+		return "", fmt.Errorf("%s is not a directory; read_file reads a file", in.Path)
+	}
 	entries, over, err := readDirCapped(ctx, t.WS, p, maxDirScan)
 	if errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("%s %s", in.Path, NotFound)
