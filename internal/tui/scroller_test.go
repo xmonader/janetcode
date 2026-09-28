@@ -53,3 +53,26 @@ func TestScroller(t *testing.T) {
 		t.Fatalf("after shrink: %d %q", s.YOffset, s.View())
 	}
 }
+
+// TestScrollerNeverShowsBlankBelowTheEnd: content that shrinks by less
+// than a screenful, or a window made taller, used to leave the view where
+// it was — past the last screenful, with the last few lines at the top
+// and blank rows under them.
+func TestScrollerNeverShowsBlankBelowTheEnd(t *testing.T) {
+	var lines []string
+	for i := range 20 {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	s := newScroller(10, 4)
+	s.SetContent(strings.Join(lines, "\n"))
+	s.SetYOffset(14) // scrolled up two lines from the bottom
+	s.SetContent(strings.Join(lines[:16], "\n"))
+	if s.YOffset != 12 || !strings.HasPrefix(strings.Split(s.View(), "\n")[3], "line 15") {
+		t.Fatalf("after a shrink: offset %d, view %q", s.YOffset, s.View())
+	}
+	s.Height = 10
+	s.SetContent(strings.Join(lines[:16], "\n"))
+	if s.YOffset != 6 || !strings.HasPrefix(strings.Split(s.View(), "\n")[9], "line 15") {
+		t.Fatalf("after growing: offset %d, view %q", s.YOffset, s.View())
+	}
+}

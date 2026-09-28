@@ -29,11 +29,14 @@ func newScroller(width, height int) scroller {
 	return scroller{Width: width, Height: height, MouseWheelDelta: 3}
 }
 
-// SetContent replaces the text. A view scrolled past the new end moves to
-// the bottom.
+// SetContent replaces the text. A view scrolled past the last screenful
+// moves back to it. The test was the last line rather than the last
+// screenful, so content that shrank (a fold, a dropped entry) or a window
+// grown taller left a view of a few lines over a blank screen until the
+// next scroll.
 func (s *scroller) SetContent(content string) {
 	s.lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	if s.YOffset > len(s.lines)-1 {
+	if s.YOffset > s.maxYOffset() {
 		s.GotoBottom()
 	}
 }
