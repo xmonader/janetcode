@@ -51,6 +51,8 @@ func TestDecisionsLoadAndValidate(t *testing.T) {
 		{"negative timeout", `{"decisions":{"model":"jev-1.13.0","timeout_ms":-5}}`, "timeout_ms"},
 		{"http off loopback", `{"decisions":{"model":"jev-1.13.0","base_url":"http://api.example.com"}}`, "https"},
 		{"not a url", `{"decisions":{"model":"jev-1.13.0","base_url":"api.typesafe.ai"}}`, "https"},
+		// "localhost:80" here is a user name; the host is off loopback.
+		{"loopback as userinfo", `{"decisions":{"model":"jev-1.13.0","base_url":"http://localhost:80@api.example.com/v1"}}`, "https"},
 	}
 	for _, c := range bad {
 		t.Run(c.name, func(t *testing.T) {
@@ -67,6 +69,9 @@ func TestDecisionsLoadAndValidate(t *testing.T) {
 	// Loopback http is allowed: that is the test-server shape.
 	if _, err := load(write(`{"decisions":{"model":"jev-1.13.0","base_url":"http://127.0.0.1:9000"}}`), keyed, Overrides{}); err != nil {
 		t.Fatalf("loopback http refused: %v", err)
+	}
+	if _, err := load(write(`{"decisions":{"model":"jev-1.13.0","base_url":"http://[::1]:9000/v1"}}`), keyed, Overrides{}); err != nil {
+		t.Fatalf("IPv6 loopback http refused: %v", err)
 	}
 	// The block is present but inert until a consumer is on.
 	cfg, err = load(write(`{"decisions":{"model":"jev-1.13.0"}}`), keyed, Overrides{})

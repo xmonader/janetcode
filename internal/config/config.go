@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -293,9 +294,12 @@ func (d *DecisionsConfig) Validate() error {
 	}
 	if u := d.BaseURL; u != "" {
 		if strings.HasPrefix(u, "http://") {
-			h := strings.TrimPrefix(u, "http://")
-			if i := strings.IndexAny(h, "/:"); i >= 0 {
-				h = h[:i]
+			// The host as the client will dial it: cutting at the first
+			// ":" or "/" took "localhost" from http://localhost:80@host/
+			// (a user name) and "[" from http://[::1]:9000.
+			h := ""
+			if pu, err := url.Parse(u); err == nil {
+				h = pu.Hostname()
 			}
 			if h != "localhost" && h != "127.0.0.1" && h != "::1" {
 				return fmt.Errorf("decisions.base_url %q is plain http off loopback; states carry command output, so the connection must be https", u)
