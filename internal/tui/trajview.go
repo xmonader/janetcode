@@ -153,20 +153,22 @@ func (m *model) trajListMove(k string, n int) bool {
 	if n == 0 {
 		return false
 	}
-	step := 0
+	// A row at a time wraps; a screenful stops at the ends, as every
+	// other list's pgup and pgdown do. Wrapping a screenful by modulo
+	// went negative whenever it was more than a list's length past the
+	// top, and enter on a negative highlight indexed out of range.
 	switch k {
 	case "up", "k", "ctrl+p":
-		step = -1
+		m.ov.idx = (m.ov.idx - 1 + n) % n
 	case "down", "j", "ctrl+n":
-		step = 1
+		m.ov.idx = (m.ov.idx + 1) % n
 	case "pgup":
-		step = -m.trajListH()
+		m.ov.idx = max(m.ov.idx-m.trajListH(), 0)
 	case "pgdown":
-		step = m.trajListH()
+		m.ov.idx = min(m.ov.idx+m.trajListH(), n-1)
 	default:
 		return false
 	}
-	m.ov.idx = (m.ov.idx + step + n) % n
 	return true
 }
 

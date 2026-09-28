@@ -32,7 +32,31 @@ func TestConnectEscFromAPresetURLGoesBackToTheList(t *testing.T) {
 	}
 }
 
-// TestConnectIgnoresAModelListFromAnEarlierVisit: the model step's list
+// TestTrajectoryPageUpStaysInTheList: pgup wrapped by modulo, and a step
+// longer than the list from near its top went negative, which enter then
+// used as an index.
+func TestTrajectoryPageUpStaysInTheList(t *testing.T) {
+	h := newHarness(t)
+	for _, c := range []struct {
+		idx, n int
+		key    string
+		want   int
+	}{
+		{1, 4, "pgup", 0},
+		{0, 4, "pgup", 0},
+		{2, 4, "pgdown", 3},
+		{0, 4, "up", 3},
+		{3, 4, "down", 0},
+	} {
+		h.m.ov.idx = c.idx
+		h.m.trajListMove(c.key, c.n)
+		if h.m.ov.idx != c.want {
+			t.Errorf("%s from %d of %d landed on %d, want %d", c.key, c.idx, c.n, h.m.ov.idx, c.want)
+		}
+	}
+}
+
+// TestConnectIgnoresAModelListFromAnEarlierVisit:the model step's list
 // was matched by dialog only, so a list still in flight from an earlier
 // visit to the step (a key since replaced) landed in the new one.
 func TestConnectIgnoresAModelListFromAnEarlierVisit(t *testing.T) {
