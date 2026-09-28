@@ -41,7 +41,7 @@ type modelGroup struct {
 const modelsFresh = 5 * time.Minute
 
 func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
-	out := map[string]any{"provider": s.opts.Provider, "current": "", "groups": []modelGroup{}}
+	out := map[string]any{"provider": s.provider(), "current": "", "groups": []modelGroup{}}
 	ag := s.opts.Agent
 	cfg := s.opts.Config
 	if ag == nil || cfg == nil {
@@ -199,7 +199,7 @@ func (s *server) fetchLiveModels() []modelGroup {
 		}
 	}
 	groups = kept
-	sortGroups(groups, s.opts.Provider)
+	sortGroups(groups, s.provider())
 	return groups
 }
 
@@ -251,12 +251,12 @@ func (s *server) configKnownModels(cfg *config.Config, current string) []modelGr
 	// The model in use leads even when nothing lists it: it is the one
 	// the reader most wants to see, and the ✓ has to land somewhere.
 	if current != "" && !seen[current] {
-		add(s.opts.Provider, current)
+		add(s.provider(), current)
 	}
 	for i := range groups {
 		sort.SliceStable(groups[i].Models, func(a, b int) bool { return groups[i].Models[a].Model < groups[i].Models[b].Model })
 	}
-	sortGroups(groups, s.opts.Provider)
+	sortGroups(groups, s.provider())
 	return groups
 }
 

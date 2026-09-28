@@ -271,7 +271,7 @@ func (s *server) startNewSession() error {
 	if err != nil {
 		return err
 	}
-	model, provider := "", s.opts.Provider
+	model, provider := "", s.provider()
 	if s.opts.Agent != nil {
 		model = s.opts.Agent.Settings().Model
 	}

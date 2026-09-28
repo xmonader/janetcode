@@ -263,6 +263,11 @@ type server struct {
 	// replace while other requests are reading it. Everything reads it
 	// through sess().
 	sessMu sync.RWMutex
+
+	// provMu guards opts.Provider, which /connect and /model rename while
+	// every open page is reading it. Everything reads it through
+	// provider().
+	provMu sync.RWMutex
 }
 
 // sess is the session this server is logging to, or nil.
@@ -277,6 +282,20 @@ func (s *server) setSession(v *session.Session) {
 	s.sessMu.Lock()
 	s.opts.Session = v
 	s.sessMu.Unlock()
+}
+
+// provider is the name of the provider the session talks to.
+func (s *server) provider() string {
+	s.provMu.RLock()
+	defer s.provMu.RUnlock()
+	return s.opts.Provider
+}
+
+// setProvider records a switch of provider (/connect, /model).
+func (s *server) setProvider(name string) {
+	s.provMu.Lock()
+	s.opts.Provider = name
+	s.provMu.Unlock()
 }
 
 // cwd is the directory this session is rooted at.
@@ -489,7 +508,7 @@ func (s *server) hello() helloPayload {
 	h := helloPayload{
 		Cwd:      s.cwd(),
 		CwdShort: perm.ShortenHome(s.cwd()),
-		Provider: s.opts.Provider,
+		Provider: s.provider(),
 		Version:  s.opts.Version,
 	}
 	if s.opts.Agent != nil {
@@ -807,7 +826,7 @@ func (s *server) finish(err error) {
 		s.notice("stopped after " + textfmt.Duration(elapsed))
 		s.statusSet("stopped")
 	default:
-		x := llm.Explain(err, providerDisplayName(s.opts.Provider), webRemedies)
+		x := llm.Explain(err, providerDisplayName(s.provider()), webRemedies)
 		card := errorCard{Explanation: x}
 		if strings.Contains(x.Next, webRemedies.Key) {
 			// The fix is in the connect form: a button opens it,

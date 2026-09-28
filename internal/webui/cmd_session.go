@@ -17,7 +17,7 @@ import (
 func (s *server) model(arg string) {
 	ag := s.opts.Agent
 	if arg == "" {
-		s.notice("model: " + ag.Settings().Model + " (" + s.opts.Provider + ") · /model <name> switches, across providers when the name routes elsewhere")
+		s.notice("model: " + ag.Settings().Model + " (" + s.provider() + ") · /model <name> switches, across providers when the name routes elsewhere")
 		return
 	}
 	cfg := s.opts.Config
@@ -33,7 +33,7 @@ func (s *server) model(arg string) {
 			}
 			prov = p
 			cfg.Provider = name
-			s.opts.Provider = name
+			s.setProvider(name)
 			s.notice("switched to provider " + name + " for " + arg)
 		}
 	}
@@ -46,7 +46,7 @@ func (s *server) model(arg string) {
 			}
 		}
 	}
-	s.notice("model set to " + arg + " on " + s.opts.Provider)
+	s.notice("model set to " + arg + " on " + s.provider())
 	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
 }
 

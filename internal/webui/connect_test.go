@@ -142,3 +142,29 @@ func TestWebConnectWaitsForTheTurn(t *testing.T) {
 		t.Fatalf("connect mid-turn = %v", out)
 	}
 }
+
+// Connecting renames the provider while every open page is reading it
+// (/api/state, a new /events stream). Under -race this is the regression
+// test for the provider name being written with no lock.
+func TestConnectingWhilePagesReadTheProvider(t *testing.T) {
+	s, _ := firstRun(t)
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			_ = s.hello()
+		}
+	}()
+	connectCall(t, s, `{"action":"connect","name":"dashscope-coding","url":"https://coding-intl.dashscope.aliyuncs.com/v1","keys":"good","model":"qwen3.7-plus"}`)
+	close(stop)
+	<-done
+	if got := s.hello().Provider; got != "dashscope-coding" {
+		t.Fatalf("provider = %q", got)
+	}
+}

@@ -61,7 +61,7 @@ func (s *server) connectAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet {
-		writeJSON(w, map[string]any{"providers": s.connectProviders(), "current": s.opts.Provider, "config": perm.ShortenHome(s.opts.ConfigPath)})
+		writeJSON(w, map[string]any{"providers": s.connectProviders(), "current": s.provider(), "config": perm.ShortenHome(s.opts.ConfigPath)})
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -228,7 +228,7 @@ func (s *server) applyConnect(next *config.Config, name string, p config.Provide
 		return "", err
 	}
 	*s.opts.Config = *next
-	s.opts.Provider = name
+	s.setProvider(name)
 	if known && s.opts.ConfigPath != "" {
 		meta := config.MetaOf(mi)
 		if s.opts.Config.Models == nil {
