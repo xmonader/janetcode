@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"path/filepath"
+	"testing"
+
+	"github.com/xmonader/janetcode/internal/headless"
+)
 
 // pick reports which mode the table selects for a set of flags, without
 // running it.
@@ -76,6 +82,32 @@ func TestOnlySessionModesOpenTheUserRecords(t *testing.T) {
 		if m.hints != w {
 			t.Errorf("mode %q: hints = %v, want %v", m.name, m.hints, w)
 		}
+	}
+}
+
+// The combinations checkModes refuses are refused before any mode runs:
+// the modes that print something and exit (--session-profile,
+// --decisions-replay, --decisions-annotate) ran ahead of the checks, so
+// their rows could never fire and -p, or the other run, was silently
+// dropped.
+func TestConflictingEarlyModesAreRefused(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	missing := filepath.Join(home, "nothing-here")
+	for _, args := range [][]string{
+		{"--session-profile", missing, "-p", "hi"},
+		{"--decisions-replay", missing, "-p", "hi"},
+		{"--decisions-annotate", missing, "-p", "hi"},
+		{"--decisions-annotate", missing, "--decisions-replay", missing},
+	} {
+		if err := run(args); !errors.Is(err, headless.ErrBadInput) {
+			t.Errorf("%v: err = %v, want a usage error", args, err)
+		}
+	}
+	// --doctor takes --output-format json without -p.
+	if err := checkModes(&options{runDoctor: true, outFormat: "json"}, "", headless.FormatJSON); err != nil {
+		t.Errorf("--doctor --output-format json refused: %v", err)
 	}
 }
 

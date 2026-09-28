@@ -322,14 +322,9 @@ func (s *startup) stageFlags() (bool, error) {
 	if s.opts.resumeR != "" {
 		s.opts.resume = s.opts.resumeR
 	}
-	return earlyMode(s.fs, s.opts)
-}
-
-// stageModeChecks rejects flag combinations that do not go together and
-// then runs the modes that only read what is already on disk. Neither
-// needs a configuration, which is the point: re-reading saved results
-// must work when the configuration is the problem.
-func (s *startup) stageModeChecks() (bool, error) {
+	// The combinations that do not go together are refused before any
+	// mode runs, the early ones included: checked after them, a row about
+	// --session-profile and -p could never fire, and -p was dropped.
 	s.initial = strings.TrimSpace(strings.Join(s.fs.Args(), " "))
 	format, err := headless.ParseFormat(s.opts.outFormat)
 	if err != nil {
@@ -339,6 +334,13 @@ func (s *startup) stageModeChecks() (bool, error) {
 	if err := checkModes(s.opts, s.initial, format); err != nil {
 		return true, err
 	}
+	return earlyMode(s.fs, s.opts)
+}
+
+// stageModeChecks runs the modes that only read what is already on disk.
+// None needs a configuration, which is the point: re-reading saved
+// results must work when the configuration is the problem.
+func (s *startup) stageModeChecks() (bool, error) {
 	return offlineMode(s.opts)
 }
 

@@ -116,7 +116,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{o.decisionsAnnotate != "" && o.decisionsReplay != "", "--decisions-annotate and --decisions-replay are separate runs"},
 		{o.sessionProfile != "" && o.promptText != "", "--session-profile reads recorded runs, it does not start one; drop -p"},
 		{o.doctorFix && !o.runDoctor, "--fix is --doctor's: run janetcode --doctor --fix"},
-		{format != headless.FormatText && o.promptText == "" && o.watchCmd == "", "--output-format applies to a headless run (-p)"},
+		{format != headless.FormatText && o.promptText == "" && o.watchCmd == "" && !o.runDoctor, "--output-format applies to a headless run (-p) or --doctor"},
 		{o.watchCmd != "" && o.until != "", "--watch and --until cannot be combined"},
 		{o.web && o.acpMode, "--web and --acp cannot be combined"},
 		{o.web && o.promptText != "", "--web is a session, not a one-shot; drop -p"},
