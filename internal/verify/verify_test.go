@@ -56,6 +56,28 @@ func TestRunStopsAtFirstFailure(t *testing.T) {
 	}
 }
 
+// A failing check's output is fed to the model, written to the session
+// log and recorded by evals, exactly as a bash result is — and a bash
+// result is redacted. A suite that prints the environment or a .env on
+// failure must not hand over what the same command run through bash
+// would not.
+func TestFailureOutputIsRedacted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell")
+	}
+	key := "ghp_" + strings.Repeat("aB3d", 9)
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, ".env"), []byte("GITHUB_TOKEN="+key+"\n"), 0o600)
+	r := &Runner{Cwd: root, Config: Config{Commands: []string{"cat .env; exit 1"}}}
+	res := r.Run(context.Background())
+	if res.OK() || !strings.Contains(res.Output, "GITHUB_TOKEN=") {
+		t.Fatalf("res = %+v", res)
+	}
+	if strings.Contains(res.Output, key) || strings.Contains(res.Feedback(), key) {
+		t.Fatalf("the credential reached the feedback: %q", res.Output)
+	}
+}
+
 func TestRunPassAndTimeout(t *testing.T) {
 	r := &Runner{Cwd: t.TempDir(), Config: Config{Commands: []string{"test \"$JANETCODE_VERIFY\" = 1", "true"}}}
 	res := r.Run(context.Background())

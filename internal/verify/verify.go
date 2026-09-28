@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
+	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -233,7 +234,12 @@ func (r *Runner) Run(ctx context.Context) Result {
 			res.Passed = append(res.Passed, r.name(command))
 			continue
 		}
-		res.Failed, res.Output = r.name(command), out.String()
+		// Redacted as a bash result is: this output goes to the model,
+		// the session log and eval records, and a suite that prints the
+		// environment or a .env on failure would otherwise hand over what
+		// the same command run through bash does not.
+		red, _ := secret.Redact(out.String())
+		res.Failed, res.Output = r.name(command), red
 		var ee *exec.ExitError
 		switch {
 		case timedOut:
