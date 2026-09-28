@@ -262,7 +262,13 @@ func (m *model) openMCPAdd() tea.Cmd {
 	}, {
 		name: "command",
 		enter: func(_ row, typed string) (int, string) {
-			words := strings.Fields(typed)
+			// Split as a shell would, which is what the hint asks for and
+			// what the typed /mcp add does: a quoted argument with a space
+			// in it ("--dir '/my projects'") used to arrive as two.
+			words, err := mcp.SplitArgs(typed)
+			if err != nil {
+				return 0, err.Error()
+			}
 			cfg, err := mcp.ParseTarget(words)
 			if err != nil {
 				return 0, err.Error()

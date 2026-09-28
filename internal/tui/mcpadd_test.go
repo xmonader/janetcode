@@ -89,6 +89,28 @@ func TestMCPAddDialogSteps(t *testing.T) {
 	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "did not start") })
 }
 
+// TestMCPAddDialogKeepsQuotedArguments: the command step says "as you
+// would type them in a shell", but split on spaces, so a quoted argument
+// with a space in it reached the server as two arguments, quotes and all.
+func TestMCPAddDialogKeepsQuotedArguments(t *testing.T) {
+	h := newHarness(t)
+	withMCP(t, h)
+	h.runCmd(h.m.mcpCommand([]string{"add"}))
+	for _, typed := range []string{"docs", "", `never-run --dir "/my projects"`, ""} {
+		h.typed(typed)
+		h.enter()
+	}
+	mm, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	h.m = mm.(*model)
+	h.runCmd(cmd)
+	h.pump(func() bool { return h.m.opts.MCP.ProjectTrusted })
+	got := projectServers(t, h)["docs"]
+	if got.Command != "never-run" || len(got.Args) != 2 || got.Args[1] != "/my projects" {
+		t.Fatalf("written entry: %+v", got)
+	}
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "did not start") })
+}
+
 func TestMCPAddDialogValidatesAndBacksOut(t *testing.T) {
 	h := newHarness(t)
 	withMCP(t, h)
