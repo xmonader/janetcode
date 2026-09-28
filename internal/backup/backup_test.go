@@ -175,4 +175,15 @@ func TestBackupInsideARoot(t *testing.T) {
 	if sum.Files != 1 {
 		t.Fatalf("backed up %d files, want 1", sum.Files)
 	}
+	// The same with dest named relative to a working directory inside the
+	// root: the walk sees absolute paths, and a relative temp name never
+	// matched one, so the archive swallowed its own half-written self.
+	t.Chdir(roots["data"])
+	sum, err = Create("jc2.tar.gz", roots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Files != 2 { // a.jsonl and the first backup, not the second
+		t.Fatalf("backed up %d files, want 2", sum.Files)
+	}
 }

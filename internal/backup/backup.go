@@ -55,7 +55,13 @@ func Create(dest string, roots Roots) (Summary, error) {
 		return sum, err
 	}
 	// A backup written inside one of the roots must not archive itself.
-	sum, werr := write(tmp, roots, tmp.Name())
+	// Absolute, as the walk's paths are: dest may be relative.
+	self, err := filepath.Abs(tmp.Name())
+	if err != nil {
+		tmp.Close()
+		return sum, err
+	}
+	sum, werr := write(tmp, roots, self)
 	if cerr := tmp.Close(); werr == nil {
 		werr = cerr
 	}
