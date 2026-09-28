@@ -86,6 +86,12 @@ func (t ReadManyFiles) Run(ctx context.Context, input json.RawMessage) (string, 
 			continue
 		}
 		st, serr := statOf(ctx, t.WS, p)
+		if serr == nil {
+			if err := checkReadSize(rel, st.Size()); err != nil {
+				fmt.Fprintf(&sb, "===== %s =====\n(error: %v)\n\n", rel, err)
+				continue
+			}
+		}
 		var data []byte
 		if serr == nil {
 			if cached, ok := t.Cache.Get(p, st.ModTime(), st.Size()); ok {

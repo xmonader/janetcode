@@ -62,6 +62,11 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if serr == nil && st.IsDir() {
 		return "", fmt.Errorf("%s is a directory; list_dir shows what is in it and glob finds files by pattern", in.Path)
 	}
+	if serr == nil {
+		if err := checkReadSize(in.Path, st.Size()); err != nil {
+			return "", err
+		}
+	}
 	var data []byte
 	if serr == nil {
 		if cached, ok := t.Cache.Get(p, st.ModTime(), st.Size()); ok {
