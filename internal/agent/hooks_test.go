@@ -248,9 +248,9 @@ func TestStopFailureSaysWhyATurnFailed(t *testing.T) {
 	if err := a.Run(context.Background(), "go", func(Event) {}); !errors.Is(err, ErrMaxIterations) {
 		t.Fatalf("err = %v", err)
 	}
-	got := eventually(t, logged, 1)
+	eventually(t, logged, 1)
 	time.Sleep(50 * time.Millisecond) // an idle_prompt would have landed by now
-	got = logged()
+	got := logged()
 	if len(got) != 1 || got[0]["hook_event_name"] != "StopFailure" || got[0]["error"] != "max_turns" {
 		t.Fatalf("hook stdins = %v", got)
 	}
