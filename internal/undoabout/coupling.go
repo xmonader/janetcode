@@ -409,6 +409,17 @@ func partitionUndoable(cwd string, candidates []change.Change) (ok []change.Chan
 				bad[c.Seq] = fmt.Sprintf("#%d created %s, which no longer matches what it wrote; undoing it would guess at what to remove", c.Seq, textfmt.RelTo(cwd, path))
 				continue
 			}
+			if c.Gone {
+				// c removed path (an undo, or a turn restore, did):
+				// undoable iff nothing is there again, as UndoChange
+				// itself decides.
+				if !exists {
+					exists, lines = true, diff.SplitLinesKeepEOL(string(c.Before))
+					continue
+				}
+				bad[c.Seq] = fmt.Sprintf("#%d removed %s, which is there again since", c.Seq, textfmt.RelTo(cwd, path))
+				continue
+			}
 			if !exists {
 				bad[c.Seq] = fmt.Sprintf("#%d edited %s, which is gone since", c.Seq, textfmt.RelTo(cwd, path))
 				continue

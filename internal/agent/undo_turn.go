@@ -234,8 +234,8 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 	root := a.displayRoot()
 	var rep UndoReport
 	for _, p := range paths {
-		now, _ := os.ReadFile(p)
-		a.record(Change{Turn: a.turnN, Tool: "undo", Intent: fmt.Sprintf("restore the work tree to before turn %d", tr.Turn), Path: p, Existed: existed[p], Before: before[p], After: now})
+		now, nerr := os.ReadFile(p)
+		a.record(Change{Turn: a.turnN, Tool: "undo", Intent: fmt.Sprintf("restore the work tree to before turn %d", tr.Turn), Path: p, Existed: existed[p], Before: before[p], After: now, Gone: errors.Is(nerr, os.ErrNotExist)})
 	}
 	for _, d := range done {
 		verb, path, ok := strings.Cut(d, " ")

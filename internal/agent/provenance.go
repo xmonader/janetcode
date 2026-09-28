@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/xmonader/janetcode/internal/change"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -64,7 +65,7 @@ func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 		if !exists && !p.existed || exists && p.existed && bytes.Equal(data, p.data) {
 			continue
 		}
-		a.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data})
+		a.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data, Gone: !exists})
 	}
 }
 
@@ -286,6 +287,19 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 			return "", err
 		}
 		verb = "removed"
+	case c.Gone:
+		// The change removed the file; undoing it puts it back, unless
+		// something has put a file there since.
+		if exists {
+			return "", fmt.Errorf("#%d removed %s but a file is there again; refusing to overwrite it", seq, c.Path)
+		}
+		if err := os.MkdirAll(filepath.Dir(c.Path), 0o755); err != nil {
+			return "", err
+		}
+		if err := fsutil.AtomicWrite(c.Path, c.Before); err != nil {
+			return "", err
+		}
+		verb = "recreated"
 	default:
 		if !exists {
 			return "", fmt.Errorf("#%d edited %s but the file is gone", seq, c.Path)
@@ -304,8 +318,8 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 		}
 	}
 	a.markUndone(seq)
-	now, _ := os.ReadFile(c.Path)
-	a.record(Change{Turn: a.turnN, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now})
+	now, nerr := os.ReadFile(c.Path)
+	a.record(Change{Turn: a.turnN, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now, Gone: errors.Is(nerr, os.ErrNotExist)})
 	// Relative to the session's root: the line is shown to the user and
 	// handed to the model, and an absolute path is noise to both.
 	return verb + " " + textfmt.RelTo(a.displayRoot(), c.Path), nil

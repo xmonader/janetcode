@@ -100,6 +100,22 @@ func TestRestoreToTurnPreviewsThenApplies(t *testing.T) {
 	if len(restored) < 3 {
 		t.Fatalf("the restore recorded %d changes, want one per file it touched", len(restored))
 	}
+	// Including the one it removed: the change recorded the file as
+	// edited to nothing, and /undo <n> refused with "the file is gone".
+	for _, c := range restored {
+		if c.Path != filepath.Join(root, "two.txt") {
+			continue
+		}
+		if _, err := a.UndoChange(c.Seq); err != nil {
+			t.Fatalf("/undo #%d of the removal: %v", c.Seq, err)
+		}
+		if data, err := os.ReadFile(c.Path); err != nil || string(data) != "two" {
+			t.Fatalf("two.txt after undoing its removal = %q, %v", data, err)
+		}
+		if err := os.Remove(c.Path); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// Turns 2 and 3 can no longer be restored to: the tree no longer
 	// holds what they did.
 	if got := a.RestorableTurns(); len(got) != 1 || got[0] != 1 {

@@ -22,7 +22,11 @@ type Change struct {
 	Existed bool      `json:"existed"`
 	Before  []byte    `json:"before,omitempty"`
 	After   []byte    `json:"after,omitempty"`
-	Undone  bool      `json:"undone,omitempty"`
+	// Gone says the change left no file at Path, which an empty After
+	// alone cannot tell from a file emptied: an undo removed it, or a
+	// turn restore did. Undoing such a change puts Before back.
+	Gone   bool `json:"gone,omitempty"`
+	Undone bool `json:"undone,omitempty"`
 }
 
 // Hunks is the change as a unified diff.
