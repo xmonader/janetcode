@@ -86,10 +86,15 @@ type acpSession struct {
 	// them and the first's cleanup then cleared the second's.
 	turn chan struct{}
 
-	// mu guards cancel and msgN.
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	msgN   int
+	// mu guards cancelled and msgN.
+	mu sync.Mutex
+	// cancelled is closed by session/cancel and replaced by a fresh one,
+	// so it ends every prompt that arrived before the cancel: the one
+	// running and any waiting for the turn. A single cancel func for the
+	// running turn missed the waiting ones, which then ran a turn the
+	// editor had just cancelled.
+	cancelled chan struct{}
+	msgN      int
 }
 
 // New builds a server. Out is where ACP frames go; it must not be shared
@@ -250,7 +255,7 @@ func (s *Server) open(cwd, resume string) (*acpSession, error) {
 	if sess != nil {
 		id = sess.Meta.ID
 	}
-	as := &acpSession{id: id, cwd: cwd, agent: ag, sess: sess, turn: make(chan struct{}, 1)}
+	as := &acpSession{id: id, cwd: cwd, agent: ag, sess: sess, turn: make(chan struct{}, 1), cancelled: make(chan struct{})}
 	ag.SetApprover(&approver{s: s, as: as})
 	s.mu.Lock()
 	s.sessions[id] = as
@@ -285,13 +290,11 @@ func (s *Server) cancel(raw json.RawMessage) error {
 	if err != nil {
 		return err
 	}
+	s.logf("cancelling %s", p.SessionID)
 	as.mu.Lock()
-	cancel := as.cancel
+	close(as.cancelled)
+	as.cancelled = make(chan struct{})
 	as.mu.Unlock()
-	if cancel != nil {
-		s.logf("cancelling %s", p.SessionID)
-		cancel()
-	}
 	return nil
 }
 
@@ -310,25 +313,37 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("%w: empty prompt", errBadParams)
 	}
 
+	// The turn is cancelled by the next session/cancel, which is taken
+	// before waiting for the turn so a cancel reaches this prompt while it
+	// is still queued.
+	as.mu.Lock()
+	cancelled := as.cancelled
+	as.mu.Unlock()
+	turnCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-cancelled:
+			cancel()
+		case <-turnCtx.Done():
+		}
+	}()
+
 	// One turn at a time per session: a second prompt waits for the first
 	// rather than interleaving into the same history.
 	select {
 	case as.turn <- struct{}{}:
-	case <-ctx.Done():
+	case <-turnCtx.Done():
 		return promptResult{StopReason: stopCancelled}, nil
 	}
 	defer func() { <-as.turn }()
-
-	as.mu.Lock()
-	turnCtx, cancel := context.WithCancel(ctx)
-	as.cancel = cancel
-	as.mu.Unlock()
-	defer func() {
-		as.mu.Lock()
-		as.cancel = nil
-		as.mu.Unlock()
-		cancel()
-	}()
+	// Both cases can be ready at once when the turn is freed by the very
+	// cancel that also ended this prompt, and select picks either.
+	select {
+	case <-cancelled:
+		return promptResult{StopReason: stopCancelled}, nil
+	default:
+	}
 
 	err = as.agent.RunBlocks(turnCtx, blocks, s.emitter(as))
 	switch {

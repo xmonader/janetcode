@@ -200,3 +200,69 @@ func TestAPermissionRequestOutstandingWhenTheClientGoesAwayDoesNotHang(t *testin
 	}
 	outW.Close()
 }
+
+// session/cancel is for the session, not for whichever prompt happens to
+// hold the turn: a prompt queued behind the running one used to start as
+// soon as the cancelled one ended, running a turn the editor had just
+// cancelled and answering end_turn.
+func TestCancelAlsoEndsAPromptWaitingForTheTurn(t *testing.T) {
+	r := &cancelAwareRunner{started: make(chan struct{}, 4), release: make(chan struct{})}
+	dir := t.TempDir()
+	c, stop := newClient(t, Options{
+		Version: "test",
+		NewAgent: func(_, _ string) (TurnRunner, *session.Session, error) {
+			s, err := session.New(dir, t.TempDir(), "fake", "m")
+			return r, s, err
+		},
+	})
+	defer stop()
+	id := newSessionID(t, c)
+
+	prompt := func() {
+		c.call("session/prompt", promptParams{SessionID: id, Prompt: []contentBlock{{Type: "text", Text: "go"}}})
+	}
+	prompt()
+	select {
+	case <-r.started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the first prompt never started")
+	}
+	prompt()
+	time.Sleep(300 * time.Millisecond) // let the second one queue
+	c.notify("session/cancel", cancelParams{SessionID: id})
+
+	for range 2 {
+		m, _ := c.readUntil(isResponse)
+		var res promptResult
+		if err := json.Unmarshal(m.Result, &res); err != nil {
+			t.Fatalf("%s: %v", m.Result, err)
+		}
+		if res.StopReason != stopCancelled {
+			t.Fatalf("stop reason = %q, want cancelled for both prompts", res.StopReason)
+		}
+	}
+	select {
+	case <-r.started:
+		t.Fatal("the queued prompt ran after the session was cancelled")
+	default:
+	}
+}
+
+// cancelAwareRunner holds its turn until released or cancelled.
+type cancelAwareRunner struct {
+	started  chan struct{}
+	release  chan struct{}
+	approver agent.Approver
+}
+
+func (r *cancelAwareRunner) RunBlocks(ctx context.Context, _ []llm.Block, _ func(agent.Event)) error {
+	r.started <- struct{}{}
+	select {
+	case <-r.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func (r *cancelAwareRunner) MessagesSnapshot() []llm.Message { return nil }
+func (r *cancelAwareRunner) SetApprover(a agent.Approver)    { r.approver = a }
