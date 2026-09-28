@@ -85,3 +85,31 @@ func TestStatusRefusalIsStillFinal(t *testing.T) {
 		t.Fatalf("err = %v calls = %d", err, calls)
 	}
 }
+
+// The same clean EOF with every frame well-formed: a text block opened,
+// streamed and closed, and then nothing — no message_delta, no
+// message_stop. The accumulator has nothing to complain about, so only
+// the missing terminal frame says the answer is incomplete; accepting it
+// handed the agent half a reply as a finished turn.
+func TestWellFormedStreamWithoutMessageStopIsRetried(t *testing.T) {
+	var calls int
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "text/event-stream")
+		if calls == 1 {
+			io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+			io.WriteString(w, event("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`))
+			io.WriteString(w, event("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"half"}}`))
+			io.WriteString(w, event("content_block_stop", `{"type":"content_block_stop","index":0}`))
+			return // clean EOF, no message_delta or message_stop
+		}
+		io.WriteString(w, fullTurn("whole"))
+	})
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if calls != 2 || resp.Message.Text() != "whole" {
+		t.Fatalf("calls = %d text = %q", calls, resp.Message.Text())
+	}
+}

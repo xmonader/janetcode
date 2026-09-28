@@ -551,6 +551,13 @@ func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.Me
 		}
 		return nil, produced, llm.Truncate(merr)
 	}
+	if !sawStop {
+		// A clean EOF before message_stop is a connection that closed
+		// early, not an answer: every frame so far may have been
+		// well-formed, and accepting what they built hands the agent half
+		// a reply as a finished turn.
+		return nil, produced, llm.Truncate(errors.New("anthropic: stream ended without message_stop"))
+	}
 	out, err := toResponse(msg)
 	return out, produced, err
 }
