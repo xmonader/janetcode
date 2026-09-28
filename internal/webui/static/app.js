@@ -967,7 +967,7 @@
       const map = { y: "allow", a: "session", r: "always", n: "deny", c: "cancel" };
       if (map[ev.key.toLowerCase()]) {
         ev.preventDefault();
-        await post("/api/permission", { decision: map[ev.key.toLowerCase()], rule: chosenRule() });
+        await post("/api/permission", { decision: map[ev.key.toLowerCase()], rule: chosenRule(), id: pending.id });
       }
     }
     if (ev.key === "s" && ev.ctrlKey && running) {
@@ -982,7 +982,7 @@
   ask.addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-d]");
     if (!b) return;
-    await post("/api/permission", { decision: b.dataset.d, rule: chosenRule() });
+    await post("/api/permission", { decision: b.dataset.d, rule: chosenRule(), id: pending && pending.id });
   });
   document.querySelector(".switches").addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-cmd]");

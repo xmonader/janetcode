@@ -297,7 +297,16 @@ func (s *server) resetView() {
 	s.log = nil
 	s.queued = nil
 	s.status = ""
-	s.pending = nil
+	if s.pending != nil {
+		// A prompt still up (a background subagent's) is refused, not
+		// dropped: its caller holds the one prompt slot and would keep
+		// it, and every prompt after it would wait behind it.
+		select {
+		case s.pending.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:
+		default:
+		}
+		s.pending = nil
+	}
 	s.mu.Unlock()
 	s.emit(envelope{Type: "reset"})
 	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})

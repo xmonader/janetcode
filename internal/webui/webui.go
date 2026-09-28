@@ -233,9 +233,12 @@ type server struct {
 	cancel     context.CancelFunc
 	queued     []string
 	pending    *permReq
-	asking     *askReq
-	status     string
-	verbose    bool
+	// approveSlot holds one token while a permission prompt is up, so
+	// concurrent approvals queue instead of replacing one another.
+	approveSlot chan struct{}
+	asking      *askReq
+	status      string
+	verbose     bool
 	// openedAt is when this server came up, which is what /perf reports
 	// the in-turn time as a share of: the rest of it is the user
 	// reading and typing, and that is not the harness being slow.
@@ -382,6 +385,8 @@ func newServer(life context.Context, opts Options) *server {
 		dir:      opts.Cwd,
 		subs:     map[chan envelope]struct{}{},
 		openedAt: time.Now(),
+
+		approveSlot: make(chan struct{}, 1),
 	}
 	// Stamp the binary's build into the page. The value lands inside a
 	// JS string literal, so quote it like one — a version containing a

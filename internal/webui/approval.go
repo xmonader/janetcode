@@ -70,6 +70,10 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 		// Rule is the rung of the prompt's ladder to save; ignored
 		// unless it is one of them (see agent.ToolCall.Rungs).
 		Rule string `json:"rule"`
+		// ID is the call the page is answering. When it is given and is
+		// not the call pending now, the answer is refused rather than
+		// applied to a prompt the user has not seen.
+		ID string `json:"id"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
@@ -93,6 +97,11 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	p := s.pending
+	if p != nil && body.ID != "" && body.ID != p.call.ID {
+		s.mu.Unlock()
+		http.Error(w, "that prompt is no longer the one waiting", http.StatusConflict)
+		return
+	}
 	s.pending = nil
 	s.mu.Unlock()
 	if p == nil {
@@ -177,7 +186,18 @@ func (s *server) ApproveWithReason(ctx context.Context, call agent.ToolCall) (ag
 	return d, reason, err
 }
 
+// ApproveWithRule shows one prompt at a time. Subagents that bubble their
+// confirmations to the user run in parallel and can ask at once; the page
+// has one prompt slot, and a second call used to overwrite the first,
+// whose caller then waited on a reply nothing could send. The others wait
+// their turn here.
 func (s *server) ApproveWithRule(ctx context.Context, call agent.ToolCall) (agent.Decision, string, string, error) {
+	select {
+	case s.approveSlot <- struct{}{}:
+		defer func() { <-s.approveSlot }()
+	case <-ctx.Done():
+		return agent.Deny, "", "", ctx.Err()
+	}
 	reply := make(chan verdict, 1)
 	s.mu.Lock()
 	s.pending = &permReq{call: call, reply: reply}
