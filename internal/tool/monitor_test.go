@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 // monitor runs a shell command exactly as bash does, so it gets bash's
@@ -30,5 +31,27 @@ func TestMonitorHasBashsGates(t *testing.T) {
 	}
 	if w := m.Warn(raw(`{"command":"rm -rf ../x","pattern":"x"}`)); !strings.Contains(w, "recursive force delete") {
 		t.Fatalf("warn = %q", w)
+	}
+}
+
+// The watch reads everything the job prints, not the last screenful at
+// each poll: it used to look at the last 80 lines every quarter second,
+// so a match followed quickly by more output — a server's "ready" and
+// then its request log, a test's FAIL and then the rest of the run —
+// scrolled out of view unseen and the monitor never fired.
+func TestMonitorSeesAMatchThatScrolledPast(t *testing.T) {
+	got := make(chan string, 1)
+	m := Monitor{Jobs: &Jobs{Dir: t.TempDir()}, Root: t.TempDir(), OnMatch: func(s string) { got <- s }}
+	defer m.Jobs.KillAll()
+	if _, err := m.Run(context.Background(), raw(`{"command":"echo server ready; i=0; while [ $i -lt 300 ]; do echo log line $i; i=$((i+1)); done; sleep 5","pattern":"ready"}`)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case s := <-got:
+		if !strings.Contains(s, "server ready") {
+			t.Fatalf("match = %q", s)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the match scrolled past and was never reported")
 	}
 }

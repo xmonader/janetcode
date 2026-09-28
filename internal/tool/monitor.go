@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/shell"
 )
@@ -87,30 +90,55 @@ func (t Monitor) watch(id int, pattern string) {
 	defer ticker.Stop()
 	deadline := time.NewTimer(monitorMax)
 	defer deadline.Stop()
-	var seen string
+	// The log is read from where the last poll stopped, not as its last
+	// screenful: looking at the last 80 lines each poll missed a match
+	// that more output pushed out of view between two polls. partial is
+	// the unfinished line at the end of what was read; a prompt waiting
+	// for input has no newline and still counts.
+	var off int64
+	var partial string
 	for {
 		select {
 		case <-deadline.C:
 			return
 		case <-ticker.C:
+			// The state is taken before the read: a job already done
+			// when asked has written everything it will.
 			job, ok := t.Jobs.Get(id)
 			if !ok {
 				return
 			}
-			out, err := t.Jobs.Output(id, 80)
-			if err != nil {
-				if job.Done {
-					return
+			for {
+				chunk, err := readLogFrom(job.OutPath, off)
+				if err != nil {
+					if job.Done {
+						return
+					}
+					break
 				}
-				continue
-			}
-			matched := strings.Contains(out, pattern)
-			if matched && !(strings.HasPrefix(out, seen) && strings.Contains(seen, pattern)) {
-				seen = out
-				if line := lastMatchingLine(out, pattern); t.OnMatch != nil && line != "" {
-					t.OnMatch(fmt.Sprintf("[monitor %d] %s", id, line))
+				off += int64(len(chunk))
+				lines := strings.Split(partial+string(chunk), "\n")
+				partial = lines[len(lines)-1]
+				for _, line := range lines {
+					if strings.Contains(line, pattern) {
+						if t.OnMatch != nil {
+							t.OnMatch(fmt.Sprintf("[monitor %d] %s", id, strings.TrimSpace(line)))
+						}
+						return
+					}
 				}
-				return
+				// A line without end is kept only as far back as a
+				// match could still start.
+				if len(partial) > monitorLineMax {
+					cut := len(partial) - monitorLineMax
+					for cut < len(partial) && !utf8.RuneStart(partial[cut]) {
+						cut++
+					}
+					partial = partial[cut:]
+				}
+				if len(chunk) < monitorChunk {
+					break
+				}
 			}
 			if job.Done {
 				return
@@ -119,12 +147,24 @@ func (t Monitor) watch(id int, pattern string) {
 	}
 }
 
-func lastMatchingLine(out, pattern string) string {
-	var hit string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, pattern) {
-			hit = strings.TrimSpace(line)
-		}
+const (
+	// monitorChunk is how much of the log one read takes.
+	monitorChunk = 256 << 10
+	// monitorLineMax bounds the unfinished line carried between reads.
+	monitorLineMax = 64 << 10
+)
+
+// readLogFrom returns up to monitorChunk bytes of the file from off.
+func readLogFrom(path string, off int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
-	return hit
+	defer f.Close()
+	buf := make([]byte, monitorChunk)
+	n, err := f.ReadAt(buf, off)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	return buf[:n], nil
 }
