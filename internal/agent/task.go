@@ -386,7 +386,9 @@ func (t *Task) remember(ctx context.Context, id string, c *subagent) {
 	if len(t.order) > maxChildren {
 		for i, old := range t.order {
 			kid := t.children[old]
-			if kid == nil || kid.done {
+			// A finished fork whose report the parent has not collected
+			// yet is kept too: FinishedForks reads it from here.
+			if kid == nil || (kid.done && kid.report == "") {
 				t.order = append(t.order[:i:i], t.order[i+1:]...)
 				evicted = kid
 				delete(t.children, old)

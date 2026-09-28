@@ -31,6 +31,26 @@ func TestEvictionSkipsChildrenThatAreStillRunning(t *testing.T) {
 	}
 }
 
+// A background fork's report waits on the child until the parent's next
+// model call collects it. Evicting the finished fork before then threw
+// the report away, and the parent never learned what the fork did.
+func TestEvictionKeepsAForkReportNotYetDelivered(t *testing.T) {
+	tk := &Task{}
+	tk.remember(context.Background(), "task-0", &subagent{agent: &Agent{}, done: true, fork: true, report: "fork task-0 finished"})
+	for i := 1; i < maxChildren; i++ {
+		tk.remember(context.Background(), fmt.Sprintf("task-%d", i), &subagent{agent: &Agent{}, done: true})
+	}
+	tk.remember(context.Background(), "task-new", &subagent{agent: &Agent{}})
+	if notes := tk.FinishedForks(); len(notes) != 1 || notes[0] != "fork task-0 finished" {
+		t.Fatalf("reports = %v, want the fork's report kept for the parent", notes)
+	}
+	for _, id := range tk.ChildIDs() {
+		if id == "task-1" {
+			t.Fatalf("children = %v, want task-1 evicted in the fork's place", tk.ChildIDs())
+		}
+	}
+}
+
 func TestEvictionKeepsEveryoneWhenNobodyHasFinished(t *testing.T) {
 	tk := &Task{}
 	for i := 0; i < maxChildren+2; i++ {
