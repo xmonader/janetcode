@@ -187,6 +187,34 @@ func TestHardDenyNotOverridable(t *testing.T) {
 	}
 }
 
+// On a case-insensitive filesystem (macOS and Windows by default)
+// .GIT/hooks is .git/hooks, so a pattern has to match either spelling
+// there.
+func TestProtectedFoldsCaseWhereTheFilesystemDoes(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	p := NewProtected(nil)
+	root := t.TempDir()
+	for _, abs := range []string{
+		filepath.Join(root, ".GIT", "hooks", "pre-commit"),
+		filepath.Join(home, ".SSH", "authorized_keys"),
+		filepath.Join(home, ".ZshRC"),
+	} {
+		old := foldCase
+		foldCase = true
+		_, hit := p.MatchPath(abs)
+		foldCase = false
+		_, strict := p.MatchPath(abs)
+		foldCase = old
+		if !hit {
+			t.Errorf("%s is not protected where case folds", abs)
+		}
+		if strict {
+			t.Errorf("%s is protected on a case-sensitive filesystem", abs)
+		}
+	}
+}
+
 // A path is protected for where it lands, not for how it is spelled: a
 // symlink inside the workspace that points at .git/hooks (or anything
 // else protected) is lexically an ordinary path, and the file tools

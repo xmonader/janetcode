@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -112,6 +113,13 @@ func (p *Protected) MatchPath(abs string) (string, bool) {
 	return "", false
 }
 
+// foldCase says paths are compared without regard to case: the default
+// filesystems of macOS and Windows are case-insensitive, so there
+// ~/.SSH/authorized_keys and .GIT/hooks/pre-commit are the protected
+// files themselves, and a case-sensitive match waved them through. A
+// variable so a test can exercise either answer on any OS.
+var foldCase = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+
 // matchProtected matches one pattern against a cleaned, slash-separated
 // path. A pattern ending in /* or /** also matches the directory itself,
 // so "~/.ssh/**" protects ~/.ssh as well as what is in it.
@@ -119,6 +127,9 @@ func matchProtected(pattern, abs string) bool {
 	pattern = filepath.ToSlash(expandHome(strings.TrimSpace(pattern)))
 	if pattern == "" {
 		return false
+	}
+	if foldCase {
+		pattern, abs = strings.ToLower(pattern), strings.ToLower(abs)
 	}
 	if Match(pattern, abs) {
 		return true
