@@ -642,6 +642,9 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.loopMu.Unlock()
 	if stop {
 		// The notice is logged by the ledger wrapper around emit.
+		// The reply is in the history already, and its calls are
+		// answered or the next turn cannot be sent.
+		a.answerUnrun(resp.Message.ToolUses(), "the turn stopped because the model kept repeating itself", emit)
 		emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
 		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 		return "", ErrStuck

@@ -57,27 +57,36 @@ func (a *Agent) budgetErr(spent float64) error {
 // is already over its ceiling.
 func (a *Agent) stopForBudget(spent float64, uses []llm.Block, emit func(Event)) error {
 	err := a.budgetErr(spent)
-	if len(uses) > 0 {
-		results := make([]llm.Block, 0, len(uses))
-		for _, u := range uses {
-			call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
-			msg := u.Name + " was not run: the cost budget is spent."
-			results = append(results, llm.ToolResult(replyID(u), msg, true))
-			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-			a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
-		}
-		tr := llm.ToolResultMessage(results...)
-		a.appendMessage(tr)
-		// The answers go on the log as a surface event too: without it a
-		// resumed session folds to an assistant turn whose tool_use blocks
-		// have no tool_result, which every provider refuses.
-		a.logEvent(session.Event{Type: session.TypeToolResult, Surface: true, Message: &tr})
-	}
+	a.answerUnrun(uses, "the cost budget is spent", emit)
 	// The returned error carries the figures and every front end prints
 	// it; a notice and a verdict repeating them made one stop read four
 	// times in a row.
 	emit(Event{Kind: EvVerdict, Text: "stopped on the cost budget", IsError: true})
 	return err
+}
+
+// answerUnrun answers, without running, the tool calls of a reply the
+// turn is ending on: the reply is already in the history, and a tool_use
+// with no tool_result is something every provider refuses, so the next
+// turn would fail before it started. why finishes "<tool> was not run:".
+func (a *Agent) answerUnrun(uses []llm.Block, why string, emit func(Event)) {
+	if len(uses) == 0 {
+		return
+	}
+	results := make([]llm.Block, 0, len(uses))
+	for _, u := range uses {
+		call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+		msg := u.Name + " was not run: " + why + "."
+		results = append(results, llm.ToolResult(replyID(u), msg, true))
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
+	}
+	tr := llm.ToolResultMessage(results...)
+	a.appendMessage(tr)
+	// The answers go on the log as a surface event too: without it a
+	// resumed session folds to an assistant turn whose tool_use blocks
+	// have no tool_result, which every provider refuses.
+	a.logEvent(session.Event{Type: session.TypeToolResult, Surface: true, Message: &tr})
 }
 
 // ParseBudget reads a /budget argument: an amount in dollars (a leading $

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -212,6 +213,29 @@ func TestTurnStopsOnRepeatedAssistantText(t *testing.T) {
 	if len(f.requests) != sameTextStopAt {
 		t.Fatalf("%d model calls, want %d", len(f.requests), sameTextStopAt)
 	}
+}
+
+// The reply that trips the repeated-text stop carries tool calls of its
+// own, and it is already in the history when the turn ends. Left
+// unanswered, every later request carried a tool_use with no tool_result,
+// which every provider refuses: the session could not take another turn.
+func TestRepeatedTextStopLeavesAPairedHistory(t *testing.T) {
+	same := "I am going to read the configuration file and work out what changed here."
+	var responses []*llm.Response
+	for i := 0; i < sameTextStopAt; i++ {
+		r := toolCall(fmt.Sprint(i), "read_file", fmt.Sprintf(`{"path":"a.txt","offset":%d}`, i))
+		r.Message.Blocks = append([]llm.Block{{Type: llm.BlockText, Text: same}}, r.Message.Blocks...)
+		responses = append(responses, r)
+	}
+	f := &fake{responses: responses}
+	a, _ := newAgent(t, f, nil)
+	mem := &session.Memory{}
+	a.Log = mem
+	if err := a.Run(context.Background(), "go", func(Event) {}); !errors.Is(err, ErrStuck) {
+		t.Fatalf("err = %v", err)
+	}
+	assertPaired(t, a.Messages)
+	assertLogFoldsToHistory(t, a, mem)
 }
 
 // freshBigTool returns a different long output on every call, so each
