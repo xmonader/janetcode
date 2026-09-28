@@ -92,8 +92,9 @@ func (a *Agent) Context() ContextReport {
 	byTool := map[string]*ToolShare{}
 	names := map[string]string{} // tool_use id → name
 	subjects := map[string]string{}
+	calls := answeredCalls(a.Messages)
 	for i, m := range a.Messages {
-		for _, b := range m.Blocks {
+		for j, b := range m.Blocks {
 			switch b.Type {
 			case llm.BlockText:
 				n := len(b.Text) / 4
@@ -122,7 +123,11 @@ func (a *Agent) Context() ContextReport {
 			case llm.BlockToolResult:
 				n := len(b.Text)/4 + 4
 				r.ToolResults += n
-				name := names[b.ToolUseID]
+				id := b.ToolUseID
+				if u, ok := calls[[2]int{i, j}]; ok {
+					id = u.ID
+				}
+				name := names[id]
 				if name == "" {
 					name = "(unknown)"
 				}
@@ -132,7 +137,7 @@ func (a *Agent) Context() ContextReport {
 					byTool[name] = s
 				}
 				s.Tokens += n
-				r.Largest = append(r.Largest, ContextItem{Index: i, Tool: name, Subject: subjects[b.ToolUseID], Tokens: n})
+				r.Largest = append(r.Largest, ContextItem{Index: i, Tool: name, Subject: subjects[id], Tokens: n})
 			}
 		}
 	}

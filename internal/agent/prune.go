@@ -57,18 +57,23 @@ func (a *Agent) Prune() int {
 			}
 		}
 	}
+	calls := answeredCalls(a.Messages)
 	saved := 0
 	for i := 0; i < tail && i < n; i++ {
 		for j, b := range a.Messages[i].Blocks {
 			if b.Type != llm.BlockToolResult {
 				continue
 			}
+			id := b.ToolUseID
+			if u, ok := calls[[2]int{i, j}]; ok {
+				id = u.ID
+			}
 			before := len(b.Text)
 			switch {
-			case useKey[b.ToolUseID] != "" && !keep[b.ToolUseID] && len(b.Text) > len(superseded):
+			case useKey[id] != "" && !keep[id] && len(b.Text) > len(superseded):
 				a.setBlockText(i, j, superseded)
 			case len(afterArchiveNote(b.Text)) > pruneKeep+pruneSlack:
-				a.setBlockText(i, j, a.trimOld(b.ToolUseID, label[b.ToolUseID][0], label[b.ToolUseID][1], b.Text))
+				a.setBlockText(i, j, a.trimOld(id, label[id][0], label[id][1], b.Text))
 			}
 			saved += before - len(a.Messages[i].Blocks[j].Text)
 		}
@@ -154,6 +159,37 @@ func shrinkInput(input json.RawMessage) (json.RawMessage, bool) {
 	return out, true
 }
 
+// answeredCalls pairs each tool result, by message and block index, with
+// the tool_use it answers. A result carries the id the call went out
+// under, which is the server's own when the harness renamed the call
+// (see callids.go) — and a server that numbers its calls per response
+// sends call_0 every time, so that id names many calls. The call a result
+// answers is in the assistant message just before it, so results are
+// matched there, each call taken once and in order.
+func answeredCalls(msgs []llm.Message) map[[2]int]llm.Block {
+	out := map[[2]int]llm.Block{}
+	for i := 1; i < len(msgs); i++ {
+		if msgs[i-1].Role != llm.RoleAssistant {
+			continue
+		}
+		uses := msgs[i-1].ToolUses()
+		taken := make([]bool, len(uses))
+		for j, b := range msgs[i].Blocks {
+			if b.Type != llm.BlockToolResult {
+				continue
+			}
+			for k, u := range uses {
+				if !taken[k] && (u.WireID() == b.ToolUseID || u.ID == b.ToolUseID) {
+					taken[k] = true
+					out[[2]int{i, j}] = u
+					break
+				}
+			}
+		}
+	}
+	return out
+}
+
 // pruneTo replaces old tool results with one-line placeholders until the
 // estimate is at or under target tokens, or the recent tail is reached.
 // Results go in attention order, least attended first: a result the model
@@ -176,6 +212,9 @@ func (a *Agent) pruneTo(target int) int {
 		return 0
 	}
 	tail := tailStart(a.Messages)
+	calls := answeredCalls(a.Messages)
+	// A result that is not right after its call (a history an older build
+	// wrote) is still found by id.
 	uses := map[string]llm.Block{}
 	for _, m := range a.Messages[:min(tail, len(a.Messages))] {
 		for _, b := range m.Blocks {
@@ -195,9 +234,11 @@ func (a *Agent) pruneTo(target int) int {
 			if b.Type != llm.BlockToolResult || strings.HasPrefix(b.Text, prunedPrefix) || b.Text == superseded {
 				continue
 			}
-			u, ok := uses[b.ToolUseID]
+			u, ok := calls[[2]int{i, j}]
 			if !ok {
-				continue
+				if u, ok = uses[b.ToolUseID]; !ok {
+					continue
+				}
 			}
 			cands = append(cands, candidate{i: i, j: j, use: u, lastRef: a.lastReference(i, u)})
 		}

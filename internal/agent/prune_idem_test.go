@@ -40,3 +40,45 @@ func TestPruneIsIdempotent(t *testing.T) {
 		}
 	}
 }
+
+// TestPruneKnowsWhichCallAResultAnswers covers a server that numbers its
+// calls per response: every call arrives as call_0, the harness renames
+// the later ones (call_0#2, …) and their results go back under call_0.
+// Pruning looked results up by that shared id, so every result was taken
+// for the first call's: a read of b.go was stubbed out as superseded
+// because a.go had been read again, and a placeholder named the wrong
+// call.
+func TestPruneKnowsWhichCallAResultAnswers(t *testing.T) {
+	root := t.TempDir()
+	reg := tool.NewRegistry(tool.ReadFile{Root: root})
+	long := strings.Repeat("content line\n", 400)
+	use := func(id, reply, path string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, ReplyID: reply, Name: "read_file", Input: json.RawMessage(`{"path":"` + path + `"}`)}}}
+	}
+	res := func(text string) llm.Message { return llm.ToolResultMessage(llm.ToolResult("call_0", text, false)) }
+	msgs := func() []llm.Message {
+		return []llm.Message{
+			llm.TextMessage(llm.RoleUser, "go"),
+			use("call_0", "", "a.go"), res("A " + long),
+			use("call_0#2", "call_0", "b.go"), res("B " + long),
+			use("call_0#3", "call_0", "a.go"), res("A " + long),
+			llm.TextMessage(llm.RoleAssistant, "a"), llm.TextMessage(llm.RoleUser, "b"),
+			llm.TextMessage(llm.RoleAssistant, "c"), llm.TextMessage(llm.RoleUser, "d"),
+			llm.TextMessage(llm.RoleAssistant, "e"), llm.TextMessage(llm.RoleUser, "f"),
+		}
+	}
+	a := &Agent{Provider: &fake{}, Tools: reg, Messages: msgs()}
+	a.Prune()
+	if got := a.Messages[2].Blocks[0].Text; got != superseded {
+		t.Fatalf("the first read of a.go was read again later and should be superseded: %.60q", got)
+	}
+	if got := a.Messages[4].Blocks[0].Text; !strings.HasPrefix(got, "B ") {
+		t.Fatalf("the only read of b.go was taken for a superseded read of a.go: %.60q", got)
+	}
+
+	b := &Agent{Provider: &fake{}, Tools: reg, Messages: msgs()}
+	b.pruneTo(1)
+	if got := b.Messages[4].Blocks[0].Text; !strings.Contains(got, "read_file b.go") {
+		t.Fatalf("the placeholder names another call: %q", got)
+	}
+}
