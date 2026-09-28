@@ -259,6 +259,13 @@ func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval
 			rs = runCLIBatch(ctx, cfg, harness, n, batch, logW)
 		}
 		closeLog()
+		if ctx.Err() != nil {
+			// The interrupt landed while this batch ran: its tasks were
+			// killed part-way, and their rows say so rather than how the
+			// harness did — the same rows the check above keeps out.
+			fmt.Fprintf(&notes, "- batch %d was interrupted and its results discarded\n", n)
+			break
+		}
 		all = append(all, rs...)
 		passed := 0
 		for _, r := range rs {
