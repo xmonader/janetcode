@@ -8,6 +8,10 @@ var secretEnv = map[string]bool{
 	"ANTHROPIC_API_KEY":    true,
 	"ANTHROPIC_AUTH_TOKEN": true,
 	"OPENAI_API_KEY":       true,
+	// The web UI's access token. Whoever holds it can post to
+	// /api/permission, so a command that read it could answer its own
+	// permission prompt — and every later one — with a curl to loopback.
+	"JANETCODE_WEB_TOKEN": true,
 }
 
 // secretSuffix is the shape the rest of them are spelled in.

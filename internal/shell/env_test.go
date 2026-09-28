@@ -44,6 +44,9 @@ func TestScrubEnvDropsEveryProviderKey(t *testing.T) {
 		"XAI_API_KEY", "MISTRAL_API_KEY", "TOGETHER_API_KEY",
 		"FIREWORKS_API_KEY", "CEREBRAS_API_KEY", "ZHIPU_API_KEY",
 		"MINIMAX_API_KEY", "AWS_SECRET_ACCESS_KEY",
+		// Not a provider key, but the agent's own: it approves permission
+		// prompts over the web UI's API.
+		"JANETCODE_WEB_TOKEN",
 	}
 	// Scrubbing by shape must not take what a command the model is
 	// legitimately running needs: gh, npm publish and cargo all read one.
