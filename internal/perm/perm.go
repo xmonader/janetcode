@@ -450,7 +450,11 @@ func bashLadder(tool, subject string) ([]Rule, int) {
 		return []Rule{{Tool: tool}}, 0
 	}
 	// 2>&1 joins two outputs; it is not a second command.
-	if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") || notCapturable[words[0]] {
+	// The leading word is judged by its name, so /usr/bin/sudo is sudo,
+	// and an assignment prefix (FOO=1 cmd) is env without the word: its
+	// rule, FOO=1 *, would allow any command written after it.
+	if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") ||
+		notCapturable[words[0]] || notCapturable[filepath.Base(words[0])] || isAssignment(words[0]) {
 		return nil, 0
 	}
 	// The exact command is the narrowest rung: no wildcard at all.
@@ -548,6 +552,20 @@ var runners = map[string]bool{
 	"go": true, "git": true, "npm": true, "npx": true, "yarn": true, "pnpm": true, "bun": true, "cargo": true,
 	"docker": true, "kubectl": true, "pip": true, "pip3": true, "uv": true, "poetry": true, "gh": true, "systemctl": true,
 	"python": true, "python3": true, "node": true, "dotnet": true, "gradle": true, "mvn": true, "terraform": true,
+}
+
+// isAssignment reports whether a shell word is a NAME=value assignment.
+func isAssignment(w string) bool {
+	name, _, ok := strings.Cut(w, "=")
+	if !ok || name == "" {
+		return false
+	}
+	for i, r := range name {
+		if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || i > 0 && r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func isWordy(w string) bool {

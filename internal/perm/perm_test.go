@@ -244,6 +244,13 @@ func TestSuggestNeverCapturesCompoundOrWrapperCommands(t *testing.T) {
 		"export X=1",
 		"time go test ./...",
 		"nohup ./server",
+		// An assignment prefix is env without the word: FOO=1 * allows
+		// any command at all with FOO=1 in front of it.
+		"FOO=1 go test ./...",
+		"CGO_ENABLED=0 go build",
+		// A wrapper named by its path is still the wrapper.
+		"/usr/bin/sudo go test ./...",
+		"/bin/sh -c 'rm -rf y'",
 	} {
 		r := Suggest("bash", subject)
 		if !r.IsZero() {
