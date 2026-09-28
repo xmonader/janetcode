@@ -374,11 +374,30 @@ func (a *Agent) hunksToEditSteps(st recipe.Step, c Change) []recipe.Step {
 		return []recipe.Step{st}
 	}
 	out := make([]recipe.Step, 0, len(regions))
+	// Replay applies the steps in order, so each region is anchored in
+	// the file as the steps before it leave it: earlier regions already
+	// in their new form, later ones still old. Anchored in the file as
+	// recorded, a region whose context had to grow into a neighbour
+	// carried the neighbour's old text, and in a repetitive file that
+	// matched somewhere else once the neighbour had changed: the replay
+	// changed a line the recorded turn never touched.
+	cur := before
 	for _, h := range regions {
-		oldText, newText, ok := anchoredEditText(before, after, h)
+		// Every earlier region is applied, so this one starts at its
+		// new-side position in cur, with its old-side length.
+		lo := h.NewStart - 1
+		if lo < 0 || lo+h.OldCount > len(cur) || lo+h.NewCount > len(after) {
+			return []recipe.Step{st}
+		}
+		next := make([]string, 0, len(cur)-h.OldCount+h.NewCount)
+		next = append(next, cur[:lo]...)
+		next = append(next, after[lo:lo+h.NewCount]...)
+		next = append(next, cur[lo+h.OldCount:]...)
+		oldText, newText, ok := anchoredEditText(cur, next, Hunk{OldStart: lo + 1, OldCount: h.OldCount, NewStart: lo + 1, NewCount: h.NewCount})
 		if !ok || oldText == newText {
 			return []recipe.Step{st}
 		}
+		cur = next
 		input, err := json.Marshal(map[string]string{"path": in.Path, "old_string": oldText, "new_string": newText})
 		if err != nil {
 			return []recipe.Step{st}
@@ -454,9 +473,17 @@ func anchoredEditText(before, after []string, h Hunk) (oldText, newText string, 
 	if oldLo < 0 || oldHi > len(before) || newLo < 0 || newHi > len(after) {
 		return "", "", false
 	}
+	whole := strings.Join(before, "")
+	// Overlapping occurrences count: strings.Count does not see them, so
+	// "k\nx\nk\n" was unique in "k\nx\nk\nx\nk\n", and edit_file, which
+	// takes the first, replaced the wrong x on replay.
 	unique := func() bool {
 		needle := strings.Join(before[oldLo:oldHi], "")
-		return needle != "" && strings.Count(strings.Join(before, ""), needle) == 1
+		if needle == "" {
+			return false
+		}
+		i := strings.Index(whole, needle)
+		return i >= 0 && !strings.Contains(whole[i+1:], needle)
 	}
 	for i := 0; !unique() && i < maxAnchorGrowth; i++ {
 		grew := false
