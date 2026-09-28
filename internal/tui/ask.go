@@ -232,9 +232,11 @@ func (m *model) askView(height int) string {
 		add(m.askTabStrip(inner))
 		add("")
 	}
-	add(m.styles.key.Render(q.Prompt))
+	// The questions and their options are the model's text; like the
+	// plan's steps they may not carry control characters to the terminal.
+	add(m.styles.key.Render(sanitize(q.Prompt)))
 	if q.Detail != "" {
-		add(m.styles.dim.Render(q.Detail))
+		add(m.styles.dim.Render(sanitize(q.Detail)))
 	}
 	add("")
 	opts := s.options()
@@ -249,9 +251,9 @@ func (m *model) askView(height int) string {
 		}
 		desc := ""
 		if o.Description != "" {
-			desc = "  " + m.styles.faint.Render(o.Description)
+			desc = "  " + m.styles.faint.Render(sanitize(o.Description))
 		}
-		add(mark + fmt.Sprintf("%d. ", i+1) + o.Label + picked + desc)
+		add(mark + fmt.Sprintf("%d. ", i+1) + sanitize(o.Label) + picked + desc)
 	}
 	if s.othering {
 		add("")
@@ -296,7 +298,7 @@ func (m *model) askTabStrip(width int) string {
 	s := m.asking
 	var parts []string
 	for i, q := range s.questions {
-		label := fmt.Sprintf("%d %s", i+1, q.Prompt)
+		label := fmt.Sprintf("%d %s", i+1, sanitize(q.Prompt))
 		if a := s.answers[i].Label; a != "" {
 			label += " ✓"
 		}

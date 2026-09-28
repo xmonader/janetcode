@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/session"
 )
@@ -34,5 +36,26 @@ func TestPlanStripDropsControlCharacters(t *testing.T) {
 	h.m.openOverlay(overlayTodos)
 	if out := h.m.View(); strings.Contains(out, "\x1b]52") || strings.Contains(out, "\x1b[2J") {
 		t.Fatalf("/todos carries the model's escape sequences: %q", out)
+	}
+}
+
+// TestAskDialogDropsControlCharacters is the same for the ask tool's
+// questions and options, which are also the model's text.
+func TestAskDialogDropsControlCharacters(t *testing.T) {
+	h := newHarness(t)
+	evil := "\x1b]52;c;ZWNobyBwd25lZA==\x07\x1b[2J"
+	reply := make(chan []agent.Answer, 1)
+	h.update(askMsg{questions: []agent.Question{
+		{Prompt: "which?" + evil, Detail: "d" + evil, Options: []agent.AskOption{{Label: "a" + evil, Description: "x" + evil}}},
+		{Prompt: "second" + evil, Options: []agent.AskOption{{Label: "b"}}},
+	}, reply: reply})
+	if out := h.m.View(); strings.Contains(out, "\x1b]52") || strings.Contains(out, "\x1b[2J") || !strings.Contains(out, "which?") {
+		t.Fatalf("the ask dialog carries the model's escape sequences: %q", out)
+	}
+	// What is answered is still the option as the model wrote it.
+	h.update(tea.KeyMsg{Type: tea.KeyEnter})
+	h.update(tea.KeyMsg{Type: tea.KeyEnter})
+	if a := <-reply; a[0].Label != "a"+evil {
+		t.Fatalf("answer label = %q, want the option's own label", a[0].Label)
 	}
 }
