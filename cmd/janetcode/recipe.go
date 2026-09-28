@@ -38,7 +38,9 @@ import (
 func runRecipeFlag(ctx context.Context, ag *agent.Agent, cwd string, r recipe.Recipe, kv []string, stdout, stderr io.Writer, stdin *os.File) error {
 	args, err := parseRecipeArgs(kv)
 	if err != nil {
-		return fmt.Errorf("--recipe: %w", err)
+		// A malformed k=v is the caller's input, like an unknown recipe:
+		// the usage status, not a failed run.
+		return headless.BadInput("--recipe: %v", err)
 	}
 	if err := preflightRecipe(ag, r, args, stdin, stderr); err != nil {
 		return err

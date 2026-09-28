@@ -2,15 +2,27 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/tool"
 )
+
+// A positional argument that is not k=v is a usage error (exit 42), the
+// same as naming a recipe that does not exist, not a failed run (exit 1).
+func TestRecipeBadArgumentIsAUsageError(t *testing.T) {
+	var out, errOut bytes.Buffer
+	err := runRecipeFlag(context.Background(), &agent.Agent{}, t.TempDir(), recipe.Recipe{Name: "x"}, []string{"not-a-pair"}, &out, &errOut, nil)
+	if headless.ExitCode(err) != headless.ExitBadInput {
+		t.Fatalf("err = %v, exit %d; want the usage status", err, headless.ExitCode(err))
+	}
+}
 
 // mutatingRecipe is a one-step recipe whose step is a plain mutating call
 // (write_file) that nothing in a bare agent's configuration would already
