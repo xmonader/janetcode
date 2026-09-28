@@ -44,6 +44,12 @@ func TestTailPath(t *testing.T) {
 			t.Fatalf("tailPath(%q) = %q", p, got)
 		}
 	}
+	// And the tail fits in columns, not only in runes: eleven wide runes
+	// are twenty-two columns, and the header dropped a path that did not
+	// fit rather than showing it.
+	if got := tailPath("/proj/"+strings.Repeat("日", 20), 12); lipgloss.Width(got) > 12 || !strings.HasSuffix(got, "日") {
+		t.Fatalf("wide tail = %q, %d columns", got, lipgloss.Width(got))
+	}
 }
 
 // TestShortPathNeedsAWholeHomeComponent: /home/ann/x is under ~, but

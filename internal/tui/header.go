@@ -119,6 +119,12 @@ func tailPath(p string, max int) string {
 	if keep := max - 1; keep < len(r) {
 		r = r[len(r)-keep:]
 	}
+	// And the budget is in columns: max-1 wide runes are twice as wide
+	// as the room, so the header, finding the path did not fit, dropped
+	// it altogether. Runes come off the front until the tail fits.
+	for len(r) > 0 && lipgloss.Width(string(r)) > max-1 {
+		r = r[1:]
+	}
 	for i, c := range r {
 		// Start at a path separator so the tail is whole components. The
 		// index has to be counted in runes: strings.IndexRune answers in
