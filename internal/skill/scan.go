@@ -202,7 +202,9 @@ type scanEntry struct {
 // than walked.
 func scanFiles(path, dir string) []scanEntry {
 	if dir == "" {
-		info, err := os.Lstat(path)
+		// Stat, not Lstat: a skill file that is a link is read through
+		// it, so the size bound and the cache stamp are the target's.
+		info, err := os.Stat(path)
 		if err != nil {
 			return nil
 		}
@@ -264,7 +266,16 @@ func scanFile(f scanEntry, skillFile string) []Finding {
 			fd.Text = "→ " + f.target
 			return []Finding{fd}
 		}
-		return nil
+		// A link to another file of the skill is scanned again as the
+		// link: SKILL.md or run.sh pointing at reference/notes.md is
+		// attached or run as SKILL.md or run.sh, and its target alone
+		// would be read as a reference document, whose command shapes
+		// are only warned about.
+		info, err := os.Stat(f.abs)
+		if err != nil || !info.Mode().IsRegular() {
+			return nil
+		}
+		f.info = info
 	}
 	if archiveExt[strings.ToLower(filepath.Ext(f.rel))] {
 		return []Finding{at(Warning, "ships an archive, which was not scanned")}
