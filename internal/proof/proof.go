@@ -450,16 +450,21 @@ func Read(ctx context.Context, repoDir, commit string) (Record, bool, error) {
 // CommittedFiles lists the paths one commit changed, repo-root-relative.
 // A root commit (no parent) is handled the same way as any other: --root
 // tells diff-tree to treat it as a diff against the empty tree, which is
-// otherwise the one case it reports nothing for.
+// otherwise the one case it reports nothing for. -z keeps git from
+// C-quoting a path with non-ASCII bytes or a quote in it, which no change
+// path would match and `git show rev:path` could not read.
 func CommittedFiles(ctx context.Context, repoDir, commit string) ([]string, error) {
-	out, err := gitx.Run(ctx, repoDir, nil, "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", commit)
+	out, err := gitx.RunBytes(ctx, repoDir, nil, "diff-tree", "-z", "--no-commit-id", "--name-only", "-r", "--root", commit)
 	if err != nil {
 		return nil, err
 	}
-	if out == "" {
-		return nil, nil
+	var files []string
+	for _, p := range strings.Split(string(out), "\x00") {
+		if p != "" {
+			files = append(files, p)
+		}
 	}
-	return strings.Split(out, "\n"), nil
+	return files, nil
 }
 
 // verdictMark is TurnOutcome.Line's ✓/⚠/✗ convention, reproduced here

@@ -340,6 +340,36 @@ func TestCommittedFilesIncludingRoot(t *testing.T) {
 	}
 }
 
+// git quotes a path with non-ASCII bytes or a quote in it ("caf\303\251.go"
+// with the quotes) unless told not to, and that quoted form is neither a
+// path Build can match against a change nor one `git show rev:path` can
+// read: a commit of café.go carried no proof at all.
+func TestCommittedFilesUnquotedUnicodePath(t *testing.T) {
+	ctx := context.Background()
+	root := initRepo(t)
+	write(t, root, "café.go", "package a\n")
+	write(t, root, `say "hi".txt`, "hi\n")
+	sha := commit(t, root, "unicode")
+	files, err := CommittedFiles(ctx, root, sha)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[f] = true
+	}
+	if len(files) != 2 || !got["café.go"] || !got[`say "hi".txt`] {
+		t.Fatalf("files = %q, want café.go and say \"hi\".txt unquoted", files)
+	}
+	vs, err := CommittedFileVersions(ctx, root, sha, files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(vs["café.go"].Commit) != "package a\n" {
+		t.Fatalf("versions = %+v", vs)
+	}
+}
+
 func TestBlameCommittedAttribution(t *testing.T) {
 	ctx := context.Background()
 	root := initRepo(t)
