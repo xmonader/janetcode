@@ -289,6 +289,11 @@ var dispatch = map[string]cmdHandler{
 }
 
 func (m *model) command(text string) tea.Cmd {
+	// A paste chip after a command name is its argument like any other
+	// text: /btw, /goal, /loop and the rest used to get the chip itself,
+	// and the ones that keep their argument kept a chip nothing could
+	// inflate once this process was gone.
+	text = m.inflatePastes(text)
 	fields := strings.Fields(text)
 	// Idle-only is decided by the slash table alone, on the canonical
 	// name: /new is /clear, and gating only the table names let every

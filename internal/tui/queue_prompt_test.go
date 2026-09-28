@@ -28,3 +28,27 @@ func TestPastedPromptHistoryKeepsThePaste(t *testing.T) {
 		t.Fatalf("in-process recall = %q, want the chip", s)
 	}
 }
+
+// TestCommandArgumentsGetTheirPastes: a paste chip typed after a command
+// ("/btw " then a pasted stack trace) reached the command as the chip.
+// /btw asked the model about "[paste #1 +30 lines]", and /goal and /loop
+// stored the chip as their objective, to be re-sent long after the
+// process that knew what it stood for was gone.
+func TestCommandArgumentsGetTheirPastes(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	paste := strings.Repeat("at frame\n", 30) + "panic: boom"
+	h.keys("/btw ")
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(paste), Paste: true})
+	h.enter()
+	prov := h.m.opts.Agent.Provider.(*scripted)
+	h.pump(func() bool { return len(prov.reqs()) > 0 })
+	req := prov.reqs()[0]
+	last := req.Messages[len(req.Messages)-1]
+	var text string
+	for _, b := range last.Blocks {
+		text += b.Text
+	}
+	if !strings.Contains(text, "panic: boom") || strings.Contains(text, "[paste #") {
+		t.Fatalf("/btw sent %q, want the pasted text", text)
+	}
+}
