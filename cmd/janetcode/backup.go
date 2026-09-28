@@ -36,7 +36,7 @@ func backupMode(w io.Writer, dest string) error {
 		return fmt.Errorf("backup: %w", err)
 	}
 	if sum.Files == 0 {
-		os.Remove(dest)
+		// Create wrote nothing to dest; whatever is there was the user's.
 		return headless.BadInput("nothing to back up: %s and %s are empty", roots["config"], roots["data"])
 	}
 	fmt.Fprintf(w, "wrote %s: %s, %s (it holds your API keys; keep it private)\n", dest, textfmt.Plural(sum.Files, "file"), textfmt.Bytes(sum.Bytes))

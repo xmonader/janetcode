@@ -143,6 +143,28 @@ func TestRestoreRefusesEscapesAndLinks(t *testing.T) {
 
 // A backup written into one of the directories it backs up does not
 // contain itself.
+// With nothing to back up, an existing file at dest is left alone: on a
+// fresh machine "--backup old.tar.gz" typed for "--restore" replaced the
+// user's backup with an empty archive, which the CLI then deleted.
+func TestBackupOfNothingLeavesDestAlone(t *testing.T) {
+	roots := Roots{"config": filepath.Join(t.TempDir(), "cfg"), "data": filepath.Join(t.TempDir(), "data")}
+	dest := filepath.Join(t.TempDir(), "old.tar.gz")
+	put(t, dest, "the user's earlier backup", 0o600)
+	sum, err := Create(dest, roots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Files != 0 {
+		t.Fatalf("backed up %d files from empty roots", sum.Files)
+	}
+	if got := read(t, dest); got != "the user's earlier backup" {
+		t.Fatalf("dest = %q, want it untouched", got)
+	}
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(dest), ".janetcode-backup-*")); len(left) != 0 {
+		t.Fatalf("temp files left behind: %v", left)
+	}
+}
+
 func TestBackupInsideARoot(t *testing.T) {
 	roots := Roots{"config": filepath.Join(t.TempDir(), "cfg"), "data": filepath.Join(t.TempDir(), "data")}
 	put(t, filepath.Join(roots["data"], "sessions", "a.jsonl"), strings.Repeat("x", 1<<16), 0o600)

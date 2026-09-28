@@ -42,6 +42,7 @@ type Summary struct {
 // Create writes every regular file under roots to a tar.gz at dest. The
 // file is written beside dest and renamed into place, readable only by
 // its owner: it holds API keys. A root that does not exist is skipped.
+// When there is no file to archive, dest is not touched and Files is 0.
 func Create(dest string, roots Roots) (Summary, error) {
 	var sum Summary
 	tmp, err := os.CreateTemp(filepath.Dir(dest), ".janetcode-backup-*")
@@ -60,6 +61,13 @@ func Create(dest string, roots Roots) (Summary, error) {
 	}
 	if werr != nil {
 		return sum, werr
+	}
+	if sum.Files == 0 {
+		// Nothing to back up — a fresh machine, most likely, where
+		// --backup was typed for --restore. dest is left as it is: an
+		// empty archive renamed over it (and then removed by the caller)
+		// destroyed the very backup the user had come to restore.
+		return sum, nil
 	}
 	return sum, os.Rename(tmp.Name(), dest)
 }
