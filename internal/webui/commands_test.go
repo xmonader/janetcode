@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -256,6 +257,45 @@ func TestChildLogCountsTheLinesItHides(t *testing.T) {
 	if !strings.Contains(out, "line 8\n… 18 more lines\nline 27") {
 		t.Fatalf("transcript:\n%s", out)
 	}
+}
+
+// A prompt sent while a recipe runs is queued behind it, like one sent
+// during a turn. A recipe that finished without handing over marked the
+// session idle and left the queue alone, so the prompt sat there until
+// some later turn ended and ran it out of order.
+func TestAPromptQueuedBehindARecipeIsSent(t *testing.T) {
+	s, _ := planServer(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn},
+	)
+	s.mu.Lock()
+	s.running = true
+	s.queued = []string{"after the recipe"}
+	s.mu.Unlock()
+
+	s.finishRecipe(recipe.Recipe{Name: "r"}, "all steps ran", nil, nil)
+
+	waitFor(t, func() bool {
+		for _, e := range s.snapshotEntries() {
+			if e.Kind == "assistant" && e.Text == "ok" && e.Done {
+				return true
+			}
+		}
+		return false
+	})
+	var typed []string
+	for _, e := range s.snapshotEntries() {
+		if e.Kind == "user" {
+			typed = append(typed, e.Text)
+		}
+	}
+	if len(typed) != 1 || typed[0] != "after the recipe" {
+		t.Fatalf("prompts sent = %q", typed)
+	}
+	waitFor(t, func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return !s.running
+	})
 }
 
 // /connect asks the pages open now to show the connect form. Kept in the

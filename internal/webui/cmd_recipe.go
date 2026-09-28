@@ -105,12 +105,23 @@ func (s *server) runRecipe(rest string) {
 // starts the handover through s.startTurn — the same path a goal round
 // uses to start its next turn.
 func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.RecipeFailure, err error) {
-	s.idle()
 	res := agent.RecipeOutcome(r, report, failed, err)
-	s.showResult(res, nil)
 	if res.Handover != "" {
+		// The handover goes first; what the user queued meanwhile
+		// follows it when that turn ends.
+		s.idle()
+		s.showResult(res, nil)
 		s.startTurn(res.Handover)
 		return
 	}
+	// Otherwise the queue moves on as it does after a turn: idle alone
+	// left a prompt sent during the run waiting until some later turn
+	// ended, then ran it out of order. A run that failed drops it, as a
+	// failed turn does.
+	next, _ := s.end(err != nil)
+	s.showResult(res, nil)
 	s.emitStatus()
+	if next != "" {
+		s.startTurn(next)
+	}
 }
