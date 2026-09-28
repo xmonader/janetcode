@@ -151,7 +151,10 @@ func maskStrings(s string) string {
 
 // Changed lists the added or modified lines of tracked source files
 // relative to HEAD, plus every line of untracked source files. Test files
-// are excluded. The map is path → sorted 1-based lines.
+// are excluded. The map is path → sorted 1-based lines, each path relative
+// to root — which need not be the repository's top: git diff names files
+// from the top unless told --relative, while ls-files already answers
+// relative to the directory it runs in, and the two have to agree.
 func Changed(ctx context.Context, root string) (map[string][]int, error) {
 	out := map[string][]int{}
 	// A repository with no commit yet has no HEAD to diff against: every
@@ -160,7 +163,7 @@ func Changed(ctx context.Context, root string) (map[string][]int, error) {
 	_, err := gitx.Run(ctx, root, nil, "rev-parse", "--verify", "-q", "HEAD^{commit}")
 	switch {
 	case err == nil:
-		diff, err := gitx.Run(ctx, root, nil, "diff", "-U0", "--no-color", "HEAD", "--", ".")
+		diff, err := gitx.Run(ctx, root, nil, "diff", "-U0", "--no-color", "--relative", "HEAD", "--", ".")
 		if err != nil {
 			return nil, err
 		}
@@ -401,11 +404,20 @@ func (r *Runner) runMutants(ctx context.Context, mutants []Mutant) (Report, erro
 		defer dcancel()
 		repo.Drop(dctx, snap)
 	}()
-	dir, cleanup, err := worktree.Detached(ctx, "mut", repo.Root, snap.Commit, nil)
+	// The mutants' paths are relative to r.Root, the worktree is a
+	// checkout of the repository's top, and the project may be a
+	// subdirectory of it: the files and the command's directory are both
+	// found under that same prefix in the checkout.
+	prefix, err := gitx.Run(ctx, r.Root, nil, "rev-parse", "--show-prefix")
+	if err != nil {
+		return rep, err
+	}
+	top, cleanup, err := worktree.Detached(ctx, "mut", repo.Root, snap.Commit, nil)
 	if err != nil {
 		return rep, err
 	}
 	defer cleanup()
+	dir := filepath.Join(top, filepath.FromSlash(prefix))
 	// Untracked files are not in the snapshot's tree only if ignored;
 	// snapshot.Take adds everything else. Copy nothing more.
 	timeout := r.Timeout

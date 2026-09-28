@@ -287,3 +287,46 @@ func TestRunBoundsAPipeHeldByALeakedGrandchild(t *testing.T) {
 		t.Fatalf("run took %s; the leaked grandchild held the pipes past the command", elapsed)
 	}
 }
+
+// A project that is a subdirectory of its repository is still mutated in
+// place: git diff names files from the repository's top, ls-files from the
+// directory it runs in, and the throwaway worktree is a checkout of the
+// top. Mixing those up read the wrong files (or none) and ran the test
+// command at the top of the checkout instead of in the project.
+func TestRunInSubdirectoryOfRepository(t *testing.T) {
+	top := t.TempDir()
+	root := filepath.Join(top, "sub")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run(t, top, "git", "init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n\nvar A = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, top, "git", "add", "-A")
+	run(t, top, "git", "commit", "-qm", "base")
+	// A tracked change and an untracked file, both in the subdirectory.
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n\nvar A = 1 == 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "b.go"), []byte("package a\n\nvar B = 2 == 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := Changed(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changed["a.go"]) != 1 || len(changed["b.go"]) != 3 || len(changed) != 2 {
+		t.Fatalf("changed = %v, want a.go and b.go relative to the project", changed)
+	}
+	// The command fails only when it sees a mutant in its own directory,
+	// so every mutant is killed exactly when it lands where it should.
+	r := &Runner{Root: root, Command: "! grep -q '!=' a.go b.go", Timeout: 30 * time.Second}
+	rep, err := r.Run(context.Background())
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if rep.Total != 2 || rep.Killed != 2 {
+		t.Fatalf("report = %+v", rep)
+	}
+}
