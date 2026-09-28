@@ -36,6 +36,12 @@ func (a *Agent) setMessages(msgs []llm.Message) {
 	}
 	a.Messages = msgs
 	a.msgMu.Unlock()
+	// The last call's input count stands for the messages it was sent
+	// with, and EstimateTokens trusts it for every index below
+	// lastInputMsgs. Those messages were just replaced — an /undo cut, a
+	// session opened or cleared — so the count describes a conversation
+	// that is not this one any more.
+	a.lastInputTokens, a.lastInputMsgs = 0, 0
 }
 
 func (a *Agent) setBlockText(i, j int, text string) {

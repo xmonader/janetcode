@@ -236,6 +236,29 @@ func TestUndoTurnFilesOnlyKeepsTheConversation(t *testing.T) {
 // the last call's token count already covers — so a rewind that left
 // those numbers in place would price a conversation that no longer
 // exists, and the integrity check would report the shrink as a fault.
+func TestUndoLeavesCompactionAccountingConsistent(t *testing.T) {
+	a, _, _, _ := loggedTurns(t, append(writeTurns("one", "two"), text("after")))
+	for _, p := range []string{"do one", "do two"} {
+		if err := a.Run(context.Background(), p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.lastInputMsgs, a.lastInputTokens = len(a.Messages), 90000
+	if _, err := a.Undo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if est := a.EstimateTokens(); est > 50000 {
+		t.Fatalf("the estimate is ~%d tokens after /undo: it still prices the undone turn", est)
+	}
+	// Opening another conversation replaces every message the count was
+	// about, whatever its length.
+	a.lastInputMsgs, a.lastInputTokens = len(a.Messages), 90000
+	a.setMessages([]llm.Message{llm.TextMessage(llm.RoleUser, "a different session")})
+	if est := a.EstimateTokens(); est > 50000 {
+		t.Fatalf("the estimate is ~%d tokens for a one-message conversation", est)
+	}
+}
+
 func TestRewindLeavesCompactionAccountingConsistent(t *testing.T) {
 	a, _, _, _ := loggedTurns(t, append(writeTurns("one", "two"), text("after")))
 	for _, p := range []string{"do one", "do two"} {
