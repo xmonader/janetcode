@@ -146,6 +146,11 @@ func (t WriteFile) Preview(ctx context.Context, input json.RawMessage) (string, 
 	oldText, _ := decodeText(old)
 	d := diff.Unified(in.Path, oldText, in.Content, 3)
 	if d == "" {
+		// The line diff cannot see a final newline added or dropped, and
+		// calling that "identical" in a permission prompt is false.
+		if oldText != in.Content {
+			return "(only the newline at the end of the file changes)", nil
+		}
 		return "(no change: content is identical)", nil
 	}
 	return d, nil

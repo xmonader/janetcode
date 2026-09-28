@@ -132,6 +132,14 @@ func TestWriteAndEdit(t *testing.T) {
 	if prev, err := w.Preview(context.Background(), raw(`{"path":"brand/new.txt","content":"a\nb\n"}`)); err != nil || prev != "--- brand/new.txt\n+++ brand/new.txt\n@@ -1,0 +1,2 @@\n+a\n+b\n" {
 		t.Fatalf("new file preview: %v\n%q", err, prev)
 	}
+	// Dropping only the final newline is a change, and the prompt must not
+	// call it "identical".
+	if prev, err := w.Preview(context.Background(), raw(`{"path":"sub/dir/f.go","content":"package x\n\nfunc Alpha() { return }\nfunc B() { return }"}`)); err != nil || strings.Contains(prev, "identical") || !strings.Contains(prev, "newline") {
+		t.Fatalf("newline-only preview: %v %q", err, prev)
+	}
+	if prev, err := w.Preview(context.Background(), raw(`{"path":"sub/dir/f.go","content":"package x\n\nfunc Alpha() { return }\nfunc B() { return }\n"}`)); err != nil || !strings.Contains(prev, "identical") {
+		t.Fatalf("identical preview: %v %q", err, prev)
+	}
 	if out, err := w.Run(context.Background(), raw(`{"path":"sub/dir/f.go","content":"x"}`)); err != nil || out != "Overwrote sub/dir/f.go (+1 -4 lines)" {
 		t.Fatalf("overwrite: %v %q", err, out)
 	}
