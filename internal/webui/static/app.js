@@ -1551,19 +1551,14 @@
   document.getElementById("sessions").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-id]");
     if (!li || li.classList.contains("on")) return;
+    // The server clears the page itself: it sends "reset" and then the
+    // loaded thread on /events before it answers here. Clearing the log
+    // again on this answer wiped a thread that had already arrived,
+    // leaving the empty page over a conversation that was loaded.
     if (await post("/api/load", { id: li.dataset.id })) {
-      log.innerHTML = "";
-      nodes.clear();
-      latest.clear();
-      openTools.clear();
-      openThoughts.clear();
-      openAnswers.clear();
-      openRuns.clear();
       if (window.matchMedia("(max-width: 960px)").matches && !shell.classList.contains("nav-collapsed")) {
         setCollapsed("nav-collapsed", true);
       }
-      empty.hidden = false;
-      if (suggestedFor !== null) loadSuggestions(suggestedFor);
       refreshWorkspace();
       loadSessions();
       input.focus();
@@ -1607,16 +1602,9 @@
   });
   document.getElementById("undo-btn").addEventListener("click", () => post("/api/command", { text: "/undo" }).then(refreshWorkspace));
   document.getElementById("new-chat").addEventListener("click", async () => {
+    // As with a resumed conversation, the "reset" on /events clears
+    // the page.
     if (await post("/api/new", {})) {
-      log.innerHTML = "";
-      nodes.clear();
-      latest.clear();
-      openTools.clear();
-      openThoughts.clear();
-      openAnswers.clear();
-      openRuns.clear();
-      empty.hidden = false;
-      if (suggestedFor !== null) loadSuggestions(suggestedFor);
       refreshWorkspace();
       loadSessions();
     }

@@ -154,6 +154,29 @@ check('a reload mid-reply shows the whole reply', await until(`document.getEleme
 const once = await js(`(document.getElementById('log').innerText.match(/one two three/g) || []).length`);
 check('…exactly once', once === 1, `seen ${once} times`);
 
+// 5. Resuming an earlier conversation from the rail shows it. The server
+// streams the loaded thread before it answers /api/load; the page used
+// to clear the log when that answer came, wiping what had just arrived
+// (a long thread overflowed the stream's buffer and came back on the
+// reconnect, so it takes a short one to see it).
+await until(`document.getElementById('stop').hidden`, 15000);
+await js(`document.getElementById('new-chat').click()`);
+check('a new chat starts empty', await until(`!document.getElementById('empty').hidden && !document.querySelector('#log article.turn')`));
+await send('short one');
+check('the short conversation is answered', await until(`[...document.querySelectorAll('#log article.turn:not(.you) .md')].some((n) => n.textContent.trim() === 'ok')`));
+await until(`document.getElementById('stop').hidden`, 15000);
+await js(`document.getElementById('new-chat').click()`);
+await until(`!document.querySelector('#log article.turn')`);
+const pick = `[...document.querySelectorAll('#sessions li[data-id]')].find((li) => li.textContent.includes('short one'))`;
+check('the short conversation is in the rail', await until(`!!${pick}`));
+// Whichever arrives first, the answer or the thread, no row of the
+// loaded conversation may be taken down again once drawn.
+await js(`window.__rm = 0; new MutationObserver((ms) => { for (const m of ms) for (const n of m.removedNodes) if (n.textContent && n.textContent.includes('short one')) window.__rm++; }).observe(document.getElementById('log'), { childList: true }); ${pick}?.click()`);
+await sleep(1000);
+check('a resumed conversation shows its thread', await until(`document.getElementById('log').innerText.includes('short one')`, 3000), (await logText()).slice(-200));
+check('…and not the empty page', await js(`document.getElementById('empty').hidden`));
+check('…and nothing of it was drawn and then wiped', (await js('window.__rm')) === 0);
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 ws.close();
 model.close();
