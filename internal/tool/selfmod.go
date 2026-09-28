@@ -147,8 +147,32 @@ func guardSelfModify(root string, input json.RawMessage) (bool, string) {
 	if !filepath.IsAbs(abs) {
 		abs = filepath.Join(root, abs)
 	}
-	if what := SelfPath(root, abs); what != "" {
+	what := SelfPath(root, abs)
+	if what == "" {
+		// The file tools follow symlinks and only require the target to
+		// stay inside the workspace, so `conf -> .janetcode` made
+		// conf/hooks.json an ordinary-looking write to the hook file.
+		// Judge the resolved path too, against the resolved root, since
+		// the root itself may sit under a symlink (macOS's /var).
+		what = SelfPath(realPath(root), realPath(abs))
+	}
+	if what != "" {
 		return true, "this changes " + what + ", which decides what janetcode may do without asking"
 	}
 	return false, ""
+}
+
+// realPath is p with its symlinks resolved, including a missing tail's
+// existing ancestors (see resolveExisting), or p when nothing resolves.
+func realPath(p string) string {
+	if p == "" {
+		return p
+	}
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real
+	}
+	if real, err := resolveExisting(p); err == nil {
+		return real
+	}
+	return p
 }

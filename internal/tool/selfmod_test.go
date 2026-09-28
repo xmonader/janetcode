@@ -2,6 +2,7 @@ package tool
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -50,6 +51,33 @@ func TestWriteAndEditGuardTheirOwnSettings(t *testing.T) {
 	}
 	if ask, _ := w.Guard(json.RawMessage(`{"path":"main.go","content":"x"}`)); ask {
 		t.Fatal("an ordinary file must not be guarded")
+	}
+}
+
+// The guard judges where a write lands: a symlink inside the workspace
+// that points into .janetcode is an ordinary-looking path the file tools
+// follow, and confinement allows it because the target is still inside
+// the workspace.
+func TestWriteGuardFollowsSymlinks(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".janetcode"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(".janetcode", filepath.Join(root, "conf")); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".mcp.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(".mcp.json", filepath.Join(root, "servers.json")); err != nil {
+		t.Fatal(err)
+	}
+	w := WriteFile{Root: root}
+	for _, p := range []string{"conf/hooks.json", "servers.json"} {
+		in, _ := json.Marshal(map[string]string{"path": p, "content": "x"})
+		if ask, _ := w.Guard(in); !ask {
+			t.Errorf("a write to %s, a link into janetcode's settings, did not ask", p)
+		}
 	}
 }
 
