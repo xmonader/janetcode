@@ -129,6 +129,7 @@ func FieldValues(tool string, input json.RawMessage, name string) []string {
 type fields struct {
 	tool    string
 	input   json.RawMessage
+	root    string // the workspace, for a path's other spelling
 	decoded any
 	done    bool
 }
@@ -157,9 +158,15 @@ func (f *fields) lookupValues(name string) []string {
 	}
 	vals := flatten(v)
 	if name == "path" && fileTools[tool] {
-		for i, s := range vals {
-			if s != "" {
+		n := len(vals)
+		for i := 0; i < n; i++ {
+			if s := vals[i]; s != "" {
 				vals[i] = filepath.ToSlash(filepath.Clean(s))
+				// Either spelling of the path is the path (see
+				// otherSpelling), so a clause may match either.
+				if alt := otherSpelling(tool, filepath.Clean(s), f.root); alt != "" {
+					vals = append(vals, filepath.ToSlash(alt))
+				}
 			}
 		}
 	}

@@ -245,18 +245,45 @@ func (r Rule) matchesCall(c Call) bool {
 	}
 	r = r.compile()
 	if !r.paramRule {
-		return Match(r.Pattern, c.Subject)
+		if Match(r.Pattern, c.Subject) {
+			return true
+		}
+		alt := otherSpelling(c.Tool, c.Subject, c.Root)
+		return alt != "" && Match(r.Pattern, alt)
 	}
 	if len(c.Input) == 0 {
 		return false
 	}
-	f := fields{tool: c.Tool, input: c.Input}
+	f := fields{tool: c.Tool, input: c.Input, root: c.Root}
 	for _, p := range r.params {
 		if !matchAny(p.Pattern, f.values(p.Name)) {
 			return false
 		}
 	}
 	return true
+}
+
+// otherSpelling is the second way a file tool's path names the same
+// file: the path relative to the workspace for an absolute one inside it,
+// and the absolute path for a relative one. The file tools take either,
+// so a rule has to hold for both: a deny rule written secrets/* was walked
+// past by /work/proj/secrets/key, and an allow rule saved from an
+// absolute path never matched the relative spelling of the same file. ""
+// when there is none — not a file tool, no workspace, or an absolute path
+// outside it.
+func otherSpelling(tool, p, root string) string {
+	if !fileTools[tool] || root == "" || p == "" {
+		return ""
+	}
+	root = filepath.Clean(root)
+	if !filepath.IsAbs(p) {
+		return filepath.Join(root, p)
+	}
+	rel, err := filepath.Rel(root, filepath.Clean(p))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return rel
 }
 
 // matchAny reports whether the pattern matches any of a field's values;

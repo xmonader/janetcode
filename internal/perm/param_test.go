@@ -2,6 +2,7 @@ package perm
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 )
 
@@ -172,6 +173,43 @@ func TestLedgerKeysParamRules(t *testing.T) {
 	r, _ := Parse(shape)
 	if CandidateLines(l, Rules{Allow: []Rule{r}}) != nil {
 		t.Fatal("already-saved parameter rule still offered")
+	}
+}
+
+// The file tools accept an absolute path inside the workspace as readily
+// as a relative one, so a rule written the way the repository spells a
+// path has to hold for both spellings — above all a deny rule, which an
+// absolute path otherwise walked straight past.
+func TestFileRulesHoldForEitherSpelling(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "work", "proj")
+	rules, err := File{
+		Deny:  []string{"edit_file(secrets/*)", "write_file(path:secrets/*)"},
+		Allow: []string{"read_file(" + filepath.Join(root, "docs") + "/*)"},
+	}.Rules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := func(tool, path string) Call {
+		in, _ := json.Marshal(map[string]string{"path": path})
+		return Call{Tool: tool, Subject: SubjectIn(tool, in, root), Input: in, Root: root}
+	}
+	for _, c := range []Call{
+		call("edit_file", filepath.Join(root, "secrets", "key")),
+		call("edit_file", "secrets/key"),
+		call("write_file", filepath.Join(root, "secrets", "key")),
+		call("write_file", "./secrets/key"),
+	} {
+		if v, _, _ := rules.DecideCall(c); v != Denied {
+			t.Errorf("%s %s = %v, want deny", c.Tool, c.Subject, v)
+		}
+	}
+	if v, _, _ := rules.DecideCall(call("read_file", "docs/a.md")); v != Allowed {
+		t.Errorf("an absolute allow rule did not cover the relative spelling: %v", v)
+	}
+	// Outside the workspace there is no second spelling.
+	other := filepath.Join(string(filepath.Separator), "other", "secrets", "key")
+	if v, _, _ := rules.DecideCall(call("edit_file", other)); v != Ask {
+		t.Errorf("a path outside the workspace = %v, want ask", v)
 	}
 }
 
