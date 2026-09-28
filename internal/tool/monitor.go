@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 const (
@@ -51,6 +53,11 @@ func (t Monitor) Run(ctx context.Context, input json.RawMessage) (string, error)
 	if t.Jobs == nil {
 		return "", fmt.Errorf("background jobs are not available")
 	}
+	// The command is a shell command like bash's and gets bash's refusal:
+	// without it, the command bash never runs could be run through here.
+	if risk, why := shell.Classify(in.Command, rootOf(t.Root, t.WS)); risk == shell.RiskCatastrophic {
+		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
+	}
 	job, err := t.Jobs.StartOn(t.WS, t.Root, in.Command)
 	if err != nil {
 		return "", err
@@ -59,6 +66,20 @@ func (t Monitor) Run(ctx context.Context, input json.RawMessage) (string, error)
 	// as the job (KillAll on session close stops it).
 	go t.watch(job.ID, in.Pattern)
 	return fmt.Sprintf("monitor job %d watching for %q; kill with jobs kill %d", job.ID, in.Pattern, job.ID), nil
+}
+
+// Guard implements Guard with bash's rules. The input carries the command
+// under the same key, and the command runs in the same shell, so a
+// command bash would put in front of the user even under auto-approve —
+// one that writes outside the workspace, one the classifier cannot read
+// — must not be waved through because it came with a pattern.
+func (t Monitor) Guard(input json.RawMessage) (bool, string) {
+	return Bash{Root: t.Root, WS: t.WS}.Guard(input)
+}
+
+// Warn implements Warner with bash's warnings, for the same reason.
+func (t Monitor) Warn(input json.RawMessage) string {
+	return Bash{Root: t.Root, WS: t.WS}.Warn(input)
 }
 
 func (t Monitor) watch(id int, pattern string) {
