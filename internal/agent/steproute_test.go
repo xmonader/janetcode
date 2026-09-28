@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -270,5 +272,52 @@ func TestRouteStepCacheRuleFollowsTheSessionsCurrentProvider(t *testing.T) {
 	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, strings.Repeat("word ", routeCheapSmallContext)))
 	if _, _, _, ok := a.routeStep(func(Event) {}); ok {
 		t.Fatal("the session moved providers; a large conversation must not route back to the old one")
+	}
+}
+
+// halfThenFail streams some text and then fails, the way a connection
+// dropped mid-answer does once the provider has said something.
+type halfThenFail struct{ text string }
+
+func (halfThenFail) Name() string { return "half-provider" }
+func (h halfThenFail) Stream(_ context.Context, _ llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if emit != nil {
+		emit(llm.Event{Type: llm.EventTextDelta, Text: h.text})
+	}
+	return nil, errors.New("connection reset mid-answer")
+}
+
+// A routed call that fails after streaming part of an answer hands the
+// step to Model, whose reply streams in its place. The half answer has to
+// come off the screen first, as it does before a fallback: without the
+// discard it stayed there, run into the start of Model's reply.
+func TestFailedRoutedCallDiscardsItsHalfAnswer(t *testing.T) {
+	main := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		text("the whole answer"),
+	}}
+	a, _ := newAgent(t, main, nil)
+	a.RouteCheap = "cheap-model"
+	a.Route = func(model string) (llm.Provider, string, error) { return halfThenFail{text: "half an ans"}, model, nil }
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "read the file", emit); err != nil {
+		t.Fatal(err)
+	}
+	half, discard, whole := -1, -1, -1
+	for i, e := range *evs {
+		switch {
+		case e.Kind == EvText && e.Text == "half an ans":
+			half = i
+		case e.Kind == EvDiscard && half >= 0 && discard < 0:
+			discard = i
+		case e.Kind == EvText && e.Text == "the whole answer":
+			whole = i
+		}
+	}
+	if half < 0 || whole < 0 {
+		t.Fatalf("the routed call did not stream (half=%d whole=%d)", half, whole)
+	}
+	if discard < 0 || discard > whole {
+		t.Fatalf("no discard between the routed call's half answer (%d) and Model's reply (%d): discard=%d", half, whole, discard)
 	}
 }

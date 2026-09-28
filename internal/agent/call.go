@@ -44,6 +44,9 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		if ctx.Err() != nil {
 			return nil, err
 		}
+		// What the failed call streamed is void, as before a fallback:
+		// Model's reply replaces it rather than running on from it.
+		emit(Event{Kind: EvDiscard})
 		emit(Event{Kind: EvNotice, Text: "escalated call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
 	} else if prov, model, why, ok := a.routeStep(emit); ok {
 		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "cheap", kind: "route", why: why}, emit)
@@ -54,6 +57,7 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		if ctx.Err() != nil {
 			return nil, err
 		}
+		emit(Event{Kind: EvDiscard})
 		emit(Event{Kind: EvNotice, Text: "routed call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
 		a.stepRoute.taint("a routed call failed")
 	}
