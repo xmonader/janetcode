@@ -61,3 +61,47 @@ func TestQuotingIsReadAsTheShellReadsIt(t *testing.T) {
 		t.Errorf("Segments split inside an escaped double quote: %q", got)
 	}
 }
+
+// Every way bash writes a file through a redirection is a write. A
+// numbered stream (2>) was skipped by the pattern outright, and the & or
+// | inside >&, &> and >| split the segment in two, so the target showed
+// up as a command of its own and the write as nothing.
+func TestEveryRedirectionFormIsAWrite(t *testing.T) {
+	root := "/work/repo"
+	for _, cmd := range []string{
+		"ls 2>~/.bashrc",
+		"ls 1>~/.bashrc",
+		"ls 2>>~/.bashrc",
+		"echo x >| ~/.bashrc",
+		"echo x >|~/.bashrc",
+		"echo x &>~/.bashrc",
+		"echo x &>> ~/.bashrc",
+		"echo x >&~/.bashrc",
+		"echo x >& ~/.bashrc",
+	} {
+		if risk, why := Classify(cmd, root); risk != RiskEscapes {
+			t.Errorf("Classify(%q) = %v %q, want escapes", cmd, risk, why)
+		}
+		if len(WriteTargets(cmd, root)) == 0 {
+			t.Errorf("WriteTargets(%q) is empty", cmd)
+		}
+	}
+	for _, cmd := range []string{"ls 2>x", "echo hi >| ls", "echo hi >&out.txt", "ls &>log"} {
+		if SafeRead(cmd) {
+			t.Errorf("SafeRead(%q) = true, but it writes a file", cmd)
+		}
+	}
+	// Duplicating or closing a stream writes nothing, and no longer
+	// splits the line into a nonsense second command.
+	for _, cmd := range []string{"ls 2>&1", "echo x >&2", "ls 2>&1 | head", "ls 2>&-", "ls 2>/dev/null"} {
+		if !SafeRead(cmd) {
+			t.Errorf("SafeRead(%q) = false", cmd)
+		}
+		if got := WriteTargets(cmd, root); len(got) != 0 && got[0] != "/dev/null" {
+			t.Errorf("WriteTargets(%q) = %v", cmd, got)
+		}
+	}
+	if got := Redirects("go test ./... >| out.txt 2>&1"); !reflect.DeepEqual(got, []string{"out.txt"}) {
+		t.Errorf("Redirects = %q", got)
+	}
+}

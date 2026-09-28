@@ -331,8 +331,8 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 		}
 	}
 	// Redirections write wherever they point.
-	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-		tk := strings.Trim(m[1], `"'`)
+	for _, raw := range redirectTargets(seg) {
+		tk := strings.Trim(raw, `"'`)
 		if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
 			return RiskUnknown, "the working directory is unclear after cd, so writing " + tk + " cannot be judged"
 		}
@@ -363,7 +363,27 @@ func isAbsoluteWord(tk string) bool {
 	return filepath.IsAbs(shellVarRe.ReplaceAllString(tk, "/"))
 }
 
-var redirect = regexp.MustCompile(`(?:^|[^<>&|0-9])>{1,2}\s*("[^"]+"|'[^']+'|[^\s;&|]+)`)
+// redirect matches an output redirection: the operator (group 1) and
+// its target as written (group 2). The operator takes every form bash
+// writes to a file with — >, >>, a numbered stream (2>, 1>>), the
+// clobbering >|, and &>, &>>, >& that send both streams. The pattern used
+// to refuse a digit before the >, which made `ls 2>~/.bashrc` no write
+// at all.
+var redirect = regexp.MustCompile(`(?:^|[^<>])(&>>?|[0-9]*>>?[|&]?)\s*("[^"]+"|'[^']+'|[^\s;&|<>]+)`)
+
+// redirectTargets returns the targets of a segment's output redirections,
+// as written. A >& whose target is a stream number or - duplicates or
+// closes a stream (2>&1, >&2) and writes no file.
+func redirectTargets(seg string) []string {
+	var out []string
+	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
+		if strings.HasSuffix(m[1], "&") && strings.Trim(m[2], "0123456789-") == "" {
+			continue
+		}
+		out = append(out, m[2])
+	}
+	return out
+}
 
 // escapesResolved reports whether a resolved absolute path lands outside
 // root. tk is the token it came from, kept so the temp-dir exemption can
@@ -587,8 +607,8 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 			}
 		}
 	}
-	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-		if abs, ok := resolvePathArg(strings.Trim(m[1], `"'`), cwd); ok {
+	for _, raw := range redirectTargets(seg) {
+		if abs, ok := resolvePathArg(strings.Trim(raw, `"'`), cwd); ok {
 			add(abs)
 		}
 	}
@@ -630,8 +650,8 @@ func safeSegment(seg string, depth int) bool {
 }
 
 func writesRedirect(seg string) bool {
-	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-		p := strings.Trim(m[1], `"'`)
+	for _, raw := range redirectTargets(seg) {
+		p := strings.Trim(raw, `"'`)
 		if p != "/dev/null" && !strings.HasPrefix(p, "/dev/std") {
 			return true
 		}
@@ -792,13 +812,20 @@ func closerOf(quote byte) byte {
 
 // splitSegments breaks a command line at pipes, &&, ||, ; and newlines,
 // outside quotes. Subshell parentheses are stripped. Quotes are read as
-// stripQuoted reads them; see there for why the escapes matter.
+// stripQuoted reads them; see there for why the escapes matter. The &
+// and | of a redirection operator (>&, &>, >|, <&) are part of it, not a
+// separator: splitting `echo x >| ~/.bashrc` at the bar left a segment
+// ending in a bare > and another that was just the path, so the write
+// was seen by nothing.
 func Segments(s string) []string {
 	var segs []string
 	var cur strings.Builder
 	quote := byte(0)
+	redir := false // the previous byte was an unquoted, unescaped > or <
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+		afterRedir := redir
+		redir = false
 		switch {
 		case quote == '\'':
 			cur.WriteByte(c)
@@ -824,6 +851,11 @@ func Segments(s string) []string {
 			cur.WriteByte(c)
 			cur.WriteByte(s[i+1])
 			i++
+		case c == '>' || c == '<':
+			cur.WriteByte(c)
+			redir = true
+		case (c == '&' || c == '|') && afterRedir, c == '&' && i+1 < len(s) && s[i+1] == '>':
+			cur.WriteByte(c)
 		case c == ';' || c == '\n' || c == '|' || c == '&':
 			segs = append(segs, cur.String())
 			cur.Reset()
@@ -994,8 +1026,8 @@ func TrimWorkspaceCd(command, root string) string {
 // one command segment, as written.
 func Redirects(seg string) []string {
 	var out []string
-	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-		out = append(out, m[1])
+	for _, raw := range redirectTargets(seg) {
+		out = append(out, raw)
 	}
 	return out
 }
