@@ -203,3 +203,25 @@ func TestEscalationNearCapIsSilentWhenDisabled(t *testing.T) {
 		t.Fatalf("expected silence: %+v", *evs)
 	}
 }
+
+// A /model or /features change to the strong slot that lands while the
+// turn goroutine is resolving the old name must win: the old name's
+// resolution is not cached over it, or the new slot would be served by
+// the old model for the rest of the session. resolveCheap and
+// resolveVision already guard the same window.
+func TestAStrongSlotChangedDuringResolutionIsNotShadowedByTheOldOne(t *testing.T) {
+	a, _ := escalatableAgent()
+	changed := false
+	a.Route = func(model string) (llm.Provider, string, error) {
+		if !changed {
+			changed = true
+			a.SetStrongModel("newer-model")
+		}
+		return &fake{name: "openrouter"}, model, nil
+	}
+	a.resolveStrong(nil)
+	_, model, ok := a.resolveStrong(nil)
+	if !ok || model != "newer-model" {
+		t.Fatalf("after the change the strong slot resolves to %q (ok=%v), want newer-model", model, ok)
+	}
+}

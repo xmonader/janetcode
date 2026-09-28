@@ -138,6 +138,14 @@ func (a *Agent) resolveStrong(emit func(Event)) (llm.Provider, string, bool) {
 		notice = "strong_model: " + name + " resolved to no provider; escalation is off for this session"
 	}
 	a.escalateState.mu.Lock()
+	if strings.TrimSpace(a.StrongModel) != name {
+		// Changed while this resolved (Route runs without the lock):
+		// caching the old name's answer would serve the new slot with the
+		// old model for the rest of the session. This call stays on the
+		// session's model; the next one resolves the new name.
+		a.escalateState.mu.Unlock()
+		return nil, "", false
+	}
 	a.escalateState.resolved, a.escalateState.disabled = true, disabled
 	a.escalateState.prov, a.escalateState.model = prov, model
 	a.escalateState.mu.Unlock()
