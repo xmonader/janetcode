@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,9 +32,9 @@ func (s *stringList) Set(v string) error {
 
 // launchBackground starts a detached child that runs the prompt against
 // sess and returns immediately. The child is `janetcode --resume ID -p
-// prompt` with the permission flags the user gave, or --yolo when they
-// gave none, so unattended writes can land; attach is --resume of the
-// same id. A call the child's mode still asks about waits for
+// prompt` with the permission and run flags the user gave (with no
+// permission flag it runs in the default mode, see bgPermissionArgs);
+// attach is --resume of the same id. A call the child's mode still asks about waits for
 // janetcode --answer (see headless.InboxApprover).
 func launchBackground(sess *session.Session, prompt string, extra []string, perms []string) error {
 	if err := sess.EnsureWritten(); err != nil {
@@ -108,6 +109,39 @@ func bgPermissionArgs(o *options) []string {
 		rules = append(rules, "--sandbox")
 	}
 	return append(mode, rules...)
+}
+
+// bgRunArgs are the flags that shape the run itself, for the child. The
+// child reopens the session with --resume, which takes the model and the
+// provider from the configuration, not from the session: without these
+// `--bg --model x` ran on the default model and `--bg --max-cost 2` ran
+// unattended with no spending cap. The =value spelling keeps a value that
+// starts with a dash from reading as a flag.
+func bgRunArgs(o *options) []string {
+	var args []string
+	str := func(name, v string) {
+		if v != "" {
+			args = append(args, "--"+name+"="+v)
+		}
+	}
+	str("provider", o.provider)
+	str("model", o.model)
+	str("effort", o.effort)
+	if o.maxCost > 0 {
+		args = append(args, "--max-cost="+strconv.FormatFloat(o.maxCost, 'g', -1, 64))
+	}
+	if o.maxTurns > 0 {
+		args = append(args, "--max-turns="+strconv.Itoa(o.maxTurns))
+	}
+	if o.compactAt > 0 {
+		args = append(args, "--compact-at="+strconv.Itoa(o.compactAt))
+	}
+	str("until", o.until)
+	str("append-system-prompt", o.appendSystem)
+	for _, kv := range o.sets {
+		str("set", kv)
+	}
+	return args
 }
 
 // startBgRun, in a process --bg started, records the run as running and

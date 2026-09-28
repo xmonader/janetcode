@@ -83,6 +83,26 @@ func TestBgPermissionArgs(t *testing.T) {
 	}
 }
 
+// The flags that shape the run reach the child too, which reopens the
+// session with --resume and would otherwise run on the configured model
+// with no spending cap. Each one parses back to the value it came from.
+func TestBgRunArgs(t *testing.T) {
+	if got := bgRunArgs(&options{}); len(got) != 0 {
+		t.Fatalf("no run flags given, child gets %v", got)
+	}
+	o := &options{provider: "openrouter", model: "m-1", effort: "high", maxCost: 2.5, maxTurns: 7, compactAt: 90000,
+		until: "go test ./...", appendSystem: "-be brief", sets: stringList{"escalate_after=1", "decisions.triage=true"}}
+	fs, got := newFlagSet()
+	if err := fs.Parse(append(bgRunArgs(o), "-p", "x")); err != nil {
+		t.Fatal(err)
+	}
+	if got.provider != o.provider || got.model != o.model || got.effort != o.effort || got.maxCost != o.maxCost ||
+		got.maxTurns != o.maxTurns || got.compactAt != o.compactAt || got.until != o.until || got.appendSystem != o.appendSystem ||
+		strings.Join(got.sets, "|") != strings.Join(o.sets, "|") {
+		t.Fatalf("child parsed %+v from %v", got, bgRunArgs(o))
+	}
+}
+
 // A settled session keeps its background status in --sessions: the
 // "(settled)" mark used to replace the aside instead of joining it.
 func TestSessionListingKeepsBgStatusOfSettledSession(t *testing.T) {

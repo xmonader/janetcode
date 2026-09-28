@@ -260,5 +260,5 @@ func bgMode(o *options, sess *session.Session, initial string) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	return true, launchBackground(sess, text, o.addDir, bgPermissionArgs(o))
+	return true, launchBackground(sess, text, o.addDir, append(bgPermissionArgs(o), bgRunArgs(o)...))
 }
