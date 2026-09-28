@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -609,6 +610,15 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		dec := json.NewDecoder(strings.NewReader(string(data)))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(cfg); err != nil {
+			return nil, badf("config %s: %v", path, err)
+		}
+		// Decode stops after the first value: a stray closing brace, or a
+		// second object pasted below the first whose settings would be
+		// silently dropped, is as malformed as a missing comma.
+		if _, err := dec.Token(); err != io.EOF {
+			if err == nil {
+				err = fmt.Errorf("unexpected data after the top-level object at offset %d", dec.InputOffset())
+			}
 			return nil, badf("config %s: %v", path, err)
 		}
 	case errors.Is(err, os.ErrNotExist):
