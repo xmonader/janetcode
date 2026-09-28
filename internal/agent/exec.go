@@ -201,6 +201,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		if reason := a.locks().Denial(t, u.Input); reason != "" {
 			return nil, reason, nil
 		}
+		// toolGate judged the phase rule on the input the model sent; a
+		// hook's rewrite is what runs, so it is judged again here, or a
+		// test-file write rewritten into an implementation write would
+		// pass a gate its own input never faced.
+		if reason := a.locks().WritingDenial(t, u.Input); reason != "" {
+			return nil, reason, nil
+		}
 	}
 	subject, verdict, rule, hard := a.ruleDecision(u)
 	// The hard deny tier: a command that destroys the machine is refused

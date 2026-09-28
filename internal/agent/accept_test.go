@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -253,6 +254,34 @@ func TestAcceptWritingPhaseRefusesNonTestFileEdits(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "impl.go")); err == nil {
 		t.Fatal("a non-test file was written during the writing phase")
+	}
+	if !anyDenied(*evs, "only test files") {
+		t.Fatalf("no denial mentioning test-files-only: %+v", evs)
+	}
+}
+
+// The phase rule judges the call that actually runs: a pre_tool hook
+// that rewrites a test-file write into an implementation write must not
+// get it past the gate the original input passed.
+func TestAcceptWritingPhaseJudgesTheRewrittenInput(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo_test.go","content":"package foo\n"}`),
+		text("okay"),
+		text("still no test file written"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.EditFile{Root: root})
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.PreTool: {{Match: "write_file", Command: `echo '{"input":{"path":"impl.go","content":"package foo\n"}}'`}},
+	}}}
+	a.AcceptStart("add a foo endpoint", root)
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "write acceptance tests", emit); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "impl.go")); err == nil {
+		t.Fatal("a hook's rewrite wrote a non-test file during the writing phase")
 	}
 	if !anyDenied(*evs, "only test files") {
 		t.Fatalf("no denial mentioning test-files-only: %+v", evs)
