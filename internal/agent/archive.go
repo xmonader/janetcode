@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -156,8 +157,15 @@ func (ar *Archive) PutSubject(toolUse, name, subject, body string) (string, erro
 	if err := ar.load(); err != nil {
 		return "", err
 	}
+	// A call id is only unique within one conversation, and the archive is
+	// shared by every session of the project: a server that numbers its
+	// calls per response sends call_0 in all of them. So an id already on
+	// file is reused only when it holds this very output; otherwise the
+	// output gets an entry of its own and the call id points there now.
 	if id := ar.byUse[toolUse]; toolUse != "" && id != "" {
-		return id, nil
+		if _, have, err := ar.Get(id); err == nil && have == body {
+			return id, nil
+		}
 	}
 	hdr, _ := json.Marshal(Entry{ToolUse: toolUse, Name: name, Subject: subject, Size: len(body), Created: time.Now().UTC()})
 	for attempt := 0; attempt < 1000; attempt++ {
@@ -307,6 +315,20 @@ func inlineBudget(name string) int {
 
 func archiveNote(id string, size, shown int, digest string) string {
 	return fmt.Sprintf("[output is %s (sha256 %s); about %s of the middle is omitted here. The full output is saved as %s: expand_output {\"id\":%q,\"grep\":\"<regexp>\"} finds lines in it, {\"id\":%q,\"offset\":<line>,\"limit\":<lines>} reads a slice.]\n", textfmt.Bytes(int64(size)), digest, textfmt.Bytes(int64(size-shown)), id, id, id)
+}
+
+// reArchiveNoteID finds the archive id in an archiveNote.
+var reArchiveNoteID = regexp.MustCompile(`^\[output is [^\n]*? The full output is saved as (ctx-\d+):`)
+
+// archiveNoteID is the archive id named by the note at the head of a
+// tool result that was stashed or trimmed, or "". The note is the one
+// record of which entry holds this result: the tool-call id it was filed
+// under can name another session's entry too.
+func archiveNoteID(text string) string {
+	if m := reArchiveNoteID.FindStringSubmatch(text); m != nil {
+		return m[1]
+	}
+	return ""
 }
 
 // outputDigest identifies the output the stub stands for. Two calls that

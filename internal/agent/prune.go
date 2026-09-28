@@ -254,8 +254,8 @@ func (a *Agent) pruneTo(target int) int {
 		b := a.Messages[c.i].Blocks[c.j]
 		id := ""
 		if a.Archive != nil {
-			if id = a.Archive.IDFor(b.ToolUseID); id == "" {
-				id, _ = a.Archive.PutSubject(b.ToolUseID, c.use.Name, subjectOf(c.use.Name, c.use.Input), b.Text)
+			if id = archiveNoteID(b.Text); id == "" {
+				id, _ = a.Archive.PutSubject(c.use.ID, c.use.Name, subjectOf(c.use.Name, c.use.Input), b.Text)
 			}
 		}
 		ph := placeholder(c.use.Name, c.use.Input, b.Text, id)
@@ -363,12 +363,12 @@ func (a *Agent) trimOld(toolUse, name, subject, text string) string {
 	if a.Archive == nil {
 		return textfmt.TruncateTo(text, pruneKeep)
 	}
-	if id := a.Archive.IDFor(toolUse); id != "" {
+	if archiveNoteID(text) != "" {
 		// Already archived: keep the note that names the id, trim the rest.
-		if i := strings.Index(text, "\n"); i > 0 && strings.HasPrefix(text, "[output is ") {
+		if i := strings.Index(text, "\n"); i > 0 {
 			return text[:i+1] + textfmt.TruncateTo(text[i+1:], pruneKeep)
 		}
-		return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(textfmt.TruncateTo(text, pruneKeep))
+		return text
 	}
 	id, err := a.Archive.PutSubject(toolUse, name, subject, text)
 	if err != nil {

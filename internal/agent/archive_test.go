@@ -21,7 +21,7 @@ func TestArchivePutGetAndResume(t *testing.T) {
 	if err != nil || id != "ctx-1" {
 		t.Fatalf("id=%q err=%v", id, err)
 	}
-	if again, _ := ar.Put("use-1", "bash", "ignored"); again != id {
+	if again, _ := ar.Put("use-1", "bash", "line one\nline two\n"); again != id {
 		t.Fatalf("same tool use archived twice: %s", again)
 	}
 	if id2, _ := ar.Put("use-2", "grep", "x"); id2 != "ctx-2" {
@@ -48,6 +48,54 @@ func TestArchivePutGetAndResume(t *testing.T) {
 	}
 	if l := ar2.List(); len(l) != 3 || l[0].ID != "ctx-3" {
 		t.Fatalf("list = %+v", l)
+	}
+}
+
+// TestArchiveKeysAreNotSharedAcrossSessions covers the archive a
+// project's sessions share, under a server that numbers its calls per
+// response: every session's first call is call_0. The id recorded for
+// one session's call_0 was handed to the next session's, so a preview
+// of this session's output named an entry holding another session's, and
+// expand_output returned that.
+func TestArchiveKeysAreNotSharedAcrossSessions(t *testing.T) {
+	dir := t.TempDir()
+	first, err := NewArchive(dir).Put("call_0", "bash", "output of the first session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ar := NewArchive(dir)
+	id, err := ar.Put("call_0", "bash", "output of the second session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == first {
+		t.Fatalf("the second session's output was filed under the first session's entry %s", id)
+	}
+	if _, body, err := ar.Get(id); err != nil || body != "output of the second session" {
+		t.Fatalf("got %q, %v", body, err)
+	}
+	if again, _ := ar.Put("call_0", "bash", "output of the second session"); again != id {
+		t.Fatalf("the same output archived again got a second entry: %s, then %s", id, again)
+	}
+
+	// Pruning a result archives it under an entry that holds that result.
+	long := strings.Repeat("second session line\n", 600)
+	a := &Agent{Provider: &fake{}, Tools: tool.NewRegistry(), Archive: NewArchive(dir), Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "call_0", Name: "bash", Input: json.RawMessage(`{}`)}}},
+		llm.ToolResultMessage(llm.ToolResult("call_0", long, false)),
+		llm.TextMessage(llm.RoleAssistant, "a"), llm.TextMessage(llm.RoleUser, "b"),
+		llm.TextMessage(llm.RoleAssistant, "c"), llm.TextMessage(llm.RoleUser, "d"),
+		llm.TextMessage(llm.RoleAssistant, "e"), llm.TextMessage(llm.RoleUser, "f"),
+	}}
+	a.Prune()
+	got := a.Messages[2].Blocks[0].Text
+	nid := archiveNoteID(got)
+	if nid == "" {
+		t.Fatalf("no archive note: %.200q", got)
+	}
+	if _, body, err := a.Archive.Get(nid); err != nil || body != long {
+		t.Fatalf("the trimmed result points at %s, which holds %.40q (%v)", nid, body, err)
 	}
 }
 
