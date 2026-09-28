@@ -49,7 +49,10 @@ type Set struct {
 	hosts map[string]bool
 }
 
-var urlInText = regexp.MustCompile(`(?i)\bhttps?://[^\s<>"'` + "`" + `)\]]+`)
+// urlInText stops at "]" so a markdown link or a bracketed URL ends where
+// it should, but a bracketed IPv6 host is let through whole: without it
+// "http://[::1]:8080/" was cut at the bracket and never remembered.
+var urlInText = regexp.MustCompile(`(?i)\bhttps?://(?:\[[0-9a-z:.%-]+\][^\s<>"'` + "`" + `)\]]*|[^\s<>"'` + "`" + `)\]]+)`)
 
 // Note records every host named in text.
 func (s *Set) Note(text string) {
@@ -85,15 +88,22 @@ func (s *Set) Has(host string) bool {
 	if s.hosts[host] {
 		return true
 	}
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		return s.hosts[h]
-	}
+	name, port := splitHost(host)
 	for known := range s.hosts {
-		if h, _, err := net.SplitHostPort(known); err == nil && h == host {
+		if kn, kp := splitHost(known); kn == name && (kp == "" || port == "") {
 			return true
 		}
 	}
 	return false
+}
+
+// splitHost is net.SplitHostPort that also takes a host with no port,
+// bracketed IPv6 literal included: "[::1]" and "[::1]:80" are both "::1".
+func splitHost(h string) (name, port string) {
+	if n, p, err := net.SplitHostPort(h); err == nil {
+		return n, p
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(h, "["), "]"), ""
 }
 
 // cgnat is 100.64.0.0/10, the shared address space (RFC 6598).

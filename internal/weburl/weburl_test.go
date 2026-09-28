@@ -57,6 +57,17 @@ func TestSetRemembersWhatTheUserNamed(t *testing.T) {
 	if !s.Has("example.com") {
 		t.Fatal("example.com missing")
 	}
+	// An IPv6 literal is bracketed in a URL whether or not it has a port.
+	v6 := &Set{}
+	v6.Note("the service is at http://[::1]/ and http://[fd00::7]:8080/")
+	for _, h := range []string{"[::1]", "[::1]:9000", "[fd00::7]:8080", "[fd00::7]"} {
+		if !v6.Has(h) {
+			t.Errorf("%s not matched against the IPv6 hosts the user named", h)
+		}
+	}
+	if v6.Has("[fd00::7]:22") {
+		t.Error("a port the user did not name matched")
+	}
 	// A URL at the end of a sentence or in a list carries the sentence's
 	// punctuation, which is not part of the host.
 	s.Note("the API is on http://10.0.0.7:8080. Also try http://box.lan, or http://192.168.1.2:9000!")
