@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -131,5 +132,42 @@ func TestAnUnroutableVisionModelLeavesImagesAloneAndSaysSo(t *testing.T) {
 	}
 	if imagesIn(main.requests[0]) != 1 || len(notices) != 1 || !strings.Contains(notices[0], "cannot route to nonesuch") {
 		t.Fatalf("images = %d, notices = %q", imagesIn(main.requests[0]), notices)
+	}
+}
+
+// The description cache is bounded, but not below what one request
+// carries. It used to be emptied whenever it reached maxDescribed, so a
+// history holding more distinct images than that re-described nearly all
+// of them on every model call — one vision call per image per request,
+// for the rest of the session.
+func TestAHistoryWithMoreImagesThanTheCacheBoundIsDescribedOnce(t *testing.T) {
+	n := maxDescribed + 1
+	replies := make([]*llm.Response, 0, 2*n)
+	for range 2 * n {
+		replies = append(replies, text("a picture"))
+	}
+	vision := &fake{responses: replies}
+	a, _ := newAgent(t, &fake{}, nil)
+	withEyes(a, vision)
+	msgs := make([]llm.Message, 0, n)
+	for i := range n {
+		msgs = append(msgs, llm.Message{Role: llm.RoleUser, Blocks: screenshot(fmt.Sprintf("img-%d", i))})
+	}
+	a.bridgeImages(context.Background(), msgs, "m", nil)
+	if len(vision.requests) != n {
+		t.Fatalf("first request described %d images, want %d", len(vision.requests), n)
+	}
+	a.bridgeImages(context.Background(), msgs, "m", nil)
+	if extra := len(vision.requests) - n; extra != 0 {
+		t.Fatalf("the same history re-described %d images on the next request", extra)
+	}
+	// Images that have left the history do not keep the cache past its
+	// bound.
+	a.bridgeImages(context.Background(), msgs[n-2:], "m", nil)
+	a.vision.mu.Lock()
+	kept := len(a.vision.seen)
+	a.vision.mu.Unlock()
+	if kept > maxDescribed {
+		t.Fatalf("the cache kept %d descriptions for a history of 2 images", kept)
 	}
 }
