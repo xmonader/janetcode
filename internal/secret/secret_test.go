@@ -124,6 +124,48 @@ func TestRedactSecretsOnAnEnvDump(t *testing.T) {
 	}
 }
 
+// Shapes the net used to let through. The vendor tokens are the current
+// formats of hosts whose older formats were already caught (a GitHub
+// fine-grained token, a GitLab personal token, Slack's refresh token);
+// the rest are the ordinary places a key sits that the span patterns
+// only knew in one spelling — a name in JSON quotes, a header in a JSON
+// headers map, a password in a URL, the AWS secret in ~/.aws/credentials.
+func TestRedactSecretsCatchesCommonPlacements(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"token github_pat_11ABCDEFG0" + strings.Repeat("aB3d", 14), "token [redacted]"},
+		{"GITLAB=glpat-" + strings.Repeat("aB3d", 5), "GITLAB=[redacted]"},
+		{"xoxe-1-" + strings.Repeat("aB3d", 5), "[redacted]"},
+		{`{"api_key":"AbCdEf0123456789AbCdEf0123456789"}`, `{"api_key":"[redacted]"}`},
+		{`{\"apiKey\": \"AbCdEf0123456789AbCdEf0123456789\"}`, `{\"apiKey\": \"[redacted]\"}`},
+		{`"headers": {"Authorization": "Bearer 9f3a2b7c1d4e5f6071"}`, `"headers": {"Authorization": "Bearer [redacted]"}`},
+		{`{"x-api-key": "9f3a2b7c1d4e5f60"}`, `{"x-api-key": "[redacted]"}`},
+		{"origin\thttps://deploy:S3cretPassw0rd@git.example.org/o/r.git (fetch)", "origin\thttps://deploy:[redacted]@git.example.org/o/r.git (fetch)"},
+		{"postgres://app:hunter2hunter2@db:5432/app", "postgres://app:[redacted]@db:5432/app"},
+		{"aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYzzzzzzzKEY", "aws_secret_access_key = [redacted]"},
+	}
+	for _, c := range cases {
+		got, n := Redact(c.in)
+		if got != c.want || n != 1 {
+			t.Errorf("Redact(%q) = %q, %d; want %q, 1", c.in, got, n, c.want)
+		}
+		if Scan(c.in) == "" {
+			t.Errorf("Scan missed %q", c.in)
+		}
+	}
+	// A URL's userinfo is often not a secret at all: a documented local
+	// database, a user name alone, a variable, a placeholder.
+	for _, c := range []string{
+		"postgres://postgres:postgres@localhost:5432/db",
+		"ssh://git@github.com/o/r.git",
+		"https://user:${TOKEN}@example.com",
+		"mysql://root:<password>@127.0.0.1/app",
+	} {
+		if got, n := Redact(c); n != 0 {
+			t.Errorf("Redact(%q) = %q; want it untouched", c, got)
+		}
+	}
+}
+
 // Redact must agree with Scan on what is a secret, blank
 // only the span, and leave the surrounding evidence readable — a
 // decision state whose failing output is replaced wholesale is a

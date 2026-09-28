@@ -22,7 +22,9 @@ var secretPatterns = []struct {
 	{"a Google API key", regexp.MustCompile(`AIza[A-Za-z0-9_\-]{30,}`)},
 	{"an AWS access key id", regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)},
 	{"a GitHub token", regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{30,}`)},
-	{"a Slack token", regexp.MustCompile(`\bxox[baprs]-[A-Za-z0-9\-]{10,}`)},
+	{"a GitHub token", regexp.MustCompile(`\bgithub_pat_[A-Za-z0-9_]{40,}`)},
+	{"a GitLab token", regexp.MustCompile(`\bglpat-[A-Za-z0-9_\-]{20,}`)},
+	{"a Slack token", regexp.MustCompile(`\bxox[abceprs]-[A-Za-z0-9\-]{10,}`)},
 	{"a Stripe secret key", regexp.MustCompile(`\bsk_(?:live|test)_[A-Za-z0-9]{16,}`)},
 	{"a private key block", regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----`)},
 	{"a JSON web token", regexp.MustCompile(`\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}`)},
@@ -48,7 +50,14 @@ type spanPattern struct {
 
 // assignedSecret catches the shape rather than the vendor: a name that
 // says secret, assigned a long opaque value.
-var assignedSecret = regexp.MustCompile(`(?i)\b(?:api[_\- ]?key|secret[_\- ]?key|access[_\- ]?token|auth[_\- ]?token|password|passwd|client[_\- ]?secret)\b\s*[:=]\s*["']?([A-Za-z0-9_\-+/.]{20,})["']?`)
+//
+// The name may be quoted and the quotes escaped — `"api_key": "…"` in a
+// config file, `\"apiKey\":\"…\"` in JSON printed inside JSON — which is
+// where a key most often sits; `quoted` is that optional closing quote.
+var assignedSecret = regexp.MustCompile(`(?i)\b(?:api[_\- ]?key|secret[_\- ]?key|access[_\- ]?token|auth[_\- ]?token|password|passwd|client[_\- ]?secret|(?:aws_)?secret_access_key)\b` + quoted + `\s*[:=]\s*` + quoted + `([A-Za-z0-9_\-+/.]{20,})["']?`)
+
+// quoted is an optional quote, JSON-escaped or not.
+const quoted = `(?:\\?["'])?`
 
 // envAssign is one shell variable assignment: the shape a whole `env`
 // dump is made of. Whether it holds a credential is decided by the
@@ -57,9 +66,33 @@ var assignedSecret = regexp.MustCompile(`(?i)\b(?:api[_\- ]?key|secret[_\- ]?key
 var envAssign = regexp.MustCompile(`(?m)(?:^|[\s;&|(])(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=("[^"\n]{8,}?"|'[^'\n]{8,}?'|[^\s"'\n;&|]{8,})`)
 
 // authHeader and apiKeyHeader are the two ways a key travels in a
-// request the model pasted into a shell.
-var authHeader = regexp.MustCompile(`(?i)\b(?:proxy-)?authorization\s*:\s*(?:bearer|token|basic)\s+["']?([A-Za-z0-9_\-.=+/]{8,})`)
-var apiKeyHeader = regexp.MustCompile(`(?i)\b(?:x-api-key|x-auth-token|x-access-token|api-key)\s*:\s*["']?([^\s"'\n]{8,})`)
+// request the model pasted into a shell, or a headers map in a JSON
+// config wrote down.
+var authHeader = regexp.MustCompile(`(?i)\b(?:proxy-)?authorization` + quoted + `\s*:\s*` + quoted + `(?:bearer|token|basic)\s+["']?([A-Za-z0-9_\-.=+/]{8,})`)
+var apiKeyHeader = regexp.MustCompile(`(?i)\b(?:x-api-key|x-auth-token|x-access-token|api-key)` + quoted + `\s*:\s*` + quoted + `([^\s"'\\\n]{8,})`)
+
+// urlPassword is the password in a URL's userinfo — a git remote with a
+// token in it, a DATABASE_URL — which `git remote -v` and `env` print.
+// The user name stays; ok keeps the documented local database
+// (postgres:postgres) and anything else without a digit in it readable.
+var urlPassword = regexp.MustCompile(`\b[A-Za-z][A-Za-z0-9+.\-]*://([^\s:/@]+):([^\s:/@]+)@`)
+
+func urlPasswordOK(m []string) bool {
+	user, pw := m[1], m[2]
+	if pw == user {
+		return false
+	}
+	var letter, digit bool
+	for _, r := range pw {
+		switch {
+		case r >= '0' && r <= '9':
+			digit = true
+		case r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z':
+			letter = true
+		}
+	}
+	return (letter && digit) || len(pw) >= 16
+}
 
 // spanPatterns run after secretPatterns, in this order.
 var spanPatterns = []spanPattern{
@@ -67,6 +100,7 @@ var spanPatterns = []spanPattern{
 	{func(m []string) string { return "a credential in " + m[1] }, envAssign, 2, func(m []string) bool { return secretVarName(m[1]) && !pathValue(m[2]) }},
 	{func([]string) string { return "a bearer token" }, authHeader, 1, nil},
 	{func([]string) string { return "an API key header" }, apiKeyHeader, 1, nil},
+	{func([]string) string { return "a password in a URL" }, urlPassword, 2, urlPasswordOK},
 }
 
 // secretWords are the words that make a variable name a credential's
