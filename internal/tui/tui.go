@@ -81,8 +81,9 @@ type model struct {
 	// the session was reported as up for 2562047h47m16.854775807s.
 	openedAt       time.Time
 	pending        *permissionMsg
-	rung           int  // the highlighted rung of the pending call's rule ladder
-	denying        bool // the input box is collecting a reason for a denial
+	waitingPerms   []permissionMsg // prompts that arrived while another was up, in order
+	rung           int             // the highlighted rung of the pending call's rule ladder
+	denying        bool            // the input box is collecting a reason for a denial
 	status         string
 	lastTurn       string                   // cost summary of the last turn
 	lastTurnTokens string                   // its token counts, said last

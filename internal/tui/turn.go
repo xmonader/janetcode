@@ -257,8 +257,12 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	// over a turn that has ended answers into a channel nobody reads: the
 	// question stays on screen, and the denial reason being typed keeps
 	// the composer in a mode ("Why? the model reads this") that no longer
-	// means anything.
-	m.closePending()
+	// means anything. A prompt some other caller is still waiting on — a
+	// subagent running on its own — stays up, and so do those behind it.
+	if m.pending == nil || !m.pending.waitedOn() {
+		m.closePending()
+		m.nextPermission()
+	}
 	if m.asking != nil {
 		m.finishAsk()
 	}

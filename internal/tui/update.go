@@ -212,12 +212,15 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
-		m.pending = &msg
-		m.rung = msg.call.RuleIndex
-		m.turn.setPhase("waiting for your approval")
-		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
-		m.layout() // an impact line claims a footer row
-		m.refresh(false)
+		if m.pending != nil {
+			// Another caller is being asked already — subagents run side
+			// by side and each can bubble a prompt up. This one waits its
+			// turn: putting it up in place of the first left the first
+			// caller waiting for an answer that could no longer be given.
+			m.waitingPerms = append(m.waitingPerms, msg)
+			return nil, true
+		}
+		m.showPermission(msg)
 		return nil, true
 
 	case askMsg:

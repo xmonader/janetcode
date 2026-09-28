@@ -75,8 +75,37 @@ func (m *model) permissionsCommand(args []string) {
 }
 
 type permissionMsg struct {
+	// ctx is the asking caller's: once it is done nobody reads reply.
+	ctx   context.Context
 	call  agent.ToolCall
 	reply chan verdict
+}
+
+// waitedOn reports whether the caller is known to be waiting for this
+// answer still. A prompt without a context is taken to belong to the turn.
+func (p *permissionMsg) waitedOn() bool { return p.ctx != nil && p.ctx.Err() == nil }
+
+// showPermission puts a prompt up.
+func (m *model) showPermission(msg permissionMsg) {
+	m.pending = &msg
+	m.rung = msg.call.RuleIndex
+	m.turn.setPhase("waiting for your approval")
+	m.term.announce("janetcode", "approval needed: "+msg.call.Name)
+	m.layout() // an impact line claims a footer row
+	m.refresh(false)
+}
+
+// nextPermission puts up the prompt that was waiting behind the one just
+// closed, skipping any whose caller has stopped waiting.
+func (m *model) nextPermission() {
+	for m.pending == nil && len(m.waitingPerms) > 0 {
+		next := m.waitingPerms[0]
+		m.waitingPerms = m.waitingPerms[1:]
+		if next.ctx != nil && next.ctx.Err() != nil {
+			continue
+		}
+		m.showPermission(next)
+	}
 }
 
 // verdict is the user's answer to a permission prompt.
@@ -109,7 +138,7 @@ func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) 
 		return agent.Deny, "", "", errors.New("approve: no UI")
 	}
 	reply := make(chan verdict, 1)
-	a.send(permissionMsg{call: call, reply: reply})
+	a.send(permissionMsg{ctx: ctx, call: call, reply: reply})
 	select {
 	case v := <-reply:
 		return v.d, v.reason, v.rule, nil
@@ -145,6 +174,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	call := m.pending.call
 	m.closePending()
 	m.turn.setPhase("thinking")
+	defer m.nextPermission()
 	// Named by the rule the r key would save, because that is the shape
 	// both hints below are about — the highlighted rung, if the user
 	// moved along the ladder before answering.

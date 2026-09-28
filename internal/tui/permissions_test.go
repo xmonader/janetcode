@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -481,5 +482,59 @@ func TestDenyingSaysSoOnce(t *testing.T) {
 	}
 	if n := strings.Count(v, "enter sends"); n != 1 {
 		t.Fatalf("the keys are shown %d times, want once:\n%s", n, v)
+	}
+}
+
+// TestTwoPromptsAtOnceAreBothAnswered: two subagents running side by side
+// (the task tool is not mutating, so a batch of them runs in parallel)
+// can each bubble a prompt up at the same moment. The second replaced the
+// first, whose caller then waited for an answer nobody could give, and
+// the batch — and so the turn — never finished.
+func TestTwoPromptsAtOnceAreBothAnswered(t *testing.T) {
+	h := newHarness(t)
+	first, second := make(chan verdict, 1), make(chan verdict, 1)
+	h.update(permissionMsg{ctx: context.Background(), call: agent.ToolCall{ID: "c1", Name: "write_file"}, reply: first})
+	h.update(permissionMsg{ctx: context.Background(), call: agent.ToolCall{ID: "c2", Name: "write_file"}, reply: second})
+	h.keys("y")
+	select {
+	case v := <-first:
+		if v.d != agent.Allow {
+			t.Fatalf("first answered %v", v.d)
+		}
+	default:
+		t.Fatal("the first prompt was never answered: the second replaced it")
+	}
+	if h.m.pending == nil || h.m.pending.call.ID != "c2" {
+		t.Fatalf("the second prompt is not up after the first was answered: %+v", h.m.pending)
+	}
+	h.keys("n")
+	h.enter()
+	if v := <-second; v.d != agent.Deny {
+		t.Fatalf("second answered %v", v.d)
+	}
+	if h.m.pending != nil {
+		t.Fatal("a prompt is still up with nothing left to ask")
+	}
+}
+
+// TestAPromptWhoseCallerHasGoneIsNotShown: a prompt that waited behind
+// another is dropped, not put up, when the caller stopped waiting for it
+// in the meantime; and a turn ending does not take down a prompt some
+// other caller is still waiting on.
+func TestAPromptWhoseCallerHasGoneIsNotShown(t *testing.T) {
+	h := newHarness(t)
+	gone, cancel := context.WithCancel(context.Background())
+	h.update(permissionMsg{ctx: context.Background(), call: agent.ToolCall{ID: "c1", Name: "write_file"}, reply: make(chan verdict, 1)})
+	h.update(permissionMsg{ctx: gone, call: agent.ToolCall{ID: "c2", Name: "write_file"}, reply: make(chan verdict, 1)})
+	cancel()
+	h.keys("y")
+	if h.m.pending != nil {
+		t.Fatalf("a prompt nobody is waiting on was put up: %+v", h.m.pending.call)
+	}
+	live := make(chan verdict, 1)
+	h.update(permissionMsg{ctx: context.Background(), call: agent.ToolCall{ID: "c3", Name: "write_file"}, reply: live})
+	h.m.finishTurn(agentDoneMsg{})
+	if h.m.pending == nil || h.m.pending.call.ID != "c3" {
+		t.Fatal("the end of a turn took down a prompt its caller is still waiting on")
 	}
 }
