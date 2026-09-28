@@ -551,11 +551,21 @@ func runCheck(ctx context.Context, t Task, dir, outPath, hiddenGate string) (str
 	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer ccancel()
 	cmd := shell.Command(cctx, t.Check)
+	// Supervised, as verify's commands are: without a process group the
+	// timeout kills the shell alone, and without a bounded pipe wait a
+	// child the check leaves running holds CombinedOutput open for as long
+	// as it lives — past the timeout and past a cancelled run.
+	shell.Supervise(cmd)
 	cmd.Dir = dir
 	// Scrubbed of the agent's credentials: a task's check is project
 	// content, run and read back with its output.
 	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir, "EVAL_HIDDEN_GATE="+hiddenGate)
 	out, err := cmd.CombinedOutput()
+	// The check exited 0 and only a leaked child's hold on the pipe was
+	// cut: the check passed.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil
+	}
 	return strings.TrimSpace(string(out)), err
 }
 
