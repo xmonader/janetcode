@@ -91,6 +91,14 @@ const session = [
   const streaming = render('```go\nreturn fmt.Println("hi")', false);
   check('unclosed fence streams as codeblock', streaming.includes('class="codeblock"'));
   check('streaming fence uses generic tokenizer', streaming.includes('ts') && !streaming.includes('hljs-'));
+  // A longer fence holds a shorter one: the inner ```js line neither
+  // closes it nor lets the blank-line splitter cut the example apart.
+  const nested = render('````markdown\nExample:\n\n```js\nlet x = 1\n```\n\nafter\n````\n\n# Title', true);
+  check('nested fence stays one codeblock', (nested.match(/class="codeblock"/g) || []).length === 1, nested.slice(0, 300));
+  check('nested fence body kept inside', !nested.includes('<p>let x') && !nested.includes('<p>after'));
+  check('heading after nested fence', nested.includes('<h1>Title</h1>'));
+  const infoLine = render('```\na\n\n```go\nb\n```', true);
+  check('fence line with info string does not close', (infoLine.match(/class="codeblock"/g) || []).length === 1, infoLine.slice(0, 300));
   const mm = render('```mermaid\ngraph TD; A-->B\n```', true);
   check('mermaid fence marked for drawing', mm.includes('data-lang="mermaid"'));
 }

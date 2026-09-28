@@ -133,17 +133,23 @@
   }
 
   // splitBlocks cuts the source at blank lines, but never inside a
-  // fenced region, so each piece is independently parseable.
+  // fenced region, so each piece is independently parseable. A fence
+  // closes the way CommonMark closes it: the same character, at least as
+  // many of them, and nothing after but spaces. Closing on any fence
+  // line cut a ````markdown example at its inner ```js line and rendered
+  // the rest of the example as prose.
   function splitBlocks(t) {
     const lines = t.split("\n");
     const blocks = [];
-    let cur = [], inFence = false, fenceMark = "";
+    let cur = [], inFence = false, fenceMark = "", fenceLen = 0;
     for (const line of lines) {
-      const f = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+      const f = /^\s{0,3}(`{3,}|~{3,})(.*)$/.exec(line);
       if (f) {
         const mark = f[1][0];
-        if (!inFence) { inFence = true; fenceMark = mark; cur.push(line); continue; }
-        if (mark === fenceMark) { cur.push(line); blocks.push(cur.join("\n")); cur = []; inFence = false; fenceMark = ""; continue; }
+        if (!inFence) { inFence = true; fenceMark = mark; fenceLen = f[1].length; cur.push(line); continue; }
+        if (mark === fenceMark && f[1].length >= fenceLen && !f[2].trim()) {
+          cur.push(line); blocks.push(cur.join("\n")); cur = []; inFence = false; fenceMark = ""; fenceLen = 0; continue;
+        }
         cur.push(line); continue;
       }
       if (!inFence && /^\s*$/.test(line)) {
