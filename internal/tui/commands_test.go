@@ -552,6 +552,12 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 	if e, ok := store.Get("prefer-replies-under-ten-lines"); !ok || e.Scope != "global" || len(store.Entries()) != 2 {
 		t.Fatalf("global entry = %+v", store.Entries())
 	}
+	// The flag with nothing after it is a usage error, not the memory "-g".
+	h.keys("/remember -g")
+	h.enter()
+	if n := len(store.Entries()); n != 2 {
+		t.Fatalf("/remember -g alone stored something: %+v", store.Entries())
+	}
 	h.keys("/memory")
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "memory: 2 entries") || !strings.Contains(v, "(feedback): Always run make test before committing") || !strings.Contains(v, "(project, global)") && !strings.Contains(v, ", global)") {

@@ -153,8 +153,10 @@ func (m *model) memoryCommand(cmd, arg string) {
 	switch cmd {
 	case "/remember":
 		scope := "project"
-		for _, flag := range []string{"-g ", "--global "} {
-			if strings.HasPrefix(arg, flag) {
+		// The flag alone is a flag with nothing after it, not a fact:
+		// "/remember -g" used to be remembered as the memory "-g".
+		for _, flag := range []string{"-g", "--global"} {
+			if arg == flag || strings.HasPrefix(arg, flag+" ") {
 				scope, arg = "global", strings.TrimSpace(strings.TrimPrefix(arg, flag))
 			}
 		}
