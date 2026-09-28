@@ -261,6 +261,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	// cap exists to end a stream that never stops dribbling, and a
 	// per-attempt one multiplied it by the retry count.
 	callStart := time.Now()
+attempts:
 	for {
 		ctx, wd = llm.WatchSince(parent, p.cfg.Limits, callStart)
 		rt.ResetWatchdog(wd)
@@ -294,6 +295,22 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 				p.ring.OK(idx)
 				rt.Landed()
 				break
+			}
+			if stall := wd.Err(); stall != nil && parent.Err() == nil {
+				// The watchdog killed the wait for headers. The transport
+				// reports that as a bare context cancellation, which the
+				// retry policy reads as the user giving up, and this
+				// attempt's context is dead besides — so the stall is
+				// judged as itself, and a retry gets a fresh watchdog
+				// exactly as a stall mid-stream does.
+				wd.Stop()
+				if llm.LifetimeStalled(stall) {
+					return nil, stall
+				}
+				if werr := rt.Wait(parent, stall); werr != nil {
+					return nil, werr
+				}
+				continue attempts
 			}
 			if p.learnDialect(err) {
 				// A parameter the server rejects was dropped or renamed;

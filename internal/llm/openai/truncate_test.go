@@ -215,3 +215,32 @@ func TestTruncatedRetryEmitsTheDiscard(t *testing.T) {
 		t.Fatalf("a consumer that honours the discard read %q", text)
 	}
 }
+
+// A server that goes silent before it has even sent the response headers
+// is the same stall as one that goes silent mid-stream, and is retried
+// the same way. The kill used to surface inside the request loop as the
+// transport's bare context cancellation, which the retry policy reads as
+// the user giving up — so it was final here while the Anthropic provider
+// and a mid-stream stall were both retried.
+func TestStallBeforeHeadersIsRetried(t *testing.T) {
+	var calls int32
+	p := newTestProviderWith(t, Config{MaxRetries: 1, Limits: llm.StreamLimits{Idle: 80 * time.Millisecond}},
+		func(w http.ResponseWriter, r *http.Request) {
+			if atomicAdd(&calls) == 1 {
+				// Read the body first: only then does the server watch the
+				// connection and cancel r.Context when the client leaves.
+				io.Copy(io.Discard, r.Body)
+				<-r.Context().Done() // never answers
+				return
+			}
+			w.Header().Set("Content-Type", "text/event-stream")
+			io.WriteString(w, sse(`{"choices":[{"delta":{"content":"second"},"finish_reason":"stop"}]}`))
+		})
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if calls != 2 || resp.Message.Text() != "second" {
+		t.Fatalf("calls = %d text = %q", calls, resp.Message.Text())
+	}
+}
