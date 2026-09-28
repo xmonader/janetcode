@@ -5,12 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/mcp"
 )
 
 // TestDoctorReportsProjectFeatures runs doctor in a project with hooks,
@@ -158,6 +163,56 @@ func TestDoctorFailsOnlyTheProviderInUse(t *testing.T) {
 	}
 	if strings.Contains(got, "[FAIL] provider") {
 		t.Errorf("a provider failed:\n%s", got)
+	}
+}
+
+// A repair --fix could not carry out fails the run: every check passing
+// and a failed repair used to end in "all checks passed" and exit 0.
+func TestDoctorFixFailsWhenARepairFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only directory")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "text/event-stream")
+		io.WriteString(w, `data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`+"\n\ndata: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	cfgDir := filepath.Join(home, ".config", "janetcode")
+	os.MkdirAll(cfgDir, 0o700)
+	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{
+		"provider": "local", "model": "m",
+		"providers": {"local": {"type": "openai", "base_url": "`+srv.URL+`/v1", "api_key": "k"}}
+	}`), 0o600)
+	// An expired login with no refresh token is a repair; the read-only
+	// directory makes it fail.
+	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
+	if err := tokens.Put("https://mcp.example.com", mcp.Token{AccessToken: "a", Expiry: time.Now().Add(-time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(cfgDir, 0o500)
+	t.Cleanup(func() { os.Chmod(cfgDir, 0o700) })
+	t.Chdir(t.TempDir())
+
+	var out bytes.Buffer
+	if err := doctor(context.Background(), &out, config.Overrides{}, false); err != nil {
+		t.Fatalf("the checkup itself should pass here: %v\n%s", err, out.String())
+	}
+	out.Reset()
+	err := doctor(context.Background(), &out, config.Overrides{}, true)
+	if err == nil || strings.Contains(out.String(), "all checks passed") {
+		t.Fatalf("a failed repair passed the run: err=%v\n%s", err, out.String())
+	}
+	out.Reset()
+	err = doctorJSON(context.Background(), &out, config.Overrides{}, true)
+	var got struct{ OK bool }
+	if jerr := json.Unmarshal(out.Bytes(), &got); jerr != nil || got.OK || err == nil {
+		t.Fatalf("json: ok=%v err=%v jerr=%v\n%s", got.OK, err, jerr, out.String())
 	}
 }
 

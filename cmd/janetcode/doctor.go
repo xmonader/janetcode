@@ -244,9 +244,15 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
 	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, ts)
 	fmt.Fprintln(w)
-	printResult(w, doctorfix.Run(fixEnv(cfgPath, cwd, sessDir, ts), fix))
+	repairs := doctorfix.Run(fixEnv(cfgPath, cwd, sessDir, ts), fix)
+	printResult(w, repairs)
 	if failed > 0 {
 		return fmt.Errorf("%s failed", textfmt.Plural(failed, "check"))
+	}
+	// A repair --fix could not carry out is a failure of the run: the
+	// checks passing does not mean the machine is as --fix left it.
+	if repairs.Error != "" {
+		return errors.New(repairs.Error)
 	}
 	fmt.Fprintln(w, "all checks passed")
 	return nil
@@ -305,7 +311,7 @@ func doctorJSON(ctx context.Context, w io.Writer, ov config.Overrides, fix bool)
 		Failed  int               `json:"failed"`
 		Checks  []doctorCheck     `json:"checks"`
 		Repairs *cmdresult.Result `json:"repairs,omitempty"`
-	}{version, failed == 0, failed, sink.checks, sink.repairs}
+	}{version, failed == 0 && err == nil, failed, sink.checks, sink.repairs}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	if eerr := enc.Encode(report); eerr != nil {
