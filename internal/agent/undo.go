@@ -325,6 +325,10 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 		a.pushCheckpoint(before)
 	}
 	done, err := a.restore(ctx, entry, true)
+	if errors.As(err, new(nothingReverted)) {
+		a.unpop(ctx, entry, before, captured, &a.cp.redo, &a.cp.all)
+		return nil, err
+	}
 	if captured {
 		a.manifestCaptured(ctx, before, &a.cp.all)
 	}
@@ -586,6 +590,13 @@ func (a *Agent) Undo(ctx context.Context) ([]string, error) {
 		a.pushRedo(now)
 	}
 	done, err := a.restore(ctx, cp, true)
+	if errors.As(err, new(nothingReverted)) {
+		// Nothing changed, so the turn is still there to undo: popped
+		// for good, a retry once git recovered undid the turn before it
+		// instead, and a redo "restored" the state the tree was already in.
+		a.unpop(ctx, cp, now, captured, &a.cp.all, &a.cp.redo)
+		return nil, err
+	}
 	if captured {
 		a.manifestCaptured(ctx, now, &a.cp.redo)
 	}
@@ -596,6 +607,30 @@ func (a *Agent) Undo(ctx context.Context) ([]string, error) {
 		a.rollbackConversation(cp)
 	}
 	return done, err
+}
+
+// nothingReverted is a restore that failed before it touched anything.
+type nothingReverted struct{ error }
+
+func (e nothingReverted) Unwrap() error { return e.error }
+
+// unpop reverses an Undo or Redo that reverted nothing: the entry goes
+// back on the stack it was popped from (to, all or redo), and the state
+// captured before it comes off the other one (from). Its git ref is
+// dropped with the lock released, as every git call here is.
+func (a *Agent) unpop(ctx context.Context, entry, captured Checkpoint, pushed bool, to, from *[]Checkpoint) {
+	a.cp.mu.Lock()
+	*to = append(*to, entry)
+	a.cp.dirty = true
+	n := len(*from)
+	drop := pushed && n > 0 && (*from)[n-1].When.Equal(captured.When) && sameSnap((*from)[n-1].Snap, captured.Snap)
+	if drop {
+		*from = (*from)[:n-1]
+	}
+	a.cp.mu.Unlock()
+	if repo := a.snaps(); drop && repo != nil && captured.Snap != nil {
+		repo.Drop(context.WithoutCancel(ctx), *captured.Snap)
+	}
 }
 
 // popCheckpoint takes the newest checkpoint off the undo stack. ok is
@@ -733,7 +768,7 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint, scoped bool) ([]stri
 			skip, reasons, ferr := a.foreignChanges(rctx, repo, cp)
 			if ferr != nil {
 				cancel()
-				return nil, fmt.Errorf("undo needs to know which files this turn changed so it does not revert anything else, and git could not say (%w): nothing was reverted", ferr)
+				return nil, nothingReverted{fmt.Errorf("undo needs to know which files this turn changed so it does not revert anything else, and git could not say (%w): nothing was reverted", ferr)}
 			}
 			reverted, err = repo.RestoreSkip(rctx, *cp.Snap, skip)
 			keys := make([]string, 0, len(reasons))

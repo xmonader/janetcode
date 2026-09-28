@@ -659,6 +659,15 @@ func TestUndoRefusesWhenGitCannotSayWhatChanged(t *testing.T) {
 	if repo.restored {
 		t.Fatal("the undo restored the tree anyway")
 	}
+	// Nothing was reverted, so the turn is still the one to undo: the
+	// refusal used to pop it for good, and a retry once git recovered
+	// undid the turn before it instead.
+	if cps := a.Checkpoints(); len(cps) != 1 || cps[0].Turn != 1 {
+		t.Fatalf("checkpoints after the refused undo = %+v, want turn 1 still there", cps)
+	}
+	if _, err := a.Redo(context.Background()); !errors.Is(err, ErrNothingToRedo) {
+		t.Fatalf("a refused undo left something to redo: %v", err)
+	}
 }
 
 // TestUndoRevertsATypechange: git reports a file swapped for a symlink as
