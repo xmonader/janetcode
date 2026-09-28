@@ -350,6 +350,7 @@ func TestOverflowLowersCompactThreshold(t *testing.T) {
 		"400: prompt is too long: 210000 tokens > 200000 maximum":                           200000,
 		"This model's maximum context length is 32768 tokens. However, you requested 40000": 32768,
 		"rate limited": 0,
+		"input length and `max_tokens` exceed context limit: 188240 + 21333 > 200000, decrease input length or `max_tokens` and try again": 200000,
 	} {
 		if got := windowFromError(errors.New(msg)); got != want {
 			t.Errorf("%q -> %d, want %d", msg, got, want)

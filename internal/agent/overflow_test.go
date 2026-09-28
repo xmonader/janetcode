@@ -19,6 +19,8 @@ func TestOverflowNotConfusedWithThrottling(t *testing.T) {
 		"input (9000 tokens) is longer than the model's context length",
 		"exceeds the available context size",
 		"range of input length should be [1, 129024]",
+		// Anthropic, when the prompt fits but not with room for max_tokens.
+		"input length and `max_tokens` exceed context limit: 188240 + 21333 > 200000, decrease input length or `max_tokens` and try again",
 	}
 	notOverflow := []string{
 		"ThrottlingException: Too many tokens, please wait before trying again.",

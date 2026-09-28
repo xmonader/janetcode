@@ -27,6 +27,7 @@ var notOverflow = []string{
 var overflowPatterns = []string{
 	"prompt is too long",                // Anthropic
 	"request_too_large",                 // Anthropic
+	"exceed context limit",              // Anthropic: input + max_tokens over the window
 	"context_length_exceeded",           // OpenAI
 	"maximum context length",            // OpenAI, OpenRouter
 	"exceeds the context window",        // OpenAI
