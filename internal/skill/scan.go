@@ -3,6 +3,7 @@ package skill
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -280,10 +281,10 @@ func scanFile(f scanEntry, skillFile string) []Finding {
 	if archiveExt[strings.ToLower(filepath.Ext(f.rel))] {
 		return []Finding{at(Warning, "ships an archive, which was not scanned")}
 	}
-	if f.info.Size() > scanMaxBytes {
-		return []Finding{at(Warning, fmt.Sprintf("is over %d KB and was not scanned", scanMaxBytes/1024))}
-	}
-	data, err := os.ReadFile(f.abs)
+	// A file over the bound is scanned as far as the bound, not skipped:
+	// padding SKILL.md past it with the attack on its first lines (the
+	// ones that are attached) was enough to turn a block into a warning.
+	data, err := readHead(f.abs, scanMaxBytes)
 	if err != nil {
 		return nil
 	}
@@ -293,9 +294,17 @@ func scanFile(f scanEntry, skillFile string) []Finding {
 	if bytes.IndexByte(data, 0) >= 0 {
 		return nil // other binary data: nothing a line rule can read
 	}
+	var out []Finding
+	if f.info.Size() > scanMaxBytes {
+		out = append(out, at(Warning, fmt.Sprintf("is over %d KB; only the first %d KB were scanned", scanMaxBytes/1024, scanMaxBytes/1024)))
+		// The last line read is cut short; a rule seeing half of it
+		// would be guessing.
+		if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
+			data = data[:i+1]
+		}
+	}
 	markdown := strings.EqualFold(filepath.Ext(f.rel), ".md")
 	isSkillFile := f.abs == skillFile
-	var out []Finding
 	text := string(data)
 	if privateKey.MatchString(text) {
 		out = append(out, at(Warning, "contains a private key"))
@@ -347,6 +356,16 @@ func scanFile(f scanEntry, skillFile string) []Finding {
 		}
 	}
 	return out
+}
+
+// readHead reads at most n bytes from the start of the file at p.
+func readHead(p string, n int64) ([]byte, error) {
+	fh, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	return io.ReadAll(io.LimitReader(fh, n))
 }
 
 func containsAny(s string, subs []string) bool {
