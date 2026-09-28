@@ -57,4 +57,12 @@ func TestSetRemembersWhatTheUserNamed(t *testing.T) {
 	if !s.Has("example.com") {
 		t.Fatal("example.com missing")
 	}
+	// A URL at the end of a sentence or in a list carries the sentence's
+	// punctuation, which is not part of the host.
+	s.Note("the API is on http://10.0.0.7:8080. Also try http://box.lan, or http://192.168.1.2:9000!")
+	for _, h := range []string{"10.0.0.7:8080", "box.lan", "192.168.1.2:9000"} {
+		if !s.Has(h) {
+			t.Errorf("%s, named with punctuation after it, is not remembered", h)
+		}
+	}
 }

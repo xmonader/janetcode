@@ -57,6 +57,10 @@ func (s *Set) Note(text string) {
 		return
 	}
 	for _, m := range urlInText.FindAllString(text, -1) {
+		// Punctuation that ends the sentence or the list item the URL sits
+		// in is not part of it: "on http://10.0.0.7:8080." names port 8080,
+		// and keeping the dot remembers a host no fetch will ever match.
+		m = strings.TrimRight(m, ".,;:!?")
 		u, err := url.Parse(m)
 		if err != nil || u.Host == "" {
 			continue
