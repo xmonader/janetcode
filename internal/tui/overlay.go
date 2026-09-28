@@ -599,6 +599,10 @@ func (m *model) jobDetailView(height int) string {
 	return clipHeight(strings.Join(parts, "\n"), height)
 }
 
+// jobStdinTimeout bounds /jobs stdin: how long the window waits for a
+// job to take a line before it gives up and says so.
+var jobStdinTimeout = 3 * time.Second
+
 // jobsCommand opens the live jobs overlay, or kills one by number.
 func (m *model) jobsCommand(args []string) {
 	if len(args) >= 2 && args[0] == "stdin" {
@@ -612,9 +616,13 @@ func (m *model) jobsCommand(args []string) {
 			return
 		}
 		text := strings.Join(args[2:], " ")
-		// Background: the UI types short lines (they fit the pipe buffer),
-		// and /jobs kill rescues a wedged write by closing the pipe.
-		if err := m.opts.Jobs.Write(context.Background(), n, text); err != nil {
+		// This runs on the UI goroutine, so it is bounded: a job that
+		// never reads its stdin fills the pipe, and an unbounded write
+		// into a full pipe froze the whole window — /jobs kill, the
+		// rescue for a wedged job, could no longer even be typed.
+		ctx, cancel := context.WithTimeout(m.life, jobStdinTimeout)
+		defer cancel()
+		if err := m.opts.Jobs.Write(ctx, n, text); err != nil {
 			m.transcript.errorf("%v", err)
 			return
 		}

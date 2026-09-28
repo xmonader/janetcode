@@ -1817,3 +1817,34 @@ func TestPermissionsShowsTheSummary(t *testing.T) {
 		t.Fatalf("summary under /edits:\n%s", got)
 	}
 }
+
+// TestJobsStdinDoesNotFreezeTheWindow: /jobs stdin wrote on the UI
+// goroutine with no bound, so a line sent to a job that never reads its
+// stdin — once the pipe was full — blocked Update forever, and /jobs
+// kill, the way out, could not be typed.
+func TestJobsStdinDoesNotFreezeTheWindow(t *testing.T) {
+	defer func(d time.Duration) { jobStdinTimeout = d }(jobStdinTimeout)
+	jobStdinTimeout = 200 * time.Millisecond
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `sh -c 'sleep 30'`) // never reads stdin
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = jobs.Kill(job.ID) })
+	h := newHarness(t)
+	h.m.opts.Jobs = jobs
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.m.jobsCommand([]string{"stdin", fmt.Sprint(job.ID), strings.Repeat("x", 256<<10)})
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("/jobs stdin into a full pipe blocked the UI goroutine")
+	}
+	last := h.m.transcript.entries[len(h.m.transcript.entries)-1]
+	if last.kind != entryError {
+		t.Fatalf("the abandoned write was not reported; last entry %q", last.text)
+	}
+}
