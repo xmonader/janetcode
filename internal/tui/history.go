@@ -21,6 +21,20 @@ import (
 type histEntry struct {
 	Text string `json:"text"`
 	Bash bool   `json:"bash,omitempty"`
+	// full is Text with its paste chips put back, "" when it has none.
+	// Only this process knows what "[paste #1 +40 lines]" stands for: the
+	// numbering starts again at 1 in the next one, so a chip written to
+	// the file would recall as whatever that process pasted first. The
+	// file gets the full text; the in-memory entry keeps the chip.
+	full string
+}
+
+// stored is the entry as it is written to the file.
+func (e histEntry) stored() histEntry {
+	if e.full != "" {
+		return histEntry{Text: e.full, Bash: e.Bash}
+	}
+	return e
 }
 
 // histCap is how many prompts are kept. Beyond that the oldest go: the
@@ -38,6 +52,8 @@ type historyState struct {
 	draft   string // input saved while browsing
 	// lastUser is the prompt of the running or last turn.
 	lastUser string
+	// expand puts paste chips back into a prompt (model.inflatePastes).
+	expand func(string) string
 }
 
 // load reads the history recorded for one working directory.
@@ -57,6 +73,11 @@ func (h *historyState) remember(text string) {
 	}
 	if e.Text == "" {
 		return
+	}
+	if h.expand != nil {
+		if full := h.expand(e.Text); full != e.Text {
+			e.full = full
+		}
 	}
 	if n := len(h.entries); n == 0 || h.entries[n-1] != e {
 		h.entries = append(h.entries, e)
@@ -156,7 +177,7 @@ func appendPromptHistory(path string, e histEntry, count int) error {
 		// Past the cap the file is rewritten with the tail we hold.
 		return nil
 	}
-	line, err := json.Marshal(e)
+	line, err := json.Marshal(e.stored())
 	if err != nil {
 		return err
 	}
@@ -177,7 +198,7 @@ func rewritePromptHistory(path string, entries []histEntry) error {
 	}
 	var sb strings.Builder
 	for _, e := range entries {
-		line, err := json.Marshal(e)
+		line, err := json.Marshal(e.stored())
 		if err != nil {
 			continue
 		}

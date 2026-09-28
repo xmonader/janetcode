@@ -201,6 +201,7 @@ func newModel(opts Options) *model {
 	m.transcript.cwd = opts.Cwd
 	m.clipboard = readClipboardImage
 	m.copyText = writeClipboardText
+	m.hist.expand = m.inflatePastes
 	if opts.Session != nil {
 		m.hist.load(dirOf(opts.Session), opts.Cwd)
 	}
