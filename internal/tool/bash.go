@@ -169,6 +169,16 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	result := out.String()
 	exit := 0
+	// A command that starts something with & and returns — `npm run dev
+	// &`, `python -m http.server &` — exits 0 while the process it left
+	// behind still holds the output pipe. WaitDelay then closes the pipe
+	// and Wait reports ErrWaitDelay for a command that succeeded; that
+	// used to fall to the default case below, so the model got an opaque
+	// "WaitDelay expired" error and none of the output.
+	leftBehind := errors.Is(err, exec.ErrWaitDelay)
+	if leftBehind {
+		err = nil
+	}
 	if err != nil {
 		var ee *exec.ExitError
 		switch {
@@ -190,6 +200,13 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if exit != 0 {
 		result += exitNote(in.Command, exit)
+	}
+	if leftBehind {
+		// What it left running may change the tree at any moment, as a
+		// background job may, so neither this result nor any earlier one
+		// can be replayed.
+		t.Cache.invalidate()
+		return textfmt.Truncate(result + "\n[the command exited but left a process running that held its output open; that process was not stopped, and nothing it prints from now on is collected. Use background: true for servers and watchers]"), nil
 	}
 	result = textfmt.Truncate(result)
 	if (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {

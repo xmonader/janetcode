@@ -221,3 +221,21 @@ func TestBashAcceptsATimeoutWrittenTheOtherWay(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+// A command that starts something with & and returns exits 0 while what
+// it started still holds the output pipe. That used to come back as the
+// error "bash: exec: WaitDelay expired before I/O complete", with the
+// output of the command itself thrown away.
+func TestBashCommandThatLeavesAProcessBehindKeepsItsOutput(t *testing.T) {
+	b := Bash{Root: t.TempDir()}
+	out, err := b.Run(context.Background(), raw(`{"command":"echo started; sleep 5 &"}`))
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.HasPrefix(out, "started\n") || !strings.Contains(out, "background: true") {
+		t.Fatalf("got %q", out)
+	}
+	if strings.Contains(out, "[exit code") {
+		t.Fatalf("a command that exited 0 is reported as failing: %q", out)
+	}
+}
