@@ -135,6 +135,33 @@ func TestDiffAndApply(t *testing.T) {
 	}
 }
 
+// The patch is for git apply, not for a person, so the user's taste in
+// diffs must not reach it: prefixes dropped, colour forced on, an external
+// diff tool or a textconv filter each make a patch that does not apply.
+func TestDiffIgnoresPresentationConfig(t *testing.T) {
+	dir := repo(t)
+	ctx := context.Background()
+	for _, kv := range [][2]string{{"diff.noprefix", "true"}, {"color.ui", "always"}, {"diff.external", "false"}} {
+		if _, err := Run(ctx, dir, nil, "config", kv[0], kv[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	patch, err := Diff(ctx, dir, "", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := t.TempDir()
+	if _, err := Run(ctx, dst, nil, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(ctx, dst, patch); err != nil {
+		t.Fatalf("%v\npatch:\n%s", err, patch)
+	}
+	if b, err := os.ReadFile(filepath.Join(dst, "a.txt")); err != nil || string(b) != "one\n" {
+		t.Fatalf("a.txt = %q, %v", b, err)
+	}
+}
+
 func TestShort(t *testing.T) {
 	if Short("0123456789abcdef") != "0123456789ab" || Short("abc") != "abc" {
 		t.Fatal("Short")
