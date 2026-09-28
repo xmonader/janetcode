@@ -632,7 +632,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 	}
 	mergeProviders(cfg, getenv)
-	fileProvider, fileModel := cfg.Provider, cfg.Model
+	// Normalised as cfg.Provider is below, so "OpenRouter" in the file
+	// is recognised as the provider the file's model belongs to.
+	fileProvider, fileModel := strings.ToLower(strings.TrimSpace(cfg.Provider)), cfg.Model
 	setIf(&cfg.Provider, "JANETCODE_PROVIDER")
 	setIf(&cfg.Model, "JANETCODE_MODEL")
 	setIf(&cfg.Effort, "JANETCODE_EFFORT")
