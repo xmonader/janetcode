@@ -81,22 +81,49 @@ func TestWriteGuardFollowsSymlinks(t *testing.T) {
 	}
 }
 
-// Where the filesystem folds case, so does the guard.
-func TestSelfPathFoldsCaseWhereTheFilesystemDoes(t *testing.T) {
+// The guard judged the path as written, so a symlink inside the
+// workspace that leads to a control surface — cfg -> .janetcode, or a
+// link to janetcode's own config file — let write_file and edit_file
+// change hooks or permissions without asking, whatever the mode: the
+// confinement check passes it, because .janetcode is inside the root.
+// And on a case-insensitive filesystem .JanetCode/hooks.json is the same
+// file as .janetcode/hooks.json, while the comparison was exact.
+func TestSelfModifyGuardSeesThroughSymlinksAndCase(t *testing.T) {
 	root := t.TempDir()
-	old := foldCase
-	defer func() { foldCase = old }()
-	abs := filepath.Join(root, ".JANETCODE", "hooks.json")
-	foldCase = true
-	if SelfPath(root, abs) == "" {
-		t.Error(".JANETCODE/hooks.json is not guarded where case folds")
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	if err := os.MkdirAll(filepath.Join(root, ".janetcode"), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if SelfPath(root, filepath.Join(root, ".MCP.json")) == "" {
-		t.Error(".MCP.json is not guarded where case folds")
+	if err := os.MkdirAll(filepath.Join(cfg, "janetcode"), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	foldCase = false
-	if got := SelfPath(root, abs); got != "" {
-		t.Errorf(".JANETCODE is guarded on a case-sensitive filesystem: %q", got)
+	os.WriteFile(filepath.Join(cfg, "janetcode", "config.json"), []byte("{}"), 0o644)
+	if err := os.Symlink(".janetcode", filepath.Join(root, "settings")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	os.Symlink(filepath.Join(cfg, "janetcode", "config.json"), filepath.Join(root, "cfg.json"))
+	w := WriteFile{Root: root}
+	for _, p := range []string{"settings/hooks.json", "settings/new/x.json", "cfg.json"} {
+		if ask, _ := w.Guard(json.RawMessage(`{"path":"` + p + `","content":"x"}`)); !ask {
+			t.Errorf("%s reaches a control surface through a symlink and must ask", p)
+		}
+	}
+	if ask, _ := w.Guard(json.RawMessage(`{"path":"main.go","content":"x"}`)); ask {
+		t.Fatal("an ordinary file must not be guarded")
+	}
+
+	defer func(v bool) { caseInsensitiveFS = v }(caseInsensitiveFS)
+	caseInsensitiveFS = true
+	if ask, _ := w.Guard(json.RawMessage(`{"path":".JanetCode/hooks.json","content":"x"}`)); !ask {
+		t.Error("on a case-insensitive filesystem .JanetCode is .janetcode")
+	}
+	if ask, _ := w.Guard(json.RawMessage(`{"path":".MCP.json","content":"x"}`)); !ask {
+		t.Error("on a case-insensitive filesystem .MCP.json is .mcp.json")
+	}
+	caseInsensitiveFS = false
+	if ask, _ := w.Guard(json.RawMessage(`{"path":".JanetCode/hooks.json","content":"x"}`)); ask {
+		t.Error("on a case-sensitive filesystem .JanetCode is a different directory")
 	}
 }
 
