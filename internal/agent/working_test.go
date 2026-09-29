@@ -143,6 +143,42 @@ func TestWorkingMemoryBounds(t *testing.T) {
 	}
 }
 
+// A server that numbers calls per response sends call_0 every time; the
+// harness renames the second (callids.go) but its result still carries
+// call_0. Each result must be counted against the call it answers, not
+// against the first call that ever had that id — which would drop the
+// second command as already seen.
+func TestWorkingMemoryCountsCallsThatShareAServerID(t *testing.T) {
+	use := func(id, reply, cmd string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{
+			Type: llm.BlockToolUse, ID: id, ReplyID: reply, Name: "bash",
+			Input: json.RawMessage(fmt.Sprintf(`{"command":%q}`, cmd)),
+		}}}
+	}
+	result := func(text string) llm.Message {
+		return llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockToolResult, ToolUseID: "call_0", Text: text}}}
+	}
+	var w WorkingMemory
+	w.absorb([]llm.Message{
+		llm.TextMessage(llm.RoleUser, "build it"),
+		use("call_0", "", "go test ./..."), result("exit 1"),
+		use("call_0#2", "call_0", "go build ./..."), result("ok"),
+	})
+	var got []string
+	for _, c := range w.Commands {
+		got = append(got, c.Command)
+	}
+	if len(got) != 2 || got[0] != "go test ./..." || got[1] != "go build ./..." {
+		t.Fatalf("commands = %q, want both, each once", got)
+	}
+	// A later compaction's head with another call_0 is not taken for one
+	// already counted.
+	w.absorb([]llm.Message{use("call_0#3", "call_0", "go vet ./..."), result("ok")})
+	if len(w.Commands) != 3 {
+		t.Fatalf("commands after a later absorb = %+v", w.Commands)
+	}
+}
+
 func TestAsksSurviveCompactionVerbatim(t *testing.T) {
 	var w WorkingMemory
 	w.absorb([]llm.Message{

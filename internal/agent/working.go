@@ -117,7 +117,11 @@ func (w *WorkingMemory) absorb(msgs []llm.Message) {
 	if w.seen == nil {
 		w.seen = map[string]bool{}
 	}
-	uses := map[string]llm.Block{}
+	// A result is matched to its call by position, not by the id it
+	// carries: that is the server's, and a server that numbers calls per
+	// response gives many calls the same one. seen is keyed by the
+	// call's own id, which the harness keeps unique.
+	answered := answeredCalls(msgs)
 	edited := map[string]int{}
 	for i, f := range w.Edited {
 		edited[f.Path] = i
@@ -127,8 +131,8 @@ func (w *WorkingMemory) absorb(msgs []llm.Message) {
 		cmds[c.Command] = i
 	}
 	order := len(w.Commands)
-	for _, m := range msgs {
-		for _, b := range m.Blocks {
+	for mi, m := range msgs {
+		for bi, b := range m.Blocks {
 			switch b.Type {
 			case llm.BlockText:
 				if m.Role == llm.RoleUser && !strings.HasPrefix(b.Text, "[") && strings.TrimSpace(b.Text) != "" {
@@ -137,14 +141,12 @@ func (w *WorkingMemory) absorb(msgs []llm.Message) {
 					}
 					w.Asks = appendUnique(w.Asks, prefix(b.Text, askChars))
 				}
-			case llm.BlockToolUse:
-				uses[b.ID] = b
 			case llm.BlockToolResult:
-				u, ok := uses[b.ToolUseID]
-				if !ok || b.IsError || w.seen[b.ToolUseID] {
+				u, ok := answered[[2]int{mi, bi}]
+				if !ok || b.IsError || w.seen[u.ID] {
 					continue
 				}
-				w.seen[b.ToolUseID] = true
+				w.seen[u.ID] = true
 				var in struct {
 					Path    string `json:"path"`
 					Command string `json:"command"`
