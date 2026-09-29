@@ -826,15 +826,35 @@ func (c *Cache) Get(ctx context.Context) (*Index, error) {
 
 // ChangedFiles lists paths that differ from HEAD (git status), for the
 // personalisation.
+//
+// The paths are relative to root, as the index's are. Porcelain status
+// names them from the top of the repository whatever the directory, so a
+// session rooted in a subdirectory never matched a single changed file;
+// it also collapsed a new directory to "dir/", and the old path that
+// follows a rename's entry was read as an entry of its own and cut three
+// bytes into its name.
 func ChangedFiles(ctx context.Context, root string) []string {
-	out, err := exec.CommandContext(ctx, "git", "-C", root, "status", "--porcelain", "-z").Output()
+	prefix, err := exec.CommandContext(ctx, "git", "-C", root, "rev-parse", "--show-prefix").Output()
 	if err != nil {
 		return nil
 	}
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "status", "--porcelain", "-z", "--untracked-files=all", "--", ".").Output()
+	if err != nil {
+		return nil
+	}
+	pre := strings.TrimSpace(string(prefix))
 	var paths []string
-	for _, entry := range strings.Split(string(out), "\x00") {
-		if len(entry) > 3 {
-			paths = append(paths, entry[3:])
+	entries := strings.Split(string(out), "\x00")
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
+		if len(entry) <= 3 {
+			continue
+		}
+		if entry[0] == 'R' || entry[0] == 'C' || entry[1] == 'R' || entry[1] == 'C' {
+			i++ // the original path follows as its own field
+		}
+		if p, ok := strings.CutPrefix(entry[3:], pre); ok {
+			paths = append(paths, p)
 		}
 	}
 	return paths
