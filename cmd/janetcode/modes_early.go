@@ -156,6 +156,8 @@ func offlineMode(o *options) (bool, error) {
 		return true, showSession(os.Stdout, o.showSess)
 	case o.searchSess != "":
 		return true, searchSessionsMode(os.Stdout, o.searchSess)
+	case o.auditSess != "":
+		return true, auditMode(os.Stdout, o.auditSess)
 	case o.replayPath != "":
 		path, _, _, err := whatif.ResolveSession(o.replayPath)
 		if err != nil {

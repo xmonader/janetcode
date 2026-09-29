@@ -15,7 +15,7 @@ type Tool struct {
 
 func (*Tool) Name() string { return "memory" }
 func (*Tool) Description() string {
-	return "Long-term memory across sessions. action \"recall\" returns the entries relevant to query (or every entry when query is empty). action \"remember\" saves knowledge worth keeping for future sessions: a user preference or correction (type feedback), a fact about the user (user), a decision and its reason (decision), a project fact that is not obvious from the code (project), or a pointer (reference); entries are kept for this project; a rule for every project is the user's to make with /remember -g, so suggest that when they state one. Give the same name to update an entry. action \"forget\" removes one you or the automatic extraction wrote, by name; an entry the user saved with /remember is theirs to remove. Do not record task progress or anything already in the index."
+	return "Long-term memory across sessions. action \"recall\" returns the entries relevant to query (or every entry when query is empty). action \"remember\" saves knowledge worth keeping for future sessions: a user preference or correction (type feedback), a fact about the user (user), a decision and its reason (decision), a project fact that is not obvious from the code (project), or a pointer (reference); entries are kept for this project; a rule for every project is the user's to make with /remember -g, so suggest that when they state one. Give the same name to update an entry. action \"forget\" removes one by name. Do not record task progress or anything already in the index."
 }
 func (*Tool) Mutating() bool { return false }
 func (*Tool) Schema() json.RawMessage {

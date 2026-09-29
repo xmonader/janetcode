@@ -58,6 +58,18 @@ const (
 	// the model-visible surface; the model is never shown a decision's
 	// probabilities.
 	TypeDecision = "decision"
+	// TypePermission records how one call that could change something
+	// (or that was refused) was authorized: Name and CallID are the call,
+	// Reason what settled it ("rule bash(go test *)", "mode: yolo", "the
+	// user: allow", "pre-tool hook", ...), Denied whether it was refused
+	// and Output the refusal. Log-only; the audit log chains it with the
+	// rest (see audit.go).
+	TypePermission = "permission"
+	// TypeFileChange records one file a tool call changed: Name is the
+	// path, CallID the call, Arguments the content digests as
+	// "<before>-><after>" (sha256, "absent" for a file that did not
+	// exist). Log-only.
+	TypeFileChange = "file/change"
 )
 
 // Gate sources on a TypeGate event.

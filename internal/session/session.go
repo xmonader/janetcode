@@ -118,6 +118,17 @@ type Session struct {
 	lastSync time.Time
 	// leased is set while this Session holds the lease; see lease.go.
 	leased bool
+	// opened is how many events Open read from disk. The audit log
+	// state (audit.go): whether it has been read, how many records it
+	// has and the last one's hash, and how many of ev it covers.
+	opened      int
+	auditLoaded bool
+	auditN      int
+	auditHead   string
+	audited     int
+	// lastDigest is the digest of the event Append just wrote, from the
+	// bytes it wrote, so the audit record does not marshal it again.
+	lastDigest string
 }
 
 // Dir returns the sessions directory, honouring XDG_DATA_HOME.
@@ -254,6 +265,7 @@ func open(path, id string, want func(Meta) bool) (*Session, []llm.Message, bool,
 	if s.Meta.ID == "" {
 		return nil, nil, false, fmt.Errorf("session %s has no metadata", id)
 	}
+	s.opened = len(s.ev)
 	return s, FoldSurface(s.ev), true, nil
 }
 
@@ -378,6 +390,11 @@ func (s *Session) Append(e Event) (int, error) {
 		return 0, err
 	}
 	s.ev = append(s.ev, e)
+	// The event stands whether or not its audit record could be
+	// written: VerifyAudit reports the gap.
+	sum := sha256.Sum256(b)
+	s.lastDigest = hex.EncodeToString(sum[:])
+	_ = s.auditLocked()
 	return e.Seq, nil
 }
 

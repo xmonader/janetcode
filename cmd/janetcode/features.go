@@ -79,6 +79,7 @@ var flagWhen = map[string]string{
 	"fork":                   "the session you want is open in another janetcode, or you want to branch it and keep the original",
 	"show":                   "reading a past conversation, or one another janetcode is running, without opening it",
 	"search":                 "you remember what was said but not which session it was in",
+	"audit":                  "you need to show what a session did, what allowed each change, and that its record has not been altered since",
 	"init":                   "first run: a config file to edit rather than a blank one to invent",
 	"mcp-auth":               "a remote MCP server needs an OAuth login once",
 	"append-system-prompt":   "an experiment that adds instructions, recorded so the A/B is traceable",

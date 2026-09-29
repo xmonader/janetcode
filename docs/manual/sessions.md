@@ -96,6 +96,48 @@ janetcode --bg "fix the tests"
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
 
+## The audit log
+
+Every event a session records — each model call with the model, provider,
+route, usage and cost it was made with; each tool call and its result;
+what authorized each call that could change something (a permission
+rule, the mode, a hook, or your answer at the prompt) and what refused one;
+and every file a tool changed, with the sha256 of its content before and
+after — also gets a record in `<id>.audit` beside the session. Each record
+carries the hash of the one before it, so the chain cannot be edited in the
+middle without every record after it changing.
+
+```
+janetcode --audit <session>
+```
+
+checks that chain against the session and prints what the session did,
+from the record alone, without running a model, a tool or anything on the
+network. At the bottom it says whether the two agree:
+
+```
+turn 1
+  user       delete the build directory
+  model      deepseek-v4.1-flash [openai, in 1840 out 96, $0.0004]: I will remove it.
+  permission bash allowed by the user: allow
+  call       bash {"command":"rm -rf build"}
+  result     bash ok: (no output)
+
+audit: intact — 5 events vouched for by 6 chained records
+head 3f0c…  (keep it to show later that nothing was cut off the end)
+```
+
+An event changed after it was written, one removed from the session, one
+added to it by anything but janetcode, and a record edited in the audit log
+are each named, and the command exits 1. Both files are in janetcode's data
+directory, which the file tools and the command guard already treat as
+janetcode's own: the model has to ask before it can touch either. What a
+chain cannot show on its own is the end of both files cut off together;
+the head hash `--audit` prints is the thing to keep somewhere else if that
+matters. A session recorded before the audit log existed gets one from its
+next event on, and the report says how many earlier events nothing vouches
+for. `--replay` prints the same verdict before it replays a recording.
+
 ## Rewinding a session
 
 `/undo turn n` (see

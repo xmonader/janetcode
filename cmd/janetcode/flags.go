@@ -282,6 +282,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.fork, "fork", false, "with --resume or --continue: continue in a copy of the session, leaving the original as it was -- the way on when another janetcode has it open")
 	fs.StringVar(&o.showSess, "show", "", "print a saved session's conversation as Markdown and exit, without opening it: safe while another janetcode has it open")
+	fs.StringVar(&o.auditSess, "audit", "", "check a session's audit log (the hash-chained record of every event: tool calls, what authorized each, the files they changed, model calls) against the session, print what it did turn by turn without running anything, then exit; exits 1 when the two do not agree")
 	fs.StringVar(&o.searchSess, "search", "", "search every saved session's conversation for these words (all of them, any case) and exit: the matching sessions, newest first, with the turn and the line that matched")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
 	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")
