@@ -81,6 +81,10 @@ func TestFlagErrorsAreOneLineUsageErrors(t *testing.T) {
 		{[]string{"--bogus"}, "unknown flag --bogus (janetcode --help all lists them)"},
 		{[]string{"-x"}, "unknown flag -x (janetcode --help all lists them)"},
 		{[]string{"--max-cost", "abc"}, `--max-cost: "abc" is not a number`},
+		// ParseFloat reads these, and each read as no ceiling at all.
+		{[]string{"--max-cost", "NaN"}, `--max-cost: "NaN" is not an amount in USD (0 for no ceiling)`},
+		{[]string{"--max-cost", "Inf"}, `--max-cost: "+Inf" is not an amount in USD (0 for no ceiling)`},
+		{[]string{"--max-cost=-1"}, `--max-cost: "-1" is not an amount in USD (0 for no ceiling)`},
 		{[]string{"--eval-timeout", "soon"}, `--eval-timeout: "soon" is not a duration like 90s or 5m`},
 		{[]string{"--yolo=maybe"}, `--yolo: "maybe" is not true or false`},
 		{[]string{"--model"}, "--model needs a value"},

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -315,6 +316,13 @@ func (s *startup) stageFlags() (bool, error) {
 			return true, nil
 		}
 		return true, flagError(s.fs, err)
+	}
+	// The flag package reads "NaN" and "Inf" as numbers. No spend is
+	// ever >= NaN and none reaches +Inf, and a negative figure was taken
+	// for "unset": each ran with no ceiling while the user had asked for
+	// one. /budget refuses the same values (agent.ParseBudget).
+	if c := s.opts.maxCost; !(c >= 0) || math.IsInf(c, 0) {
+		return true, headless.BadInput("--max-cost: %q is not an amount in USD (0 for no ceiling)", s.fs.Lookup("max-cost").Value.String())
 	}
 	if s.opts.continueC {
 		s.opts.cont = true
