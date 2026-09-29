@@ -121,6 +121,7 @@ var configWhen = map[string][2]string{
 	"show_thinking":        {"render the model's reasoning in the terminal", "you want the first visible token sooner and do not read the reasoning"},
 	"auto_approve":         {"approve every tool call without asking", "a sandbox or a container"},
 	"max_iterations":       {"cap on model calls in one turn", "a turn that loops is a turn that spends"},
+	"ca_file":              {"PEM file of extra certificate authorities every HTTPS connection trusts (JANETCODE_CA_FILE adds one from the environment)", "you are behind a TLS-intercepting proxy or use a gateway with a private CA"},
 	"compact_at":           {"estimated token count that triggers compaction", "you want compaction earlier, later, or never (negative disables)"},
 	"theme":                {"auto, dark, light or a named palette", "the terminal's own detection gets it wrong, or you want one of the builtin or user themes"},
 	"themes":               {"user-defined palettes by name, each a role→colour map with an optional base", "you want a colour scheme the builtins do not ship, or to tweak one that does"},

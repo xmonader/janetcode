@@ -23,6 +23,7 @@ import (
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/rates"
@@ -127,6 +128,10 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 		}
 		if err == nil {
 			row(true, "selected", fmt.Sprintf("%s / %s", cfg.Provider, cfg.Model))
+			if cas := netcfg.Added(); len(cas) > 0 {
+				sort.Strings(cas)
+				row(true, "certificates", "trusted beside the system roots: "+strings.Join(cas, ", "))
+			}
 			if cfg.Decisions != nil {
 				d := cfg.Decisions
 				key := os.Getenv(d.KeyEnv())

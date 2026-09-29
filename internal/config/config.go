@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/statusline"
@@ -78,6 +79,11 @@ type Config struct {
 	// dark, light, or the name of a builtin or user theme. See the themes
 	// package for the builtins.
 	Theme string `json:"theme,omitempty"`
+	// CAFile is a PEM file of extra certificate authorities every
+	// outbound HTTPS connection trusts beside the system's (a
+	// TLS-intercepting proxy, a private gateway). JANETCODE_CA_FILE adds
+	// one from the environment. See netcfg.
+	CAFile string `json:"ca_file,omitempty"`
 	// Themes are user-defined palettes by name, each a role→colour map with
 	// an optional base to inherit from. They override or add to the
 	// builtins and are validated on load (a bad colour or an unknown role
@@ -531,7 +537,16 @@ func Load(ov Overrides) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return load(p, os.Getenv, ov)
+	cfg, err := load(p, os.Getenv, ov)
+	// The extra roots go in before any client is built from this
+	// configuration: a provider, MCP or fetch_url made first would
+	// refuse the proxy's certificate for the rest of the process.
+	if cfg != nil && cfg.CAFile != "" {
+		if _, caErr := netcfg.AddCAFile(cfg.CAFile); caErr != nil {
+			return nil, badf("config %s: ca_file: %v", p, caErr)
+		}
+	}
+	return cfg, err
 }
 
 // inferProvider picks a backend when none was configured: Anthropic when

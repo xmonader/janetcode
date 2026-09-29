@@ -95,6 +95,40 @@ tool call — a readable narrative at roughly a fifth more context per
 call. Unlike `thinking` there is no per-request budget to weigh it
 against; the reasons are read or they are not.
 
+### Proxies and private certificate authorities
+
+Every connection janetcode makes (the providers, `fetch_url`,
+`web_search`, remote MCP servers and their OAuth logins, `--update`, the
+decisions service, the price table) goes through the proxy the standard
+variables name: `HTTPS_PROXY` (and `HTTP_PROXY` for plain http), with
+`NO_PROXY` listing hosts to reach directly (`localhost,127.0.0.1,.corp`).
+Lower-case spellings work too.
+
+A proxy that intercepts TLS, or a gateway with a certificate from a
+private CA, needs that CA trusted. Put its certificate (PEM, one or more)
+in a file and name it:
+
+```json
+{ "ca_file": "~/certs/corp-root.pem" }
+```
+
+or `JANETCODE_CA_FILE=~/certs/corp-root.pem` for a run. Both may be set;
+each adds to the system's roots and replaces nothing. A file that cannot
+be read or holds no certificate is a configuration error (exit 52), not a
+warning, because the alternative is every call failing later with a
+certificate error that does not say why.
+
+`SSL_CERT_FILE` and `SSL_CERT_DIR` are honoured on every platform. On
+Linux and the BSDs they *replace* the system bundle, as they do for
+OpenSSL and curl; on macOS and Windows, where Go verifies against the
+system store and would otherwise ignore them, janetcode adds what they
+name to the system roots.
+
+Commands janetcode runs for you (`bash`, hooks, MCP servers started as
+processes) inherit your environment unchanged and use their own trust
+settings: Node reads `NODE_EXTRA_CA_CERTS`, Python's requests reads
+`REQUESTS_CA_BUNDLE`, git reads `http.sslCAInfo`.
+
 ### The sandbox key
 
 `sandbox` names the sandbox profile a session in this project starts
