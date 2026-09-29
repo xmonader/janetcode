@@ -92,7 +92,8 @@
 <tr><td><code>/changes</code></td><td><code>[n]</code></td><td>this session&#x27;s file changes grouped by turn and intent; n shows one change&#x27;s hunks</td></tr>
 <tr><td><code>/blame</code></td><td><code>&lt;path&gt;</code></td><td>which change wrote each line of a file changed this session</td></tr>
 <tr><td><code>/redo</code></td><td></td><td>reapply what the last /undo reverted (until the next change)</td></tr>
-<tr><td><code>/mcp</code></td><td><code>[trust|auth &lt;server&gt;|logout &lt;server&gt;]</code></td><td>MCP servers and their tools; trust starts the project&#x27;s .mcp.json servers; auth logs in to a remote server with OAuth</td></tr>
+<tr><td><code>/mcp</code></td><td><code>[trust|reconnect [server]|auth &lt;server&gt;|logout &lt;server&gt;]</code></td><td>MCP servers and their tools; reconnect restarts one that went down; trust starts the project&#x27;s .mcp.json servers; auth logs in to a remote server with OAuth</td></tr>
+<tr><td><code>/plugin</code></td><td><code>[install &lt;git url|dir|name@market&gt;|show|trust|enable|disable|update|remove|marketplace add|browse]</code></td><td>plugins: bundles of commands, skills, agent profiles, hooks and MCP servers in Claude Code's layout; hooks and servers stay off until <code>/plugin trust</code></td></tr>
 <tr><td><code>/egress</code></td><td></td><td>what the last turn sent off this machine: hosts, bytes, files and tool output, memory and skills attached, values redacted; and the egress policy</td></tr>
 <tr><td><code>/trust</code></td><td><code>[full | instructions | untrusted] [session]</code></td><td>how far this project&#x27;s own skills, agents, commands, rules, hooks, MCP servers, verify commands, allow rules and recipes are let in</td></tr>
 <tr><td><code>/hooks</code></td><td><code>[trust]</code></td><td>hooks in effect; trust enables the project&#x27;s .janetcode/hooks.json</td></tr>

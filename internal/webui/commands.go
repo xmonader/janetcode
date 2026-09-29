@@ -26,7 +26,7 @@ var webCommands = []string{
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua", "/trust", "/egress",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/plugin", "/cua", "/trust", "/egress",
 }
 
 var webArgs = map[string]string{
@@ -322,6 +322,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/mcp": func(s *server, arg string) (bool, error) {
 		s.mcpCommand(arg)
+		return false, nil
+	},
+	"/plugin": func(s *server, arg string) (bool, error) {
+		s.pluginCommand(strings.Fields(arg))
 		return false, nil
 	},
 	"/cua": (*server).cmdCua,

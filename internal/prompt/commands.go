@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/plugin"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -16,6 +17,8 @@ type Custom struct {
 	Help string // first heading or line of the file
 	Body string
 	Path string
+	// Plugin names the installed plugin the command came from, if any.
+	Plugin string
 }
 
 // CustomCommands loads templates from <cwd>/.janetcode/commands/*.md and
@@ -23,15 +26,21 @@ type Custom struct {
 // of the same name. Pass "" to skip a location.
 func CustomCommands(cwd, configDir string) []Custom {
 	byName := map[string]Custom{}
-	project := ""
-	if cwd != "" {
-		project = filepath.Join(cwd, ".janetcode")
-	}
-	for _, dir := range []string{configDir, project} {
-		if dir == "" {
-			continue
+	type loc struct{ dir, plugin string }
+	var locs []loc
+	if configDir != "" {
+		locs = append(locs, loc{filepath.Join(configDir, "commands"), ""})
+		// Installed plugins' commands come after the user's own and
+		// before the project's, which shadow them.
+		for _, src := range plugin.Dirs(configDir, "commands") {
+			locs = append(locs, loc{src.Dir, src.Plugin})
 		}
-		entries, err := os.ReadDir(filepath.Join(dir, "commands"))
+	}
+	if cwd != "" {
+		locs = append(locs, loc{filepath.Join(cwd, ".janetcode", "commands"), ""})
+	}
+	for _, l := range locs {
+		entries, err := os.ReadDir(l.dir)
 		if err != nil {
 			continue
 		}
@@ -39,7 +48,7 @@ func CustomCommands(cwd, configDir string) []Custom {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 				continue
 			}
-			p := filepath.Join(dir, "commands", e.Name())
+			p := filepath.Join(l.dir, e.Name())
 			data, err := os.ReadFile(p)
 			if err != nil {
 				continue
@@ -49,7 +58,7 @@ func CustomCommands(cwd, configDir string) []Custom {
 				continue
 			}
 			name := strings.TrimSuffix(e.Name(), ".md")
-			byName[name] = Custom{Name: name, Help: textfmt.HeadingLine(body, 60), Body: body, Path: p}
+			byName[name] = Custom{Name: name, Help: textfmt.HeadingLine(body, 60), Body: body, Path: p, Plugin: l.plugin}
 		}
 	}
 	out := make([]Custom, 0, len(byName))

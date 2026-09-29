@@ -94,6 +94,7 @@ var commandWhen = map[string]string{
 	"/egress":          "you want to know which hosts the last turn sent data to, and which files and memories went with it",
 	"/trust":           "a repository ships skills, hooks or MCP servers and you want to see what it would let in, or let it in",
 	"/voice":           "typing is slow or painful for you, or a request is easier said than written",
+	"/plugin":          "a set of commands, skills, agents, hooks or MCP servers someone packaged to install together",
 }
 
 // commandInvoke overrides what the catalogue says to type, for the few

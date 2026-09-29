@@ -174,6 +174,9 @@ func Run(ctx context.Context, opts Options) error {
 	opts.Addr = ln.Addr().String()
 	s := newServer(ctx, opts)
 	s.askTrust()
+	if opts.MCP != nil && opts.MCP.Manager != nil {
+		opts.MCP.Manager.SetNotify(s.notice)
+	}
 	hs := &http.Server{Handler: s.handler()}
 	served := make(chan struct{})
 	go func() {

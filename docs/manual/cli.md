@@ -50,6 +50,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
+| `--mcp-serve` | serve janetcode as an MCP server on stdio: one tool, `janetcode_task`, runs a prompt in this directory and returns the answer, session id, verdict and usage. Read-only unless `--auto-edits`, `--auto` or `--yolo` is given; see [Extending](extending.md#janetcode-as-an-mcp-server) |
 | `--web` | serve the session in a browser instead of the terminal |
 | `--web-addr <host:port>` | listen address for `--web` (default `127.0.0.1:8787`). Loopback unless you name another host. The page requires the access token in the printed URL, on loopback too, since other users of the machine can reach it (`JANETCODE_WEB_TOKEN` fixes it) |
 | `--inspect <subject>` | print one part of the session state and exit; `list` names them |
@@ -67,6 +68,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--ask` | add a sensitive-call rule for this run: what it matches always asks, in every mode, e.g. `--ask '*(touches:**/.env)'` (see [Permission rules](interface.md#permission-rules)) |
 | `--trust <level>` | the project's trust level for this run only, never written down: `untrusted`, `instructions` (its skills, agent profiles, custom commands and rules) or `full` (also its hooks, MCP servers, verify commands, allow rules and recipes). `JANETCODE_TRUST` does the same. See [Project trust](interface.md#project-trust) |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |
+| `--plugin "<args>"` | manage plugins from the shell and exit: the arguments `/plugin` takes, e.g. `--plugin list`, `--plugin "install https://github.com/someone/kit"`, `--plugin "trust kit"`. See [Plugins](extending.md#plugins) |
 | `--update` | replace this binary with the latest release: the download is checked against the release's `SHA256SUMS` and written beside the old binary before it is renamed over it. A build from source says it is not a release; `JANETCODE_RELEASES` points at a mirror |
 | `--version` | print the version |
 

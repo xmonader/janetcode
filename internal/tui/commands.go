@@ -183,6 +183,9 @@ var dispatch = map[string]cmdHandler{
 	"/model":    (*model).cmdModel,
 	"/features": (*model).cmdFeatures,
 	"/jev":      (*model).cmdJev,
+	"/plugin": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		return m.pluginCommand(fields[1:]), true
+	},
 	"/mcp": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		// Quotes keep a header value with a space in it one argument.
 		args, err := mcp.SplitArgs(strings.TrimPrefix(strings.TrimSpace(text), fields[0]))

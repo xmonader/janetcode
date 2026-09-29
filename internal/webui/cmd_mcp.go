@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcpcmd"
@@ -30,7 +31,7 @@ type MCPOptions struct {
 	Trust       trust.Store
 }
 
-const mcpUsage = "usage: /mcp [search <words> | add <name> <command|url> [--env K=V] [--header 'Name: value'] | add --from <repo> --yes | remove <name> --yes]"
+const mcpUsage = "usage: /mcp [search <words> | reconnect [name] | add <name> <command|url> [--env K=V] [--header 'Name: value'] | add --from <repo> --yes | remove <name> --yes]"
 
 // mcpCommand answers /mcp. Everything that writes or starts anything runs
 // through runBusy, which serialises it against turns and against another
@@ -61,6 +62,8 @@ func (s *server) mcpCommand(arg string) {
 		s.mcpAdd(args)
 	case "remove", "rm":
 		s.mcpRemove(strings.Fields(rest))
+	case "reconnect":
+		s.mcpReconnect(strings.Fields(rest))
 	default:
 		s.errf("%s", mcpUsage)
 	}
@@ -75,6 +78,8 @@ func (s *server) mcpListing() string {
 	for _, st := range status {
 		known[st.Name] = true
 		switch {
+		case st.Down:
+			fmt.Fprintf(&b, "⚠ %s\n", st.DownLine(time.Now()))
 		case st.Starting:
 			fmt.Fprintf(&b, "… %s starting\n", st.Name)
 		case st.Err != nil:
@@ -194,4 +199,34 @@ func (s *server) mcpRemove(args []string) {
 	s.runBusy("removing MCP server "+name, func(ctx context.Context) {
 		s.showResult(mcpcmd.Remove(ctx, s.mcpEnv(), name))
 	})
+}
+
+// mcpReconnect answers /mcp reconnect [name]: restart one server, or
+// every one that is down or failed, without waiting for its backoff.
+func (s *server) mcpReconnect(names []string) {
+	o := s.opts.MCP
+	if len(names) == 0 {
+		for _, st := range o.Manager.Status() {
+			if st.Down || st.Err != nil {
+				names = append(names, st.Name)
+			}
+		}
+		if len(names) == 0 {
+			s.notice("every MCP server is up · /mcp reconnect <name> restarts one anyway")
+			return
+		}
+	}
+	for _, name := range names {
+		if !o.Manager.Reconnect(name, func(name string, c *mcp.Client, err error) {
+			if err != nil {
+				s.notice(fmt.Sprintf("mcp %s did not come back: %v", name, err))
+				return
+			}
+			s.notice(fmt.Sprintf("mcp %s reconnected · %d tools", name, len(c.Tools())))
+		}) {
+			s.errf("mcp %s was not started in this session, so there is nothing to reconnect", name)
+			continue
+		}
+		s.notice("mcp " + name + ": reconnecting")
+	}
 }
