@@ -29,6 +29,7 @@ var commandWhen = map[string]string{
 	"/blame":        "a file looks wrong and you want to know which turn wrote which line",
 	"/redo":         "the undo was the mistake",
 	"/mcp":          "a project ships .mcp.json, or a remote server needs a login",
+	"/plugin":       "a set of commands, skills, agents, hooks or MCP servers someone packaged to install together",
 	"/cua":          "you want the model to operate the desktop through Cua Driver, not pixel clicks",
 	"/hooks":        "the project ships .janetcode/hooks.json and you want to see or enable it",
 	"/permissions":  "the same approval keeps coming up, or the project ships rules you want to trust",

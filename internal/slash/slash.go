@@ -77,6 +77,7 @@ var Commands = withIdle([]Command{
 	{Name: "/auto", Args: "", Help: "toggle auto mode: in-workspace edits and known-safe reads run, other commands ask"},
 	{Name: "/edits", Args: "", Help: "toggle auto-accept edits: file changes go through, commands still ask"},
 	{Name: "/sandbox", Args: "[on|off|workspace|read-only|strict|backend|image]", Help: "run local bash under a sandbox profile (docker, seatbelt or Landlock); off by default"},
+	{Name: "/plugin", Args: "[list|show <name>|install <git url|dir|name@market>|trust <name>|enable <name>|disable <name>|update [name]|remove <name>|marketplace add|list|update|remove|browse]", Help: "plugins: bundles of commands, skills, agent profiles, hooks and MCP servers (Claude Code's layout); install fetches one, its hooks and servers stay off until trust; marketplace add registers an index to browse and install name@market from"},
 	{Name: "/review", Args: "[focus]", Help: "fan out two subagents over the current diff (bugs and tests)"},
 	{Name: "/loop", Args: "[duration] [prompt|off|cancel id]", Help: "session-scoped repeating prompt; restored on resume of this session"},
 	{Name: "/settle", Args: "", Help: "mark this session done with (or active again); settled sessions list last in /resume"},

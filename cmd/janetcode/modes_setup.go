@@ -74,6 +74,10 @@ func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 		if e := cfg.Decisions.Validate(); e != nil {
 			return cfg, needsConnect, e
 		}
+		// Installed plugins' hooks and servers join the user's own.
+		if p, e := config.Path(); e == nil {
+			applyPlugins(filepath.Dir(p), cfg)
+		}
 	}
 	return cfg, needsConnect, err
 }

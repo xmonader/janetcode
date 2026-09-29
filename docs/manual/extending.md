@@ -2,8 +2,101 @@
 
 Part of the [janetcode manual](README.md). MCP servers, hooks, skills,
 custom commands and agent profiles are covered in
-[the interface](interface.md); this page is about driving janetcode
-from other programs.
+[the interface](interface.md). This page is about packaging them as
+plugins, and about driving janetcode from other programs.
+
+## Plugins
+
+A plugin bundles custom commands, skills, agent profiles, hooks and MCP
+servers under one name, so they are installed, updated, turned off and
+removed together. janetcode reads Claude Code's plugin layout as it is,
+so a plugin written for Claude Code installs unchanged:
+
+```
+my-plugin/
+  .claude-plugin/plugin.json   {"name": "my-plugin", "version": "1.0.0", "description": "…"}
+  commands/*.md                custom slash commands
+  agents/*.md                  agent profiles
+  skills/<name>/SKILL.md       skills
+  hooks/hooks.json             {"hooks": {"PostToolUse": [...]}}
+  .mcp.json                    {"mcpServers": {...}}
+```
+
+`.janetcode-plugin/plugin.json` is read the same way and wins when both
+exist. A directory with no manifest is still a plugin, named after the
+directory, if it has any of the other parts. In the manifest,
+`commands`, `agents` and `skills` can add directories (a path or a list
+of paths), and `hooks` and `mcpServers` can be a path or the object
+itself. Paths stay inside the plugin; one that points outside it is
+reported and ignored. `${CLAUDE_PLUGIN_ROOT}` (or
+`${JANETCODE_PLUGIN_ROOT}`) in a hook command or a server entry is the
+plugin's own directory, so a hook can run a script the plugin ships.
+
+```
+/plugin install https://github.com/someone/review-kit
+/plugin install ~/src/my-plugin            a copy; --link uses it in place, for developing one
+/plugin                                    what is installed, and what each contributes
+/plugin show review-kit                    everything it contains, and the exact commands it would run
+/plugin trust review-kit                   let its hooks and MCP servers run
+/plugin disable review-kit                 off without removing it; enable turns it back on
+/plugin update [review-kit]                fetch again (all of them with no name)
+/plugin remove review-kit
+```
+
+From a shell, script or CI job, `janetcode --plugin "<args>"` does the
+same and exits, e.g. `janetcode --plugin "install
+https://github.com/someone/review-kit"` or `janetcode --plugin list`.
+
+A git URL is cloned, and so is a local directory that is a git
+repository, so that `update` can pull. Any other directory is copied, and
+links in it are left out. Everything lives under `plugins/` in the
+config directory, and `plugins/plugins.json` records what is installed.
+
+Commands, skills and agent profiles from an enabled plugin load in every
+session. They come after your own and before the project's, so a project
+file of the same name wins. A plugin's skills are scanned the way a
+repository's are: one with a critical finding, such as a script that
+posts the environment to a URL, is blocked and listed as blocked.
+
+Hooks and MCP servers run commands on your machine, so installing a
+plugin does not turn them on. `/plugin show` lists every hook command and
+server command line, and `/plugin trust <name>` records those parts as
+you saw them. A session started afterwards runs them as though they were
+in your own config file. Your hook limits still apply, and a config
+server with the same name wins. If an update changes a hook or a server,
+they are off again until you trust the new version. An update that only
+changes a command or a skill keeps the trust. A plugin whose hooks or
+servers are not trusted is named when a session starts.
+
+Changes take effect in the next session.
+
+### Marketplaces
+
+A marketplace is an index of plugins: `.claude-plugin/marketplace.json`
+in a repository or directory (Claude Code's format), or a URL that serves
+the JSON file itself.
+
+```json
+{"name": "team", "owner": {"name": "…"}, "plugins": [
+  {"name": "review-kit", "source": "./plugins/review-kit", "description": "…"},
+  {"name": "lint", "source": {"source": "github", "repo": "someone/lint-plugin"}},
+  {"name": "docs", "source": {"source": "url", "url": "https://git.example.com/docs.git"}}
+]}
+```
+
+```
+/plugin marketplace add https://github.com/team/plugins
+/plugin browse                     what the added marketplaces offer, with the install line for each
+/plugin install review-kit@team
+/plugin marketplace update         fetch the indexes again
+/plugin marketplace remove team    plugins installed from it stay
+```
+
+A plugin installed from a marketplace follows its entry: `/plugin
+update` fetches the marketplace again, then the plugin from wherever the
+entry now points. A relative source must stay inside the marketplace.
+Marketplace entries are published by whoever runs the marketplace. They
+are not reviewed, so read `/plugin show` before `/plugin trust`.
 
 ## The Go SDK
 

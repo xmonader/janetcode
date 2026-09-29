@@ -89,6 +89,8 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		return true, doctor(ctx, os.Stdout, ov, o.doctorFix)
 	case o.mcpServe:
 		return true, mcpServeMode(o)
+	case o.pluginCmd != "":
+		return true, pluginMode(os.Stdout, o.pluginCmd, fs.Args())
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {

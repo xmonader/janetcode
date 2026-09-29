@@ -67,6 +67,7 @@ var flagWhen = map[string]string{
 	"worktree":               "two sessions on one repository, or a change you want as a branch to review",
 	"acp":                    "an editor that launches janetcode as a subprocess",
 	"mcp-serve":              "another agent or MCP client should be able to hand janetcode a task",
+	"plugin":                 "installing or updating plugins from a script, a dotfiles setup or CI",
 	"eval-facts":             "measuring what compaction actually loses",
 	"eval-facts-blind":       "measuring what the compacted context retains without the archive",
 	"eval-compact-at":        "forcing compaction on tasks that would not otherwise reach it",
