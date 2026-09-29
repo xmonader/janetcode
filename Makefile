@@ -31,6 +31,12 @@ ui-a11y:
 vscode-test:
 	cd editors/vscode && npm install --no-audit --no-fund && node test/extension.test.js && xvfb-run -a node test/e2e/run.js
 
+# The GitHub Action (action.yml) end to end in a runner container with
+# nektos/act: needs act, docker and OPENAI_API_KEY/OPENAI_BASE_URL (see
+# ci/action/act/run.sh).
+action-test:
+	ci/action/act/run.sh
+
 race:
 	go test -race $(PKG)
 

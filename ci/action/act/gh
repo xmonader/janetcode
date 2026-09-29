@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# A stand-in for gh in the act run (ci/action/act/run.sh): it answers the
+# two calls a review makes — the pull request's diff, and posting the
+# comment — from a fixture and into a file, and logs every call, so the
+# action runs end to end without GitHub.
+set -euo pipefail
+dir="${RUNNER_TEMP:?}/gh-stub"
+mkdir -p "$dir"
+printf '%s\n' "$*" >>"$dir/calls.log"
+case "$1 ${2:-}" in
+  "pr diff")
+    cat "${GH_STUB_DIFF:?}"
+    ;;
+  "api --method")
+    # gh api --method POST repos/<repo>/issues/<n>/comments -F body=@<file>
+    for a in "$@"; do
+      case "$a" in body=@*) cp "${a#body=@}" "$dir/comment.md" ;; esac
+    done
+    echo '{"id": 1}'
+    ;;
+  *)
+    echo "gh stub: unhandled call: $*" >&2
+    exit 1
+    ;;
+esac

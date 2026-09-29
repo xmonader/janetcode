@@ -99,3 +99,18 @@ janetcode -p "Review this diff: $(git diff origin/main...HEAD)" \
   --readonly --output-format json --max-cost 1 </dev/null >result.json
 jq -r .result result.json
 ```
+
+### Testing the action locally
+
+`make action-test` runs `action.yml` end to end in a GitHub runner
+container with [act](https://github.com/nektos/act): the example review
+workflow (as `ci/action/act/review.yml`, with the action taken from the
+checkout) on a local `pull_request` event, a stub `gh` that serves a
+fixture diff and records the comment, and a real model. It needs `act`,
+docker and `OPENAI_API_KEY`/`OPENAI_BASE_URL` for an OpenAI-compatible
+endpoint (`JANETCODE_MODEL` picks the model). The last step checks the
+outputs (`exit-code` 0, a session id, the result), that `gh pr diff` and
+the comment call were made, and that the review caught the fixture's
+path traversal. While no release is published, the release install
+fails and the action builds from source, so that fallback is exercised
+too.
