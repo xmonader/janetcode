@@ -17,11 +17,19 @@ func Parse(text string) (map[string]string, string) {
 		return meta, text
 	}
 	rest := text[strings.Index(text, "\n")+1:]
-	end := strings.Index(rest, "\n---")
-	if end < 0 {
+	// Searching from the newline before rest lets an empty block — the
+	// closing "---" straight after the opening one, which is what Render
+	// writes for meta with nothing in it — close too; it used to be
+	// missed, and both delimiters came back as the first lines of the body.
+	end := strings.Index("\n"+rest, "\n---") - 1
+	if end < -1 {
 		return meta, text
 	}
-	for _, line := range strings.Split(rest[:end], "\n") {
+	block := ""
+	if end >= 0 {
+		block = rest[:end]
+	}
+	for _, line := range strings.Split(block, "\n") {
 		k, v, ok := strings.Cut(line, ":")
 		if !ok {
 			continue

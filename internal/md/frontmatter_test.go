@@ -23,6 +23,14 @@ func TestParseRenderRoundTrip(t *testing.T) {
 	if m, b := Parse("plain\n---\n"); len(m) != 0 || b != "plain\n---\n" {
 		t.Fatalf("plain text mangled: %q %q", m, b)
 	}
+	// An empty block closes too, so Render's output for empty meta
+	// round-trips instead of handing the delimiters back as body.
+	if m, b := Parse(Render(map[string]string{}, "body\n")); len(m) != 0 || b != "body\n" {
+		t.Fatalf("empty block: %q %q", m, b)
+	}
+	if m, b := Parse("---\r\n---\r\nbody\n"); len(m) != 0 || b != "body\n" {
+		t.Fatalf("empty crlf block: %q %q", m, b)
+	}
 	if got := List(`[read_file, "grep"] glob`); !reflect.DeepEqual(got, []string{"read_file", "grep", "glob"}) {
 		t.Fatalf("list = %q", got)
 	}
