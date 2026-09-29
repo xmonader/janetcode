@@ -171,7 +171,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `tool_search` | Find a tool by what it does, when many are loaded | no |
 
 All paths are confined to the working directory, symlinks included.
-Read-only tools run concurrently; mutating tools run one at a time, in order.
+Read-only tools at the start of a batch run concurrently; from the first mutating call on, every call runs one at a time, in the order the model wrote them.
 
 **Experimental:** `route_cheap` (off by default) sends a turn's mechanical
 steps — reads, greps, a check that already passed — to a cheaper model

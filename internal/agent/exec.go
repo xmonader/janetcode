@@ -23,8 +23,9 @@ import (
 // MaxParallelTools bounds concurrent read-only tool execution.
 const MaxParallelTools = 8
 
-// executeAll runs the turn's tool calls: read-only tools concurrently, then
-// mutating (permission-gated) tools one at a time in order. It always
+// executeAll runs the turn's tool calls: the read-only calls that come
+// before the first call that cannot run in parallel run concurrently, and
+// everything from that call on runs one at a time in the model's order. It always
 // returns one result per call so the history stays valid, even when the
 // batch stops part-way — cancelled, or with an approver that could not
 // answer — and the error that stopped it is returned rather than dropped.
@@ -68,12 +69,20 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		errMu.Unlock()
 	}
 
+	// Only the leading read-only calls run in parallel. A read the model
+	// placed after an edit is reading the edit: running every read first
+	// handed [edit_file a, read_file a] the content from before the edit,
+	// and the model then reasoned from a file that no longer existed. So
+	// the first call that is not a known read-only tool (a mutating one,
+	// or one that will be refused) is a barrier, and from it on the batch
+	// runs in the order the model wrote it.
+	lead := 0
+	for lead < len(uses) && parallel(uses[lead]) {
+		lead++
+	}
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, MaxParallelTools)
-	for i, u := range uses {
-		if !parallel(u) {
-			continue
-		}
+	for i, u := range uses[:lead] {
 		wg.Add(1)
 		go func(i int, u llm.Block) {
 			defer wg.Done()

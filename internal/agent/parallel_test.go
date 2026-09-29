@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -61,7 +62,7 @@ func TestReadOnlyToolsRunInParallelThenMutatingInOrder(t *testing.T) {
 	}
 	f := &fake{responses: []*llm.Response{
 		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
-			call("1", "w", `"a"`), call("2", "r", `"b"`), call("3", "r", `"c"`), call("4", "w", `"d"`), call("5", "r", `"e"`),
+			call("1", "r", `"b"`), call("2", "r", `"c"`), call("3", "r", `"e"`), call("4", "w", `"a"`), call("5", "w", `"d"`),
 		}}, StopReason: llm.StopToolUse},
 		text("ok"),
 	}}
@@ -85,11 +86,76 @@ func TestReadOnlyToolsRunInParallelThenMutatingInOrder(t *testing.T) {
 			t.Fatalf("result %d = %+v", i, res[i])
 		}
 	}
-	// Mutating tools ran after all reads, and in order.
+	// Mutating tools ran after the leading reads, and in order.
 	n := len(order)
 	if n != 5 || order[n-2] != `w:"a"` || order[n-1] != `w:"d"` {
 		t.Fatalf("order = %v", order)
 	}
+}
+
+// A read the model placed after an edit reads the edit: only the reads
+// ahead of the first mutating call run in parallel, and everything from
+// that call on runs in the model's order. Running every read first gave
+// [write a, read a, write b, read b] the contents from before both writes.
+func TestReadAfterWriteInABatchSeesTheWrite(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		content = map[string]string{"a": "old", "b": "old"}
+	)
+	type kv struct{ K, V string }
+	w := funcTool{name: "w", mutating: true, run: func(in json.RawMessage) (string, error) {
+		var p kv
+		_ = json.Unmarshal(in, &p)
+		mu.Lock()
+		content[p.K] = p.V
+		mu.Unlock()
+		return "ok", nil
+	}}
+	r := funcTool{name: "r", run: func(in json.RawMessage) (string, error) {
+		var p kv
+		_ = json.Unmarshal(in, &p)
+		mu.Lock()
+		defer mu.Unlock()
+		return content[p.K], nil
+	}}
+	call := func(id, name, in string) llm.Block {
+		return llm.Block{Type: llm.BlockToolUse, ID: id, Name: name, Input: json.RawMessage(in)}
+	}
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			call("1", "r", `{"K":"a"}`),
+			call("2", "w", `{"K":"a","V":"new-a"}`),
+			call("3", "r", `{"K":"a"}`),
+			call("4", "w", `{"K":"b","V":"new-b"}`),
+			call("5", "r", `{"K":"b"}`),
+		}}, StopReason: llm.StopToolUse},
+		text("ok"),
+	}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(w, r), Model: "m", AutoApprove: true}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	res := a.Messages[2].Blocks
+	for i, want := range []string{"old", "ok", "new-a", "ok", "new-b"} {
+		if got := res[i].Text; !strings.HasPrefix(got, want) {
+			t.Fatalf("result %d = %q, want %q (all: %+v)", i, got, want, res)
+		}
+	}
+}
+
+// funcTool is a tool whose behaviour is a closure.
+type funcTool struct {
+	name     string
+	mutating bool
+	run      func(json.RawMessage) (string, error)
+}
+
+func (f funcTool) Name() string            { return f.name }
+func (f funcTool) Description() string     { return f.name }
+func (f funcTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (f funcTool) Mutating() bool          { return f.mutating }
+func (f funcTool) Run(_ context.Context, in json.RawMessage) (string, error) {
+	return f.run(in)
 }
 
 func TestParallelCancelFillsAllResults(t *testing.T) {
