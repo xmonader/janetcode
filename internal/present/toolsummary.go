@@ -149,12 +149,44 @@ func RelPath(cwd, p string) string {
 // command and writes the home directory as ~.
 func ShortenPaths(cwd, s string) string {
 	if cwd != "" {
-		s = strings.ReplaceAll(s, cwd+string(filepath.Separator), "")
+		s = replacePathPrefix(s, cwd+string(filepath.Separator), "")
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		s = strings.ReplaceAll(s, home+string(filepath.Separator), "~"+string(filepath.Separator))
+		s = replacePathPrefix(s, home+string(filepath.Separator), "~"+string(filepath.Separator))
 	}
 	return s
+}
+
+// replacePathPrefix replaces dir where a path starts with it, and not
+// where the same letters sit inside another path: with cwd /a/b,
+// "/x/a/b/c" is a different file, and cutting it gave "/xc".
+func replacePathPrefix(s, dir, with string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(s, dir)
+		if i < 0 {
+			b.WriteString(s)
+			return b.String()
+		}
+		b.WriteString(s[:i])
+		if i > 0 && inPath(s[i-1]) {
+			b.WriteString(s[i : i+1])
+			s = s[i+1:]
+			continue
+		}
+		b.WriteString(with)
+		s = s[i+len(dir):]
+	}
+}
+
+// inPath reports whether c can be part of a path name, so a directory
+// found right after it is the middle of that path, not its start.
+func inPath(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c >= 0x80:
+		return true
+	}
+	return strings.IndexByte(`/\._-~+@%`, c) >= 0
 }
 
 // partialArg finds the first of the summarised keys whose string value
