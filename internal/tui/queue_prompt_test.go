@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
 )
+
 // TestPastedPromptHistoryKeepsThePaste: a prompt sent with a paste chip
 // was written to the history file as the chip. The chip numbering starts
 // again in the next process, so recalling it there sent whatever had been
