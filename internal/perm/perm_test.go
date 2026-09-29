@@ -272,8 +272,7 @@ func TestSuggestNeverCapturesCompoundOrWrapperCommands(t *testing.T) {
 
 // A deny rule on bash refuses the command wherever it appears in a
 // compound line, not only when it leads: bash(rm *) was walked past by
-// `ls && rm -rf src`, since the rule is matched as a prefix. An allow
-// rule keeps its prefix meaning.
+// `ls && rm -rf src`, since the rule is matched as a prefix.
 func TestBashDenyRuleMatchesAnySegment(t *testing.T) {
 	rules, err := File{Deny: []string{"bash(rm *)", "bash(git push*)"}, Allow: []string{"bash(ls *)"}}.Rules()
 	if err != nil {

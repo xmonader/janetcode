@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -183,12 +184,85 @@ func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
 			return Denied, r, ""
 		}
 	}
-	for _, r := range rs.Allow {
-		if r.matchesCall(c) {
-			return Allowed, r, ""
-		}
+	if r, ok := rs.allows(c); ok {
+		return Allowed, r, ""
 	}
 	return Ask, Rule{}, ""
+}
+
+// dupRedirect is a descriptor duplication such as 2>&1 or >&2. Its & is
+// not a command separator, so it is taken out before a line is split.
+var dupRedirect = regexp.MustCompile(`[0-9]*>&[0-9-]+`)
+
+// allows is the allow half of DecideCall. A single command is matched
+// the way it always was: the first allow rule that matches it wins.
+//
+// A compound bash line (split at pipes, &&, ||, ;, & and newlines, see
+// shell.Segments) is allowed only when every command in it is: each one
+// is matched by some allow rule, or is a known-safe read (shell.SafeRead,
+// the classifier AUTO mode trusts), and at least one of them was matched
+// by a rule. A rule is a prefix and * spans shell operators, so matching
+// the whole line let bash(go test *) allow `go test ./... && curl ...`:
+// one trusted command at the front allowed whatever the model put after
+// it. The whole line still counts when a rule names it exactly, with no
+// wildcard, since then the user wrote out everything that runs.
+func (rs Rules) allows(c Call) (Rule, bool) {
+	var segs []string
+	if c.Tool == "bash" {
+		segs = shell.Segments(dupRedirect.ReplaceAllString(c.Subject, " "))
+	}
+	if len(segs) < 2 {
+		for _, r := range rs.Allow {
+			if r.matchesCall(c) {
+				return r, true
+			}
+		}
+		return Rule{}, false
+	}
+	for _, r := range rs.Allow {
+		if r.Pattern != "" && !strings.ContainsAny(r.Pattern, "*?") && !r.compile().paramRule && r.matchesCall(c) {
+			return r, true
+		}
+	}
+	var first Rule
+	matched := false
+	for _, s := range segs {
+		if s = strings.TrimSpace(s); s == "" {
+			continue
+		}
+		sc := Call{Tool: c.Tool, Subject: s, Input: withCommand(c.Input, s), Root: c.Root}
+		found := false
+		for _, r := range rs.Allow {
+			if r.matchesCall(sc) {
+				if !matched {
+					first, matched = r, true
+				}
+				found = true
+				break
+			}
+		}
+		if !found && !shell.SafeRead(s) {
+			return Rule{}, false
+		}
+	}
+	return first, matched
+}
+
+// withCommand is a bash call's input with its command replaced by one
+// segment of it, so a parameter rule (bash(command:make *)) is matched
+// against that segment rather than the whole line. An input that does
+// not decode comes back nil, which no parameter rule matches.
+func withCommand(input json.RawMessage, cmd string) json.RawMessage {
+	var in map[string]any
+	if len(input) == 0 || json.Unmarshal(input, &in) != nil {
+		return nil
+	}
+	in["command"] = cmd
+	out, err := json.Marshal(in)
+	if err != nil {
+		return nil
+	}
+	return out
 }
 
 // Add appends a rule unless an equal one exists.
@@ -330,7 +404,9 @@ func matchAny(pattern string, vals []string) bool {
 // * spans shell operators too: `bash(go test *)` matches
 // `go test ./... && rm -rf y`. A rule is a prefix the user trusts, not a
 // parse of the command, which is why Suggest never proposes one for a
-// command whose leading words do not decide everything that runs.
+// command whose leading words do not decide everything that runs, and
+// why DecideCall matches a compound bash line one command at a time
+// (see allows and matchesSegment) rather than through Match alone.
 func Match(pattern, subject string) bool {
 	pattern = strings.Join(strings.Fields(pattern), " ")
 	subject = strings.Join(strings.Fields(subject), " ")

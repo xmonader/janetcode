@@ -570,10 +570,16 @@ saved, and the "approved N×" note beside it counts that same rule.
 A rule is `tool`, `tool(pattern)` or `tool(param:pattern, ...)`; `*`
 spans anything and `?` one character. A bare pattern is matched against
 the call's subject: the command for `bash`, the path for file tools and
-the URL for `fetch_url`. `*` spans shell operators too, so
-`bash(go test *)` also matches `go test ./... && rm -rf x`; for that
-reason `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`)
-or one led by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
+the URL for `fetch_url`. A compound bash line (`&&`, `||`, `;`, `|`,
+`&`, newlines) is split into its commands: a deny rule refuses the line
+when it matches any one of them, and an allow rule allows it only when
+every command is covered by some allow rule or is a known-safe read (the
+list AUTO mode trusts), so `bash(go test *)` allows `go test ./... 2>&1 |
+tail` but asks about `go test ./... && rm -rf x`. A rule that spells out
+a whole compound line with no wildcard still matches that exact line.
+Inside one command `*` still spans anything, including `$( )`, and so `r`
+offers no rule for a compound command (`&&`, `;`, `|`, `$( )`) or one led
+by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
 `cd <project> &&`, which changes nothing, is ignored when matching and
 suggesting, so `go test` rules cover a model that prefixes every command
 that way. Deny wins over allow, whichever order the two were written in and
