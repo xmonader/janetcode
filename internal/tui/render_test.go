@@ -1078,6 +1078,27 @@ func TestTheFrameCarriesNoTerminalControl(t *testing.T) {
 	if !strings.Contains(plain(v), "cleared") {
 		t.Errorf("the text around the sequence was lost:\n%s", plain(v))
 	}
+	// An info entry is drawn as it came: a /btw answer is the model's
+	// text, and a memory body was extracted by the model. The frame
+	// filter covers them too, and their line breaks survive it.
+	h.update(btwMsg{q: "why", a: "first\x1b]52;c;aGk=\x07 line\nsecond\x1b[2J line"})
+	h.m.transcript.info("memory: body\x1b]0;pwned\x07\nnext")
+	h.m.refresh(false)
+	v = h.m.View()
+	for _, bad := range []string{"\x1b]52", "\x1b[2J", "\x1b]0;"} {
+		if strings.Contains(v, bad) {
+			t.Errorf("an info entry put %q in the frame", bad)
+		}
+	}
+	lines := map[string]bool{}
+	for _, l := range strings.Split(plain(v), "\n") {
+		lines[strings.TrimSpace(l)] = true
+	}
+	for _, want := range []string{"first line", "second line", "memory: body", "next"} {
+		if !lines[want] {
+			t.Errorf("an info entry lost the line %q:\n%s", want, plain(v))
+		}
+	}
 	h.m.opts.Session.Meta.Title = "fix\x07\x1b]52;c;x\x07"
 	if title := h.m.windowTitle(); strings.ContainsAny(title, "\x07\x1b") {
 		t.Errorf("window title carries a control: %q", title)
