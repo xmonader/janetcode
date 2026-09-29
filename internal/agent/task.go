@@ -557,11 +557,17 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 					prov, model = p, resolved
 				}
 			}
-			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model = prov, model })
+			window := t.Parent.WindowOf(model)
+			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.ContextWindow = prov, model, window })
 		}
 	}
 	if routedProv != nil {
-		kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model = routedProv, routedModel })
+		// The child was built with the session's window; on another model
+		// it compacts and guards oversized output by that model's own.
+		window := t.Parent.WindowOf(routedModel)
+		kid.agent.UpdateSettings(func(s *Settings) {
+			s.Provider, s.Model, s.ContextWindow = routedProv, routedModel, window
+		})
 	}
 	t.inheritBudget(kid.agent)
 	if childID == "" {

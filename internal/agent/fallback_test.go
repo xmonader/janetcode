@@ -212,3 +212,28 @@ func TestFallbackRepricesTheSessionForTheModelItMovedTo(t *testing.T) {
 		t.Fatalf("session cost = %v (ok=%v), want $1: a million tokens at the fallback's $1/M", usd, ok)
 	}
 }
+
+// The context window moves with the model too: it sizes compaction and
+// the oversized-output guard, and a fallback from a 1M model to a 32k
+// one that kept the 1M window compacted far too late.
+func TestFallbackTakesTheWindowOfTheModelItMovedTo(t *testing.T) {
+	f := &fake{
+		errs:      []error{errors.New("insufficient_quota: this plan is exhausted")},
+		responses: []*llm.Response{nil, text("done on the other model")},
+	}
+	a, _ := newAgent(t, f, nil)
+	a.ContextWindow = 1_000_000
+	a.Windows = func(model string) int {
+		if model == "backup-model" {
+			return 32_000
+		}
+		return 1_000_000
+	}
+	a.Fallbacks = []string{"backup-model"}
+	if err := a.Run(context.Background(), "hi", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Settings().ContextWindow; got != 32_000 {
+		t.Fatalf("window after the fallback = %d, want the fallback's 32000", got)
+	}
+}

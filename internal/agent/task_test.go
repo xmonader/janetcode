@@ -206,6 +206,13 @@ func TestTaskRunsCustomAgentProfile(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644)
 	f := &fake{responses: []*llm.Response{text("review: fine")}}
 	parent := &Agent{Provider: f, Tools: tool.NewRegistry(tool.ReadFile{Root: root}, tool.Grep{Root: root}, tool.Bash{Root: root}), Model: "big", System: "sys"}
+	parent.ContextWindow = 200_000
+	parent.Windows = func(model string) int {
+		if model == "small" {
+			return 16_000
+		}
+		return 200_000
+	}
 	task := &Task{Parent: parent, Profiles: func() []agentprofile.Profile {
 		return []agentprofile.Profile{{Name: "reviewer", Description: "Reviews code", Tools: []string{"grep"}, Model: "small", Body: "Be strict about error handling."}}
 	}}
@@ -220,6 +227,9 @@ func TestTaskRunsCustomAgentProfile(t *testing.T) {
 	req := f.requests[0]
 	if req.Model != "small" || !strings.Contains(req.System, "# Agent: reviewer\nBe strict about error handling.") || !strings.HasPrefix(req.System, "sys") {
 		t.Fatalf("request = model %q system %q", req.Model, req.System)
+	}
+	if w := task.children[task.ChildIDs()[0]].agent.Settings().ContextWindow; w != 16_000 {
+		t.Fatalf("profile child window = %d, want small's 16000", w)
 	}
 	if len(req.Tools) != 1 || req.Tools[0].Name != "grep" {
 		t.Fatalf("tools = %+v", req.Tools)
@@ -409,6 +419,13 @@ func TestTaskRunsOnAnotherModel(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
 	other := &scriptedByPrompt{}
 	parent := &Agent{Provider: &scriptedByPrompt{}, Model: "session-model", System: "sys", AutoApprove: true}
+	parent.ContextWindow = 1_000_000
+	parent.Windows = func(model string) int {
+		if model == "glm-5" {
+			return 32_000
+		}
+		return 1_000_000
+	}
 	var asked string
 	task := &Task{Parent: parent, Models: func(name string) (llm.Provider, string, error) {
 		asked = name
@@ -432,6 +449,11 @@ func TestTaskRunsOnAnotherModel(t *testing.T) {
 	kid := task.children[task.ChildIDs()[0]].agent
 	if kid.Model != "glm-5" || kid.Provider != other {
 		t.Fatalf("child ran on %q with the wrong provider", kid.Model)
+	}
+	// The window is the child's model's, not the session's: it sizes the
+	// child's compaction and its oversized-output guard.
+	if kid.ContextWindow != 32_000 {
+		t.Fatalf("child window = %d, want glm-5's 32000", kid.ContextWindow)
 	}
 	// The parent is untouched.
 	if parent.Model != "session-model" {

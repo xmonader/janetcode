@@ -413,6 +413,9 @@ func (b *agentBuilder) stepCore() error {
 	// fallback, a routed cheap call, an advisor and a subagent each have
 	// their own rate, and the cost views add them up per model.
 	ag.Prices = d.cfg.PriceFor
+	// Their windows likewise: a fallback or a subagent on another model
+	// compacts by that model's window, not the session's.
+	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = b.sb

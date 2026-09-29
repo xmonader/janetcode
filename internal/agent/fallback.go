@@ -131,11 +131,16 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 			// left in place billed the fallback at the replaced model's
 			// rate. Nothing to look it up in leaves it unpriced, which
 			// says so, rather than wrong, which does not.
+			// The window likewise: it sizes compaction and the
+			// oversized-output guard for the model now in use.
 			var price *llm.Price
 			if a.Prices != nil {
 				price = a.Prices(model)
 			}
-			a.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.Price = prov, model, price })
+			window := a.WindowOf(model)
+			a.UpdateSettings(func(s *Settings) {
+				s.Provider, s.Model, s.Price, s.ContextWindow = prov, model, price, window
+			})
 			emit(Event{Kind: EvNotice, Text: "this session continues on " + model + "; /model switches back"})
 			return resp, nil
 		}

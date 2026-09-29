@@ -29,6 +29,11 @@ type modelRouter struct {
 	// it, so a fallback can be on a different backend. Without it a
 	// fallback is sent to the provider already in use.
 	Route func(model string) (llm.Provider, string, error)
+	// Windows, when set, is the context window of any model by name —
+	// the config's model table, the way Prices is its rate table. A
+	// fallback and a subagent put on another model take that model's
+	// window from it (see WindowOf).
+	Windows func(model string) int
 	// RouteCheap is the model mechanical steps of a turn are sent to
 	// instead of Model -- reads, listings, greps and checks that already
 	// passed -- while planning, edits and anything that goes wrong stay
@@ -94,6 +99,22 @@ func (r *modelRouter) RouteCheapName() string {
 	r.routeMu.Lock()
 	defer r.routeMu.Unlock()
 	return r.RouteCheap
+}
+
+// WindowOf is the context window of model: the session's own for the
+// session's model, else the Windows lookup the front end wired in, else
+// the built-in table (0 when that does not know it either — unknown, not
+// the window of some other model).
+func (a *Agent) WindowOf(model string) int {
+	if s := a.Settings(); model == s.Model && s.ContextWindow > 0 {
+		return s.ContextWindow
+	}
+	if a.Windows != nil {
+		if w := a.Windows(model); w > 0 {
+			return w
+		}
+	}
+	return llm.KnownWindow(model)
 }
 
 // newTurn resets the turn-scoped routing state.
