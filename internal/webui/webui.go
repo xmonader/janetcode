@@ -242,6 +242,7 @@ type server struct {
 	// concurrent approvals queue instead of replacing one another.
 	approveSlot chan struct{}
 	asking      *askReq
+	askSlot     chan struct{} // the same, for the ask tool's questions
 	status      string
 	verbose     bool
 	// openedAt is when this server came up, which is what /perf reports
@@ -422,6 +423,7 @@ func newServer(life context.Context, opts Options) *server {
 		openedAt: time.Now(),
 
 		approveSlot: make(chan struct{}, 1),
+		askSlot:     make(chan struct{}, 1),
 	}
 	// Stamp the binary's build into the page. The value lands inside a
 	// JS string literal, so quote it like one — a version containing a

@@ -125,7 +125,17 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"ok": "1"})
 }
 
+// Ask shows one batch of questions at a time, as ApproveWithRule shows one
+// prompt: the ask tool is not mutating, so two calls in one reply run in
+// parallel, and the second used to overwrite the first, whose caller then
+// waited on a reply nothing could send.
 func (s *server) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, error) {
+	select {
+	case s.askSlot <- struct{}{}:
+		defer func() { <-s.askSlot }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	reply := make(chan []agent.Answer, 1)
 	s.mu.Lock()
 	s.asking = &askReq{questions: qs, reply: reply}

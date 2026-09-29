@@ -106,3 +106,56 @@ func TestPermissionAnswerForAnotherPromptIsRefused(t *testing.T) {
 		t.Fatalf("got %v, want deny", d)
 	}
 }
+
+// The ask tool is not mutating, so two ask calls in one reply run side by
+// side. The page has one question slot: the second used to overwrite the
+// first, whose caller then waited for ever on a reply nothing could send,
+// holding the turn until esc.
+func TestConcurrentAsksAreEachAnswered(t *testing.T) {
+	s := newServer(context.Background(), Options{Version: "test"})
+	h := s.handler()
+	got := make(chan string, 2)
+	for _, p := range []string{"first?", "second?"} {
+		go func(p string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			ans, err := s.Ask(ctx, []agent.Question{{Prompt: p}})
+			if err != nil {
+				t.Errorf("ask %s: %v", p, err)
+			}
+			if len(ans) != 1 || ans[0].Label != p {
+				t.Errorf("ask %s got %+v", p, ans)
+			}
+			got <- p
+		}(p)
+	}
+	for i := 0; i < 2; i++ {
+		var q string
+		deadline := time.Now().Add(3 * time.Second)
+		for q == "" && time.Now().Before(deadline) {
+			s.mu.Lock()
+			if s.asking != nil {
+				q = s.asking.questions[0].Prompt
+			}
+			s.mu.Unlock()
+			time.Sleep(5 * time.Millisecond)
+		}
+		if q == "" {
+			t.Fatalf("question %d never came up", i)
+		}
+		b, _ := json.Marshal(map[string]any{"answers": []agent.Answer{{Label: q}}})
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/question", bytes.NewReader(b)))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("answer %d: %d", i, rec.Code)
+		}
+		select {
+		case p := <-got:
+			if p != q {
+				t.Fatalf("answered %q but %q returned", q, p)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatalf("%q never got its answer", q)
+		}
+	}
+}

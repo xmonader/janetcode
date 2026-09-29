@@ -307,6 +307,14 @@ func (s *server) resetView() {
 		}
 		s.pending = nil
 	}
+	if s.asking != nil {
+		// Likewise for questions still up: they hold the question slot.
+		select {
+		case s.asking.reply <- nil:
+		default:
+		}
+		s.asking = nil
+	}
 	s.mu.Unlock()
 	s.emit(envelope{Type: "reset"})
 	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
