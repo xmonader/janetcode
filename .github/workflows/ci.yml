@@ -43,6 +43,39 @@ jobs:
         run: GOOS=windows GOARCH=amd64 go build ./...
       - name: vet (darwin/arm64)
         run: GOOS=darwin GOARCH=arm64 go vet ./...
+  # The test suite on the two platforms the Linux job only compiles for.
+  # A compile check says nothing about the PowerShell path, path
+  # separators, drive-rooted paths, file locking or CRLF checkouts, and
+  # wine (the only Windows available locally) runs neither PowerShell 7
+  # nor Git for Windows' shell. fail-fast is off so one platform's
+  # failures do not hide the other's.
+  test-os:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # This checkout byte-exact (testdata and golden files are compared
+      # byte for byte), without touching the global setting: the
+      # repositories the tests create must see Git for Windows' default
+      # core.autocrlf=true, as a user's do.
+      - name: checkout without line-ending conversion
+        shell: bash
+        run: |
+          git config core.autocrlf false
+          git rm -rq --cached .
+          git reset -q --hard
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: build
+        run: go build ./...
+      - name: test
+        run: go test ./...
   # The page's own checks. `make check` runs the first two locally; without
   # this job the markdown renderer's XSS corpus and the contrast checks were
   # never run in CI, and nothing drove the page in a browser. ui-visual is
