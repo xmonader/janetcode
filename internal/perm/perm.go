@@ -212,12 +212,17 @@ var dupRedirect = regexp.MustCompile(`[0-9]*>&[0-9-]+`)
 // bash(go test *) matched against `go test $(curl …)` allowed the curl.
 // The line is judged with each substitution standing as one word, and
 // what each one runs is judged as a line of its own, recursively.
+//
+// A here-document's body is taken out first (shell.StripHeredocs): it is
+// the command's stdin, and split at its newlines it read as commands no
+// rule names, so bash(git commit *) stopped allowing a commit whose
+// message came from `<<'EOF'`.
 func (rs Rules) allows(c Call) (Rule, bool) {
 	var segs []string
 	var bodies []string
 	if c.Tool == "bash" {
 		var outer string
-		outer, bodies = shell.SplitSubstitutions(c.Subject)
+		outer, bodies = shell.SplitSubstitutions(shell.StripHeredocs(c.Subject))
 		segs = shell.Segments(dupRedirect.ReplaceAllString(outer, " "))
 	}
 	if len(segs) < 2 && len(bodies) == 0 {

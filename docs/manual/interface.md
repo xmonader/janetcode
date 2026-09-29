@@ -582,7 +582,10 @@ runs a command line of its own, so it is judged the same way: a deny
 rule matching any command inside it refuses the line, and an allow
 rule's `*` covers `go test $(ls -d ./internal/*/)` but asks about
 `go test $(curl ...)`, because the command inside must itself be
-allowed by a rule or be a safe read. `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`) or one led
+allowed by a rule or be a safe read. A here-document's body is the
+command's input, not commands, so `bash(git commit *)` covers a commit
+whose message comes from `<<'EOF'`; an unquoted one whose body holds a
+`$( )` is judged line by line. `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`) or one led
 by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
 `cd <project> &&`, which changes nothing, is ignored when matching and
 suggesting, so `go test` rules cover a model that prefixes every command
