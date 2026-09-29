@@ -706,14 +706,112 @@ nothing.
 The `r` key never proposes a parameter rule: the ladder is about breadth
 — this path, its directory, the tree above it — and a field is not a
 wider or narrower version of anything. Parameter rules are written by
-hand, in the config file or with `/permissions allow <rule>`.
+hand, in the config file or with `/permissions allow <rule>`. The one
+exception is the network, below.
 
-`/permissions` lists rules, `/permissions allow <rule>` and `/permissions
-deny <rule>` add one. A project can ship `.janetcode/permissions.json`
-with the same shape: its deny rules always apply, its allow rules only
-after `/permissions trust`. Headless runs take `--allow` and `--deny`
-with comma-separated rules, and a `pre_tool` hook can answer
-`{"decision":"allow"}` to approve a call itself.
+#### Typed scopes
+
+A handful of clause names are not fields but *scopes*: something the
+call does, worked out from the call whatever tool it is, so one rule can
+say what you mean without knowing where each tool keeps it.
+
+```
+bash(cmd:go test *)                      the command's words, one by one
+*(read:docs/**)                          the paths a call reads
+*(write:internal/**)                     the paths a call writes, bash included
+fetch_url(host:*.go.dev)                 the hosts a call contacts
+bash(cmd:curl *, host:api.github.com)    both: curl, and only to that host
+*(touches:**/.env)                       any path a call names, read or written
+*(arg:*BEGIN*PRIVATE KEY*)               any string anywhere in the input
+*(secret:*)                              the input holds a credential
+```
+
+`cmd:` matches the command's argv word by word after the shell's quoting
+is undone, so `go test './...'` is `go test ./...`, and a trailing `*` is
+"any further words". As an allow rule it covers one command and nothing
+it is chained with, never looks through a wrapper (`sudo go test` is not
+`go test`), and refuses a command that writes outside the workspace:
+`bash(cmd:go test *)` allows `go test ./... 2>&1` and asks about
+`go test ./... && curl …`, `cd /etc && go test` and
+`go test > ~/.profile`. As a deny or ask rule it catches the command
+anywhere on the line — behind `sudo`, `env`, `timeout`, `xargs`, a path
+(`/bin/rm`), inside `$( )`, `sh -c '…'`, or a here-document fed to
+`bash`, `ssh` or `python`.
+
+`host:` reads the host of a `fetch_url` URL, the hosts a bash command
+names (every URL with a scheme, `git clone git@host:…`, the host of
+`ssh`, `scp`, `rsync`, `curl`, `wget`, `nc` and the like), the search
+provider behind `web_search`, and the server behind a remote MCP
+server's tools. `*.example.com` also covers `example.com`; a pattern
+without a port matches any port. A command that reaches the network
+through something it does not show — `git push` to a configured remote,
+`curl $URL` — has no host, and a host-scoped allow rule does not cover
+it.
+
+`read:`, `write:` and `touches:` compare paths in every spelling they
+have — as written, relative to the workspace or absolute in it, and with
+symlinks resolved. A leading `**/` also matches at the top, so
+`**/.env` matches `.env`, and `dir/**` names `dir` itself too.
+
+A scope with several values reads differently depending on the rule, and
+it is on purpose: they fail in opposite directions. An **allow** rule
+covers a call only when *every* value is in scope and there is at least
+one — `*(write:docs/**)` does not cover `echo x > docs/a > main.go`, and a
+path written inside `docs/` that resolves through a symlink to somewhere
+else, or climbs out with `..`, is not in `docs/`. A **deny** or **ask**
+rule catches a call when *any* value is in scope — `*(touches:**/.env)`
+refuses `cat README.md .env`.
+
+A tool whose own input has a field called `cmd` or `host` keeps that
+meaning: the scopes apply where they can be worked out (`cmd:` for bash,
+`host:` for bash, `fetch_url`, `web_search` and remote MCP tools).
+
+For a network command, `r` offers the host and never more: approving
+`curl -s https://api.github.com/repos/x` offers
+`bash(cmd:curl *, host:api.github.com)` instead of `bash(curl *)`, which
+would allow the same command against any host. A command that names two
+hosts offers only itself.
+
+#### Ask rules: the sensitive calls
+
+The third list is `ask`. A call an ask rule matches is put to you in
+every mode — `/edits`, `/auto` and `--yolo` included — even when an allow
+rule covers it, even when the tool only reads, and the answer covers that
+one call (`a` and `r` do not widen it). It is the list for what should
+never happen unwatched: reading `.env`, sending a credential anywhere,
+touching production.
+
+```json
+"permissions": {
+  "allow": ["bash(cmd:go test *)", "fetch_url(host:*.go.dev)"],
+  "deny":  ["bash(cmd:git push *)", "*(host:*.internal.example)"],
+  "ask":   ["*(touches:**/.env)", "*(secret:*)", "bash(cmd:kubectl * --context=prod*)"]
+}
+```
+
+The order of authority is: the hard-deny tier (commands that wreck the
+machine), then deny rules, then ask rules, then allow rules. When a rule
+that won outranked an allow rule that would have covered the call, the
+refusal or the prompt says so — "Denied by permission rule
+bash(cmd:rm *) (it outranks allow rule bash(*))", "asks because of rule
+*(touches:**/.env) (it outranks allow rule read_file)" — and
+`/permissions check <command>` (or `/permissions check read_file
+{"path":".env"}`) answers the same question before anything runs.
+
+A subagent inherits every deny and ask rule of the session that started
+it, and none of its allow rules.
+
+`/permissions` lists rules, `/permissions allow <rule>`, `/permissions
+deny <rule>` and `/permissions ask <rule>` add one. A project can ship
+`.janetcode/permissions.json` with the same shape: its deny and ask rules
+always apply, since they only ever take something away; its allow rules
+only after `/permissions trust`. Headless runs take `--allow`, `--deny`
+and `--ask` with comma-separated rules (a comma inside a rule's
+parentheses stays in the rule), and a `pre_tool` hook can answer
+`{"decision":"allow"}` to approve a call itself. A here-document's body
+is the command's input rather than commands for deny and ask rules as
+well: `bash(rm *)` does not refuse a commit whose message mentions
+`rm -rf`.
 
 janetcode also remembers, per project and across sessions, how you
 answered every permission prompt — a ledger under `"permissions"` in the

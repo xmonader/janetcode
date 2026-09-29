@@ -274,7 +274,7 @@ func writePrivate(path string, data []byte) error {
 // AddPermission appends a rule under "permissions" in the config file,
 // touching no other key. kind is "allow" or "deny".
 func AddPermission(path, kind string, rule perm.Rule) error {
-	if kind != "allow" && kind != "deny" {
+	if kind != "allow" && kind != "deny" && kind != "ask" {
 		return fmt.Errorf("bad permission kind %q", kind)
 	}
 	raw := map[string]json.RawMessage{}
@@ -292,8 +292,11 @@ func AddPermission(path, kind string, rule perm.Rule) error {
 		}
 	}
 	list := &f.Allow
-	if kind == "deny" {
+	switch kind {
+	case "deny":
 		list = &f.Deny
+	case "ask":
+		list = &f.Ask
 	}
 	for _, e := range *list {
 		if e == rule.String() {

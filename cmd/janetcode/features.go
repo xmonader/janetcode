@@ -71,6 +71,7 @@ var flagWhen = map[string]string{
 	"eval-compact-at":        "forcing compaction on tasks that would not otherwise reach it",
 	"allow":                  "one run that should not stop to ask about a known-safe call",
 	"deny":                   "one run that must not be able to do a particular thing",
+	"ask":                    "one run that must always stop and ask before a sensitive call, even under --yolo",
 	"continue":               "carry on where the last session in this directory left off",
 	"resume":                 "reopen one session by id",
 	"version":                "you are reporting a bug, or a script needs the build",

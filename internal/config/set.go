@@ -274,7 +274,14 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown key %q", key)
 	}
-	return set(cfg, strings.TrimSpace(val))
+	if cfg.Managed.Locked(key) {
+		return nil, cfg.Managed.Refusal("changing " + key)
+	}
+	val = strings.TrimSpace(val)
+	if key == "model" && !cfg.Managed.ModelAllowed(val) {
+		return nil, cfg.Managed.Refusal(fmt.Sprintf("model %q", val))
+	}
+	return set(cfg, val)
 }
 
 // validateTheme accepts the three modes and any theme the loaded set

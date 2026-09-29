@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -313,6 +315,12 @@ func (b *agentBuilder) buildSteps() []struct {
 // sandboxed session is sandboxed too.
 func (b *agentBuilder) stepSandbox() error {
 	profile := sandboxProfile(b.d.cfg.Sandbox, b.d.sandboxOn)
+	if pol := b.d.cfg.Managed; pol != nil && pol.Sandbox != "" {
+		profile = pol.Sandbox
+		if err := b.sb.Force(profile, "the managed policy"); err != nil {
+			return err
+		}
+	}
 	if profile != "" {
 		if err := b.sb.SetProfile(profile); err != nil {
 			return err
@@ -400,6 +408,19 @@ func (b *agentBuilder) stepCore() error {
 		return err
 	}
 	b.ag = ag
+	// The managed policy: the modes it disables are held off from here
+	// on (UpdateSettings clamps them), and the tools it disables are
+	// never offered to the model, MCP tools that come up later included.
+	ag.Policy = d.cfg.Managed
+	ag.UpdateSettings(func(*agent.Settings) {})
+	if pol := d.cfg.Managed; pol != nil && len(pol.DisabledTools) > 0 {
+		ag.Tools.Disable(pol.ToolDisabled, "disabled by the managed policy")
+	}
+	// web_search's host is its provider's, not in its input: tell the
+	// permission rules, so a host scope covers searching too.
+	if searchHost := (tool.WebSearch{Config: d.cfg.Search}).Host(); searchHost != "" {
+		perm.RegisterHosts("web_search", func(json.RawMessage) []string { return []string{searchHost} })
+	}
 	ag.Archive = b.archive
 	ag.Root = d.cwd
 	ag.Files = b.files

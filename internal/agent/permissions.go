@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -66,6 +67,10 @@ type permissions struct {
 	// janetcode's own permission record. Nil protects nothing, which is
 	// what a test agent that never sets one up wants.
 	Protected *perm.Protected
+	// Policy, when set, is the administrator's managed policy: the modes
+	// it disables stay off whatever a front-end or the model asks for
+	// (see UpdateSettings). Nil is no policy.
+	Policy *managed.Policy
 
 	// allowed are the tools the user allowed for the rest of the session
 	// (Decision AllowSession). allowedMu guards it: a turn writes it while
@@ -130,6 +135,10 @@ func (a *Agent) Permissions() present.Permissions {
 	for _, r := range rs.Deny {
 		p.Deny = append(p.Deny, r.String())
 	}
+	for _, r := range rs.Ask {
+		p.Ask = append(p.Ask, r.String())
+	}
+	p.Managed = a.Policy.Summary()
 	if a.Protected != nil && !a.Off["protected"] {
 		p.Protected = len(a.Protected.Patterns())
 	}

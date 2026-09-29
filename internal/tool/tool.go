@@ -50,6 +50,10 @@ type Registry struct {
 	// withheld names a tool that policy removed, and why. Distinct from
 	// a typo: "unknown" invites a hunt, "withheld" ends one.
 	withheld map[string]string
+	// disabled, when set, names tools that may never be registered (see
+	// Disable), and disabledWhy is what Withheld then says about them.
+	disabled    func(string) bool
+	disabledWhy string
 	// Intent adds a short "why this call" field to every tool's schema.
 	// It is set on the registry rather than per tool so that MCP tools and
 	// anything registered at runtime carry it too. Set it before the
@@ -120,6 +124,9 @@ func (r *Registry) Get(name string) (Tool, bool) {
 func (r *Registry) Add(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.refusedLocked(t.Name()) {
+		return
+	}
 	r.tools[t.Name()] = t
 	r.version++
 }
@@ -130,6 +137,9 @@ func (r *Registry) Add(t Tool) {
 func (r *Registry) AddDeferred(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.refusedLocked(t.Name()) {
+		return
+	}
 	r.tools[t.Name()] = t
 	if r.deferred == nil {
 		r.deferred = map[string]bool{}
@@ -167,6 +177,40 @@ func (r *Registry) Deferred() []llm.ToolDef {
 		defs = append(defs, llm.ToolDef{Name: n, Description: t.Description(), InputSchema: t.Schema()})
 	}
 	return defs
+}
+
+// Disable removes every registered tool disabled names, and refuses to
+// register one later (an MCP server's tools come up after startup). Each
+// is recorded as withheld with why, so a call to one is answered as a
+// policy decision rather than a typo.
+func (r *Registry) Disable(disabled func(string) bool, why string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.disabled, r.disabledWhy = disabled, why
+	for name := range r.tools {
+		if disabled(name) {
+			delete(r.tools, name)
+			delete(r.deferred, name)
+			if r.withheld == nil {
+				r.withheld = map[string]string{}
+			}
+			r.withheld[name] = why
+		}
+	}
+	r.version++
+}
+
+// refusedLocked reports whether Disable refuses name, recording it as
+// withheld. Called with mu held.
+func (r *Registry) refusedLocked(name string) bool {
+	if r.disabled == nil || !r.disabled(name) {
+		return false
+	}
+	if r.withheld == nil {
+		r.withheld = map[string]string{}
+	}
+	r.withheld[name] = r.disabledWhy
+	return true
 }
 
 // Remove unregisters a tool.

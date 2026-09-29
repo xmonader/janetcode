@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -445,7 +446,23 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 	return nil, false
 }
 
+// modeRefused reports, and notes, a mode the managed policy will not let
+// be turned on. Turning one off is always allowed.
+func (m *model) modeRefused(mode string, on bool) bool {
+	if !on {
+		return false
+	}
+	if err := m.opts.Agent.ModeRefusal(mode); err != nil {
+		m.transcript.errorf("%v", err)
+		return true
+	}
+	return false
+}
+
 func (m *model) cmdYolo(text string, fields []string) (tea.Cmd, bool) {
+	if m.modeRefused(managed.ModeYolo, !m.opts.Agent.Settings().AutoApprove) {
+		return nil, false
+	}
 	m.opts.Agent.UpdateSettings(func(s *agent.Settings) {
 		s.AutoApprove = !s.AutoApprove
 		if s.AutoApprove {
@@ -471,6 +488,9 @@ func (m *model) cmdRouting(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdAuto(text string, fields []string) (tea.Cmd, bool) {
+	if m.modeRefused(managed.ModeAuto, !m.opts.Agent.Settings().AutoMode) {
+		return nil, false
+	}
 	var on bool
 	m.opts.Agent.UpdateSettings(func(s *agent.Settings) {
 		s.AutoMode = !s.AutoMode
@@ -486,6 +506,9 @@ func (m *model) cmdAuto(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdEdits(text string, fields []string) (tea.Cmd, bool) {
+	if m.modeRefused(managed.ModeEdits, !m.opts.Agent.Settings().AutoEdits) {
+		return nil, false
+	}
 	m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.AutoEdits = !s.AutoEdits })
 	m.noteMode()
 	return nil, false
@@ -538,10 +561,18 @@ func (m *model) cmdModel(text string, fields []string) (tea.Cmd, bool) {
 		return m.openConnect(stepModel), true
 	}
 	var prov llm.Provider
+	if err := settingsapply.Allowed(m.opts.Config, "", "", fields[1]); err != nil {
+		m.transcript.errorf("%v", err)
+		return nil, false
+	}
 	if cfg := m.opts.Config; cfg != nil && m.opts.Models != nil {
 		// The name may belong to a provider other than the one in
 		// use; follow it rather than sending it to the wrong endpoint.
 		if name, ok := cfg.RouteFor(fields[1]); ok && name != cfg.Provider {
+			if err := settingsapply.Allowed(cfg, name, cfg.Providers[name].Type, ""); err != nil {
+				m.transcript.errorf("%v", err)
+				return nil, false
+			}
 			p, _, err := m.opts.Models(fields[1])
 			if err != nil {
 				m.transcript.errorf("%v", err)

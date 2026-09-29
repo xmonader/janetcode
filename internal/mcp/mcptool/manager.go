@@ -2,12 +2,16 @@ package mcptool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -19,6 +23,11 @@ type Manager struct {
 	// registered deferred (loaded on demand via tool_search) instead of
 	// being sent with every request. Zero means DefaultDeferAbove.
 	DeferAbove int
+	// Allowed, when set, is asked before a server starts; an error
+	// refuses it and is recorded as the server's error, so /mcp lists it
+	// with the reason. The managed policy's allowed_mcp_servers is
+	// enforced here, the one place every server is started from.
+	Allowed func(name string) error
 
 	// mu guards every map below and closed. Nothing reads them without
 	// it, and no client is started or closed while it is held.
@@ -76,6 +85,16 @@ func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, 
 		m.mu.Unlock()
 		return false
 	}
+	if m.Allowed != nil {
+		if err := m.Allowed(name); err != nil {
+			m.errs[name] = err
+			m.mu.Unlock()
+			if onDone != nil {
+				go onDone(name, nil, err)
+			}
+			return true
+		}
+	}
 	m.starting[name] = true
 	delete(m.errs, name)
 	m.mu.Unlock()
@@ -101,6 +120,7 @@ func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, 
 		default:
 			m.clients[name] = c
 			m.register(c)
+			registerHosts(c, cfg)
 		}
 		m.mu.Unlock()
 		if onDone != nil {
@@ -139,6 +159,25 @@ func (m *Manager) unregister(c *mcp.Client) {
 	}
 	for _, t := range AgentTools(c) {
 		m.Registry.Remove(t.Name())
+		perm.RegisterHosts(t.Name(), nil)
+	}
+}
+
+// registerHosts tells the permission rules which host a remote server's
+// tools contact, so host:… scopes cover them: *(host:*.corp.example) in
+// a deny rule refuses every tool of a server at mcp.corp.example. A
+// stdio server's tools contact no host the harness can see.
+func registerHosts(c *mcp.Client, cfg mcp.ServerConfig) {
+	if cfg.URL == "" || c == nil {
+		return
+	}
+	u, err := url.Parse(cfg.URL)
+	if err != nil || u.Hostname() == "" {
+		return
+	}
+	host := strings.ToLower(u.Host)
+	for _, t := range AgentTools(c) {
+		perm.RegisterHosts(t.Name(), func(json.RawMessage) []string { return []string{host} })
 	}
 }
 

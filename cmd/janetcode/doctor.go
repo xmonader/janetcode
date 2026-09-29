@@ -21,6 +21,7 @@ import (
 	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/netcfg"
@@ -425,12 +426,20 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		row(true, "verify", fmt.Sprintf("%s in %s · %s", plural(len(vc.Commands), "command"), verify.ProjectFile, trustNote(ts.Trusted(trust.VerifyKey(cwd), hash), "/verify trust")))
 	}
 
+	if pol, err := managed.Load(os.Getenv); err != nil {
+		row(false, "managed policy", err.Error())
+	} else if pol == nil {
+		info("managed policy", "none ("+managed.SystemPath()+")")
+	} else {
+		row(true, "managed policy", strings.Join(pol.Summary(), " · "))
+	}
+
 	if rules, hash, err := perm.LoadProject(cwd); err != nil {
 		row(false, "permissions", err.Error())
-	} else if len(rules.Allow)+len(rules.Deny) == 0 {
+	} else if len(rules.Allow)+len(rules.Deny)+len(rules.Ask) == 0 {
 		n := 0
 		if cfg != nil {
-			n = len(cfg.Permissions.Allow) + len(cfg.Permissions.Deny)
+			n = len(cfg.Permissions.Allow) + len(cfg.Permissions.Deny) + len(cfg.Permissions.Ask)
 		}
 		if n > 0 {
 			row(true, "permissions", fmt.Sprintf("%s in the config, none in %s", plural(n, "rule"), perm.ProjectFile))
@@ -438,7 +447,11 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 			info("permissions", "no rules; every mutating tool asks (or use --yolo)")
 		}
 	} else {
-		detail := fmt.Sprintf("%d allow / %d deny in %s", len(rules.Allow), len(rules.Deny), perm.ProjectFile)
+		counts := fmt.Sprintf("%d allow / %d deny", len(rules.Allow), len(rules.Deny))
+		if len(rules.Ask) > 0 {
+			counts += fmt.Sprintf(" / %d ask", len(rules.Ask))
+		}
+		detail := counts + " in " + perm.ProjectFile
 		if len(rules.Allow) > 0 {
 			detail += " · allow rules " + trustNote(ts.Trusted(trust.PermissionsKey(cwd), hash), "/permissions trust")
 		}
