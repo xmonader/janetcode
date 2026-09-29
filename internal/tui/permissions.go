@@ -174,7 +174,13 @@ func (m *model) answer(d agent.Decision, reason string) {
 	call := m.pending.call
 	m.closePending()
 	m.turn.setPhase("thinking")
-	defer m.nextPermission()
+	// A cancelling answer moves the queue on only once the cancel has
+	// been sent (see the c key): the prompts behind it from the same
+	// turn are about to be abandoned, and one put up now would ask about
+	// a call that will never run.
+	if reason != agent.CancelledReason {
+		defer m.nextPermission()
+	}
 	// Named by the rule the r key would save, because that is the shape
 	// both hints below are about — the highlighted rung, if the user
 	// moved along the ladder before answering.

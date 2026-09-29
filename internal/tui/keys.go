@@ -175,6 +175,7 @@ func (m *model) handlePendingKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// Not just this call: the whole turn stops here.
 		m.answer(agent.Deny, agent.CancelledReason)
 		m.cancelTurn()
+		m.nextPermission() // only a caller outside the turn is still waiting
 	case "ctrl+o":
 		// At a prompt ctrl+o is about this one call, not the session.
 		if e := m.transcript.findTool(m.pending.call.ID); e != nil {

@@ -538,3 +538,22 @@ func TestAPromptWhoseCallerHasGoneIsNotShown(t *testing.T) {
 		t.Fatal("the end of a turn took down a prompt its caller is still waiting on")
 	}
 }
+
+// TestCancellingAtAPromptDoesNotPutUpTheNext: c at a prompt cancels the
+// whole turn. The prompt queued behind it, from the same turn, came up at
+// once — with an "approval needed" announcement — because the queue moved
+// on before the cancel was sent. A prompt whose caller is not the turn
+// still comes up.
+func TestCancellingAtAPromptDoesNotPutUpTheNext(t *testing.T) {
+	h := newHarness(t)
+	turnCtx, cancel := context.WithCancel(context.Background())
+	h.m.turn.running = true
+	h.m.turn.cancel = cancel
+	h.update(permissionMsg{ctx: turnCtx, call: agent.ToolCall{ID: "c1", Name: "write_file"}, reply: make(chan verdict, 1)})
+	h.update(permissionMsg{ctx: turnCtx, call: agent.ToolCall{ID: "c2", Name: "write_file"}, reply: make(chan verdict, 1)})
+	h.update(permissionMsg{ctx: context.Background(), call: agent.ToolCall{ID: "c3", Name: "write_file"}, reply: make(chan verdict, 1)})
+	h.keys("c")
+	if h.m.pending == nil || h.m.pending.call.ID != "c3" {
+		t.Fatalf("after cancelling, the prompt up is %+v, want the one outside the turn", h.m.pending)
+	}
+}
