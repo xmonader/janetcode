@@ -12,53 +12,51 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   model slots + step routing with per-call evidence, optional Jev decision
   service (fail-open).
 - Verified live: Dashscope `qwen3.7-plus`, OpenRouter `deepseek/deepseek-v4-flash`
-  and others. Anthropic path verified only against a fake server.
-- Windows: compile-checked (`make cross`), never run.
+  and others; the Anthropic path through the ai02 broker's Messages API
+  (2026-09-30, docs/notes/anthropic-live.md), not api.anthropic.com itself.
+- Windows: run under wine (tests + a live headless turn, docs/notes/
+  windows-wine.md); PowerShell paths need a real Windows run (CI job).
+- User-expectation checklist 2026-09-30 (docs/notes/user-expectations.md):
+  every gap except subscription login closed by 11+3 parallel forks, merged
+  on master; CHANGELOG "User-expectation gaps". Test broker: ai02
+  (OPENAI_BASE_URL=https://api.ai02.ourhero.ai/v1), cheap models
+  deepseek/deepseek-v4.1-flash, xiaomi/mimo-v2.6-flash, qwen/qwen3.8-27b.
 - Last release tag: v0.2.0; ~1040 commits since.
-- Polish/look passes 2026-09-24/25: CHANGELOG "Polish", "Robustness", "Web,
-  background runs and operations", "First week", "Look and feel". Brand:
-  iris accent + iris→aqua gradient (agent's pick; alternatives offered).
-  Checks: `make ui-test ui-turn ui-a11y ui-visual` (shot.mjs pins
-  `/api/suggest`). TUI review: pty frames rendered to PNG. Not taken from
-  diwan: native Gemini client, schema-enum drift test. Release pipeline
-  rehearsed locally; install.sh/--update need the GitHub repo public.
-- deer-flow/trae-agent reviewed 2026-09-25: took skill scan + open-plan gate.
-  Already had: loops, truncation refusal, searchable compaction archive.
-- Qwen/Claude parity 2026-09-25 (vs qwen-code ffea2d0 on herobox): 14 hook
-  events + Claude/Qwen hook configs read as-is; `status_line` command
-  (TUI only; Qwen's preset mode refused); `vision_model` bridge (images
-  described for a text-only model, cached per image). All live-verified
-  on Dashscope. Not done: Qwen's full-turn switch to an agent-capable
-  vision model; `tool_name`/`tool_input` stay janetcode's own.
+- Earlier rounds (polish/look 09-24/25, deer-flow/trae review, Qwen/Claude
+  parity 09-25): CHANGELOG sections of the same names; UI checks are
+  `make ui-test ui-turn ui-a11y ui-visual`.
 
 ## Next
-- Live-verify the Anthropic path (held by user 2026-09-24).
+- Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does
   the rest). Needs the user's go-ahead.
-- Open GitHub issues #1-#3, #5-#12 (trust, permissions, dry-run, egress,
-  session leases, audit/replay).
+- GitHub issues #1-#3, #5-#12 are implemented on master (2026-09-30);
+  closing them on GitHub is outward-facing, so it waits for the user.
 
 ## Known Gaps (verify before relying on)
-- Remote-MCP private-target guard is literal-IP only (no DNS-resolution
-  check); `fetch_url` now checks the resolved IP at dial time (2026-09-29).
-- `fallback.go` classifies provider errors by free-text regex.
-- Checkpoint file copies unbounded for single >16 MB changes; non-git undo
-  cannot see post-turn edits.
 - Eval Wilson CI pools repeated runs as iid.
 - Mid-turn Jev consumer rejected twice on measurements (docs/notes/jev.md);
   revisit only with a harness-side "did the state change" check.
 - Open UI questions: shared view model for TUI/web. app.js is still ~2,000
   lines: the transcript, composer, sessions rail and workspace pane share
   mutable state and were left together.
-- Deep review 2026-09-29 (~240 fixes, CHANGELOG "Deep review") left these
-  open as design questions: two processes on one session file have no lock;
-  MCP servers that exit stay listed (no reconnect); seatbelt allows all
-  mach-lookup; Landlock doesn't govern unix sockets; the workspace sandbox
-  profile leaves `.git` writable; `settingsapply` can write the decisions
-  map a web request's config copy shares; the memory tool's "forget" can
-  remove `/remember` entries.
+- Left open from the deep review: seatbelt mach-lookup allowlist is
+  untested on a Mac; the `workspace` sandbox keeps unix sockets (use
+  `strict`); `settingsapply` can write the decisions map a web request's
+  config copy shares.
+- GitHub Action, `/pr` and `/pr-comments` tested against a fake `gh` and
+  (action) under nektos/act, never against github.com (needs a push).
+- New timing-sensitive tests exist; the box's load from parallel forks
+  made `TestPerfBudgetsOnALongSession`/`TestStartupBudget` flaky.
 
 ## Key Decisions
+- ctrl+r is reverse prompt search (shell convention); effort cycling moved to
+  alt+e. Every prompt key goes through internal/keymap (2026-09-30).
+- A project's skills/agents/commands/rules/recipes need project trust
+  (`instructions`); hooks/MCP/verify/allow rules/recipes need `full`.
+  JANETCODE.md/AGENTS.md/CLAUDE.md are always read (2026-09-30).
+- The Go SDK drives the binary over ACP rather than importing the builder
+  (2026-09-30).
 - Go + bubbletea; product name is janetcode, not the Janet language (2026-09-07).
 - Anthropic via official SDK; OpenAI-compatible hand-rolled to tolerate dialects
   (Qwen, DeepSeek, vLLM, Ollama, OpenRouter) and learn quirks from 400s (2026-09-07).
