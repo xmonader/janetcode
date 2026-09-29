@@ -79,13 +79,18 @@ func Build(ctx context.Context, root string, sym Parser) (*Index, error) {
 	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), sym: sym, byPath: map[string]int{}, definers: map[string][]int{}}
 	for _, p := range paths {
 		abs := filepath.Join(root, filepath.FromSlash(p))
+		// Only regular files: a directory, FIFO or device that happens to
+		// carry a source extension is not source, and reading a FIFO
+		// blocks Build forever. A file that cannot be read is skipped like
+		// one that is too big — one unreadable file used to fail the map
+		// for the whole repository.
 		st, err := os.Stat(abs)
-		if err != nil || st.Size() > MaxFileBytes {
+		if err != nil || !st.Mode().IsRegular() || st.Size() > MaxFileBytes {
 			continue
 		}
 		data, err := os.ReadFile(abs)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		f := parse(p, data, sym)
 		ix.byPath[p] = len(ix.Files)
