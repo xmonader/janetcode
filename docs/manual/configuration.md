@@ -328,8 +328,14 @@ for directly.
 
 `fallback_models` is an ordered list (at most three are used, duplicates and
 the model in use dropped) tried when a call fails in a way another model
-could survive: an exhausted quota or plan, or rate limits and server errors
-that outlived the provider's own retries. A bad request, a context overflow
+could survive: an exhausted quota or plan, rate limits and server errors
+that outlived the provider's own retries, or an endpoint that could not be
+reached at all (connection refused or reset, a name that does not resolve,
+a stream that stalled or was cut off on every attempt). The decision reads
+the HTTP status, the error type a server sends inside an open stream
+(`overloaded_error`, `insufficient_quota`, OpenRouter's numeric `code`) and
+the transport error itself; only a provider message with none of those is
+judged by its words. A bad request, a context overflow
 or a cancellation fails as it always did — another model would fail the same
 way. Each name is routed like any other, so a fallback may live on a
 different provider. The partial answer from the failed attempt is discarded,

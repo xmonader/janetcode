@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 type wireMessage struct {
@@ -241,6 +243,72 @@ type wireError struct {
 	Message string `json:"message"`
 	Type    string `json:"type"`
 	Code    any    `json:"code"`
+}
+
+// streamError is an error frame inside a stream the server opened with
+// 200. It used to keep only the message, stamped HTTP 200, so the retry
+// policy never retried it and the fallback chain could judge it only by
+// its words. The frame says what it is: OpenRouter and several gateways
+// put the upstream HTTP status in "code", OpenAI and the rest a type or
+// code string. Either becomes the status the server would have sent had
+// it failed up front; the type and code stay in Detail for the
+// exhausted-account check.
+func streamError(e *wireError) *APIError {
+	status := 200
+	var code string
+	switch c := e.Code.(type) {
+	case float64:
+		if c >= 400 && c < 600 {
+			status = int(c)
+		}
+		code = strconv.Itoa(int(c))
+	case string:
+		code = c
+		if n, err := strconv.Atoi(c); err == nil && n >= 400 && n < 600 {
+			status = n
+		}
+	}
+	if status == 200 {
+		for _, k := range []string{strings.ToLower(code), strings.ToLower(e.Type)} {
+			if s, ok := streamErrorStatus[k]; ok {
+				status = s
+				break
+			}
+		}
+	}
+	detail := e.Message
+	for _, k := range []string{e.Type, code} {
+		if k != "" && !strings.Contains(detail, k) {
+			detail = k + ": " + detail
+		}
+	}
+	return &APIError{Status: status, Message: llm.BoundErrorMessage(e.Message), Detail: llm.SafeErrorDetail(status, detail)}
+}
+
+// streamErrorStatus maps the error types and codes OpenAI-compatible
+// servers send inside a stream to the HTTP status each stands for.
+var streamErrorStatus = map[string]int{
+	"invalid_request_error":   400,
+	"context_length_exceeded": 400,
+	"authentication_error":    401,
+	"invalid_api_key":         401,
+	"billing_error":           402,
+	"payment_required":        402,
+	"permission_error":        403,
+	"not_found_error":         404,
+	"model_not_found":         404,
+	"rate_limit_exceeded":     429,
+	"rate_limit_error":        429,
+	"insufficient_quota":      429,
+	"server_error":            500,
+	"api_error":               500,
+	"internal_error":          500,
+	"bad_gateway":             502,
+	"service_unavailable":     503,
+	"timeout":                 504,
+	"timeout_error":           504,
+	"overloaded":              529,
+	"overloaded_error":        529,
 }
 
 // APIError is a non-2xx response from the server.

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -53,6 +54,39 @@ func TestMidStreamErrorFrameIsFinal(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "content policy") || calls != 1 {
 		t.Fatalf("err = %v calls = %d", err, calls)
 	}
+}
+
+// An error frame says what it is, and it used to be flattened to "HTTP
+// 200" with only its message kept: never retried, and the fallback chain
+// could judge it only by its words. OpenRouter puts the upstream status in
+// a numeric "code"; OpenAI and others a type or code string.
+func TestStreamErrorFrameKeepsItsStatus(t *testing.T) {
+	cases := []struct {
+		frame     string
+		status    int
+		permanent bool
+	}{
+		{`{"error":{"message":"Provider returned error","code":429}}`, 429, false},
+		{`{"error":{"message":"upstream down","code":"502"}}`, 502, false},
+		{`{"error":{"message":"You exceeded your plan","type":"insufficient_quota","code":"insufficient_quota"}}`, 429, true},
+		{`{"error":{"message":"Overloaded","type":"overloaded_error"}}`, 529, false},
+		{`{"error":{"message":"content policy"}}`, 200, false},
+	}
+	for _, c := range cases {
+		e := streamError(mustWireError(t, c.frame))
+		if e.Status != c.status || llm.PermanentLimit(llm.ClassifyText(e)) != c.permanent {
+			t.Errorf("%s: status %d permanent %v, want %d %v", c.frame, e.Status, llm.PermanentLimit(llm.ClassifyText(e)), c.status, c.permanent)
+		}
+	}
+}
+
+func mustWireError(t *testing.T, frame string) *wireError {
+	t.Helper()
+	var ch wireChunk
+	if err := json.Unmarshal([]byte(frame), &ch); err != nil || ch.Error == nil {
+		t.Fatalf("frame %s: %v", frame, err)
+	}
+	return ch.Error
 }
 
 // A stream the watchdog killed for silence is retried under the fresh
