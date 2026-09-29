@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -648,6 +650,19 @@ func (c *Client) dispatch(msg rpcMessage) {
 	}
 }
 
+// fileURI is the file URI for an absolute directory. The path is
+// percent-escaped and written with forward slashes: "file://" pasted in
+// front of a project path handed a server "file:///home/me/my project"
+// — not a URI at all, which a strict server rejects or cuts at the space —
+// and on Windows "file://C:\src", whose drive letter parses as a host.
+func fileURI(abs string) string {
+	p := filepath.ToSlash(abs)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
 // handleRequest answers the few requests a server may send us.
 func (c *Client) handleRequest(req rpcMessage) {
 	reply := rpcMessage{JSONRPC: "2.0", ID: req.ID}
@@ -657,7 +672,7 @@ func (c *Client) handleRequest(req rpcMessage) {
 	case "roots/list":
 		roots := []map[string]string{}
 		if c.root != "" {
-			roots = append(roots, map[string]string{"uri": "file://" + c.root, "name": "project"})
+			roots = append(roots, map[string]string{"uri": fileURI(c.root), "name": "project"})
 		}
 		result, err := marshalParams(map[string]any{"roots": roots})
 		if err != nil {
