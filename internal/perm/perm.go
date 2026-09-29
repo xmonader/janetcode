@@ -206,12 +206,21 @@ var dupRedirect = regexp.MustCompile(`[0-9]*>&[0-9-]+`)
 // one trusted command at the front allowed whatever the model put after
 // it. The whole line still counts when a rule names it exactly, with no
 // wildcard, since then the user wrote out everything that runs.
+//
+// A command or process substitution — $(…), `…`, <(…), >(…) — is held to
+// the same test: it is a command line of its own that runs first, so
+// bash(go test *) matched against `go test $(curl …)` allowed the curl.
+// The line is judged with each substitution standing as one word, and
+// what each one runs is judged as a line of its own, recursively.
 func (rs Rules) allows(c Call) (Rule, bool) {
 	var segs []string
+	var bodies []string
 	if c.Tool == "bash" {
-		segs = shell.Segments(dupRedirect.ReplaceAllString(c.Subject, " "))
+		var outer string
+		outer, bodies = shell.SplitSubstitutions(c.Subject)
+		segs = shell.Segments(dupRedirect.ReplaceAllString(outer, " "))
 	}
-	if len(segs) < 2 {
+	if len(segs) < 2 && len(bodies) == 0 {
 		for _, r := range rs.Allow {
 			if r.matchesCall(c) {
 				return r, true
@@ -223,6 +232,21 @@ func (rs Rules) allows(c Call) (Rule, bool) {
 		if r.Pattern != "" && !strings.ContainsAny(r.Pattern, "*?") && !r.compile().paramRule && r.matchesCall(c) {
 			return r, true
 		}
+	}
+	return rs.lineAllowed(c, segs, bodies, 0)
+}
+
+// maxSubstDepth bounds how deeply nested substitutions are followed; a
+// line nested deeper than this is not allowed by the rules at all.
+const maxSubstDepth = 8
+
+// lineAllowed is allows for one command line already split into its
+// commands (segs) and the lines it substitutes (bodies): every command
+// must be allowed by a rule or be a safe read, every body must pass the
+// same test, and the first rule that matched anything is returned.
+func (rs Rules) lineAllowed(c Call, segs, bodies []string, depth int) (Rule, bool) {
+	if depth > maxSubstDepth {
+		return Rule{}, false
 	}
 	var first Rule
 	matched := false
@@ -243,6 +267,22 @@ func (rs Rules) allows(c Call) (Rule, bool) {
 		}
 		if !found && !shell.SafeRead(s) {
 			return Rule{}, false
+		}
+	}
+	for _, b := range bodies {
+		outer, inner := shell.SplitSubstitutions(b)
+		r, ok := rs.lineAllowed(c, shell.Segments(dupRedirect.ReplaceAllString(outer, " ")), inner, depth+1)
+		if !ok {
+			// Either something in it is not allowed, or nothing in it was
+			// matched by a rule — which is fine when all of it is a safe
+			// read.
+			if !shell.SafeRead(b) {
+				return Rule{}, false
+			}
+			continue
+		}
+		if !matched {
+			first, matched = r, true
 		}
 	}
 	return first, matched
@@ -352,13 +392,29 @@ func (r Rule) matchesSegment(c Call) bool {
 		return false
 	}
 	segs := shell.Segments(c.Subject)
-	if len(segs) < 2 {
-		return false
-	}
-	for _, s := range segs {
-		if s = strings.TrimSpace(s); s != "" && Match(r.Pattern, s) {
-			return true
+	if len(segs) >= 2 {
+		for _, s := range segs {
+			if s = strings.TrimSpace(s); s != "" && Match(r.Pattern, s) {
+				return true
+			}
 		}
+	}
+	// A substitution runs a command line of its own — `echo $(git push)`
+	// pushes — so a deny rule is matched against every command inside
+	// one as well, however deeply nested.
+	_, bodies := shell.SplitSubstitutions(c.Subject)
+	for depth := 0; len(bodies) > 0 && depth <= maxSubstDepth; depth++ {
+		var next []string
+		for _, b := range bodies {
+			outer, inner := shell.SplitSubstitutions(b)
+			for _, s := range shell.Segments(outer) {
+				if s = strings.TrimSpace(s); s != "" && Match(r.Pattern, s) {
+					return true
+				}
+			}
+			next = append(next, inner...)
+		}
+		bodies = next
 	}
 	return false
 }

@@ -200,6 +200,44 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 // body as a command line does that.
 func substitutions(s string) []string {
 	var out []string
+	for _, sp := range substitutionSpans(s) {
+		out = append(out, s[sp.body[0]:sp.body[1]])
+	}
+	return out
+}
+
+// SplitSubstitutions separates a command line from the command lines it
+// substitutes: outer is s with each outermost $(…), `…`, <(…) and >(…)
+// replaced by the word _, and bodies are what they held, in order. A
+// body can hold substitutions of its own; splitting it again finds them.
+// It is how a permission rule is kept to the command it names — an
+// allow rule's * spans any text, and `go test $(curl …)` runs curl.
+func SplitSubstitutions(s string) (outer string, bodies []string) {
+	spans := substitutionSpans(s)
+	if len(spans) == 0 {
+		return s, nil
+	}
+	var b strings.Builder
+	last := 0
+	for _, sp := range spans {
+		b.WriteString(s[last:sp.whole[0]])
+		b.WriteString("_")
+		last = sp.whole[1]
+		bodies = append(bodies, s[sp.body[0]:sp.body[1]])
+	}
+	b.WriteString(s[last:])
+	return b.String(), bodies
+}
+
+// substSpan is where one substitution sits in a line: whole is the text
+// from its opening $, `, < or > to just past its closing ) or ` (or the
+// end of the line when it is never closed), and body is what it runs.
+type substSpan struct{ whole, body [2]int }
+
+// substitutionSpans finds the outermost substitutions in s; see
+// substitutions for what counts as one.
+func substitutionSpans(s string) []substSpan {
+	var out []substSpan
 	quote := byte(0)
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -244,7 +282,7 @@ func substitutions(s string) []string {
 				end++
 			}
 			end = min(end, len(s))
-			out = append(out, s[i+1:end])
+			out = append(out, substSpan{whole: [2]int{i, min(end+1, len(s))}, body: [2]int{i + 1, end}})
 			i = end
 		case c == '$' && strings.HasPrefix(s[i+1:], "(("):
 			// Arithmetic. Its text can still hold a substitution, which
@@ -252,7 +290,7 @@ func substitutions(s string) []string {
 			i += 2
 		case (c == '$' || (quote == 0 && (c == '<' || c == '>'))) && i+1 < len(s) && s[i+1] == '(':
 			end := closeParen(s, i+2)
-			out = append(out, s[i+2:end])
+			out = append(out, substSpan{whole: [2]int{i, min(end+1, len(s))}, body: [2]int{i + 2, end}})
 			i = end
 		}
 	}
