@@ -156,9 +156,13 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 		return "", 0, "", fmt.Errorf("%sold_string and new_string are identical", where)
 	}
 	if n := strings.Count(content, e.Old); n > 0 {
+		// Overlapping occurrences count for uniqueness: strings.Count does
+		// not see them, so "aba" was unique in "ababa" and the first was
+		// edited when the model may have meant the second.
+		if k := countOverlapping(content, e.Old); k > 1 && !e.ReplaceAll {
+			return "", 0, "", fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, k, display)
+		}
 		switch {
-		case n > 1 && !e.ReplaceAll:
-			return "", 0, "", fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, n, display)
 		case e.ReplaceAll:
 			return strings.ReplaceAll(content, e.Old, e.New), n, "", nil
 		}
@@ -191,6 +195,20 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 		msg += ".\n" + nm
 	}
 	return "", 0, "", errors.New(msg)
+}
+
+// countOverlapping counts the occurrences of sub in s, overlapping ones
+// included. sub must not be empty.
+func countOverlapping(s, sub string) int {
+	n := 0
+	for {
+		i := strings.Index(s, sub)
+		if i < 0 {
+			return n
+		}
+		n++
+		s = s[i+1:]
+	}
 }
 
 // checkSeen resolves the edit's path and asks Seen whether the file is

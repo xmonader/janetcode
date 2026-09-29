@@ -133,6 +133,23 @@ func TestFoldedAmbiguityIsRefused(t *testing.T) {
 	}
 }
 
+// Occurrences that overlap are occurrences all the same: "aba" is in
+// "ababa" twice, and taking the first would edit a place the model may
+// not have meant, so the edit is refused as ambiguous.
+func TestOverlappingExactMatchIsRefused(t *testing.T) {
+	root := t.TempDir()
+	p := filepath.Join(root, "a.txt")
+	os.WriteFile(p, []byte("ababa\n"), 0o644)
+	e := EditFile{Root: root}
+	_, err := e.Run(context.Background(), editIn("a.txt", "aba", "X"))
+	if err == nil || !strings.Contains(err.Error(), "matches 2 times") {
+		t.Fatalf("an overlapping second match must be refused: %v", err)
+	}
+	if data, _ := os.ReadFile(p); string(data) != "ababa\n" {
+		t.Fatalf("file changed: %q", data)
+	}
+}
+
 // The span of line i is [starts[i], starts[i+1]); a trailing newline
 // leaves an empty last line at len(s), and starts always ends at len(s).
 func TestSplitLineSpans(t *testing.T) {
