@@ -155,7 +155,7 @@ func statements(src string) ([]string, error) {
 func (d *Diagram) node(id, label string) int {
 	if i, ok := d.index[id]; ok {
 		if label != "" && d.Nodes[i].Label == d.Nodes[i].ID {
-			d.Nodes[i].Label = label
+			d.Nodes[i].Label = clip(label)
 		}
 		return i
 	}
