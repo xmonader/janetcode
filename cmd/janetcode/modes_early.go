@@ -87,6 +87,8 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 			return true, doctorJSON(ctx, os.Stdout, ov, o.doctorFix)
 		}
 		return true, doctor(ctx, os.Stdout, ov, o.doctorFix)
+	case o.mcpServe:
+		return true, mcpServeMode(o)
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {

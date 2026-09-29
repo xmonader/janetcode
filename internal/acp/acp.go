@@ -422,7 +422,7 @@ func (s *Server) emitter(as *acpSession) func(agent.Event) {
 			// rather than continuing the half one, and the client is
 			// told which of the two to read.
 			msgID = ""
-			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_(the answer above was cut off mid-stream and is being resent; read what follows)_\n"}})
+			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_(the answer above was cut off mid-stream and is being resent; read what follows)_\n"}, Meta: discardMeta()})
 		case agent.EvTextBlockDone:
 			msgID = ""
 		case agent.EvToolStart:
@@ -448,7 +448,7 @@ func (s *Server) emitter(as *acpSession) func(agent.Event) {
 			if e.Text == "" {
 				return
 			}
-			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_" + e.Text + "_\n"}})
+			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_" + e.Text + "_\n"}, Meta: noticeMeta()})
 		}
 	}
 }

@@ -140,6 +140,31 @@ type msgUpdate struct {
 	SessionUpdate string        `json:"sessionUpdate"`
 	MessageID     string        `json:"messageId,omitempty"`
 	Content       *contentBlock `json:"content,omitempty"`
+	// Meta marks a chunk that is the harness speaking (a notice, a
+	// discarded stream), not the model, for a client that tells them
+	// apart; an editor shows it inline like any other chunk.
+	Meta *chunkMeta `json:"_meta,omitempty"`
+}
+
+type chunkMeta struct {
+	Janetcode struct {
+		Notice bool `json:"notice"`
+		// Discard says the message streamed before it was cut off and
+		// is void: its retry follows in full.
+		Discard bool `json:"discard,omitempty"`
+	} `json:"janetcode"`
+}
+
+func noticeMeta() *chunkMeta {
+	m := &chunkMeta{}
+	m.Janetcode.Notice = true
+	return m
+}
+
+func discardMeta() *chunkMeta {
+	m := noticeMeta()
+	m.Janetcode.Discard = true
+	return m
 }
 
 // toolUpdate is tool_call or tool_call_update.

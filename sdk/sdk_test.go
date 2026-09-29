@@ -16,8 +16,68 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/sdk"
 )
+
+// janetcode --mcp-serve, end to end through the real binary: janetcode's
+// own MCP client lists the tool and runs a task, in read-only mode (the
+// write is refused) and in auto-edits mode (it lands), and a follow-up
+// continues the same session.
+func TestMCPServeEndToEnd(t *testing.T) {
+	bin := janetcode(t)
+	srv := fakeModel(t)
+	env := map[string]string{}
+	for _, kv := range isolatedEnv(t, srv.URL) {
+		k, v, _ := strings.Cut(kv, "=")
+		env[k] = v
+	}
+	for _, tc := range []struct {
+		args  []string
+		wrote bool
+	}{
+		{[]string{"--mcp-serve", "--provider", "openai", "--model", "test-model"}, false},
+		{[]string{"--mcp-serve", "--auto-edits", "--provider", "openai", "--model", "test-model"}, true},
+	} {
+		work := t.TempDir()
+		c, err := mcp.Start(context.Background(), "janetcode", mcp.ServerConfig{Command: bin, Args: tc.args, Env: env, Cwd: work}, mcp.Options{Root: work, HandshakeTimeout: 30 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tools := c.Tools()
+		if len(tools) != 1 || tools[0].Name != "janetcode_task" {
+			c.Close()
+			t.Fatalf("tools = %+v", tools)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		res, err := c.CallTool(ctx, "janetcode_task", json.RawMessage(`{"prompt":"write hi to out.txt"}`))
+		cancel()
+		if err != nil || res.IsError {
+			c.Close()
+			t.Fatalf("%v: call = %+v, %v", tc.args, res, err)
+		}
+		_, statErr := os.Stat(filepath.Join(work, "out.txt"))
+		if wrote := statErr == nil; wrote != tc.wrote {
+			c.Close()
+			t.Fatalf("%v: wrote=%v, want %v; result %q", tc.args, wrote, tc.wrote, res.Text)
+		}
+		const marker = "[janetcode session "
+		i := strings.Index(res.Text, marker)
+		if i < 0 {
+			c.Close()
+			t.Fatalf("result = %q", res.Text)
+		}
+		id := res.Text[i+len(marker):]
+		id = id[:strings.Index(id, " ")]
+		ctx, cancel = context.WithTimeout(context.Background(), 60*time.Second)
+		res2, err := c.CallTool(ctx, "janetcode_task", json.RawMessage(`{"prompt":"and again","session_id":"`+id+`"}`))
+		cancel()
+		c.Close()
+		if err != nil || res2.IsError || !strings.Contains(res2.Text, marker+id) {
+			t.Fatalf("follow-up = %+v, %v (want session %s)", res2, err, id)
+		}
+	}
+}
 
 var (
 	buildOnce sync.Once

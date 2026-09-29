@@ -106,6 +106,10 @@ const (
 	EventText EventKind = "text"
 	// EventThinking is a piece of the model's reasoning.
 	EventThinking EventKind = "thinking"
+	// EventNotice is the harness speaking, not the model: a memory
+	// recalled, a claim the turn did not back up, a stream resent. It
+	// is not part of Result.Text.
+	EventNotice EventKind = "notice"
 	// EventToolCall is a tool call starting; EventToolUpdate is its
 	// progress and result (Tool.Status says which).
 	EventToolCall   EventKind = "tool_call"
@@ -356,18 +360,30 @@ type Image struct {
 }
 
 type turnState struct {
-	text  strings.Builder
-	tools map[string]*ToolCall
-	order []string
+	text strings.Builder
+	// msgID and msgStart mark where the message being streamed began in
+	// text, so a discarded stream can be taken back out.
+	msgID    string
+	msgStart int
+	tools    map[string]*ToolCall
+	order    []string
+	onEvent  func(Event)
 }
 
 // Prompt sends one message and waits for the turn to end. Cancelling ctx
 // cancels the turn; the result then has StopReason "cancelled".
 func (s *Session) Prompt(ctx context.Context, text string, images ...Image) (*Result, error) {
+	return s.PromptWith(ctx, text, nil, images...)
+}
+
+// PromptWith is Prompt with a handler for this turn's events alone, on
+// top of the client's OnEvent: a program running several sessions on one
+// client can follow each on its own.
+func (s *Session) PromptWith(ctx context.Context, text string, onEvent func(Event), images ...Image) (*Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.c
-	st := &turnState{tools: map[string]*ToolCall{}}
+	st := &turnState{tools: map[string]*ToolCall{}, onEvent: onEvent}
 	c.mu.Lock()
 	c.turns[s.ID] = st
 	c.mu.Unlock()
@@ -608,13 +624,20 @@ func (c *Client) update(raw json.RawMessage) {
 		SessionID string `json:"sessionId"`
 		Update    struct {
 			SessionUpdate string `json:"sessionUpdate"`
+			MessageID     string `json:"messageId"`
 			Content       json.RawMessage
-			ToolCallID    string          `json:"toolCallId"`
-			Title         string          `json:"title"`
-			Kind          string          `json:"kind"`
-			Status        string          `json:"status"`
-			RawInput      json.RawMessage `json:"rawInput"`
-			Locations     []struct {
+			Meta          struct {
+				Janetcode struct {
+					Notice  bool `json:"notice"`
+					Discard bool `json:"discard"`
+				} `json:"janetcode"`
+			} `json:"_meta"`
+			ToolCallID string          `json:"toolCallId"`
+			Title      string          `json:"title"`
+			Kind       string          `json:"kind"`
+			Status     string          `json:"status"`
+			RawInput   json.RawMessage `json:"rawInput"`
+			Locations  []struct {
 				Path string `json:"path"`
 			} `json:"locations"`
 		} `json:"update"`
@@ -633,9 +656,23 @@ func (c *Client) update(raw json.RawMessage) {
 		}
 		_ = json.Unmarshal(u.Content, &cb)
 		ev.Kind, ev.Text = EventText, cb.Text
-		if u.SessionUpdate == "agent_thought_chunk" {
+		switch {
+		case u.SessionUpdate == "agent_thought_chunk":
 			ev.Kind = EventThinking
-		} else if st != nil {
+		case u.Meta.Janetcode.Notice:
+			ev.Kind, ev.Text = EventNotice, strings.Trim(strings.TrimSpace(cb.Text), "_()")
+			if u.Meta.Janetcode.Discard && st != nil {
+				// The message streamed so far was cut off and is resent
+				// whole: the void part leaves the answer.
+				kept := st.text.String()[:st.msgStart]
+				st.text.Reset()
+				st.text.WriteString(kept)
+				st.msgID = ""
+			}
+		case st != nil:
+			if u.MessageID != st.msgID {
+				st.msgID, st.msgStart = u.MessageID, st.text.Len()
+			}
 			st.text.WriteString(cb.Text)
 		}
 	case "tool_call", "tool_call_update":
@@ -684,8 +721,15 @@ func (c *Client) update(raw json.RawMessage) {
 		c.mu.Unlock()
 		return
 	}
+	var own func(Event)
+	if st != nil {
+		own = st.onEvent
+	}
 	c.mu.Unlock()
 	if c.opts.OnEvent != nil {
 		c.opts.OnEvent(ev)
+	}
+	if own != nil {
+		own(ev)
 	}
 }

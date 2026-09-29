@@ -44,6 +44,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
+| `--mcp-serve` | serve janetcode as an MCP server on stdio: one tool, `janetcode_task`, runs a prompt in this directory and returns the answer, session id, verdict and usage. Read-only unless `--auto-edits`, `--auto` or `--yolo` is given; see [Extending](extending.md#janetcode-as-an-mcp-server) |
 | `--web` | serve the session in a browser instead of the terminal |
 | `--web-addr <host:port>` | listen address for `--web` (default `127.0.0.1:8787`). Loopback unless you name another host. The page requires the access token in the printed URL, on loopback too, since other users of the machine can reach it (`JANETCODE_WEB_TOKEN` fixes it) |
 | `--inspect <subject>` | print one part of the session state and exit; `list` names them |

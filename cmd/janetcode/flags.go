@@ -58,6 +58,7 @@ type options struct {
 	inspectWhat  string
 	wtBranch     string
 	acpMode      bool
+	mcpServe     bool
 	evalFacts    int
 	evalBlind    bool
 	evalCompact  int
@@ -261,6 +262,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.evalNoLimit, "eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
 	fs.StringVar(&o.inspectWhat, "inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; --inspect list names them all")
 	fs.StringVar(&o.wtBranch, "worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
+	fs.BoolVar(&o.mcpServe, "mcp-serve", false, "serve janetcode as an MCP server on stdin/stdout: one tool, janetcode_task, runs a prompt here and returns the answer, session id, verdict and usage. Read-only unless --auto-edits, --auto or --yolo is given; what the mode would ask about is refused")
 	fs.BoolVar(&o.acpMode, "acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
 	fs.IntVar(&o.evalFacts, "eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
 	fs.BoolVar(&o.evalBlind, "eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")

@@ -620,6 +620,7 @@ func textBlock(s string) contentBlock { return contentBlock{Type: "text", Text: 
 type reportingRunner struct{ fakeRunner }
 
 func (r *reportingRunner) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(agent.Event)) error {
+	emit(agent.Event{Kind: agent.EvNotice, Text: "memory recalled: x"})
 	emit(agent.Event{Kind: agent.EvToolStart, Call: &agent.ToolCall{ID: "t1", Name: "read_file"}})
 	emit(agent.Event{Kind: agent.EvText, Text: "done"})
 	emit(agent.Event{Kind: agent.EvVerdict, Text: "tests pass"})
@@ -643,7 +644,21 @@ func TestPromptResultCarriesTheTurnReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("go")}})
-	final, _ := c.readUntil(isResponse)
+	final, updates := c.readUntil(isResponse)
+	// The harness's notice is marked as such; the model's text is not.
+	var notice, text bool
+	for _, u := range updates {
+		p := string(u.Params)
+		switch {
+		case strings.Contains(p, "memory recalled"):
+			notice = strings.Contains(p, `"_meta":{"janetcode":{"notice":true}}`)
+		case strings.Contains(p, `"text":"done"`):
+			text = !strings.Contains(p, `"notice"`)
+		}
+	}
+	if !notice || !text {
+		t.Fatalf("notice marked=%v, text unmarked=%v in %+v", notice, text, updates)
+	}
 	var pr promptResult
 	if err := json.Unmarshal(final.Result, &pr); err != nil {
 		t.Fatal(err)

@@ -20,7 +20,7 @@ if err != nil {
 	return err
 }
 fmt.Println(res.Text)       // the answer
-fmt.Println(res.Verdict)    // what the turn demonstrated, e.g. "✓ tested: go test ./... passed"
+fmt.Println(res.Verdict)    // what the harness saw the turn demonstrate
 fmt.Println(res.Usage.OutputTokens, len(res.ToolCalls))
 ```
 
@@ -68,8 +68,12 @@ The options:
   waits on a question nobody will answer. The model is told the call
   was refused and carries on.
 - `OnEvent`: receives the streamed answer, reasoning and tool calls in
-  order. It runs on the goroutine that reads the connection, so it
-  must return promptly.
+  order, plus the harness's own notices (`EventNotice`: a memory
+  recalled, a claim the turn did not back up). Notices are not part of
+  `Result.Text`, and neither is a stream that was cut off and resent.
+  `OnEvent` runs on the goroutine that reads the connection, so it
+  must return promptly. `Session.PromptWith` takes a handler for one
+  turn's events alone.
 - `Env`, `Args` and `Stderr`: extra environment entries (a provider
   key, say), extra flags (`--set k=v`, `--add-dir`), and where
   janetcode's diagnostics go. By default they are discarded.
@@ -83,8 +87,10 @@ passed to `Prompt` cancels the turn over the protocol, so the agent
 stops cleanly and the result says `cancelled`.
 
 The usage and verdict ride in the ACP prompt result under
-`_meta.janetcode` (`verdict`, `usage`, `toolCalls`). An editor that does
-not know the key ignores it; any other ACP client can read it too.
+`_meta.janetcode` (`verdict`, `usage`, `toolCalls`), and a message chunk
+that is the harness speaking carries `_meta.janetcode.notice` (with
+`discard` when the message before it is void). An editor that does not
+know the key ignores it; any other ACP client can read it too.
 
 `examples/sdk` is a small program built on it. It streams the answer,
 applies edits, and asks on the terminal about anything else:
@@ -92,3 +98,45 @@ applies edits, and asks on the terminal about anything else:
 ```sh
 go run ./examples/sdk -dir ~/src/project "add a test for Parse"
 ```
+
+## janetcode as an MCP server
+
+`janetcode --mcp-serve` serves janetcode over MCP on stdio, so any MCP
+client can hand it a task: another coding agent, an IDE, a desktop
+assistant. Register it the way that client registers any stdio server;
+for a client that reads `.mcp.json`:
+
+```json
+{"mcpServers": {"janetcode": {"command": "janetcode", "args": ["--mcp-serve", "--auto-edits"], "cwd": "/path/to/repo"}}}
+```
+
+It offers one tool, `janetcode_task`:
+
+- `prompt` (required) is the task, in full.
+- `session_id` continues an earlier task's conversation. Every result
+  names its session, and `janetcode --resume <id>` opens the same one in
+  the terminal.
+
+The result is the answer as text, followed by one line with the
+session id, the stop reason, the number of tool calls, how many calls the
+permission mode refused, the verdict and the tokens used. The same
+fields are in `structuredContent` for a client that reads the tool's
+output schema. A client that sends a progress token gets a progress
+notification as each tool call starts, and a `notifications/cancelled`
+for the request cancels the task.
+
+A server has nobody to answer a permission question, so the mode decides
+everything. It is `--readonly` unless you give `--auto-edits` (file edits
+run), `--auto` (in-workspace edits and known-safe commands run) or
+`--yolo` (everything runs; the command guard still refuses what it always
+refuses). A call the mode would ask about is refused, and the model is
+told so. `--model`, `--provider`, `--effort`, `--allow`, `--deny`,
+`--add-dir`, `--set`, `--sandbox` and `--append-system-prompt` apply to
+every task. The tool is annotated read-only in read-only mode, so a
+client that honours the hint can skip its own confirmation.
+
+Tasks run in one janetcode child process speaking ACP, the same agent
+the [SDK](#the-go-sdk) drives, started on the first call. Tasks in
+different sessions run at the same time; tasks in one session run in
+turn. Diagnostics go to stderr, and stdout carries only protocol
+messages.
