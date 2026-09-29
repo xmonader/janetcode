@@ -114,6 +114,27 @@ func newHarnessFor(t *testing.T, opts Options) *harness {
 		ag.Asker = m.asker
 	}
 	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	// A test that ends with a turn still running (a goal round it started,
+	// a quit it tested) leaves the agent writing to the session directory
+	// while TempDir removes it. Registered after the TempDirs, so it runs
+	// before them: cancel the turn and let it finish.
+	t.Cleanup(func() {
+		// A test that sets running by hand has no goroutine to wait for:
+		// only a turn with a context to cancel is really running.
+		if !h.m.turn.running || h.m.turn.cancel == nil {
+			return
+		}
+		h.m.cancelTurn()
+		deadline := time.After(2 * time.Second)
+		for h.m.turn.running {
+			select {
+			case msg := <-h.msgs:
+				h.update(msg)
+			case <-deadline:
+				return
+			}
+		}
+	})
 	return h
 }
 
