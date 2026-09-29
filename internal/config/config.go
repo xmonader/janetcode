@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -155,6 +156,15 @@ type Config struct {
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
+	// MemoryConfirm holds every memory the model or the extractor writes
+	// as pending until the user approves it (/memory pending); what the
+	// user writes with /remember is saved at once. /memory confirm
+	// on|off changes it for the session.
+	MemoryConfirm bool `json:"memory_confirm,omitempty"`
+	// Egress restricts which hosts a turn may send data to: fetch_url,
+	// web search, remote MCP servers and shell commands that visibly
+	// reach a host. Requests to the model provider are always allowed.
+	Egress *EgressConfig `json:"egress,omitempty"`
 	// Hints enables the one-time notes about features a session could
 	// have used; nil means on. Each fires at most once per project, so
 	// turning them off is for somebody who knows the harness and wants
@@ -793,6 +803,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if err := cfg.Decisions.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
+	if _, err := cfg.EgressPolicy(); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
 	// A file that cannot be used beats credentials that are merely
 	// missing: /connect can supply a key, not repair a broken theme.
 	return cfg, credErr
@@ -892,4 +905,32 @@ func (c *Config) ThinkingEnabled() bool {
 	}
 	m := strings.ToLower(c.Model)
 	return !strings.Contains(m, "haiku") && !strings.Contains(m, "claude-3")
+}
+
+// EgressConfig is the "egress" block: which hosts a turn may send data
+// to, and what happens with any other.
+type EgressConfig struct {
+	// Default is what happens with a host not in Allow: "allow" (the
+	// default: no restriction), "ask" (the call asks, whatever the mode)
+	// or "block" (the call is refused).
+	Default string `json:"default,omitempty"`
+	// Allow lists hosts: "github.com", "*.golang.org" (any subdomain) or
+	// ".pypi.org" (the domain and its subdomains).
+	Allow []string `json:"allow,omitempty"`
+}
+
+// EgressPolicy is the configured policy; nil when none is set.
+func (c *Config) EgressPolicy() (*egress.Policy, error) {
+	if c == nil || c.Egress == nil {
+		return nil, nil
+	}
+	v, err := egress.ParseVerdict(c.Egress.Default)
+	if err != nil {
+		return nil, err
+	}
+	p := &egress.Policy{Default: v, Allow: c.Egress.Allow}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
 }

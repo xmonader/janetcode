@@ -47,6 +47,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
+	child.EgressPolicy = p.EgressPolicy
 	child.Impact = p.Impact
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
@@ -186,6 +187,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	child.Debug = p.Debug
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
+	child.EgressPolicy = p.EgressPolicy
 	child.Impact = p.Impact
 	child.Files = p.Files
 	withholdFromChild(child.Tools, profile)
@@ -272,6 +274,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.UndoOwner = p
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
+	child.EgressPolicy = p.EgressPolicy
 	child.Impact = p.Impact
 	child.Files = p.Files
 	withholdFromChild(child.Tools, nil)

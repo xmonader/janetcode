@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
@@ -89,6 +90,7 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 	if !named {
 		guarded.Transport = guardDial(client.Transport)
 	}
+	guarded.Transport = egress.Transport(guarded.Transport, egress.KindFetch)
 	client = &guarded
 	req.Header.Set("User-Agent", "janetcode/1 (+https://github.com/xmonader/janetcode)")
 	req.Header.Set("Accept", "text/html, application/json, text/plain, */*")

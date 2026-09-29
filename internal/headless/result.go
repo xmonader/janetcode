@@ -1,5 +1,7 @@
 package headless
 
+import "github.com/xmonader/janetcode/internal/egress"
+
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
 // cliresult.go) by importing this package.
@@ -65,6 +67,11 @@ type CLIResult struct {
 	// detour, nothing to report — and an empty list (omitted) means the
 	// run never left its own model.
 	Routes []CLIRoute `json:"routes,omitempty"`
+	// Egress is what each turn of the run sent off the machine: the
+	// hosts, the bytes, the files and tool output that went into the
+	// model requests, memory and skills attached, and how many
+	// secret-shaped values were redacted first (see internal/egress).
+	Egress []egress.Report `json:"egress,omitempty"`
 }
 
 // CLIRoute is one model call served away from the session's own model.

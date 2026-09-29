@@ -29,6 +29,11 @@ func capKinds(st trust.State) []string {
 	return kinds
 }
 
+// registerEgressSubject adds `--inspect egress` and /inspect egress.
+func registerEgressSubject(reg *inspect.Registry, ag interface{ EgressSummary() string }) {
+	reg.AddText("egress", "what the last turn sent off this machine, and the egress policy", ag.EgressSummary)
+}
+
 // registerTrustSubject adds `--inspect trust` and /inspect trust: the
 // effective level, where it came from and every capability it governs.
 func registerTrustSubject(reg *inspect.Registry, g *trust.Gate, cwd func() string) {

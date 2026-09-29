@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -66,6 +67,13 @@ type permissions struct {
 	// janetcode's own permission record. Nil protects nothing, which is
 	// what a test agent that never sets one up wants.
 	Protected *perm.Protected
+	// EgressPolicy, when active, decides which hosts a tool call may send
+	// data to: a blocked host is refused before the call runs, an "ask"
+	// host makes the call ask whatever the mode. Nil allows every host.
+	EgressPolicy *egress.Policy
+
+	egressMu  sync.Mutex
+	egressRec *egress.Recorder
 
 	// allowed are the tools the user allowed for the rest of the session
 	// (Decision AllowSession). allowedMu guards it: a turn writes it while

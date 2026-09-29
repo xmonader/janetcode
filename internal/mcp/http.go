@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -66,6 +67,10 @@ func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTra
 		// whoever wrote it meant this machine.
 		client.Transport = weburl.GuardDial(nil, true)
 	}
+	// Tool calls run under the turn's context, so what each sends to the
+	// server lands in that turn's egress report, and a host the policy
+	// blocks is refused before the arguments leave.
+	client.Transport = egress.Transport(client.Transport, egress.KindMCP)
 	return &httpTransport{
 		c:       c,
 		client:  client,

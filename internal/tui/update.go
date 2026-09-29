@@ -291,6 +291,10 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 			m.note(msg.note)
 		}
 		for _, e := range msg.added {
+			if e.Pending {
+				m.note("memory held for your confirmation (/memory pending): " + memoryLine(e))
+				continue
+			}
 			m.note("remembered: " + memoryLine(e))
 		}
 		m.refresh(false)

@@ -517,6 +517,17 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 }
 
 // Close stops the server or connection. It is safe to call more than once.
+// RemoteHost is the host of a remote (HTTP) server, "" for a local one
+// run over stdio.
+func (c *Client) RemoteHost() string {
+	if t, ok := c.tr.(*httpTransport); ok {
+		if u, err := url.Parse(t.url); err == nil {
+			return strings.ToLower(u.Hostname())
+		}
+	}
+	return ""
+}
+
 func (c *Client) Close() error {
 	c.tr.close()
 	c.fail(fmt.Errorf("%w: the client closed it", ErrDisconnected))

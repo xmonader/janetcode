@@ -64,6 +64,9 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		if status == Held {
+			return fmt.Sprintf("Held for the user's confirmation: %s (%s): %s. It is not saved until they approve it with /memory approve; do not save it again.", e.Name, e.Type, e.Description), nil
+		}
 		verb := map[Status]string{Created: "Remembered", Updated: "Updated", Unchanged: "Already remembered"}[status]
 		out := fmt.Sprintf("%s %s (%s, %s): %s", verb, e.Name, e.Type, e.Scope, e.Description)
 		if in.Scope == "global" {

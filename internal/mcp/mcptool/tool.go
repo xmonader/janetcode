@@ -130,6 +130,15 @@ func nonce() string {
 }
 
 func (t *Tool) Name() string { return t.name }
+
+// EgressHosts is the remote server's host: the call's arguments go there.
+// A local server is a process on this machine and names none.
+func (t *Tool) EgressHosts(json.RawMessage) []string {
+	if h := t.Client.RemoteHost(); h != "" {
+		return []string{h}
+	}
+	return nil
+}
 func (t *Tool) Description() string {
 	d := strings.TrimSpace(t.Info.Description)
 	if d == "" {

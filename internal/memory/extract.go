@@ -197,6 +197,7 @@ func (s *Store) ApplyWith(xs []Extracted, source string) ([]Entry, error) {
 			Name: x.Name, Description: x.Description, Type: x.Type, Scope: "project",
 			Body: x.Body, Source: source, Evidence: x.Evidence,
 			Concerns: cleanConcerns(x.Concerns),
+			Replaces: x.Replaces,
 		}
 		e, status, err := s.Put(e)
 		if err != nil {
@@ -212,6 +213,11 @@ func (s *Store) ApplyWith(xs []Extracted, source string) ([]Entry, error) {
 		// true and what replaced it, instead of vanishing or silently
 		// taking the correction's name. Replacing by the same name is a
 		// plain update, which Put has already done.
+		if status == Held {
+			// The correction is the user's to approve; the entry it
+			// retires is closed when they do (Store.Approve).
+			continue
+		}
 		if x.Replaces != "" && Slug(x.Replaces) != e.Name {
 			if old, ok := s.Get(x.Replaces); ok && old.Scope == "project" {
 				if _, err := s.Close(old.Name, e.Name, time.Now()); err != nil {

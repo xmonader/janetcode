@@ -136,6 +136,8 @@ var configWhen = map[string][2]string{
 	"status_line":          {"a command whose output is shown under the input", "you want the branch, the cost or anything a script can print always in view"},
 	"statusLine":           {"status_line, under the name Claude Code and Qwen Code give it", "you are pasting a status line from their settings"},
 	"permissions":          {"persistent allow and deny rules", "the same approval keeps coming up, or something must never run"},
+	"memory_confirm":       {"hold what the model or the extractor saves to memory until you approve it with /memory pending", "you want to see every durable memory before it is kept"},
+	"egress":               {"which hosts a turn may send data to (default allow|ask|block, and an allow list); model requests are always allowed", "a repository or its data must not reach hosts you have not named"},
 	"protected_paths":      {"extra paths a write always asks about, appended to the built-in set", "a file of yours has effects that outlive the session"},
 	"embedding_model":      {"model asked of /embeddings so memory recall ranks by meaning", "word overlap is not finding the memory you meant"},
 	"lsp":                  {"language servers consulted for diagnostics after edits", "you want the compiler's opinion before the tests'"},

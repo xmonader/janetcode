@@ -30,6 +30,7 @@ var commandWhen = map[string]string{
 	"/redo":         "the undo was the mistake",
 	"/mcp":          "a project ships .mcp.json, or a remote server needs a login",
 	"/cua":          "you want the model to operate the desktop through Cua Driver, not pixel clicks",
+	"/egress":       "you want to know which hosts the last turn sent data to, and which files and memories went with it",
 	"/trust":        "a repository ships skills, hooks or MCP servers and you want to see what it would let in, or let it in",
 	"/hooks":        "the project ships .janetcode/hooks.json and you want to see or enable it",
 	"/permissions":  "the same approval keeps coming up, or the project ships rules you want to trust",

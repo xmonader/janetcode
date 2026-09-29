@@ -125,6 +125,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	jobs := &tool.Jobs{}
 	r.onClose(jobs.KillAll)
 	mem := memory.Open(filepath.Dir(sessDir), cwd)
+	mem.Confirm.Store(cfg.MemoryConfirm)
 	if em, ok := prov.(llm.Embedder); ok && cfg.EmbeddingModel != "" {
 		model := cfg.EmbeddingModel
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
@@ -242,6 +243,8 @@ func (r *root) wireProject() error {
 	// Paths a write always asks about, whatever the mode: the defaults
 	// plus whatever protected_paths adds to them.
 	ag.Protected = perm.NewProtected(cfg.ProtectedPaths)
+	// Validated by config.Load, so the error cannot happen here.
+	ag.EgressPolicy, _ = cfg.EgressPolicy()
 	projectTrusted := len(projectServers) > 0 && r.gate.Exec(cwd, ts.Trusted(cwd, projectHash))
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
@@ -268,6 +271,7 @@ func (r *root) wireProject() error {
 	registerFeatureSubject(subjects, catalog)
 	registerThemeSubject(subjects, cfg)
 	registerTrustSubject(subjects, r.gate, r.built.cd.Dir)
+	registerEgressSubject(subjects, ag)
 	// Deferred: the model gets the schema only after asking for it, so a
 	// session that never wonders about the harness never pays for it.
 	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})

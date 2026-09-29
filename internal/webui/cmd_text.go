@@ -158,6 +158,18 @@ func (s *server) memory(cmd, arg string) {
 		}
 		s.notice("forgot " + gone.Name)
 	default:
+		if out, ok, err := store.ConfirmCommand(arg); ok {
+			if err != nil {
+				s.errf("memory: %v", err)
+			}
+			if out != "" {
+				s.sheet("memory", out)
+			}
+			if s.opts.Agent != nil {
+				s.opts.Agent.RefreshExtra()
+			}
+			return
+		}
 		s.sheet("memory", s.memoryText(arg))
 	}
 }

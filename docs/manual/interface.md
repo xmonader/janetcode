@@ -793,6 +793,41 @@ they have fired; `pin` keeps one, `archive` moves it to
 `.janetcode/archived-skills/`, `restore` puts it back. Usage is stored in
 `.janetcode/skill-usage.json`. Hand-written skills are left alone.
 
+### What left the machine: /egress
+
+Every turn keeps a ledger of what it sent off the machine: each model
+request's host and size (model slots, the advisor and subagents
+included), fetch_url and web search hosts, remote MCP servers, shell
+commands that visibly name a host, the files and tool output that went
+back into the conversation, the memory entries and skills attached, and
+how many secret-shaped values were redacted before sending. `/egress`
+(and `--inspect egress`) shows the last turn's; every turn's is in the
+session log as `egress/turn`, and `-p --output-format json` carries them
+under `"egress"`.
+
+The `egress` config key restricts where data may go:
+
+```json
+"egress": {"default": "ask", "allow": ["github.com", "*.golang.org", ".pypi.org"]}
+```
+
+`default` is what happens with a host not on `allow`: `allow` (no
+restriction, the default), `ask` (the call asks whatever the mode, even a
+read-only web search, and the prompt names the host) or `block` (the call
+is refused before anything is sent). fetch_url, web search and remote
+MCP calls are also checked at the connection, so a redirect to a blocked
+host is refused too. Shell commands are judged by the hosts they spell
+out, which is recognition rather than enforcement: a command can reach a
+host it does not name. The model provider is always allowed.
+
+With `memory_confirm` on (or `/memory confirm on` for the session), what
+the model or the extractor decides to remember waits instead of being
+saved: `/memory pending` lists each with where it was learned, its scope
+and what it would update or retire; `/memory approve <n|name|all>` keeps
+it and `/memory reject` drops it. `/memory expire <name>` retires an
+entry, which stays on disk as history. What you write with `/remember`
+is saved at once.
+
 ### Project trust
 
 A repository can ship more than code: skills and agent profiles the

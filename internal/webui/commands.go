@@ -25,7 +25,7 @@ var webCommands = []string{
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua", "/trust",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua", "/trust", "/egress",
 }
 
 var webArgs = map[string]string{
@@ -36,7 +36,7 @@ var webArgs = map[string]string{
 	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",
-	"/memory":      "[query]",
+	"/memory":      "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
 	"/remember":    "[-g] <fact>",
 	"/permissions": "",
 	"/eval":        "keep [name] [--check cmd]",
@@ -288,6 +288,10 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/cua": (*server).cmdCua,
+	"/egress": func(s *server, arg string) (bool, error) {
+		s.sheet("egress", s.opts.Agent.EgressSummary())
+		return false, nil
+	},
 	"/trust": func(s *server, arg string) (bool, error) {
 		s.trustCommand(arg)
 		return false, nil

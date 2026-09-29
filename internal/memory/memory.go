@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
@@ -94,6 +95,12 @@ type Entry struct {
 	// is still recognised. A global entry about one ecosystem is never
 	// recalled in a project of another (see Store.hidden).
 	Ecosystems []string
+	// Pending marks an entry held for the user's confirmation (see
+	// pending.go); Replaces is the entry a correction would retire when
+	// it is approved, and MergesInto the existing entry it would update.
+	Pending    bool
+	Replaces   string
+	MergesInto string
 }
 
 // Closed reports whether a correction has retired the entry: it stopped
@@ -170,6 +177,9 @@ type Store struct {
 	// the work keeps needing above the ones it needed once.
 	PlainRanking bool
 	Ecosystem    string
+	// Confirm holds what the model and the extractors save as pending
+	// until the user approves it (memory_confirm, /memory confirm).
+	Confirm atomic.Bool
 
 	mu        sync.Mutex
 	embedMu   sync.Mutex
@@ -345,7 +355,11 @@ const (
 // Put creates or updates an entry. An entry of the same name is updated;
 // otherwise one whose description says nearly the same thing is updated
 // instead of duplicated.
-func (s *Store) Put(e Entry) (Entry, Status, error) {
+func (s *Store) Put(e Entry) (Entry, Status, error) { return s.put(e, true) }
+
+// put is Put; hold says whether an entry that needs confirmation is held
+// rather than written (Approve writes one that was).
+func (s *Store) put(e Entry, hold bool) (Entry, Status, error) {
 	e.Description = oneLine(e.Description, MaxIndexLine)
 	e.Body = strings.TrimSpace(e.Body)
 	if len(e.Body) > MaxBody {
@@ -388,6 +402,9 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing := s.read()
+	if hold && s.needsConfirm(e) {
+		return s.hold(e, existing)
+	}
 	now := time.Now()
 	for _, old := range existing {
 		if old.Closed() {
