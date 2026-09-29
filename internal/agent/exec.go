@@ -293,7 +293,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		basis = "the user (no answer)"
 		return nil, "", askErr
 	}
-	basis = "the user: " + d.String()
+	basis = a.answerBasis(d)
 	if r := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); r != "" {
 		return nil, r, nil
 	}
@@ -580,11 +580,13 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	start := time.Now()
 	var pend []pending
 	var tamperedBefore string
+	var shellBefore bashAuditState
 	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		// A locked file changed outside any tool call is put back before
 		// this call runs, so the note after it never blames this call.
 		tamperedBefore = a.acceptRestoreTampered("", emit)
 		pend = a.before(t, u.Input)
+		shellBefore = a.bashAuditBefore(ctx, u)
 	}
 	// A bash call that looks like `git commit` gets HEAD read before it
 	// runs, so a move can be detected after: see checkCommitAttach. The
@@ -600,6 +602,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
 	}
+	a.bashAuditAfter(ctx, u, shellBefore)
 	if ctx.Err() != nil && err != nil {
 		// The call was interrupted before it produced a result. It was
 		// announced with EvToolRun, so it is closed here with the text
@@ -838,13 +841,16 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
 	var pend []pending
 	var tamperedBefore string
+	var shellBefore bashAuditState
 	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
 		a.snapshotBefore(ctx, t, u.Input, emit)
 		pend = a.before(t, u.Input)
+		shellBefore = a.bashAuditBefore(ctx, u)
 	}
 	start := time.Now()
 	out, _, runErr := a.runSafely(ctx, t, u.Input)
+	a.bashAuditAfter(ctx, u, shellBefore)
 	dur := time.Since(start)
 	isErr := runErr != nil
 	if isErr {
