@@ -955,9 +955,55 @@ command, since approving a background shell once does not approve what
 the model later types into it. `/jobs` opens a
 live overlay of them (empty if none); enter (or `/jobs <n>`) tails the
 log, `k` kills the highlighted job, esc closes. `/jobs kill <n>` and
-`/jobs stdin <n> <text>` still work typed. A one-shot `bash` call still
-gets EOF on stdin; only a background job has a pipe. Every job is
-stopped when janetcode exits.
+`/jobs stdin <n> <text>` still work typed, in the terminal and in
+`--web`. Every job is stopped when janetcode exits.
+
+#### Commands that ask questions
+
+No command the model runs has a terminal: each starts in a session of
+its own, without a controlling terminal. A program that opens `/dev/tty`
+to ask for something (ssh's password, sudo, gpg) fails at once saying it
+has no terminal. Before, it shared janetcode's terminal from a background
+process group, and the read stopped it, silently, until the timeout
+killed it two minutes later.
+
+There are three ways to answer a command:
+
+- **`stdin`** on `bash` feeds text to the command's standard input, then
+  end-of-file, for answers known in advance:
+  `{"command": "./configure.sh", "stdin": "yes\n/opt/app\n"}`.
+- **A foreground command found asking.** On Linux, a command started
+  without `stdin` gets a pipe that stays open instead of an immediate
+  end-of-file, and janetcode watches it through `/proc`. When the
+  command blocks reading that pipe right after printing something that
+  looks like a question (an unfinished line, or a line ending in `?` or
+  `:`), it is moved to the background, as `ctrl+g` would move it. The
+  model is told what it asked and the job id, and answers with the
+  `job` tool. A program that waits on an event loop rather than in
+  `read` (node, a Python prompt toolkit) counts after a second and a
+  half of silence, when its last line ends like a prompt (`?`, `:`, `>`,
+  `)`, `]`, `[y/N]`). A read that follows no question, such as `cat`,
+  `wc -l` or a test that reads an empty stdin, gets its end-of-file at
+  once, as it always did. When there is no jobs registry (a subagent),
+  every read gets end-of-file, and a command that then fails is noted
+  as having read its stdin. Other systems, remote workspaces and the
+  sandbox keep the old behaviour: end-of-file at once.
+- **`interactive: true`** starts the command as a background job on a
+  pseudo-terminal (`TERM=dumb`, 120×40), for programs that only prompt
+  properly on a terminal: installers, REPLs, `ssh-keygen` and anything
+  else that reads a passphrase from `/dev/tty` with echo off. The result
+  shows what it printed first. On Windows there is no pseudo-terminal,
+  so the job gets a pipe and the result says so.
+
+The `job` tool's `stdin` action types `text` and presses Enter (a
+carriage return on a terminal job, which a program in raw mode needs).
+An empty `text` presses Enter alone, to take a prompt's default, and
+`eof: true` then ends the input (closing the pipe, or Ctrl-D on a
+terminal). It waits up to five seconds for the job's reply and returns
+it, usually the next question, so a whole installer is one call per
+answer. Output from a terminal job is cleaned before anyone reads it:
+escape sequences are removed, CRLF becomes a newline, and a line
+redrawn with carriage returns (a progress bar) shows only as it ended.
 
 A command already running in the foreground can be moved to the
 background instead of being waited out or killed: press `ctrl+g`. It keeps
