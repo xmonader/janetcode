@@ -188,15 +188,19 @@ type recorder struct {
 	mu sync.Mutex
 	// started is the ids a tool_start has been written for, so a result
 	// never arrives for a call the consumer has not seen begin.
-	started   map[string]bool
-	enc       *json.Encoder
-	usage     llm.Usage
-	turns     int
-	tools     int
-	denials   int
-	retries   int
-	verdict   string
-	turnText  strings.Builder
+	started  map[string]bool
+	enc      *json.Encoder
+	usage    llm.Usage
+	turns    int
+	tools    int
+	denials  int
+	retries  int
+	verdict  string
+	turnText strings.Builder
+	// textBreak is set when a tool ran after some of the turn's text:
+	// the next text is another model call's, and running the two
+	// together read "I'll list the files.The files are …".
+	textBreak bool
 	answer    string
 	sessionID string
 	model     string
@@ -248,18 +252,26 @@ func (r *recorder) emit(e streamEvent) {
 	_ = r.enc.Encode(e)
 }
 
-// event records one loop event, and streams it when asked to.
-func (r *recorder) event(e agent.Event) {
+// event records one loop event, and streams it when asked to. It
+// returns the separator text mode prints before an EvText that starts a
+// later model call's answer.
+func (r *recorder) event(e agent.Event) (sep string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	switch e.Kind {
 	case agent.EvText:
+		if r.textBreak && e.Text != "" {
+			r.textBreak = false
+			sep = "\n\n"
+			r.turnText.WriteString(sep)
+		}
 		r.turnText.WriteString(e.Text)
 		r.emit(streamEvent{Type: "text", Text: e.Text})
 	case agent.EvThinking:
 		r.emit(streamEvent{Type: "thinking", Text: e.Text})
 	case agent.EvToolRun:
 		r.tools++
+		r.textBreak = r.turnText.Len() > 0
 		if e.Call != nil {
 			r.started[e.Call.ID] = true
 			r.emit(streamEvent{Type: "tool_start", Name: e.Call.Name, ID: e.Call.ID, Intent: e.Call.Intent, Input: json.RawMessage(e.Call.Input)})
@@ -293,6 +305,7 @@ func (r *recorder) event(e agent.Event) {
 		// The dead attempt's deltas are void — the retried call replaces
 		// them. Without this the answer would read "half anfull answer".
 		r.turnText.Reset()
+		r.textBreak = false
 		r.started = map[string]bool{}
 		// The stream has already carried those deltas as text lines,
 		// which cannot be taken back: a line says they are void, or a
@@ -313,9 +326,11 @@ func (r *recorder) event(e agent.Event) {
 			r.answer = t
 		}
 		r.turnText.Reset()
+		r.textBreak = false
 		u := usageOf(e.Usage)
 		r.emit(streamEvent{Type: "turn_done", StopReason: string(e.StopReason), Usage: &u})
 	}
+	return sep
 }
 
 func usageOf(u llm.Usage) CLIUsage {
