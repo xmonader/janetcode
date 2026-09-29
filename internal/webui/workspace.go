@@ -297,27 +297,28 @@ func (s *server) resetView() {
 	s.log = nil
 	s.queued = nil
 	s.status = ""
-	if s.pending != nil {
-		// A prompt still up (a background subagent's) is refused, not
-		// dropped: its caller holds the one prompt slot and would keep
-		// it, and every prompt after it would wait behind it.
-		select {
-		case s.pending.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:
-		default:
-		}
-		s.pending = nil
-	}
-	if s.asking != nil {
-		// Likewise for questions still up: they hold the question slot.
-		select {
-		case s.asking.reply <- nil:
-		default:
-		}
-		s.asking = nil
-	}
+	p, a := s.pending, s.asking
+	s.pending, s.asking = nil, nil
 	s.mu.Unlock()
 	s.emit(envelope{Type: "reset"})
 	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
+	// A prompt still up (a background subagent's) is refused, not
+	// dropped: its caller holds the one prompt slot and would keep it,
+	// and every prompt after it would wait behind it. Questions likewise
+	// hold theirs. Refused after the reset is sent, so a prompt waiting
+	// behind is not wiped off the page by it.
+	if p != nil {
+		select {
+		case p.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:
+		default:
+		}
+	}
+	if a != nil {
+		select {
+		case a.reply <- nil:
+		default:
+		}
+	}
 }
 
 func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {

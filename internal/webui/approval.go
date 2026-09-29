@@ -39,23 +39,27 @@ func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	if s.pending != nil {
-		select {
-		case s.pending.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:
-		default:
-		}
-		s.pending = nil
-	}
-	if s.asking != nil {
-		select {
-		case s.asking.reply <- nil:
-		default:
-		}
-		s.asking = nil
-	}
+	p, a := s.pending, s.asking
+	s.pending, s.asking = nil, nil
 	s.mu.Unlock()
+	// The page is told to clear before the callers are answered: a prompt
+	// waiting behind this one (a subagent outside the turn) can come up
+	// the moment its caller is, and a clear sent after it took its card
+	// down with nothing left on the page to answer it.
 	s.emit(envelope{Type: "permission"}) // clear
 	s.emit(envelope{Type: "question"})
+	if p != nil {
+		select {
+		case p.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:
+		default:
+		}
+	}
+	if a != nil {
+		select {
+		case a.reply <- nil:
+		default:
+		}
+	}
 	writeJSON(w, map[string]string{"ok": "1"})
 }
 
@@ -117,11 +121,14 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Unlock()
 	}
+	// Cleared before the caller is answered: answering lets the prompt
+	// waiting behind this one up, and a clear sent after its card took
+	// that card down (see doCancel).
+	s.emit(envelope{Type: "permission"})
 	select {
 	case p.reply <- verdict{d: d, reason: reason, rule: body.Rule}:
 	default:
 	}
-	s.emit(envelope{Type: "permission"})
 	writeJSON(w, map[string]string{"ok": "1"})
 }
 
@@ -177,11 +184,11 @@ func (s *server) questionAPI(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no question pending", http.StatusConflict)
 		return
 	}
+	s.emit(envelope{Type: "question"}) // before the answer: see permission
 	select {
 	case req.reply <- body.Answers:
 	default:
 	}
-	s.emit(envelope{Type: "question"})
 	s.emitStatus()
 	writeJSON(w, map[string]string{"ok": "1"})
 }

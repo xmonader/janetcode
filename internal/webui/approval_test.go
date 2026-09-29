@@ -107,6 +107,47 @@ func TestPermissionAnswerForAnotherPromptIsRefused(t *testing.T) {
 	}
 }
 
+// lastOf is the last envelope of a type the page was sent.
+func lastOf(s *server, typ string) (envelope, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.log) - 1; i >= 0; i-- {
+		if s.log[i].Type == typ {
+			return s.log[i], true
+		}
+	}
+	return envelope{}, false
+}
+
+// When a prompt waited behind the one answered, the page must end up
+// showing it. The answer's "clear the card" went out after the reply,
+// racing the next prompt's card: when it lost, the page cleared the card
+// of the prompt now waiting and nothing on it could be answered.
+func TestTheNextPromptIsNotClearedByTheAnswerBeforeIt(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		s := newServer(context.Background(), Options{Version: "test"})
+		h := s.handler()
+		ctx, cancel := context.WithCancel(context.Background())
+		for _, id := range []string{"a", "b"} {
+			go s.ApproveWithRule(ctx, agent.ToolCall{ID: id, Name: "bash"})
+		}
+		first := pendingID(t, s)
+		if code := postDecision(t, h, map[string]string{"decision": "allow", "id": first}); code != http.StatusOK {
+			t.Fatalf("answer: %d", code)
+		}
+		second := ""
+		for second == "" || second == first {
+			second = pendingID(t, s)
+		}
+		time.Sleep(time.Millisecond)
+		e, _ := lastOf(s, "permission")
+		cancel()
+		if e.Perm == nil || e.Perm.ID != second {
+			t.Fatalf("run %d: prompt %s is waiting, but the page was last told %+v", i, second, e.Perm)
+		}
+	}
+}
+
 // The ask tool is not mutating, so two ask calls in one reply run side by
 // side. The page has one question slot: the second used to overwrite the
 // first, whose caller then waited for ever on a reply nothing could send,
