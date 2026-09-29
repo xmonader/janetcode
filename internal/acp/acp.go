@@ -362,16 +362,33 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage, seq uint64) (a
 	default:
 	}
 
-	err = as.agent.RunBlocks(turnCtx, blocks, s.emitter(as))
+	var report turnReport
+	emit := s.emitter(as)
+	err = as.agent.RunBlocks(turnCtx, blocks, func(e agent.Event) {
+		switch e.Kind {
+		case agent.EvVerdict:
+			report.Verdict = e.Text
+		case agent.EvToolStart:
+			report.ToolCalls++
+		case agent.EvTurnDone:
+			report.Usage = turnUsage{
+				InputTokens: e.Usage.InputTokens, OutputTokens: e.Usage.OutputTokens,
+				CacheReadTokens: e.Usage.CacheReadTokens, CacheWriteTokens: e.Usage.CacheWriteTokens,
+				CostUSD: e.Usage.CostUSD,
+			}
+		}
+		emit(e)
+	})
+	meta := &promptMeta{Janetcode: report}
 	switch {
 	case err == nil:
-		return promptResult{StopReason: stopEndTurn}, nil
+		return promptResult{StopReason: stopEndTurn, Meta: meta}, nil
 	case errors.Is(err, context.Canceled), errors.Is(turnCtx.Err(), context.Canceled):
-		return promptResult{StopReason: stopCancelled}, nil
+		return promptResult{StopReason: stopCancelled, Meta: meta}, nil
 	case errors.Is(err, agent.ErrMaxIterations):
-		return promptResult{StopReason: stopMaxTurns}, nil
+		return promptResult{StopReason: stopMaxTurns, Meta: meta}, nil
 	case errors.Is(err, agent.ErrStuck):
-		return promptResult{StopReason: stopRefusal}, nil
+		return promptResult{StopReason: stopRefusal, Meta: meta}, nil
 	default:
 		return nil, err
 	}

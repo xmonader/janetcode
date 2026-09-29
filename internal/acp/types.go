@@ -72,7 +72,32 @@ type promptParams struct {
 }
 
 type promptResult struct {
-	StopReason string `json:"stopReason"`
+	StopReason string      `json:"stopReason"`
+	Meta       *promptMeta `json:"_meta,omitempty"`
+}
+
+// promptMeta is janetcode's extension of a prompt's result, under the
+// protocol's _meta key: what the turn cost and what it demonstrated. An
+// editor that does not know it ignores it; the Go SDK reads it.
+type promptMeta struct {
+	Janetcode turnReport `json:"janetcode"`
+}
+
+type turnReport struct {
+	// Verdict is what the turn demonstrated, computed by the harness
+	// (the same line -p prints as [verdict]); empty when there was none.
+	Verdict string `json:"verdict,omitempty"`
+	// Usage is the turn's token usage, summed over its model calls.
+	Usage     turnUsage `json:"usage"`
+	ToolCalls int       `json:"toolCalls"`
+}
+
+type turnUsage struct {
+	InputTokens      int     `json:"inputTokens"`
+	OutputTokens     int     `json:"outputTokens"`
+	CacheReadTokens  int     `json:"cacheReadTokens"`
+	CacheWriteTokens int     `json:"cacheWriteTokens"`
+	CostUSD          float64 `json:"costUsd,omitempty"`
 }
 
 type cancelParams struct {

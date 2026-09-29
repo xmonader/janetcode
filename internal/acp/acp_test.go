@@ -614,3 +614,45 @@ func TestStopReasonsAreTheProtocolsOwn(t *testing.T) {
 
 // textBlock is a plain text prompt block, as a client sends one.
 func textBlock(s string) contentBlock { return contentBlock{Type: "text", Text: s} }
+
+// reportingRunner ends its turn with a verdict and usage, as a real
+// agent does.
+type reportingRunner struct{ fakeRunner }
+
+func (r *reportingRunner) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(agent.Event)) error {
+	emit(agent.Event{Kind: agent.EvToolStart, Call: &agent.ToolCall{ID: "t1", Name: "read_file"}})
+	emit(agent.Event{Kind: agent.EvText, Text: "done"})
+	emit(agent.Event{Kind: agent.EvVerdict, Text: "tests pass"})
+	emit(agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 12, OutputTokens: 3, CacheReadTokens: 100}})
+	return nil
+}
+
+// The result of a prompt carries what the turn cost and demonstrated,
+// under _meta, so a program driving janetcode (the Go SDK) does not have
+// to scrape it from prose.
+func TestPromptResultCarriesTheTurnReport(t *testing.T) {
+	dir := t.TempDir()
+	c, stop := newClient(t, Options{Version: "test", NewAgent: func(cwd, _ string) (TurnRunner, *session.Session, error) {
+		s, err := session.New(dir, cwd, "fake", "m")
+		return &reportingRunner{}, s, err
+	}})
+	defer stop()
+	c.call("session/new", newSessionParams{Cwd: t.TempDir()})
+	var ns newSessionResult
+	if err := json.Unmarshal(c.read().Result, &ns); err != nil {
+		t.Fatal(err)
+	}
+	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("go")}})
+	final, _ := c.readUntil(isResponse)
+	var pr promptResult
+	if err := json.Unmarshal(final.Result, &pr); err != nil {
+		t.Fatal(err)
+	}
+	if pr.Meta == nil {
+		t.Fatalf("no _meta in %s", final.Result)
+	}
+	got := pr.Meta.Janetcode
+	if got.Verdict != "tests pass" || got.ToolCalls != 1 || got.Usage.InputTokens != 12 || got.Usage.OutputTokens != 3 || got.Usage.CacheReadTokens != 100 {
+		t.Fatalf("report = %+v", got)
+	}
+}
