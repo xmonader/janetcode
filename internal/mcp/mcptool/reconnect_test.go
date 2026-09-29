@@ -211,3 +211,38 @@ func TestToolsListChangedRegistersNewTools(t *testing.T) {
 		return ok
 	})
 }
+
+// A start's onDone answers that start only. The reconnect after a crash
+// called it again: StartAll's onDone counts itself off a WaitGroup, so
+// the first reconnect of a server started that way (every headless run's)
+// panicked with a negative WaitGroup counter, live on 2026-09-30.
+func TestReconnectDoesNotCallTheStartsOnDoneAgain(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "died")
+	m := &Manager{
+		Options:  mcp.Options{Root: t.TempDir(), Version: "test", HandshakeTimeout: 20 * time.Second},
+		Registry: tool.NewRegistry(),
+		Backoff:  func(int) time.Duration { return 10 * time.Millisecond },
+	}
+	defer m.Close()
+	var mu sync.Mutex
+	calls := 0
+	cfg := mcp.ServerConfig{Command: os.Args[0], Env: map[string]string{"MCP_FAKE_SERVER": "1", "MCP_FAKE_EXIT_ONCE": marker}}
+	m.StartAll(context.Background(), map[string]mcp.ServerConfig{"flaky": cfg}, func(string, *mcp.Client, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+	})
+	first, ok := m.Client("flaky")
+	if !ok {
+		t.Fatal("the server did not start")
+	}
+	waitFor(t, "the reconnect", func() bool {
+		c, ok := m.Client("flaky")
+		return ok && c != first
+	})
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("StartAll's onDone ran %d times, want once", calls)
+	}
+}

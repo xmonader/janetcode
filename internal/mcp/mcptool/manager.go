@@ -60,10 +60,15 @@ type Manager struct {
 	gen map[string]int
 }
 
+// launchSpec is what a server was started with, for reconnecting it. It
+// holds no onDone: a start's onDone answers that one start, and callers
+// treat it as one-shot (StartAll counts it off a WaitGroup, /mcp add waits
+// on a one-slot channel), so calling it again from a reconnect panicked
+// the first and hung the second. A reconnect says what happened through
+// Notify instead.
 type launchSpec struct {
-	ctx    context.Context
-	cfg    mcp.ServerConfig
-	onDone func(name string, c *mcp.Client, err error)
+	ctx context.Context
+	cfg mcp.ServerConfig
 }
 
 type downState struct {
@@ -165,7 +170,7 @@ func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, 
 		m.mu.Unlock()
 		return false
 	}
-	m.launch[name] = launchSpec{ctx: ctx, cfg: cfg, onDone: onDone}
+	m.launch[name] = launchSpec{ctx: ctx, cfg: cfg}
 	m.mu.Unlock()
 	return m.begin(name, -1, onDone)
 }
@@ -320,12 +325,7 @@ func (m *Manager) scheduleLocked(name string, st *downState) {
 	d := backoff(st.attempts)
 	st.next = time.Now().Add(d)
 	gen := m.gen[name]
-	st.timer = time.AfterFunc(d, func() {
-		m.mu.Lock()
-		spec := m.launch[name]
-		m.mu.Unlock()
-		m.begin(name, gen, spec.onDone)
-	})
+	st.timer = time.AfterFunc(d, func() { m.begin(name, gen, nil) })
 }
 
 // Reconnect restarts a configured server now, whether it is up, down or
@@ -339,9 +339,6 @@ func (m *Manager) Reconnect(name string, onDone func(name string, c *mcp.Client,
 		return false
 	}
 	m.Stop(name)
-	if onDone == nil {
-		onDone = spec.onDone
-	}
 	return m.Start(spec.ctx, name, spec.cfg, onDone)
 }
 
