@@ -100,7 +100,9 @@ func (m *model) helpText() string {
 				continue
 			}
 			seen[n] = true
-			desc := strings.ReplaceAll(descStyle.Render(c.help), "\n", "\n"+strings.Repeat(" ", col))
+			// A description the catalogue has (the everyday group's) is
+			// shown in the interface's language; the rest stay English.
+			desc := strings.ReplaceAll(descStyle.Render(i18n.T(c.help)), "\n", "\n"+strings.Repeat(" ", col))
 			if len(c.name) > 10 || len(c.args) > 8 {
 				// Too wide for the columns: the description starts on
 				// its own line rather than wrapping from wherever the

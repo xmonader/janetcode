@@ -394,8 +394,9 @@ message line, the turn's waiting states, the screen-reader interface's
 labels, and the browser page's buttons, tabs and placeholders — are
 shown in that language when janetcode carries it: Spanish (`es`) and
 French (`fr`) today. Anything the catalogue lacks is shown in English,
-and so is the rest of the interface (command descriptions in `/help
-all`, the manual, config keys); command names are never translated,
+and so is the rest of the interface (`/help all`'s command descriptions
+beyond the everyday group, the manual, config keys); command names are
+never translated,
 since they are what you type.
 
 With no `language` key the model follows you, and the interface takes

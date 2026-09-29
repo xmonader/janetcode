@@ -163,6 +163,19 @@ var source = []string{
 	"Record a voice prompt",
 	"Stop recording",
 	"Transcribing…",
+	// /help all: the descriptions of the "everyday" group (internal/slash)
+	"the everyday keys and commands; all lists every one; /help <topic> searches every feature and the manual",
+	"connect to a provider (preset or custom API) and pick a model",
+	"pick a model from a list, or set one by name; a slot name picks the model that slot uses, and an unset slot is the session's own",
+	"how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it. alt+e cycles it (the keybindings config key can move it)",
+	"toggle Allow all tools (yolo): every tool runs without asking",
+	"toggle auto mode: in-workspace edits and known-safe reads run, other commands ask",
+	"toggle auto-accept edits: file changes go through, commands still ask",
+	"revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; turn <n> previews putting the whole work tree back to before that turn and rewinding the conversation with it (--files-only keeps the conversation); about <description> previews only the changes matching it; apply carries out the last preview (--force if it has mixed changes or a coupling warning)",
+	"reapply what the last /undo reverted (until the next change)",
+	"prune old tool results and thinking without a summary call",
+	"reopen an earlier session here: alone opens a searchable list, or name one; fork continues in a copy, the way on when another janetcode has it open",
+	"mark this session done with (or active again); settled sessions list last in /resume",
 }
 
 var spanish = map[string]string{
@@ -317,6 +330,19 @@ var spanish = map[string]string{
 	"Record a voice prompt":   "Grabar una petición por voz",
 	"Stop recording":          "Detener la grabación",
 	"Transcribing…":           "Transcribiendo…",
+	// /help all: the "everyday" group
+	"the everyday keys and commands; all lists every one; /help <topic> searches every feature and the manual":                                                                                                              "las teclas y órdenes de cada día; all las lista todas; /help <tema> busca en todas las funciones y en el manual",
+	"connect to a provider (preset or custom API) and pick a model":                                                                                                                                                         "conectar con un proveedor (predefinido o API propia) y elegir un modelo",
+	"pick a model from a list, or set one by name; a slot name picks the model that slot uses, and an unset slot is the session's own":                                                                                      "elegir un modelo de una lista, o fijarlo por nombre; el nombre de una ranura elige el modelo de esa ranura, y una ranura sin fijar usa el de la sesión",
+	"how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it. alt+e cycles it (the keybindings config key can move it)": "cuánto piensa el modelo: low, medium, high, xhigh, max (modelos de Anthropic); sola indica el nivel y si el proveedor lo admite; up y down lo suben o bajan. alt+e lo recorre (la clave keybindings de la configuración puede moverlo)",
+	"toggle Allow all tools (yolo): every tool runs without asking":                                                                                                                                                         "activar o desactivar Permitir todas las herramientas (yolo): todas se ejecutan sin preguntar",
+	"toggle auto mode: in-workspace edits and known-safe reads run, other commands ask":                                                                                                                                     "activar o desactivar el modo auto: las ediciones dentro del espacio de trabajo y las lecturas seguras se ejecutan, las demás órdenes preguntan",
+	"toggle auto-accept edits: file changes go through, commands still ask":                                                                                                                                                 "activar o desactivar la aceptación automática de ediciones: los cambios de archivos pasan, las órdenes siguen preguntando",
+	"revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; turn <n> previews putting the whole work tree back to before that turn and rewinding the conversation with it (--files-only keeps the conversation); about <description> previews only the changes matching it; apply carries out the last preview (--force if it has mixed changes or a coupling warning)": "deshacer todo lo que cambió el último turno (instantánea de git; copias de archivos fuera de git); preview solo lo lista; n deshace un cambio de /changes; turn <n> muestra cómo dejar todo el árbol como estaba antes de ese turno, rebobinando también la conversación (--files-only conserva la conversación); about <descripción> muestra solo los cambios que coinciden; apply lleva a cabo la última vista previa (--force si tiene cambios mezclados o un aviso de acoplamiento)",
+	"reapply what the last /undo reverted (until the next change)":                                                                                        "volver a aplicar lo que deshizo el último /undo (hasta el siguiente cambio)",
+	"prune old tool results and thinking without a summary call":                                                                                          "recortar resultados de herramientas y razonamientos antiguos sin una llamada de resumen",
+	"reopen an earlier session here: alone opens a searchable list, or name one; fork continues in a copy, the way on when another janetcode has it open": "reabrir aquí una sesión anterior: sola abre una lista con búsqueda, o nombra una; fork continúa en una copia, la salida cuando otro janetcode la tiene abierta",
+	"mark this session done with (or active again); settled sessions list last in /resume":                                                                "marcar esta sesión como terminada (o activa de nuevo); las sesiones terminadas aparecen al final en /resume",
 }
 
 var french = map[string]string{
@@ -471,4 +497,17 @@ var french = map[string]string{
 	"Record a voice prompt":   "Enregistrer une demande vocale",
 	"Stop recording":          "Arrêter l'enregistrement",
 	"Transcribing…":           "Transcription…",
+	// /help all: the "everyday" group
+	"the everyday keys and commands; all lists every one; /help <topic> searches every feature and the manual":                                                                                                              "les touches et commandes de tous les jours ; all les liste toutes ; /help <sujet> cherche dans toutes les fonctions et le manuel",
+	"connect to a provider (preset or custom API) and pick a model":                                                                                                                                                         "se connecter à un fournisseur (prédéfini ou API personnalisée) et choisir un modèle",
+	"pick a model from a list, or set one by name; a slot name picks the model that slot uses, and an unset slot is the session's own":                                                                                      "choisir un modèle dans une liste, ou le fixer par son nom ; un nom d'emplacement choisit le modèle de cet emplacement, et un emplacement non défini prend celui de la session",
+	"how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it. alt+e cycles it (the keybindings config key can move it)": "combien le modèle réfléchit : low, medium, high, xhigh, max (modèles Anthropic) ; seule, indique le niveau et si le fournisseur en accepte un ; up et down le montent ou le descendent. alt+e le fait tourner (la clé keybindings de la configuration peut le déplacer)",
+	"toggle Allow all tools (yolo): every tool runs without asking":                                                                                                                                                         "activer ou désactiver Autoriser tous les outils (yolo) : tous s'exécutent sans demander",
+	"toggle auto mode: in-workspace edits and known-safe reads run, other commands ask":                                                                                                                                     "activer ou désactiver le mode auto : les modifications dans l'espace de travail et les lectures sûres s'exécutent, les autres commandes demandent",
+	"toggle auto-accept edits: file changes go through, commands still ask":                                                                                                                                                 "activer ou désactiver l'acceptation automatique des modifications : les changements de fichiers passent, les commandes demandent toujours",
+	"revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; turn <n> previews putting the whole work tree back to before that turn and rewinding the conversation with it (--files-only keeps the conversation); about <description> previews only the changes matching it; apply carries out the last preview (--force if it has mixed changes or a coupling warning)": "annuler tout ce que le dernier tour a changé (instantané git ; copies de fichiers hors git) ; preview se contente de le lister ; n annule un changement de /changes ; turn <n> prévisualise le retour de tout l'arbre à l'état d'avant ce tour, conversation comprise (--files-only garde la conversation) ; about <description> ne prévisualise que les changements correspondants ; apply applique le dernier aperçu (--force s'il mêle des changements ou signale un couplage)",
+	"reapply what the last /undo reverted (until the next change)":                                                                                        "réappliquer ce que le dernier /undo a annulé (jusqu'au prochain changement)",
+	"prune old tool results and thinking without a summary call":                                                                                          "élaguer les anciens résultats d'outils et raisonnements sans appel de résumé",
+	"reopen an earlier session here: alone opens a searchable list, or name one; fork continues in a copy, the way on when another janetcode has it open": "rouvrir ici une session précédente : seule, ouvre une liste avec recherche, ou nommez-en une ; fork continue dans une copie, la solution quand un autre janetcode l'a ouverte",
+	"mark this session done with (or active again); settled sessions list last in /resume":                                                                "marquer cette session comme terminée (ou de nouveau active) ; les sessions terminées sont listées en dernier dans /resume",
 }

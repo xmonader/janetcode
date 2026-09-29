@@ -33,6 +33,16 @@ func TestInterfaceSpeaksTheCatalogueLanguage(t *testing.T) {
 			t.Errorf("/help all lacks %q", want)
 		}
 	}
+	// The everyday group's descriptions are catalogued; the reference
+	// text of the rest stays English. Rendered at a width, so compare
+	// with the whitespace folded.
+	folded := strings.Join(strings.Fields(full), " ")
+	if !strings.Contains(folded, "volver a aplicar lo que deshizo el último /undo") {
+		t.Errorf("/help all's /redo description is not Spanish:\n%s", full)
+	}
+	if !strings.Contains(folded, "fan out two subagents over the current diff") {
+		t.Errorf("/review's description should stay English:\n%s", full)
+	}
 
 	for _, w := range []int{60, 80, 200} {
 		h.m.width = w
