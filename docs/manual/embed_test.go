@@ -6,7 +6,7 @@ import (
 )
 
 func TestEveryPageIsEmbedded(t *testing.T) {
-	want := []string{"README", "cli", "configuration", "editor", "evals", "interface", "sessions"}
+	want := []string{"README", "ci", "cli", "configuration", "editor", "evals", "interface", "sessions"}
 	got := map[string]bool{}
 	for _, p := range Pages() {
 		got[p] = true
