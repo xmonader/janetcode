@@ -196,6 +196,10 @@ func TestParseExtractedDropsAConversationalReply(t *testing.T) {
 	if xs := ParseExtracted(reply); len(xs) != 0 {
 		t.Fatalf("conversation stored as memory: %+v", xs)
 	}
+	reply = "count_test.go: expected 10 pairs, got 10 pairs\n[tool_result]--- FAIL: TestCountPairs (0.00s)"
+	if xs := ParseExtracted(reply); len(xs) != 0 {
+		t.Fatalf("conversation stored as memory: %+v", xs)
+	}
 	// JSON lines beside it still count: they are what was asked for.
 	xs := ParseExtracted(`{"type":"project","name":"x","description":"Tests need CGO_ENABLED=0"}` + "\nLet me also note something.")
 	if len(xs) != 1 || xs[0].Name != "x" {

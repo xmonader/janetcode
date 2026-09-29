@@ -161,9 +161,10 @@ func ParseExtracted(text string) []Extracted {
 	return out
 }
 
-// agentTalk is a line of the agent narrating its own work, which no
-// memory entry is written as.
-var agentTalk = regexp.MustCompile(`(?i)\b(let me|let's|i'll|i will|i'm going to|i need to|now i)\b|^(wait|actually|hmm|ok(ay)?)\b`)
+// agentTalk is a line of the agent narrating its own work, or echoing a
+// tool block as text ("[tool_result]--- FAIL: TestCountPairs", seen from
+// the same reply), which no memory entry is written as.
+var agentTalk = regexp.MustCompile(`(?i)\b(let me|let's|i'll|i will|i'm going to|i need to|now i)\b|^(wait|actually|hmm|ok(ay)?)\b|^\[tool_(use|result)\]`)
 
 // joinPrettyJSON rejoins a JSON object a model printed across several
 // lines onto one, so the line-oriented parser reads it. Lines that are
