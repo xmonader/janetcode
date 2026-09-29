@@ -26,30 +26,48 @@ func StripUnsafeANSI(s string) string {
 	}
 	var b strings.Builder
 	b.Grow(len(s))
+	// The TUI puts every frame through this, and a frame is mostly text
+	// with box drawing and colour in it — enough to miss the fast path
+	// above every time. So plain runs are copied whole when an escape
+	// ends them, and only a byte that could begin one is looked at
+	// closely: ESC, a raw C1, or 0xc2, the lead byte of U+0080..U+009F.
+	start := 0 // where the plain run not yet written begins
 	for i := 0; i < len(s); {
-		n, keep, ok := escapeAt(s[i:])
-		if !ok {
-			// Advance a whole rune. Stepping a byte at a time would land
-			// on a continuation byte and read it as a control: "€" is
-			// 0xe2 0x82 0xac, and 0x82 is in the C1 range.
+		if c := s[i]; c < 0x80 && c != 0x1b {
+			i++
+			continue
+		} else if c >= 0xa0 && c != 0xc2 {
+			// The lead byte of a rune that is not a C1. Advance a whole
+			// rune: stepping a byte at a time would land on a continuation
+			// byte and read it as a control — "€" is 0xe2 0x82 0xac, and
+			// 0x82 is in the C1 range.
 			_, size := utf8.DecodeRuneInString(s[i:])
-			b.WriteString(s[i : i+size])
 			i += size
 			continue
 		}
+		n, keep, ok := escapeAt(s[i:])
+		if !ok {
+			_, size := utf8.DecodeRuneInString(s[i:])
+			i += size
+			continue
+		}
+		b.WriteString(s[start:i])
 		if n == 0 {
 			// Malformed, dangling, or unterminated: drop the introducer
 			// itself. Never re-emit it — a lone introducer here can join
 			// a later chunk into a live sequence, which is exactly what
 			// is being prevented. The rest stays as inert visible text.
 			i += introducerDrop(s[i:])
+			start = i
 			continue
 		}
 		if keep {
 			b.WriteString(s[i : i+n])
 		}
 		i += n
+		start = i
 	}
+	b.WriteString(s[start:])
 	return b.String()
 }
 
