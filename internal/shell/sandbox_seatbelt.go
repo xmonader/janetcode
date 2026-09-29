@@ -49,8 +49,8 @@ func SeatbeltPolicy(p Profile, root string, extra []string) string {
 (allow process-fork)
 (allow signal)
 (allow sysctl-read)
-(allow mach-lookup)
 `)
+	b.WriteString(seatbeltMach(p.Network, os.Getenv("JANETCODE_SANDBOX_MACH")))
 	if p.Network {
 		b.WriteString("(allow network*)\n")
 	} else {
