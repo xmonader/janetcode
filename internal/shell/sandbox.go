@@ -241,6 +241,9 @@ func (s *Sandbox) usable() (string, error) {
 	if backend == BackendLandlock && !p.Network && s.landlockABI() < 4 {
 		return "", fmt.Errorf("the %s profile needs the network taken away, and Landlock ABI %d cannot do that (needs ABI 4, Linux 6.7); install docker, or use the workspace profile", p.Name, s.landlockABI())
 	}
+	if backend == BackendLandlock && !p.Network && !landlockSocketFilter {
+		return "", fmt.Errorf("the %s profile needs unix sockets and UDP taken away, and this architecture has no socket filter for Landlock to pair with; install docker, or use the workspace profile", p.Name)
+	}
 	return backend, nil
 }
 
@@ -267,7 +270,7 @@ func (s *Sandbox) Notes() []string {
 			out = append(out, "Landlock has allow rules only, so deny globs are refused by command analysis, not by the kernel")
 		}
 		if !p.Network {
-			out = append(out, "Landlock takes away TCP connect and bind, but not UDP (DNS included) or unix sockets; docker's --network=none is the stronger no")
+			out = append(out, "no network is Landlock for TCP plus a seccomp filter that refuses every other socket (unix, UDP, raw) but netlink; docker's --network=none is the same no from a separate network namespace")
 		}
 	}
 	return out

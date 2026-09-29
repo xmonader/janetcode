@@ -76,6 +76,26 @@ func handledAccess(abi int) uint64 {
 	return access
 }
 
+// rulesetAttr is what the ruleset handles at this ABI. With no network,
+// TCP connect and bind are handled (ABI 4), and from ABI 6 the command is
+// also scoped out of abstract unix sockets created outside its domain.
+// From ABI 6 every profile is scoped for signals, so a sandboxed command
+// can signal its own children but not janetcode or the person's other
+// programs.
+func rulesetAttr(abi int, net bool) unix.LandlockRulesetAttr {
+	attr := unix.LandlockRulesetAttr{Access_fs: handledAccess(abi)}
+	if !net && abi >= 4 {
+		attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+	}
+	if abi >= 6 {
+		attr.Scoped = unix.LANDLOCK_SCOPE_SIGNAL
+		if !net {
+			attr.Scoped |= unix.LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET
+		}
+	}
+	return attr
+}
+
 // landlockDevices stay writable under every profile. They are not the
 // user's data: a shell that cannot write /dev/null fails at "> /dev/null",
 // and one that cannot write its own terminal or /dev/fd cannot report
@@ -121,12 +141,9 @@ func applyLandlock(spec landlockSpec) error {
 	if abi < 1 {
 		return fmt.Errorf("this kernel has no Landlock")
 	}
-	attr := unix.LandlockRulesetAttr{Access_fs: handledAccess(abi)}
-	if !spec.Net {
-		if abi < 4 {
-			return fmt.Errorf("this kernel's Landlock ABI is %d, which cannot take the network away (needs ABI 4)", abi)
-		}
-		attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+	attr := rulesetAttr(abi, spec.Net)
+	if !spec.Net && abi < 4 {
+		return fmt.Errorf("this kernel's Landlock ABI is %d, which cannot take the network away (needs ABI 4)", abi)
 	}
 	fd, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET,
 		uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
@@ -143,6 +160,13 @@ func applyLandlock(spec landlockSpec) error {
 	// privileges through a setuid binary.
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("prctl(no_new_privs): %w", err)
+	}
+	if !spec.Net {
+		// Landlock's network rules are TCP only; the filter takes the
+		// rest (see sandbox_seccomp_linux.go).
+		if err := applyNoNetSeccomp(); err != nil {
+			return err
+		}
 	}
 	if _, _, errno := unix.Syscall(unix.SYS_LANDLOCK_RESTRICT_SELF, fd, 0, 0); errno != 0 {
 		return fmt.Errorf("landlock_restrict_self: %w", errno)
