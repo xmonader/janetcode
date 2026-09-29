@@ -33,6 +33,13 @@ type message struct {
 	Params  json.RawMessage `json:"params,omitempty"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *rpcError       `json:"error,omitempty"`
+
+	// seq is the order readLoop read the frame in, counting from 1 (0 is
+	// a frame that did not come through readLoop, and has no order). The
+	// handlers run on goroutines of their own, so the order they happen
+	// to start in is not the order the client sent them; seq is what
+	// says a session/cancel came after a session/prompt.
+	seq uint64
 }
 
 type rpcError struct {
@@ -207,6 +214,7 @@ func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.C
 		readErr <- sc.Err()
 	}()
 
+	var seq uint64
 	for {
 		var line []byte
 		select {
@@ -233,6 +241,8 @@ func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.C
 			c.resolve(m)
 			continue
 		}
+		seq++
+		m.seq = seq
 		wg.Add(1)
 		go func(m message) {
 			defer wg.Done()

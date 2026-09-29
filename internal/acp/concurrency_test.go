@@ -248,6 +248,62 @@ func TestCancelAlsoEndsAPromptWaitingForTheTurn(t *testing.T) {
 	}
 }
 
+// Every request runs on its own goroutine, so a session/cancel the editor
+// sent right after a session/prompt can be handled first. It closed the
+// cancel channel before the prompt took it, and the prompt then ran its
+// whole turn although the editor had cancelled it. Handled in that
+// order, the prompt read before the cancel must still end cancelled —
+// and a prompt read after it must still run.
+func TestACancelHandledBeforeTheEarlierPromptStillCancelsIt(t *testing.T) {
+	r := &cancelAwareRunner{started: make(chan struct{}, 2), release: make(chan struct{}, 1)}
+	dir := t.TempDir()
+	s := New(Options{Out: io.Discard, NewAgent: func(cwd, _ string) (TurnRunner, *session.Session, error) {
+		sess, err := session.New(dir, cwd, "fake", "m")
+		return r, sess, err
+	}})
+	res, err := s.newSession(json.RawMessage(`{"cwd":` + strconv.Quote(t.TempDir()) + `}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := res.(newSessionResult).SessionID
+	params := func(v any) json.RawMessage {
+		b, _ := json.Marshal(v)
+		return b
+	}
+	prompt := params(promptParams{SessionID: id, Prompt: []contentBlock{{Type: "text", Text: "go"}}})
+	// Read order: prompt (1), cancel (2), prompt (3). Handled: 2, 1, 3.
+	if err := s.cancel(params(cancelParams{SessionID: id}), 2); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan any, 1)
+	go func() {
+		out, err := s.prompt(context.Background(), prompt, 1)
+		if err != nil {
+			done <- err
+			return
+		}
+		done <- out
+	}()
+	select {
+	case out := <-done:
+		if pr, ok := out.(promptResult); !ok || pr.StopReason != stopCancelled {
+			t.Fatalf("prompt = %+v, want cancelled", out)
+		}
+	case <-r.started:
+		t.Fatal("the prompt the editor cancelled ran its turn")
+	case <-time.After(10 * time.Second):
+		t.Fatal("the cancelled prompt never returned")
+	}
+	r.release <- struct{}{}
+	out, err := s.prompt(context.Background(), prompt, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pr := out.(promptResult); pr.StopReason != stopEndTurn {
+		t.Fatalf("a prompt sent after the cancel = %+v, want it to run", pr)
+	}
+}
+
 // cancelAwareRunner holds its turn until released or cancelled.
 type cancelAwareRunner struct {
 	started  chan struct{}

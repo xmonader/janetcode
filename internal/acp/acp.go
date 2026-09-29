@@ -94,6 +94,13 @@ type acpSession struct {
 	// running turn missed the waiting ones, which then ran a turn the
 	// editor had just cancelled.
 	cancelled chan struct{}
+	// cancelSeq is the read order (message.seq) of the latest
+	// session/cancel. Each request runs on its own goroutine, so a cancel
+	// sent right after a prompt could be handled first: it closed the
+	// channel before the prompt took it, and the prompt then ran to the
+	// end although the editor had cancelled it. A prompt read before
+	// cancelSeq is cancelled even when it gets here second.
+	cancelSeq uint64
 	msgN      int
 }
 
@@ -161,9 +168,9 @@ func (s *Server) handle(ctx context.Context, m message) (any, error) {
 	case "session/load":
 		return s.loadSession(m.Params)
 	case "session/prompt":
-		return s.prompt(ctx, m.Params)
+		return s.prompt(ctx, m.Params, m.seq)
 	case "session/cancel":
-		return nil, s.cancel(m.Params)
+		return nil, s.cancel(m.Params, m.seq)
 	default:
 		return nil, fmt.Errorf("%w: %s", errUnknownMethod, m.Method)
 	}
@@ -281,7 +288,9 @@ func (s *Server) update(sessionID string, u any) {
 	}
 }
 
-func (s *Server) cancel(raw json.RawMessage) error {
+// cancel ends every prompt for the session that was read before it (seq
+// is its read order), running, queued, or not yet started.
+func (s *Server) cancel(raw json.RawMessage, seq uint64) error {
 	var p cancelParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return fmt.Errorf("%w: %v", errBadParams, err)
@@ -294,12 +303,14 @@ func (s *Server) cancel(raw json.RawMessage) error {
 	as.mu.Lock()
 	close(as.cancelled)
 	as.cancelled = make(chan struct{})
+	as.cancelSeq = max(as.cancelSeq, seq)
 	as.mu.Unlock()
 	return nil
 }
 
-// prompt runs one turn, streaming it to the editor.
-func (s *Server) prompt(ctx context.Context, raw json.RawMessage) (any, error) {
+// prompt runs one turn, streaming it to the editor. seq is the order the
+// request was read in (see acpSession.cancelSeq).
+func (s *Server) prompt(ctx context.Context, raw json.RawMessage, seq uint64) (any, error) {
 	var p promptParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, fmt.Errorf("%w: %v", errBadParams, err)
@@ -318,7 +329,13 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage) (any, error) {
 	// is still queued.
 	as.mu.Lock()
 	cancelled := as.cancelled
+	already := seq > 0 && as.cancelSeq > seq
 	as.mu.Unlock()
+	if already {
+		// A cancel the client sent after this prompt was handled before
+		// it: the channel it closed is not the one taken above.
+		return promptResult{StopReason: stopCancelled}, nil
+	}
 	turnCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go func() {
