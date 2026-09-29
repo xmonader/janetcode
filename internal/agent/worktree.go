@@ -90,11 +90,15 @@ func (w *worktree) remove(ctx context.Context) {
 	}
 }
 
-// tools is the full editing tool set rooted at the checkout.
+// tools is the full editing tool set rooted at the checkout. It carries
+// notebook_edit outright rather than deferred: the child has no
+// tool_search to load it with, and without it a subagent asked to change
+// a notebook rewrites the JSON by hand.
 func (w *worktree) tools(cache *tool.IOCache) []tool.Tool {
 	seen := &tool.Seen{}
 	return []tool.Tool{
 		tool.ReadFile{Root: w.Dir, Seen: seen, Cache: cache}, tool.WriteFile{Root: w.Dir, Seen: seen, Cache: cache}, tool.EditFile{Root: w.Dir, Seen: seen, Cache: cache},
+		tool.NotebookEdit{Root: w.Dir, Seen: seen, Cache: cache},
 		tool.ListDir{Root: w.Dir}, tool.Glob{Root: w.Dir}, tool.Grep{Root: w.Dir},
 		tool.Bash{Root: w.Dir, Cache: &tool.ShellCache{}},
 	}
