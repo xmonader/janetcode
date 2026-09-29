@@ -19,8 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/xmonader/janetcode/internal/perm"
-
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
@@ -28,11 +26,13 @@ import (
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -86,6 +86,9 @@ type Options struct {
 	// live model call, so it takes the server's context and stops when
 	// the server does.
 	Doctor func(context.Context, io.Writer) error
+	// TrustGate decides how far the project's own capability files are
+	// let in (/trust). Nil leaves everything as before the levels.
+	TrustGate *trust.Gate
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -167,6 +170,7 @@ func Run(ctx context.Context, opts Options) error {
 	// the guard took it for every interface and let a rebound DNS name in.
 	opts.Addr = ln.Addr().String()
 	s := newServer(ctx, opts)
+	s.askTrust()
 	hs := &http.Server{Handler: s.handler()}
 	served := make(chan struct{})
 	go func() {

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/md"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -600,6 +601,9 @@ func TurnPrep(in *Injector, mem *memory.Store) func(context.Context, []llm.Block
 		blocks, names := in.Prepare(blocks)
 		if len(names) > 0 {
 			notes = append(notes, "skills attached: "+strings.Join(names, ", "))
+			for _, n := range names {
+				egress.From(ctx).Add(egress.Entry{Kind: egress.KindSkill, What: n})
+			}
 		}
 		if mem != nil {
 			rctx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -621,6 +625,7 @@ func TurnPrep(in *Injector, mem *memory.Store) func(context.Context, []llm.Block
 				var ns []string
 				for _, e := range used {
 					ns = append(ns, e.Name)
+					egress.From(ctx).Add(egress.Entry{Kind: egress.KindMemory, What: e.Name + " (" + e.Scope + ")", Bytes: int64(len(e.Body))})
 				}
 				notes = append(notes, "memory recalled: "+strings.Join(ns, ", "))
 			}

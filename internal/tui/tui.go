@@ -226,10 +226,7 @@ func newModel(opts Options) *model {
 	if opts.Session != nil {
 		m.hist.load(dirOf(opts.Session), opts.Cwd)
 	}
-	m.custom = map[string]prompt.Custom{}
-	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
-		m.custom["/"+c.Name] = c
-	}
+	m.loadCustom()
 	m.hint.engine = opts.Hints
 	var firstRun string
 	if opts.Resumed > 0 {
@@ -337,7 +334,11 @@ func (m *model) Init() tea.Cmd {
 		m.transcript.info(n)
 	}
 	m.startMCP()
-	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()))
+	var ask tea.Cmd
+	if m.opts.TrustGate.NeedsDecision(m.opts.Cwd) {
+		ask = m.trustPicker()
+	}
+	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()), ask)
 }
 
 func tick() tea.Cmd {

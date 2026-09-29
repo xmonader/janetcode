@@ -58,6 +58,7 @@ func (m *model) permissionsCommand(args []string) {
 			m.transcript.errorf("no %s in %s", perm.ProjectFile, shortPath(m.opts.Cwd))
 		case o.ProjectTrusted:
 			m.note("project rules are already trusted")
+		case m.execTrustBlocked():
 		default:
 			if err := o.Trust.Trust(trust.PermissionsKey(m.opts.Cwd), o.ProjectHash); err != nil {
 				m.transcript.errorf("record trust: %v", err)

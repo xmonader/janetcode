@@ -64,6 +64,10 @@ type Options struct {
 	// Hints is the one-time hint engine. Nil, or an engine with Off set,
 	// means the session says nothing beyond what it is asked.
 	Hints *hints.Engine
+	// TrustGate decides how far the project's own capability files are
+	// let in; /trust sets it and a project nobody has decided about is
+	// asked on the first run. Nil leaves everything as before the levels.
+	TrustGate *trust.Gate
 	// Untrusted names project files that are present but waiting for
 	// approval (.mcp.json and friends), for the hint that says so.
 	Untrusted []string

@@ -91,6 +91,8 @@ var commandWhen = map[string]string{
 	"/issue":           "the work starts from a GitHub issue and you want the model to read it",
 	"/checkpoints":     "something went wrong a few turns back and you want to see what you can go back to, and how much of it a restore would cover",
 	"/dryrun":          "you want to see the whole change — every file diff and every command — before any of it touches the disk",
+	"/egress":          "you want to know which hosts the last turn sent data to, and which files and memories went with it",
+	"/trust":           "a repository ships skills, hooks or MCP servers and you want to see what it would let in, or let it in",
 }
 
 // commandInvoke overrides what the catalogue says to type, for the few

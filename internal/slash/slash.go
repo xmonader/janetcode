@@ -41,6 +41,8 @@ var Commands = withIdle([]Command{
 	{Name: "/redo", Args: "", Help: "reapply what the last /undo reverted (until the next change)"},
 	{Name: "/mcp", Args: "[search <words>|add [<name> <command|url>]|remove <server>|trust|auth <server>|logout <server>]", Help: "MCP servers and their tools; search looks one up in the MCP registry and prints the add line; add writes one into .mcp.json and starts it (no arguments walks through it); trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
 	{Name: "/cua", Args: "[on|off|doctor]", Help: "start Cua Driver as an MCP desktop server when cua-driver is installed; doctor checks the binary"},
+	{Name: "/egress", Args: "", Help: "what the last turn sent off this machine: hosts, bytes, files and tool output in the model requests, memory and skills attached, values redacted; and the egress policy"},
+	{Name: "/trust", Args: "[full | instructions | untrusted] [session]", Help: "how far this project's own skills, agents, commands, rules, hooks, MCP servers, verify commands, allow rules and recipes are let in; session holds the level only until exit"},
 	{Name: "/hooks", Args: "[trust]", Help: "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{Name: "/permissions", Args: "[allow|deny|ask <rule>|check <command>|trust]", Help: "permission rules; add one (ask: always asks, in every mode), check which rule decides a call, or trust the project's .janetcode/permissions.json"},
 	{Name: "/verify", Args: "[set <cmd>|add <cmd>|mutate <test cmd>|clear|trust]", Help: "run the project's checks now; set replaces .janetcode/verify.json's commands with one, add appends one; mutate requires tests to catch mutations of changed lines"},

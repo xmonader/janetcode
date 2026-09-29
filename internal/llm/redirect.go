@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/egress"
 )
 
 // SafeRedirectClient returns c with a redirect policy that refuses to
@@ -34,6 +36,10 @@ func SafeRedirectClient(c *http.Client) *http.Client {
 		c = &http.Client{}
 	}
 	clone := *c
+	// Every model request passes here, whichever provider sends it, so
+	// this is where the turn's egress report learns what each one sent
+	// and to which host (see internal/egress).
+	clone.Transport = egress.Transport(c.Transport, egress.KindModel)
 	inner := c.CheckRedirect
 	clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {

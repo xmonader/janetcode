@@ -430,6 +430,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	if a.Settings().Provider == nil {
 		return errors.New("no provider")
 	}
+	ctx, endEgress := a.egressTurn(ctx, blocks)
+	defer endEgress()
 	blocks, err = a.promptHooks(ctx, blocks, emit)
 	if err != nil {
 		return err

@@ -28,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash/args"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // Param is a named substitution a saved recipe accepts. Default is the
@@ -434,6 +435,7 @@ func Save(root string, r Recipe) (path string, err error) {
 	if err := fsutil.WriteFileAtomic(path, append(data, '\n'), 0o644); err != nil {
 		return "", err
 	}
+	trust.SelfWrote(root)
 	return path, nil
 }
 

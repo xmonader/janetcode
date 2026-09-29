@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
@@ -432,6 +433,15 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		// gets the same per-call record the trajectory shows, so a
 		// benchmark can audit routes without replaying the UI.
 		if ag.Log != nil {
+			for _, e := range ag.Log.Events() {
+				if e.Type != session.TypeEgress || e.Time.Before(r.start) {
+					continue
+				}
+				var rep egress.Report
+				if json.Unmarshal([]byte(e.Output), &rep) == nil {
+					res.Egress = append(res.Egress, rep)
+				}
+			}
 			for _, e := range ag.Log.Events() {
 				if e.Type != session.TypeAssistant || e.Route == "" {
 					continue

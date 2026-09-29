@@ -230,6 +230,10 @@ func remember(ctx context.Context, opts Options) {
 		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
 	}
 	for _, e := range changed {
+		if e.Pending {
+			fmt.Fprintf(opts.Stderr, "[memory] held for your confirmation %s (%s, %s): %s · /memory pending in a session\n", e.Name, e.Type, e.Scope, e.Description)
+			continue
+		}
 		fmt.Fprintf(opts.Stderr, "[memory] remembered %s (%s, %s): %s\n", e.Name, e.Type, e.Scope, e.Description)
 	}
 }
@@ -258,6 +262,10 @@ func sleepSession(ctx context.Context, opts Options) {
 	// headless run with a line about an internal pass.
 	_ = dropped
 	for _, e := range changed {
+		if e.Pending {
+			fmt.Fprintf(opts.Stderr, "[memory] sleep held for your confirmation %s: %s\n", e.Name, e.Description)
+			continue
+		}
 		fmt.Fprintf(opts.Stderr, "[memory] sleep remembered %s: %s\n", e.Name, e.Description)
 	}
 }

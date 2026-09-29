@@ -15,21 +15,23 @@ import (
 // text, the feature catalogue and the drift tests all read the same
 // declarations rather than a copy of them.
 type options struct {
-	promptText   string
-	outFormat    string
-	maxCost      float64
-	maxTurns     int
-	compactAt    int
-	until        string
-	watchCmd     string
-	provider     string
-	model        string
-	effort       string
-	yolo         bool
-	autoMode     bool
-	sandboxOn    bool
-	readonly     bool
-	dryRun       bool
+	promptText string
+	outFormat  string
+	maxCost    float64
+	maxTurns   int
+	compactAt  int
+	until      string
+	watchCmd   string
+	provider   string
+	model      string
+	effort     string
+	yolo       bool
+	autoMode   bool
+	sandboxOn  bool
+	readonly   bool
+	dryRun     bool
+	// trustLevel is --trust: the project trust level for this run only.
+	trustLevel   string
 	continueC    bool
 	resumeR      string
 	autoEdits    bool
@@ -123,7 +125,7 @@ var helpGroups = []struct {
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
-	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "sandbox"}},
+	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
@@ -243,6 +245,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.yolo, "yolo", false, "auto-approve every tool call")
 	fs.BoolVar(&o.autoMode, "auto", false, "auto mode: in-workspace edits and known-safe reads run; other commands ask (/auto toggles it)")
 	fs.BoolVar(&o.sandboxOn, "sandbox", false, "wrap local bash in the workspace sandbox profile (docker, seatbelt or Landlock); the sandbox config key picks another profile; file tools stay on the host")
+	fs.StringVar(&o.trustLevel, "trust", "", "project trust for this run only: untrusted, instructions (skills, agents, commands, rules) or full (also hooks, MCP, verify, allow rules, recipes); JANETCODE_TRUST does the same")
 	fs.BoolVar(&o.readonly, "readonly", false, "read-only: no edits or commands, the model can only inspect")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "dry run: the model plans and edits a preview, and commands that change things are recorded instead of run; nothing reaches the disk until /dryrun apply. With -p the preview (diffs, commands not run) is printed at the end, and is the dry_run field of --output-format json")
 	fs.BoolVar(&o.continueC, "c", false, "short for --continue")

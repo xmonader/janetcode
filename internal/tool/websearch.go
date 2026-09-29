@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
@@ -120,6 +121,9 @@ func (t WebSearch) Search(ctx context.Context, query string, n int) ([]SearchRes
 	if client == nil {
 		client = &http.Client{Timeout: 20 * time.Second}
 	}
+	recorded := *client
+	recorded.Transport = egress.Transport(client.Transport, egress.KindSearch)
+	client = &recorded
 	if strings.ToLower(t.Config.Provider) == "brave" {
 		return t.brave(ctx, client, query, n)
 	}

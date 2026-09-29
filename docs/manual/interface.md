@@ -1014,6 +1014,79 @@ they have fired; `pin` keeps one, `archive` moves it to
 `.janetcode/archived-skills/`, `restore` puts it back. Usage is stored in
 `.janetcode/skill-usage.json`. Hand-written skills are left alone.
 
+### What left the machine: /egress
+
+Every turn keeps a ledger of what it sent off the machine: each model
+request's host and size (model slots, the advisor and subagents
+included), fetch_url and web search hosts, remote MCP servers, shell
+commands that visibly name a host, the files and tool output that went
+back into the conversation, the memory entries and skills attached, and
+how many secret-shaped values were redacted before sending. `/egress`
+(and `--inspect egress`) shows the last turn's; every turn's is in the
+session log as `egress/turn`, and `-p --output-format json` carries them
+under `"egress"`.
+
+The `egress` config key restricts where data may go:
+
+```json
+"egress": {"default": "ask", "allow": ["github.com", "*.golang.org", ".pypi.org"]}
+```
+
+`default` is what happens with a host not on `allow`: `allow` (no
+restriction, the default), `ask` (the call asks whatever the mode, even a
+read-only web search, and the prompt names the host) or `block` (the call
+is refused before anything is sent). fetch_url, web search and remote
+MCP calls are also checked at the connection, so a redirect to a blocked
+host is refused too. Shell commands are judged by the hosts they spell
+out, which is recognition rather than enforcement: a command can reach a
+host it does not name. The model provider is always allowed.
+
+With `memory_confirm` on (or `/memory confirm on` for the session), what
+the model or the extractor decides to remember waits instead of being
+saved: `/memory pending` lists each with where it was learned, its scope
+and what it would update or retire; `/memory approve <n|name|all>` keeps
+it and `/memory reject` drops it. `/memory expire <name>` retires an
+entry, which stays on disk as history. What you write with `/remember`
+is saved at once.
+
+### Project trust
+
+A repository can ship more than code: skills and agent profiles the
+model reads, custom commands, path-scoped rules, and files that run
+things — hooks, MCP servers, verify commands, allow rules and recipes.
+None of it is used until you say how far to trust the project. The first
+time a session opens in a directory that ships any of it, the terminal
+asks, and the browser puts the same question at the top of the page:
+
+| level | what the project gets |
+|---|---|
+| `untrusted` | nothing it ships is used |
+| `instructions` | its skills, agent profiles, custom commands and rules |
+| `full` | also its hooks, `.mcp.json` servers, `verify.json`, the allow rules in `permissions.json` and its recipes |
+
+`/trust` shows the level, where it came from and every file it governs;
+`/trust full`, `/trust instructions` or `/trust untrusted` sets it, and a
+trailing `session` holds it only until you exit. `--inspect trust` and
+`--doctor` print the same report. A headless run uses the recorded level
+and says on stderr when the project ships something that is held back;
+`--trust <level>` (or `JANETCODE_TRUST`) sets it for one run without
+writing anything down.
+
+The level is recorded against a fingerprint of every one of those files,
+so an edited hook, a new skill or a changed `.mcp.json` undoes it and the
+question comes back. Files janetcode writes for you — `/verify set`, a
+saved recipe, `/mcp add` — keep the level you chose. Choosing
+`untrusted` also withdraws the older per-file approvals (`/hooks trust`,
+`/verify trust`, `/mcp trust`, `/permissions trust`), which still work on
+their own for a project nobody has chosen a level for. Every change of
+level is written to the session log with the project and the files it
+affects.
+
+Trust never approves a tool call: a trusted project's hook or MCP tool
+runs, but a write or a command still asks as your permission mode says.
+`JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as
+they always were.
+
 ### Changing janetcode's own settings always asks
 
 Everything that decides what janetcode may do without asking is a file:

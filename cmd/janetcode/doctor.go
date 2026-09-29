@@ -28,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/rates"
+	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -232,25 +233,32 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			warn("cua", "computer_use is on but no driver is on PATH")
 		}
 	}
+	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
+	gate := &trust.Gate{Store: ts}
+	tokens := &mcp.TokenStore{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-auth.json")}
 	if cfg != nil {
-		for name, sc := range cfg.MCPServers {
-			row(true, "mcp "+name, describeServer(sc))
+		for _, name := range sortedNames(cfg.MCPServers) {
+			sc := cfg.MCPServers[name]
+			row(true, "mcp "+name, "global · "+describeServer(sc)+authNote(tokens, sc)+probeServer(ctx, name, sc, cwd, tokens))
 		}
 	}
 	if servers, hash, perr := mcp.LoadProject(cwd); perr != nil {
 		row(false, "mcp project", perr.Error())
 	} else if len(servers) > 0 {
-		ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
-		trusted := ts.Trusted(cwd, hash)
-		for name, sc := range servers {
-			detail := describeServer(sc)
-			if !trusted {
-				detail += " · not trusted yet (/mcp trust in the TUI)"
+		trusted := gate.Exec(cwd, ts.Trusted(cwd, hash))
+		for _, name := range sortedNames(servers) {
+			sc := servers[name]
+			detail := "project " + mcp.ProjectFile + " · " + describeServer(sc) + authNote(tokens, sc)
+			if trusted {
+				// Probed only once trusted: starting a project's server
+				// runs the project's command.
+				detail += probeServer(ctx, name, sc, cwd, tokens)
+			} else {
+				detail += " · not trusted yet (/trust full or /mcp trust), so not started"
 			}
 			row(true, "mcp "+name, detail)
 		}
 	}
-	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
 	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, ts)
 	fmt.Fprintln(w)
 	repairs := doctorfix.Run(fixEnv(cfgPath, cwd, sessDir, ts), fix)
@@ -348,6 +356,56 @@ func printResult(w io.Writer, res cmdresult.Result) {
 	}
 }
 
+// sortedNames orders a server map so the checkup reads the same twice.
+func sortedNames(m map[string]mcp.ServerConfig) []string {
+	out := make([]string, 0, len(m))
+	for n := range m {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// authNote says whether a remote server has a stored OAuth login; the
+// token itself is never printed.
+func authNote(tokens *mcp.TokenStore, sc mcp.ServerConfig) string {
+	if sc.URL == "" {
+		return ""
+	}
+	if _, ok := tokens.Get(sc.URL); ok {
+		return " · OAuth login stored"
+	}
+	if len(sc.Headers) > 0 {
+		return " · headers configured"
+	}
+	return ""
+}
+
+// probeTimeout bounds one server's handshake in the checkup.
+const probeTimeout = 10 * time.Second
+
+// probeServer starts the server, lists what it offers and stops it. It
+// calls no tool: the handshake and the list requests are the whole probe.
+func probeServer(ctx context.Context, name string, sc mcp.ServerConfig, cwd string, tokens *mcp.TokenStore) string {
+	if os.Getenv("JANETCODE_DOCTOR_NO_PROBE") != "" {
+		return ""
+	}
+	if sc.URL == "" {
+		if _, err := exec.LookPath(sc.Command); err != nil {
+			return ""
+		}
+	}
+	pctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	c, err := mcp.Start(pctx, name, sc, mcp.Options{Root: cwd, Version: version, Tokens: tokens})
+	if err != nil {
+		msg, _ := secret.Redact(err.Error())
+		return " · probe failed: " + msg
+	}
+	defer c.Close()
+	return fmt.Sprintf(" · answers: %d tools, %d prompts", len(c.Tools()), len(c.Prompts()))
+}
+
 func describeServer(sc mcp.ServerConfig) string {
 	if sc.URL != "" {
 		return "remote " + sc.URL
@@ -393,11 +451,22 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		}
 		return fmt.Sprintf("%d %s", n, strings.TrimSuffix(what, "y")+map[bool]string{true: "ies", false: "s"}[strings.HasSuffix(what, "y")])
 	}
-	trustNote := func(trusted bool, cmd string) string {
-		if trusted {
+	gate := &trust.Gate{Store: ts}
+	trustNote := func(approved bool, cmd string) string {
+		if gate.Exec(cwd, approved) {
 			return "trusted"
 		}
-		return "not trusted yet (" + cmd + " in the TUI)"
+		return "not trusted yet (/trust full, or " + cmd + " in the TUI)"
+	}
+	if st := gate.State(cwd); len(st.Caps) == 0 {
+		info("trust", "the project ships no skills, hooks, MCP servers or other capability files")
+	} else {
+		detail := fmt.Sprintf("%s (%s) · governs %s · /trust or --inspect trust for the list", st.Level, st.Source, strings.Join(capKinds(st), ", "))
+		if st.Decided {
+			row(true, "trust", detail)
+		} else {
+			warn("trust", detail+" · nothing from the project is used until a level is chosen")
+		}
 	}
 
 	global := 0
@@ -466,7 +535,11 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		for _, sk := range skills {
 			by[sk.Source]++
 		}
-		row(true, "skills", fmt.Sprintf("%s (%d project, %d global, %d claude)", plural(len(skills), "skill"), by["project"], by["global"], by["claude"]))
+		detail := fmt.Sprintf("%s (%d project, %d global, %d claude)", plural(len(skills), "skill"), by["project"], by["global"], by["claude"])
+		if by["project"]+by["claude"]+by["agents"] > 0 && !gate.Instructions(cwd) {
+			detail += " · the project's are not used until it is trusted (/trust instructions)"
+		}
+		row(true, "skills", detail)
 	}
 	for _, sk := range skills {
 		if sk.Blocked {

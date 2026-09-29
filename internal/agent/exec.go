@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -204,6 +205,18 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// allow rule and --yolo alike, and the prompt says which path it is
 	// asking about. It rides on the warning line the prompt already has,
 	// so both front-ends show it without knowing about any of this.
+	// The egress policy: a blocked host is refused here, and a host it
+	// asks about is asked about whatever the mode — for a read-only call
+	// too (web search, a read-only MCP tool), since what it sends is
+	// the point, not what it changes.
+	egressAsk := false
+	switch refusal, why := a.egressGate(ctx, t, *u); {
+	case refusal != "":
+		return nil, refusal, nil
+	case why != "":
+		mustAsk, egressAsk = true, true
+		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
+	}
 	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
 			mustAsk = true
@@ -258,7 +271,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	if !sensitive && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+	if !sensitive && !egressAsk && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
 		basis = a.shortcutBasis(t, u, verdict, rule, hookAllowed)
 		return hookNotes, "", nil
 	}
@@ -683,6 +696,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
+	a.noteToolEgress(ctx, u.Name, u.Input, out)
 	if isErr {
 		images = nil
 	}
@@ -704,11 +718,16 @@ func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessag
 	if a.Off["scrub"] {
 		return out, images, err
 	}
-	out, _ = secret.Redact(out)
+	var n int
+	out, n = secret.Redact(out)
 	if err != nil {
-		if red, n := secret.Redact(err.Error()); n > 0 {
+		if red, m := secret.Redact(err.Error()); m > 0 {
 			err = errors.New(red)
+			n += m
 		}
+	}
+	if n > 0 {
+		egress.From(ctx).Add(egress.Entry{Kind: egress.KindRedacted, What: "in tool output", Count: n})
 	}
 	return out, images, err
 }

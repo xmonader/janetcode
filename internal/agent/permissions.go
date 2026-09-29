@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/present"
@@ -71,6 +72,13 @@ type permissions struct {
 	// it disables stay off whatever a front-end or the model asks for
 	// (see UpdateSettings). Nil is no policy.
 	Policy *managed.Policy
+	// EgressPolicy, when active, decides which hosts a tool call may send
+	// data to: a blocked host is refused before the call runs, an "ask"
+	// host makes the call ask whatever the mode. Nil allows every host.
+	EgressPolicy *egress.Policy
+
+	egressMu  sync.Mutex
+	egressRec *egress.Recorder
 
 	// allowed are the tools the user allowed for the rest of the session
 	// (Decision AllowSession). allowedMu guards it: a turn writes it while

@@ -70,6 +70,12 @@ const (
 	// "<before>-><after>" (sha256, "absent" for a file that did not
 	// exist). Log-only.
 	TypeFileChange = "file/change"
+	// TypeTrust records a change of the project's trust level: Name is
+	// the level, Reason the project and every capability it affects.
+	TypeTrust = "trust/change"
+	// TypeEgress records what one turn sent off the machine (see
+	// internal/egress): Output carries the report as JSON.
+	TypeEgress = "egress/turn"
 )
 
 // Gate sources on a TypeGate event.
