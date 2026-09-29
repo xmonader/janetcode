@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // httpTransport talks to a remote server. It starts with Streamable HTTP
@@ -53,9 +55,20 @@ func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTra
 	if mode != "http" && mode != "sse" {
 		mode = ""
 	}
+	client := &http.Client{Timeout: 0} // streams stay open; ctx bounds calls
+	if weburl.PrivateTarget(u) == "" {
+		// The URL names a public host, so it has no business reaching
+		// this machine or its network: judge the address each
+		// connection resolves to, as fetch_url does, so a name that
+		// resolves (or later rebinds) to 169.254.169.254 or 127.0.0.1
+		// never receives the server's headers or OAuth token. A URL
+		// that spells out localhost or a private address is left alone:
+		// whoever wrote it meant this machine.
+		client.Transport = weburl.GuardDial(nil, true)
+	}
 	return &httpTransport{
 		c:       c,
-		client:  &http.Client{Timeout: 0}, // streams stay open; ctx bounds calls
+		client:  client,
 		url:     cfg.URL,
 		headers: headers,
 		mode:    mode,
