@@ -2077,7 +2077,8 @@ another local root for this session. `/btw` asks a side question that is
 not stored as a user turn; `/copy` copies the last reply; `/config key=value`
 sets a catalogued setting; `/doctor` prints the same checkup as
 `janetcode --doctor` without changing files — including the `would fix:`
-lines, which say what `janetcode --doctor --fix` would repair. Repairing
+lines, which say what `janetcode --doctor --fix` would repair, and the
+`needs you:` lines it never will (trusting a project's `verify.json`). Repairing
 is the command line's job, so a running session never changes files
 behind you.
 

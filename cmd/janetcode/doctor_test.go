@@ -79,7 +79,9 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 
 // TestDoctorFixListsThenRepairs is the two-step the flag exists for: the
 // plain checkup says what it would repair and touches nothing, and
-// --fix carries out exactly those repairs and says what changed.
+// --fix carries out exactly those repairs and says what changed. An
+// untrusted verify.json is not one of them: it is listed as a step for
+// the user and stays untrusted however often --fix runs.
 func TestDoctorFixListsThenRepairs(t *testing.T) {
 	work := t.TempDir()
 	home := t.TempDir()
@@ -99,24 +101,35 @@ func TestDoctorFixListsThenRepairs(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.Chdir(old) })
+	cfgDir := filepath.Join(home, ".config", "janetcode")
+	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(cfgDir, "config.json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	var out bytes.Buffer
 	doctor(context.Background(), &out, config.Overrides{}, false)
-	if !strings.Contains(out.String(), "would fix: trust .janetcode/verify.json") {
-		t.Fatalf("the checkup did not offer the repair:\n%s", out.String())
+	if !strings.Contains(out.String(), "would fix: make ") || !strings.Contains(out.String(), "needs you: .janetcode/verify.json is not trusted") {
+		t.Fatalf("the checkup did not offer the repair and the manual step:\n%s", out.String())
 	}
 	out.Reset()
 	doctor(context.Background(), &out, config.Overrides{}, true)
-	if !strings.Contains(out.String(), "fixed: trust .janetcode/verify.json") {
-		t.Fatalf("--fix did not report the repair:\n%s", out.String())
+	if !strings.Contains(out.String(), "fixed: make ") || strings.Contains(out.String(), "fixed: trust") {
+		t.Fatalf("--fix did not report exactly the repair:\n%s", out.String())
 	}
 	out.Reset()
 	doctor(context.Background(), &out, config.Overrides{}, true)
 	if strings.Contains(out.String(), "fixed: ") || !strings.Contains(out.String(), "nothing to fix") {
 		t.Fatalf("--fix repeated itself:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "verify       1 command in .janetcode/verify.json · trusted") {
-		t.Errorf("verify is not reported as trusted after the repair:\n%s", out.String())
+	if !strings.Contains(out.String(), "verify       1 command in .janetcode/verify.json · not trusted yet") ||
+		!strings.Contains(out.String(), "needs you: .janetcode/verify.json is not trusted") {
+		t.Errorf("--fix trusted the repository's verify.json for the user:\n%s", out.String())
 	}
 }
 

@@ -9,7 +9,8 @@
 // nothing is lost if it turns out to have been unnecessary. Credentials,
 // which provider to use, what the project's files should say — those
 // have more than one answer, and the answer is the user's, so they are
-// reported and never touched.
+// reported and never touched. So is trusting a project's verify.json:
+// see Manual.
 package doctorfix
 
 import (
@@ -71,7 +72,6 @@ func Check(env Env) []Fix {
 	var out []Fix
 	out = append(out, configDirFix(env)...)
 	out = append(out, configKeyFixes(env)...)
-	out = append(out, verifyTrustFix(env)...)
 	out = append(out, staleTokenFixes(env)...)
 	out = append(out, dirPermFixes(env)...)
 	out = append(out, configPermFix(env)...)
@@ -95,26 +95,48 @@ func Apply(env Env) (done []string, errs []string) {
 	return done, errs
 }
 
+// Manual lists what the checkup found that only the user may put right,
+// each with the command that does it. --fix never carries these out.
+func Manual(env Env) []string {
+	return verifyTrustStep(env)
+}
+
 // Run is the whole command: with fix false it lists what it would do,
-// with fix true it does it and says exactly what changed.
+// with fix true it does it and says exactly what changed. Either way it
+// ends with the steps that are the user's to take (see Manual).
 func Run(env Env, fix bool) cmdresult.Result {
+	manual := Manual(env)
+	withManual := func(res cmdresult.Result) cmdresult.Result {
+		if len(manual) == 0 {
+			return res
+		}
+		var b strings.Builder
+		for _, m := range manual {
+			fmt.Fprintf(&b, "needs you: %s\n", m)
+		}
+		if res.Sheet != "" {
+			res.Sheet += "\n"
+		}
+		res.Plain, res.Sheet = true, res.Sheet+strings.TrimRight(b.String(), "\n")
+		return res
+	}
 	if !fix {
 		found := Check(env)
 		if len(found) == 0 {
-			return cmdresult.Result{Notes: []string{"nothing to fix"}}
+			return withManual(cmdresult.Result{Notes: []string{"nothing to fix"}})
 		}
 		var b strings.Builder
 		for _, f := range found {
 			fmt.Fprintf(&b, "would fix: %s\n", f.What)
 		}
-		return cmdresult.Result{Plain: true, Sheet: strings.TrimRight(b.String(), "\n"),
-			Tips: []string{summary(len(found))}}
+		return withManual(cmdresult.Result{Plain: true, Sheet: strings.TrimRight(b.String(), "\n"),
+			Tips: []string{summary(len(found))}})
 	}
 	done, errs := Apply(env)
 	res := cmdresult.Result{}
 	if len(done) == 0 && len(errs) == 0 {
 		res.Notes = append(res.Notes, "nothing to fix")
-		return res
+		return withManual(res)
 	}
 	var b strings.Builder
 	for _, d := range done {
@@ -127,7 +149,7 @@ func Run(env Env, fix bool) cmdresult.Result {
 	if len(errs) > 0 {
 		res.Error = plural(len(errs), "repair") + " failed"
 	}
-	return res
+	return withManual(res)
 }
 
 // Summary is the one line the front-ends show when they are not fixing
@@ -270,10 +292,17 @@ func distance(a, b string) int {
 	return prev[len(b)]
 }
 
-// verifyTrustFix: a project that ships verification commands gets none
+// verifyTrustStep: a project that ships verification commands gets none
 // of them until they are approved, and the usual reason they are not
-// approved is that nobody knew they were there.
-func verifyTrustFix(env Env) []Fix {
+// approved is that nobody knew they were there — so it is reported, with
+// the commands and the way to approve them.
+//
+// It is not a repair. The commands are the repository's choice and run
+// after every change the agent makes; --fix used to trust them, so
+// `git clone` of a stranger's repository followed by `--doctor --fix`
+// ran whatever its .janetcode/verify.json said, from the next edit on.
+// Approving them is exactly the judgement this package leaves alone.
+func verifyTrustStep(env Env) []string {
 	if env.Cwd == "" || env.Trust.Path == "" {
 		return nil
 	}
@@ -285,10 +314,8 @@ func verifyTrustFix(env Env) []Fix {
 	if env.Trust.Trusted(key, hash) {
 		return nil
 	}
-	store := env.Trust
-	return []Fix{{ID: "verify-untrusted", Path: filepath.Join(env.Cwd, verify.ProjectFile),
-		What:  fmt.Sprintf("trust %s, so its checks run after every change: %s", verify.ProjectFile, strings.Join(vc.Commands, "; ")),
-		apply: func() error { return store.Trust(key, hash) }}}
+	return []string{fmt.Sprintf("%s is not trusted, so its checks do not run: %s. Read them, and if they are safe run /verify trust in janetcode",
+		verify.ProjectFile, strings.Join(vc.Commands, "; "))}
 }
 
 // staleTokenFixes: an MCP login that has expired and carries no refresh
