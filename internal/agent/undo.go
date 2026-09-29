@@ -205,7 +205,7 @@ func (c *checkpointer) turnStart() int {
 // of the work tree on the first mutating call of the turn, and a copy of
 // every path a file tool will touch, once per turn per path. It returns
 // the copies it found too large to take (see maxCopyBytes).
-func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, blobs string, t tool.Tool, input []byte) (tooLarge []Snapshot) {
+func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, blobs func() string, t tool.Tool, input []byte) (tooLarge []Snapshot) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if repo != nil && !c.gitTried {
@@ -259,7 +259,7 @@ func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte, e
 		owner = a.UndoOwner
 	}
 	repo := owner.snaps()
-	for _, f := range owner.cp.snapshot(ctx, repo, owner.blobDir(), t, input) {
+	for _, f := range owner.cp.snapshot(ctx, repo, owner.blobDir, t, input) {
 		if repo == nil && emit != nil {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("checkpoint: %s is %d MiB, over the %d MiB a checkpoint copies — /undo will not be able to put it back", f.Path, f.Size>>20, maxCopyBytes>>20)})
 		}

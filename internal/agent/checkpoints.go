@@ -177,7 +177,7 @@ func (k *checkpoints) captureState(ctx context.Context, like Checkpoint, label s
 		}
 	}
 	for _, f := range like.Files {
-		cp.Files = append(cp.Files, captureCopy(f.Path, k.blobDir()))
+		cp.Files = append(cp.Files, captureCopy(f.Path, k.blobDir))
 	}
 	return cp, cp.Snap != nil || len(cp.Files) > 0
 }
@@ -218,7 +218,7 @@ func (k *checkpoints) SaveUndo() error {
 	}
 	// Only once the sidecar no longer names them: a crash between the
 	// two leaves an orphan blob, never a checkpoint without its copy.
-	collectBlobs(k.blobDir(), k.cp.all, k.cp.redo)
+	collectBlobs(k.madeBlobDir(), k.cp.all, k.cp.redo)
 	return nil
 }
 

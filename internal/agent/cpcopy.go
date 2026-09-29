@@ -50,6 +50,15 @@ func (k *checkpoints) blobDir() string {
 	return k.blobTemp.dir
 }
 
+// madeBlobDir is blobDir without making the temporary fallback: the
+// directory blobs may already be in, or "" when none was ever needed.
+func (k *checkpoints) madeBlobDir() string {
+	if k.UndoPath != "" {
+		return k.UndoPath + blobSuffix
+	}
+	return k.blobTemp.dir
+}
+
 // blobTemp is blobDir's fallback directory, made on first use.
 type blobTemp struct {
 	once sync.Once
@@ -58,8 +67,9 @@ type blobTemp struct {
 
 // captureCopy records path's current state for a checkpoint, sized on its
 // stat: absent, unreadable, too large to keep, kept inline, or streamed to
-// a blob under dir.
-func captureCopy(path, dir string) Snapshot {
+// a blob under dir(). dir is only called for a file that needs a blob, so
+// a run that never copies a large file never makes a blob directory.
+func captureCopy(path string, dir func() string) Snapshot {
 	s := Snapshot{Path: path}
 	st, err := os.Stat(path)
 	switch {
@@ -71,8 +81,8 @@ func captureCopy(path, dir string) Snapshot {
 	case st.Mode().IsRegular() && st.Size() > maxCopyBytes:
 		s.Existed, s.TooLarge, s.Size = true, true, st.Size()
 		return s
-	case st.Mode().IsRegular() && st.Size() > inlineCopyBytes && dir != "":
-		blob, err := streamBlob(path, dir)
+	case st.Mode().IsRegular() && st.Size() > inlineCopyBytes && dir != nil && dir() != "":
+		blob, err := streamBlob(path, dir())
 		if err != nil {
 			s.Failed = true
 			return s
