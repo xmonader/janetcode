@@ -28,12 +28,15 @@ func (m *model) undoChange(n int) {
 		m.transcript.errorf("undo #%d: %v", n, err)
 		return
 	}
-	verb, path, _ := strings.Cut(done, " ")
-	if i := strings.LastIndex(done, " "); i > 0 {
-		verb, path = done[:i], done[i+1:]
+	// done is "<verb> <path>", the path already relative. The path comes
+	// from the change itself: splitting done at a space cut a name with a
+	// space in it, so "my notes.txt" reached the model as "notes.txt".
+	path := ""
+	if c, err := m.opts.Agent.Change(n); err == nil {
+		path = m.relPath(c.Path)
 	}
-	m.transcript.info(fmt.Sprintf("%s#%d: %s %s", noteUndo, n, verb, m.relPath(path)))
-	m.opts.Agent.AddContext(fmt.Sprintf("I undid change #%d (%s) on my own; later changes to the file stayed.", n, m.relPath(path)))
+	m.transcript.info(fmt.Sprintf("%s#%d: %s", noteUndo, n, done))
+	m.opts.Agent.AddContext(fmt.Sprintf("I undid change #%d (%s) on my own; later changes to the file stayed.", n, path))
 }
 
 // changesCommand lists the session's changes, or one change's hunks.

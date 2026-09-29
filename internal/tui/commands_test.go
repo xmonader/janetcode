@@ -1003,6 +1003,39 @@ func TestOpenAndDiffCommands(t *testing.T) {
 	}
 }
 
+// /undo <n> took the path from the agent's "<verb> <path>" answer by
+// splitting at the last space, so "restored my notes.txt" became the verb
+// "restored my" on the path "notes.txt", and the note handed to the model
+// named a file that does not exist.
+func TestUndoOneNamesAPathWithASpace(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"my notes.txt","content":"a\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+	)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 120})
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd})
+	h.keys("write it")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.keys("/undo 1")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "↶ #1: removed my notes.txt") {
+		t.Fatalf("view:\n%s", v)
+	}
+	msgs := h.m.opts.Agent.MessagesSnapshot()
+	last := msgs[len(msgs)-1]
+	text := ""
+	for _, b := range last.Blocks {
+		text += b.Text
+	}
+	if !strings.Contains(text, "(my notes.txt)") {
+		t.Fatalf("the note to the model = %q", text)
+	}
+}
+
 func TestChangesBlameAndUndoOne(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
