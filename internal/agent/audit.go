@@ -44,6 +44,22 @@ func (a *Agent) logPermission(t tool.Tool, u *llm.Block, basis, refusal string, 
 	a.logEvent(e)
 }
 
+// Unattended is an Approver that can say it has no one to ask: a
+// headless run whose stdin is not a terminal answers every question with
+// a deny it made itself. The audit then records that, not a person.
+type Unattended interface {
+	Unattended() bool
+}
+
+// answerBasis is what the audit records for an approver's answer: the
+// person's, or the refusal of a run with no one to ask.
+func (a *Agent) answerBasis(d Decision) string {
+	if u, ok := a.Approver.(Unattended); ok && u.Unattended() {
+		return "headless: no one to ask (" + d.String() + ")"
+	}
+	return "the user: " + d.String()
+}
+
 // shortcutBasis names the shortcut that let a mutating call run without
 // asking, in the order mustPrompt checks them.
 func (a *Agent) shortcutBasis(t tool.Tool, u *llm.Block, verdict perm.Verdict, rule perm.Rule, hookAllowed bool) string {

@@ -188,6 +188,51 @@ type Options struct {
 	Args []string
 	// Stderr receives janetcode's diagnostics; nil discards them.
 	Stderr io.Writer
+	// MCPServers are started for every session this client opens, on top
+	// of the ones janetcode's own configuration names. They are passed as
+	// ACP's session mcpServers; a session answers once they are up.
+	MCPServers []MCPServer
+}
+
+// MCPServer is one MCP server a session should have: a command to run
+// (stdio), or a URL (Type "http" or "sse").
+type MCPServer struct {
+	Name    string
+	Command string
+	Args    []string
+	Env     map[string]string
+	Type    string
+	URL     string
+	Headers map[string]string
+}
+
+// acpServers is Options.MCPServers in ACP's shape: env and headers are
+// lists of {name, value}, and a stdio entry carries no type.
+func (o Options) acpServers() []any {
+	out := []any{}
+	nv := func(m map[string]string) []map[string]string {
+		l := []map[string]string{}
+		for k, v := range m {
+			l = append(l, map[string]string{"name": k, "value": v})
+		}
+		return l
+	}
+	for _, s := range o.MCPServers {
+		if s.URL != "" {
+			t := s.Type
+			if t == "" {
+				t = "http"
+			}
+			out = append(out, map[string]any{"type": t, "name": s.Name, "url": s.URL, "headers": nv(s.Headers)})
+			continue
+		}
+		args := s.Args
+		if args == nil {
+			args = []string{}
+		}
+		out = append(out, map[string]any{"name": s.Name, "command": s.Command, "args": args, "env": nv(s.Env)})
+	}
+	return out
 }
 
 // Client is one running janetcode process. Its methods are safe for
@@ -339,7 +384,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	var res struct {
 		SessionID string `json:"sessionId"`
 	}
-	if err := c.call(ctx, "session/new", map[string]any{"cwd": c.opts.Dir, "mcpServers": []any{}}, &res); err != nil {
+	if err := c.call(ctx, "session/new", map[string]any{"cwd": c.opts.Dir, "mcpServers": c.opts.acpServers()}, &res); err != nil {
 		return nil, err
 	}
 	return &Session{c: c, ID: res.SessionID}, nil
@@ -347,7 +392,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 
 // LoadSession reopens a saved conversation by id.
 func (c *Client) LoadSession(ctx context.Context, id string) (*Session, error) {
-	if err := c.call(ctx, "session/load", map[string]any{"sessionId": id, "cwd": c.opts.Dir, "mcpServers": []any{}}, nil); err != nil {
+	if err := c.call(ctx, "session/load", map[string]any{"sessionId": id, "cwd": c.opts.Dir, "mcpServers": c.opts.acpServers()}, nil); err != nil {
 		return nil, err
 	}
 	return &Session{c: c, ID: id}, nil

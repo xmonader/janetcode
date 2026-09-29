@@ -51,9 +51,24 @@ func (s *Sandbox) docker(ctx context.Context, p Profile, root string, extra []st
 		writable[d] = true
 	}
 	args := []string{"run", "--rm", "-i"}
-	if p.Network {
+	proxyURL := ""
+	switch px := s.egressProxy(); {
+	case p.Network && px != nil:
+		// The egress policy: an internal network has no route out, and
+		// the proxy listening on its gateway is the one way through.
+		gw, err := s.dockerEgressGateway(ctx, bin)
+		if err != nil {
+			return nil, fmt.Errorf("egress policy: %w", err)
+		}
+		addr, err := px.ListenOn(gw)
+		if err != nil {
+			return nil, err
+		}
+		proxyURL = "http://" + addr
+		args = append(args, "--network", EgressNetwork)
+	case p.Network:
 		args = append(args, "--network", "bridge")
-	} else {
+	default:
 		args = append(args, "--network", "none")
 	}
 	if len(roots) == 0 {
@@ -91,6 +106,11 @@ func (s *Sandbox) docker(ctx context.Context, p Profile, root string, extra []st
 	args = append(args, "-w", root)
 	if uid := sandboxUser(); uid != "" {
 		args = append(args, "-u", uid)
+	}
+	if proxyURL != "" {
+		for _, kv := range WithProxyEnv(nil, proxyURL) {
+			args = append(args, "-e", kv)
+		}
 	}
 	args = append(args, s.Image(), "sh", "-c", command)
 	cmd := exec.CommandContext(ctx, bin, args...)

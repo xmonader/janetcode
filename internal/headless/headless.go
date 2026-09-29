@@ -458,6 +458,10 @@ func (a *stdinApprover) readLines() {
 	}
 }
 
+// Unattended reports that there is no terminal to ask on, so every
+// question is denied without a person (see agent.Unattended).
+func (a *stdinApprover) Unattended() bool { return !a.canAsk() }
+
 func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
 	d, _, err := a.ApproveWithReason(ctx, call)
 	return d, err

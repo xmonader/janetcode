@@ -268,6 +268,13 @@ func (r *root) wireProject() error {
 	ag.Protected = perm.NewProtected(cfg.ProtectedPaths)
 	// Validated by config.Load, so the error cannot happen here.
 	ag.EgressPolicy, _ = cfg.EgressPolicy()
+	// With a policy, a sandboxed bash command reaches the network only
+	// through the filtering proxy (see Agent.StartEgressProxy).
+	if px, err := ag.StartEgressProxy(); err != nil {
+		return fmt.Errorf("egress policy: %w", err)
+	} else if px != nil {
+		r.onClose(func() { _ = px.Close() })
+	}
 	projectTrusted := len(projectServers) > 0 && r.gate.Exec(cwd, ts.Trusted(cwd, projectHash))
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {

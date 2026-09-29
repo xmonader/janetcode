@@ -170,6 +170,11 @@ The options:
 - `Env`, `Args` and `Stderr`: extra environment entries (a provider
   key, say), extra flags (`--set k=v`, `--add-dir`), and where
   janetcode's diagnostics go. By default they are discarded.
+- `MCPServers`: MCP servers for every session, on top of the ones in
+  janetcode's config (`mcp_servers`, and the project's `.mcp.json` once
+  trusted), which start too: a command (`Command`, `Args`, `Env`) or a
+  URL (`Type` `http` or `sse`, `Headers`). They go to janetcode as ACP's
+  `mcpServers`, and a session opens once they are up.
 
 A `Result` holds the answer text, the stop reason (`end_turn`,
 `cancelled`, `max_turn_requests`, `refusal`), every tool call with its
@@ -190,6 +195,7 @@ applies edits, and asks on the terminal about anything else:
 
 ```sh
 go run ./examples/sdk -dir ~/src/project "add a test for Parse"
+go run ./examples/sdk -mcp "everything=npx -y @modelcontextprotocol/server-everything" "echo PAPAYA with the echo tool"
 ```
 
 ## janetcode as an MCP server

@@ -329,6 +329,16 @@ func (b *agentBuilder) stepSandbox() error {
 			return err
 		}
 	}
+	// The backend and the docker image /sandbox can switch in a session,
+	// for a run that has no session to type them into.
+	if v := os.Getenv("JANETCODE_SANDBOX_BACKEND"); v != "" {
+		if err := b.sb.SetBackend(v); err != nil {
+			return fmt.Errorf("JANETCODE_SANDBOX_BACKEND: %w", err)
+		}
+	}
+	if v := os.Getenv("JANETCODE_SANDBOX_IMAGE"); v != "" {
+		b.sb.SetImage(v)
+	}
 	if profile != "" {
 		if err := b.sb.SetProfile(profile); err != nil {
 			return err

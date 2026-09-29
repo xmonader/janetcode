@@ -138,6 +138,20 @@ matters. A session recorded before the audit log existed gets one from its
 next event on, and the report says how many earlier events nothing vouches
 for. `--replay` prints the same verdict before it replays a recording.
 
+A run with no one to ask — `-p` whose stdin is not a terminal — refuses
+what its mode leaves to ask by itself, and the record says so:
+`REFUSED by headless: no one to ask (deny)`, not "the user".
+
+A shell command names no paths, so for bash the work tree is read around
+the call: `git status` before and after, and the sha256 of every file
+either lists. Each file the command created, changed or deleted gets a
+`changed` record against the call, as a file tool's does. The limits: only
+in a git repository (a directory outside git has no index to compare
+with); ignored files are not seen; a background job still writing after
+its call returned is credited to the next bash call; and a work tree with
+more than 500 changed files, or a status slower than five seconds, is
+skipped rather than hashed.
+
 ## Rewinding a session
 
 `/undo turn n` (see
