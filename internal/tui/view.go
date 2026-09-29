@@ -126,7 +126,7 @@ func (m *model) diffCommand(args []string) {
 }
 
 func (m *model) showFileDiff(path string) {
-	patch, err := gitOut(m.opts.Cwd, "diff", "--no-color", "--", path)
+	patch, err := gitDiff(m.opts.Cwd, path)
 	if err != nil {
 		m.transcript.errorf("git diff: %v", err)
 		return
@@ -169,7 +169,7 @@ func (m *model) revertHunk(spec string) {
 		m.transcript.errorf("usage: /diff revert <path>:<hunk>")
 		return
 	}
-	patch, err := gitOut(m.opts.Cwd, "diff", "--no-color", "--", path)
+	patch, err := gitDiff(m.opts.Cwd, path)
 	if err != nil || strings.TrimSpace(patch) == "" {
 		m.transcript.errorf("%s has no tracked changes to revert (untracked files: delete them, or /undo)", path)
 		return
@@ -214,7 +214,7 @@ func splitPatch(patch string) (header string, hunks []string) {
 }
 
 func hunkStats(root, path string) (hunks, add, del int) {
-	patch, err := gitOut(root, "diff", "--no-color", "--", path)
+	patch, err := gitDiff(root, path)
 	if err != nil {
 		return 0, 0, 0
 	}
@@ -256,6 +256,14 @@ const gitTimeout = 10 * time.Second
 
 // gitOut is git's untrimmed stdout (a patch keeps its final newline); a
 // failure is reported as git's own stderr.
+// gitDiff is the working-tree patch for one path. /diff revert gives it to
+// git apply -R, so its format is pinned against the user's diff
+// configuration (dropped prefixes, colour, an external tool, textconv).
+func gitDiff(dir, path string) (string, error) {
+	args := append([]string{"diff"}, gitx.PatchFormat...)
+	return gitOut(dir, append(args, "--", path)...)
+}
+
 func gitOut(dir string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -60,14 +61,17 @@ func (w *worktree) diff(ctx context.Context) (patch, stat string, err error) {
 	if out, err := gitRun(ctx, w.Dir, "add", "-A", "--", "."); err != nil {
 		return "", "", fmt.Errorf("git add: %v: %s", err, out)
 	}
-	cmd := exec.CommandContext(ctx, "git", "diff", "--cached", "--binary", w.base)
+	// The patch is applied later, so its format is pinned against the
+	// user's diff configuration (noprefix, colour, an external tool).
+	args := append([]string{"diff", "--cached", "--binary"}, gitx.PatchFormat...)
+	cmd := exec.CommandContext(ctx, "git", append(args, w.base)...)
 	cmd.Dir = w.Dir
 	raw, err := cmd.Output() // not trimmed: a patch needs its final newline
 	if err != nil {
 		return "", "", fmt.Errorf("git diff: %v", err)
 	}
 	patch = string(raw)
-	stat, err = gitRun(ctx, w.Dir, "diff", "--cached", "--stat", w.base)
+	stat, err = gitRun(ctx, w.Dir, "diff", "--cached", "--stat", "--no-color", "--no-ext-diff", w.base)
 	if err != nil {
 		return "", "", fmt.Errorf("git diff --stat: %v: %s", err, stat)
 	}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -936,6 +937,33 @@ func TestDoctorShowsRowsWhenCheckupFails(t *testing.T) {
 	v := plain(h.m.View())
 	if !strings.Contains(v, "sessions dir") {
 		t.Fatalf("failed checkup hid later rows:\n%s", v)
+	}
+}
+
+// /diff revert hands git apply -R a patch read from git diff, so the
+// user's diff configuration must not reach it: without a/ b/ prefixes
+// apply -p1 strips the real "d/" off the path, and an external diff tool
+// replaces the patch with its own output.
+func TestDiffRevertIgnoresDiffConfig(t *testing.T) {
+	h := newHarness(t)
+	root := h.m.opts.Cwd
+	os.MkdirAll(filepath.Join(root, "d"), 0o755)
+	os.WriteFile(filepath.Join(root, "d", "a.txt"), []byte("one\n"), 0o644)
+	gitInitTUI(t, root)
+	for _, kv := range [][2]string{{"diff.noprefix", "true"}, {"color.ui", "always"}, {"diff.external", "false"}} {
+		if out, err := exec.Command("git", "-C", root, "config", kv[0], kv[1]).CombinedOutput(); err != nil {
+			t.Fatalf("git config: %v\n%s", err, out)
+		}
+	}
+	os.WriteFile(filepath.Join(root, "d", "a.txt"), []byte("two\n"), 0o644)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 60})
+	h.keys("/diff revert d/a.txt:1")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "reverted hunk 1 of d/a.txt") {
+		t.Fatalf("revert view:\n%s", v)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "d", "a.txt")); string(got) != "one\n" {
+		t.Fatalf("after revert: %q", got)
 	}
 }
 

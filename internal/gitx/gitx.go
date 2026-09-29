@@ -157,13 +157,16 @@ func Diff(ctx context.Context, repo, from, to string) ([]byte, error) {
 		}
 		from = empty
 	}
-	// git diff is porcelain and takes the user's configuration: colour,
-	// dropped or renamed a/ b/ prefixes, an external diff tool, textconv
-	// filters. Each gives a patch that git apply refuses or misapplies,
-	// so the patch format is spelled out here.
-	return RunBytes(ctx, repo, nil, "diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv",
-		"--src-prefix=a/", "--dst-prefix=b/", from, to)
+	args := append([]string{"diff", "--binary"}, PatchFormat...)
+	return RunBytes(ctx, repo, nil, append(args, from, to)...)
 }
+
+// PatchFormat are the git diff flags for a patch that git apply is later
+// given. git diff is porcelain and takes the user's configuration: colour,
+// dropped or renamed a/ b/ prefixes, an external diff tool, textconv
+// filters. Each gives a patch that git apply refuses or misapplies, so the
+// format is spelled out. Callers must not append to it in place.
+var PatchFormat = []string{"--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/"}
 
 // Apply applies patch (held in memory, never a path: `-C dir` would read a
 // relative path from dir rather than from the caller's directory) to the
