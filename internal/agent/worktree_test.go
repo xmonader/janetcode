@@ -34,7 +34,10 @@ func TestWorktreePatchIgnoresDiffConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("git", "apply", "-")
+	// autocrlf off for the test's own apply: Git for Windows' default
+	// would write CRLF into root, which is the user's choice there, not
+	// something the patch did.
+	cmd := exec.Command("git", "-c", "core.autocrlf=false", "apply", "-")
 	cmd.Dir = root
 	cmd.Stdin = strings.NewReader(patch)
 	if out, err := cmd.CombinedOutput(); err != nil {

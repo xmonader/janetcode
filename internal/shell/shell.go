@@ -8,8 +8,10 @@ package shell
 import (
 	"context"
 	"encoding/base64"
+	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf16"
@@ -46,10 +48,38 @@ var (
 	defaultShell Shell
 )
 
-// Default picks the shell for this machine once.
+// Default picks the shell for this machine once. JANETCODE_SHELL, when
+// set, names it instead (see Override).
 func Default() Shell {
-	shellOnce.Do(func() { defaultShell = shellFor(runtime.GOOS, exec.LookPath) })
+	shellOnce.Do(func() {
+		if s, ok := Override(os.Getenv("JANETCODE_SHELL")); ok {
+			defaultShell = s
+			return
+		}
+		defaultShell = shellFor(runtime.GOOS, exec.LookPath)
+	})
 	return defaultShell
+}
+
+// Override is the shell JANETCODE_SHELL names: a POSIX shell given the
+// command after -c. On Windows it is how Git Bash (C:\Program
+// Files\Git\bin\bash.exe) or busybox-w32 replaces PowerShell, for people
+// whose commands and habits are bash's. busybox.exe is run as
+// `busybox.exe sh -c`, since it is a multi-call binary. Empty means no
+// override.
+func Override(path string) (Shell, bool) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return Shell{}, false
+	}
+	// Either separator, whatever the OS: the name is only for display
+	// and the busybox check.
+	base := path[strings.LastIndexAny(path, `/\`)+1:]
+	name := strings.TrimSuffix(strings.ToLower(base), ".exe")
+	if strings.HasPrefix(name, "busybox") {
+		return Shell{Name: "sh (busybox)", Path: path, Args: []string{"sh", "-c"}}, true
+	}
+	return Shell{Name: name, Path: path, Args: []string{"-c"}}, true
 }
 
 // ShellCommand is Default().Command.

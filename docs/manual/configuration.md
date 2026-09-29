@@ -61,6 +61,13 @@ Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, 
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
 
+`JANETCODE_SHELL` names the shell that `bash`, hooks, verify commands
+and background jobs run through, in place of bash on Unix and PowerShell
+on Windows. It must take the command after `-c`: Git Bash
+(`C:\Program Files\Git\bin\bash.exe`) and busybox-w32 (`busybox.exe`,
+run as `busybox.exe sh -c`) are the Windows choices for people who would
+rather write bash than PowerShell.
+
 `effort` is how hard the model thinks: `low`, `medium`, `high`, `xhigh` or
 `max`, in that order, or absent for whatever the provider does on its own.
 Anything else is a config error, both in the file and through `/config`.

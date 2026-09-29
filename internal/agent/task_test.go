@@ -316,7 +316,9 @@ func TestTaskEditsInAWorktreeAndReturnsAPatch(t *testing.T) {
 	// The saved patch applies cleanly to the real tree.
 	i := strings.Index(final, "Patch saved to ")
 	path := strings.Fields(final[i+len("Patch saved to "):])[0]
-	if out, err := gitRun(context.Background(), root, "apply", path); err != nil {
+	// autocrlf off: Git for Windows' default would write CRLF, the user's
+	// choice when they apply it, not the patch's content.
+	if out, err := gitRun(context.Background(), root, "-c", "core.autocrlf=false", "apply", path); err != nil {
 		t.Fatalf("git apply: %v %s", err, out)
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "b.txt")); string(got) != "new file\n" {
