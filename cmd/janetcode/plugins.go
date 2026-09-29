@@ -111,13 +111,3 @@ func pluginMode(w io.Writer, cmd string, rest []string) error {
 	printResult(w, res)
 	return nil
 }
-
-func runsWhat(p plugin.Parts) string {
-	switch {
-	case len(p.Hooks) > 0 && len(p.MCP) > 0:
-		return "hooks and MCP servers"
-	case len(p.Hooks) > 0:
-		return "hooks"
-	}
-	return "MCP servers"
-}

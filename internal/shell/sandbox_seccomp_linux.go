@@ -26,9 +26,6 @@ import (
 // socketcall, x32) are refused wholesale, since the filter's numbers
 // are the native ones.
 
-// seccompAllowedFamilies documents the table below for the docs and tests.
-var seccompAllowedFamilies = []string{"AF_INET/AF_INET6 with SOCK_STREAM and protocol 0 or TCP", "AF_NETLINK"}
-
 // bpfProg assembles a classic BPF program with symbolic jump targets.
 type bpfProg struct {
 	ins    []unix.SockFilter
