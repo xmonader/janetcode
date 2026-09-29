@@ -60,6 +60,8 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--allow`, `--deny` | add a permission rule for this run |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |
 | `--update` | replace this binary with the latest release: the download is checked against the release's `SHA256SUMS` and written beside the old binary before it is renamed over it. A build from source says it is not a release; `JANETCODE_RELEASES` points at a mirror |
+| `--uninstall` | remove this binary when janetcode installed it: install.sh leaves a receipt (`.janetcode.install`) beside the binary naming its checksum, and a release build is recognised by its version. A build from source that janetcode did not install is refused and left alone. Every path removed is printed; the config and data directories are kept and named |
+| `--purge` | with `--uninstall`: also remove the config directory (settings, API keys, permission rules, MCP logins) and the data directory (sessions, memory, archives). `--backup <file>` first if in doubt |
 | `--version` | print the version |
 
 Eval flags (`--eval` and the rest) are documented under [Evals](evals.md).

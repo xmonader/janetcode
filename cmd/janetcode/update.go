@@ -31,5 +31,12 @@ func selfUpdate() error {
 		return nil
 	}
 	fmt.Printf("updated %s: %s → %s\n", res.Path, res.From, res.To)
+	// The receipt install.sh left names the bytes it wrote; it follows
+	// the binary so --uninstall still recognises it.
+	if rc, err := update.ReadReceipt(exe); err == nil && rc != nil {
+		if err := update.WriteReceipt(exe, res.To); err != nil {
+			fmt.Fprintf(os.Stderr, "janetcode: could not update %s: %v\n", update.ReceiptName(exe), err)
+		}
+	}
 	return nil
 }

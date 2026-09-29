@@ -102,3 +102,12 @@ read at the start of every session, so house rules belong there.
 - `janetcode -c` continues the last session in this directory.
 - `/help` lists the everyday commands; `/help <question>`, such as
   `/help undo one file`, searches every feature and the manual.
+
+## Uninstall
+
+`janetcode --uninstall` removes the binary install.sh put in place and
+prints each path it removed. Your settings, keys and sessions stay unless
+you add `--purge`, which removes the config and data directories too. If
+you want a copy first, run `janetcode --backup janetcode.tar.gz` before
+purging. A binary you built from source (`make install`, `go install`) is
+refused: delete it the same way you installed it.

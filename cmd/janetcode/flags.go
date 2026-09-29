@@ -68,6 +68,8 @@ type options struct {
 	showVersion  bool
 	plain        bool
 	selfUpdate   bool
+	uninstall    bool
+	purge        bool
 	listSess     bool
 	initProject  bool
 	initCfg      bool
@@ -114,7 +116,7 @@ var helpGroups = []struct {
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
-	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
+	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "uninstall", "purge", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
 }
@@ -271,6 +273,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")
+	fs.BoolVar(&o.uninstall, "uninstall", false, "remove this binary if janetcode installed it (install.sh or a release build), print what was removed, then exit; the config and data directories stay unless --purge is given")
+	fs.BoolVar(&o.purge, "purge", false, "with --uninstall: also remove the config directory (settings, API keys, permission rules, MCP logins) and the data directory (sessions, memory, archives)")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
 	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")

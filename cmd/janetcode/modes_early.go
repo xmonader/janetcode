@@ -29,6 +29,10 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		fmt.Println("janetcode", version)
 	case o.selfUpdate:
 		return true, selfUpdate()
+	case o.uninstall:
+		return true, uninstallMode(os.Stdout, o.purge)
+	case o.purge:
+		return true, headless.BadInput("--purge goes with --uninstall")
 	case o.initCfg:
 		if p, err := config.Path(); err == nil {
 			if _, err := os.Stat(p); err == nil {

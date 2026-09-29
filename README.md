@@ -17,6 +17,7 @@ On Linux or macOS, from the latest release (checked against its
 ```sh
 curl -fsSL https://raw.githubusercontent.com/xmonader/janetcode/master/install.sh | sh
 janetcode --update  # later: the newest release, checked the same way
+janetcode --uninstall          # remove the binary; --purge also removes settings and sessions
 ```
 
 From source (Go 1.25+):

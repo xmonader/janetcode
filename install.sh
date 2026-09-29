@@ -62,7 +62,11 @@ chmod 755 "$tmp/$asset"
 # the one on PATH.
 cp "$tmp/$asset" "$dir/.janetcode.new"
 mv -f "$dir/.janetcode.new" "$dir/janetcode"
+# The receipt is what lets janetcode --uninstall tell this binary from a
+# build someone put here by hand.
+printf 'installed-by=install.sh\nversion=%s\nsha256=%s\n' "$tag" "$want" > "$dir/.janetcode.install"
 echo "installed $dir/janetcode ($tag)"
+echo "to remove it later: janetcode --uninstall (add --purge to remove settings and sessions too)"
 
 case ":$PATH:" in
   *":$dir:"*) echo "run: janetcode" ;;
