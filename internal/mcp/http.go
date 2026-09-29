@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -103,7 +105,16 @@ func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
 	case "sse":
 		return t.sendLegacy(ctx, msg)
 	case "http":
-		return t.sendStreamable(ctx, msg)
+		err := t.sendStreamable(ctx, msg)
+		if t.dropped(ctx, err) {
+			// Streamable HTTP has no stream whose end says the server is
+			// gone: every request is its own connection. A connection
+			// refused or reset, or a 404 for the session the server gave
+			// us, is that end, so the client is closed like a stdio one
+			// whose process exited, and the manager reconnects it.
+			t.c.exited(err)
+		}
+		return err
 	}
 	// Unknown yet: try Streamable HTTP; 404/405 means the old transport.
 	err := t.sendStreamable(ctx, msg)
@@ -120,6 +131,30 @@ func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
 		t.mu.Unlock()
 	}
 	return err
+}
+
+// dropped reports whether err from an established Streamable HTTP
+// connection means the server is gone rather than that one request
+// failed: the network refused or reset it, or the server no longer knows
+// the session it issued (the spec's 404 for a terminated session).
+func (t *httpTransport) dropped(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() != nil {
+		return false
+	}
+	var se *statusError
+	if errors.As(err, &se) {
+		t.mu.Lock()
+		sid := t.sessionID
+		t.mu.Unlock()
+		return se.code == http.StatusNotFound && sid != ""
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return false
+	}
+	var oe *net.OpError
+	return errors.As(err, &oe) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET)
 }
 
 // do sends a request; on 401 with a stored token it refreshes the token

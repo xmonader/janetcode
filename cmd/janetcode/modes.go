@@ -94,6 +94,7 @@ func (r *root) startMCP(ctx context.Context, warnUntrusted bool) {
 			fmt.Fprintf(os.Stderr, "[cua] computer_use is on but no driver is on PATH\n%s\n", cua.InstallHint)
 		}
 	}
+	r.servers.SetNotify(func(msg string) { fmt.Fprintf(os.Stderr, "[mcp] %s\n", msg) })
 	r.servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)

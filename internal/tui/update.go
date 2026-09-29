@@ -409,6 +409,10 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 	case mcpFetchMsg:
 		return m.handleMCPFetch(msg), true
 
+	case mcpNoteMsg:
+		m.note(msg.text)
+		m.refresh(false)
+		return nil, true
 	case mcpDoneMsg:
 		if msg.err != nil {
 			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))

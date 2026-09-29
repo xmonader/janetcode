@@ -38,12 +38,18 @@ type mcpPromptMsg struct {
 	err     error
 }
 
+// mcpNoteMsg is a line the MCP manager has for the person: a server
+// went down, or came back.
+type mcpNoteMsg struct{ text string }
+
 // startMCP launches the configured servers in the background.
 func (m *model) startMCP() {
 	o := m.opts.MCP
 	if o == nil || o.Manager == nil {
 		return
 	}
+	send := m.send
+	o.Manager.SetNotify(func(s string) { send(mcpNoteMsg{text: s}) })
 	start := func(servers map[string]mcp.ServerConfig) {
 		for name, cfg := range servers {
 			o.Manager.Start(m.life, name, cfg, func(name string, c *mcp.Client, err error) {
@@ -157,6 +163,9 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 		return m.mcpAdd(args[1:])
 	case len(args) > 0 && (args[0] == "remove" || args[0] == "rm"):
 		return m.mcpRemove(args[1:])
+	case len(args) > 0 && args[0] == "reconnect":
+		m.mcpReconnect(args[1:])
+		return nil
 	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
@@ -196,6 +205,8 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 	sb.WriteString("MCP servers\n")
 	for _, s := range st {
 		switch {
+		case s.Down:
+			fmt.Fprintf(&sb, "  ⚠ %s\n", s.DownLine(time.Now()))
 		case s.Starting:
 			fmt.Fprintf(&sb, "  … %s starting\n", s.Name)
 		case s.Err != nil:
@@ -293,4 +304,47 @@ func (m *model) restartMCP(name string) {
 		}
 		m.send(mcpDoneMsg{name: name, tools: n, err: err})
 	})
+}
+
+// mcpReconnect answers /mcp reconnect [name]: restart one server, or
+// every server that is down or failed, now rather than at its next
+// backoff.
+func (m *model) mcpReconnect(args []string) {
+	o := m.opts.MCP
+	var names []string
+	if len(args) > 0 {
+		names = args
+	} else {
+		for _, st := range o.Manager.Status() {
+			if st.Down || st.Err != nil {
+				names = append(names, st.Name)
+			}
+		}
+		if len(names) == 0 {
+			m.note("every MCP server is up · /mcp reconnect <name> restarts one anyway")
+			return
+		}
+	}
+	for _, name := range names {
+		send := m.send
+		ok := o.Manager.Reconnect(name, func(name string, c *mcp.Client, err error) {
+			n := 0
+			if c != nil {
+				n = len(c.Tools())
+			}
+			send(mcpDoneMsg{name: name, tools: n, err: err})
+		})
+		if !ok {
+			// Never started in this session (untrusted, or added to the
+			// file by hand): restartMCP finds it in the configuration.
+			if _, g := o.Global[name]; !g {
+				if _, p := o.Project[name]; !p {
+					m.transcript.errorf("no MCP server named %q", name)
+					continue
+				}
+			}
+			m.restartMCP(name)
+		}
+		m.note("mcp " + name + ": reconnecting")
+	}
 }

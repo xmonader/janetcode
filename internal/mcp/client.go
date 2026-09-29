@@ -80,8 +80,15 @@ type Client struct {
 	pendMu  sync.Mutex
 	pending map[int64]chan rpcReply
 
+	// toolsMu guards tools, which a tools/list_changed notification
+	// replaces while the session may be reading them.
+	toolsMu sync.Mutex
 	tools   []ToolInfo
 	prompts []PromptInfo
+
+	// onToolsChanged runs after the server said its tool list changed
+	// and the new list has been loaded (Options.OnToolsChanged).
+	onToolsChanged func(*Client)
 
 	root  string // reported to roots/list
 	debug io.Writer
@@ -152,6 +159,9 @@ type Options struct {
 	HandshakeTimeout time.Duration
 	// Tokens holds OAuth tokens for remote servers (see Authorize).
 	Tokens *TokenStore
+	// OnToolsChanged runs, on its own goroutine, after the server sent
+	// notifications/tools/list_changed and Tools has been reloaded.
+	OnToolsChanged func(*Client)
 }
 
 // Start launches or connects to the server, completes the handshake and
@@ -163,6 +173,8 @@ func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*C
 		root:    opts.Root,
 		debug:   opts.Debug,
 		done:    make(chan struct{}),
+
+		onToolsChanged: opts.OnToolsChanged,
 	}
 	var err error
 	switch {
@@ -263,7 +275,9 @@ func (c *Client) loadTools(ctx context.Context) error {
 		}
 		cursor = page.NextCursor
 	}
+	c.toolsMu.Lock()
 	c.tools = all
+	c.toolsMu.Unlock()
 	return nil
 }
 
@@ -439,7 +453,33 @@ func (c *Client) ReadResource(ctx context.Context, uri string) (string, error) {
 }
 
 // Tools lists what the server offers, as reported at startup.
-func (c *Client) Tools() []ToolInfo { return append([]ToolInfo(nil), c.tools...) }
+func (c *Client) Tools() []ToolInfo {
+	c.toolsMu.Lock()
+	defer c.toolsMu.Unlock()
+	return append([]ToolInfo(nil), c.tools...)
+}
+
+// reloadTools answers notifications/tools/list_changed: the server's tool
+// set is fetched again and the owner told, so a server that grows or
+// drops tools mid-session is not called by its old list.
+func (c *Client) reloadTools() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	go func() {
+		select {
+		case <-c.done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	if err := c.loadTools(ctx); err != nil {
+		c.logf("tools/list after list_changed failed: %v", err)
+		return
+	}
+	if c.onToolsChanged != nil {
+		c.onToolsChanged(c)
+	}
+}
 
 // Image is a base64 image a tool returned, typically a screenshot.
 type Image struct {
@@ -552,6 +592,16 @@ func (c *Client) exitError() error {
 	return ErrDisconnected
 }
 
+// Err is why the connection ended, or nil while it is up.
+func (c *Client) Err() error {
+	select {
+	case <-c.done:
+		return c.exitError()
+	default:
+		return nil
+	}
+}
+
 // Done is closed once the connection is finished — the server process
 // exited, its stream broke, or Close was called.
 func (c *Client) Done() <-chan struct{} { return c.done }
@@ -633,8 +683,10 @@ func (c *Client) dispatch(msg rpcMessage) {
 	switch {
 	case msg.Method != "" && msg.ID != nil:
 		go c.handleRequest(msg)
+	case msg.Method == "notifications/tools/list_changed":
+		go c.reloadTools()
 	case msg.Method != "":
-		// notification (progress, log, list_changed): nothing to do
+		// other notifications (progress, log): nothing to do
 	case msg.ID != nil:
 		var id int64
 		if err := json.Unmarshal(*msg.ID, &id); err != nil {

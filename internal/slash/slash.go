@@ -39,7 +39,7 @@ var Commands = withIdle([]Command{
 	{Name: "/changes", Args: "[n]", Help: "this session's file changes grouped by turn and intent; n shows one change's hunks"},
 	{Name: "/blame", Args: "<path>", Help: "which change wrote each line of a file changed this session"},
 	{Name: "/redo", Args: "", Help: "reapply what the last /undo reverted (until the next change)"},
-	{Name: "/mcp", Args: "[search <words>|add [<name> <command|url>]|remove <server>|trust|auth <server>|logout <server>]", Help: "MCP servers and their tools; search looks one up in the MCP registry and prints the add line; add writes one into .mcp.json and starts it (no arguments walks through it); trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
+	{Name: "/mcp", Args: "[search <words>|add [<name> <command|url>]|remove <server>|reconnect [server]|trust|auth <server>|logout <server>]", Help: "MCP servers and their tools; search looks one up in the MCP registry and prints the add line; add writes one into .mcp.json and starts it (no arguments walks through it); reconnect restarts a server now (all that are down, with no name); trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
 	{Name: "/cua", Args: "[on|off|doctor]", Help: "start Cua Driver as an MCP desktop server when cua-driver is installed; doctor checks the binary"},
 	{Name: "/hooks", Args: "[trust]", Help: "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{Name: "/permissions", Args: "[allow|deny <rule>|trust]", Help: "permission rules; add one, or trust the project's .janetcode/permissions.json"},

@@ -363,6 +363,43 @@ func TestMCPTrustFlow(t *testing.T) {
 	mgr.Close()
 }
 
+// A server whose connection ends is reported, listed as down, and
+// brought back by /mcp reconnect.
+func TestMCPServerDownAndReconnect(t *testing.T) {
+	h := newHarness(t)
+	reg := h.m.opts.Agent.Tools
+	mgr := &mcptool.Manager{
+		Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 20 * time.Second}, Registry: reg,
+		Backoff: func(int) time.Duration { return time.Hour },
+	}
+	defer mgr.Close()
+	fake := mcp.ServerConfig{Command: os.Args[0], Args: []string{"-test.run=TestFakeMCPServerProcess"}, Env: map[string]string{"MCP_FAKE_SERVER": "1"}}
+	h.m.opts.MCP = &MCPOptions{Manager: mgr, Global: map[string]mcp.ServerConfig{"srv": fake}}
+	h.m.Init()
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "mcp srv ready") })
+	c, _ := mgr.Client("srv")
+	c.Close() // the connection ends without the session asking for it
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "mcp srv disconnected") })
+	h.keys("/mcp")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "⚠ srv down") || !strings.Contains(v, "/mcp reconnect srv tries now") {
+		t.Fatalf("listing of a down server:\n%s", v)
+	}
+	h.keys("/mcp reconnect")
+	h.enter()
+	h.pump(func() bool {
+		nc, ok := mgr.Client("srv")
+		return ok && nc != c
+	})
+	h.pump(func() bool {
+		v := plain(h.m.View())
+		return strings.Contains(v, "mcp srv ready") && !strings.Contains(v, "mcp srv: reconnecting")
+	})
+	if _, ok := reg.Get("mcp__srv__echo"); !ok {
+		t.Fatal("the reconnected server's tools are not registered")
+	}
+}
+
 func TestConnectDialogSwitchesProvider(t *testing.T) {
 	h := newHarness(t)
 	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{

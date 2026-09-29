@@ -167,6 +167,9 @@ func Run(ctx context.Context, opts Options) error {
 	// the guard took it for every interface and let a rebound DNS name in.
 	opts.Addr = ln.Addr().String()
 	s := newServer(ctx, opts)
+	if opts.MCP != nil && opts.MCP.Manager != nil {
+		opts.MCP.Manager.SetNotify(s.notice)
+	}
 	hs := &http.Server{Handler: s.handler()}
 	served := make(chan struct{})
 	go func() {

@@ -2608,6 +2608,26 @@ refresh and retry. Servers without dynamic registration take
 `"client_id"`, `"client_secret"` (env references expand) and `"scope"` in
 their config. `/mcp logout <server>` forgets the token.
 
+#### When a server goes away
+
+A stdio server whose process exits, or a remote one that stops
+answering (the connection is refused or reset, or it no longer knows the
+session it gave out), is marked down: `/mcp` lists it with `⚠`, the
+reason, and when it is tried next. janetcode starts it again on its own,
+waiting one second, then two, four and so on up to a minute, for eight
+attempts; after that it stays down until you ask. `/mcp reconnect
+<server>` restarts one now, whatever state it is in, and `/mcp reconnect`
+alone restarts every server that is down or failed. A line in the
+transcript says when a server goes down and when it is back.
+
+While a server is down its tools stay listed for the model, and calling
+one returns "the server is down, so the tool was not called" rather than
+"no such tool" or a result that leaves open whether it ran. When it comes
+back its tools are registered afresh from what it offers now. A server
+that announces `notifications/tools/list_changed` mid-session has its
+tool list reloaded the same way, so a tool it added is callable and one it
+dropped is gone.
+
 #### Adding a server
 
 `/mcp add` walks through it: a name, the transport (a command here, or a
