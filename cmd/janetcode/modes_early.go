@@ -134,6 +134,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{whatIfRun && o.web, "--web is a session, not a one-shot; drop --what-if"},
 		{whatIfRun && o.acpMode, "--what-if and --acp do not combine"},
 		{whatIfRun && o.bg, "--what-if and --bg do not combine"},
+		{o.fork && o.resume == "" && !o.cont, "--fork copies the session --resume or --continue opens; name one"},
 		{whatIfRun && o.whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
 	} {
 		if bad.holds {
@@ -151,6 +152,12 @@ func offlineMode(o *options) (bool, error) {
 	switch {
 	case o.evalReport != "":
 		return true, reportEval(o.evalReport, o.evalCompare)
+	case o.showSess != "":
+		return true, showSession(os.Stdout, o.showSess)
+	case o.searchSess != "":
+		return true, searchSessionsMode(os.Stdout, o.searchSess)
+	case o.auditSess != "":
+		return true, auditMode(os.Stdout, o.auditSess)
 	case o.replayPath != "":
 		path, _, _, err := whatif.ResolveSession(o.replayPath)
 		if err != nil {

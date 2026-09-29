@@ -107,6 +107,11 @@ func replaySession(ctx context.Context, path string, progress io.Writer) (record
 // response is turned into tool calls would have shown up here as a
 // different call sequence, for free and without a key.
 func runReplay(path string) error {
+	// A replay is only as good as the recording it replays: say first
+	// whether the audit log still vouches for it.
+	if rep, err := session.VerifyAudit(path); err == nil {
+		fmt.Fprint(os.Stdout, auditSummary(rep))
+	}
 	recorded, now, err := replaySession(context.Background(), path, os.Stdout)
 	if err != nil {
 		return err

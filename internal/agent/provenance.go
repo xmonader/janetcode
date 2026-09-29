@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xmonader/janetcode/internal/change"
+	"github.com/xmonader/janetcode/internal/session"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -66,6 +67,7 @@ func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 			continue
 		}
 		a.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data, Gone: !exists})
+		a.logEvent(session.Event{Type: session.TypeFileChange, CallID: u.ID, Name: p.path, Arguments: contentDigest(p.data, p.existed) + "->" + contentDigest(data, exists)})
 	}
 }
 

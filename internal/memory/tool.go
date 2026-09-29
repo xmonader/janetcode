@@ -71,7 +71,7 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		return out, nil
 	case "forget":
-		e, err := t.Store.Remove(in.Name)
+		e, err := t.Store.RemoveModel(in.Name)
 		if err != nil {
 			return "", err
 		}

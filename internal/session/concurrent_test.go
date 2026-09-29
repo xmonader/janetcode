@@ -125,3 +125,22 @@ func TestSearchSnippetSurvivesNonASCII(t *testing.T) {
 		t.Fatalf("snippet is not valid UTF-8: %q", hits[0].Snippet)
 	}
 }
+
+// A hit says which turn it is in, so a listing can point at it.
+func TestSearchReportsTurn(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/work", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for turn, text := range []string{"first question", "second question about the needle"} {
+		m := llm.TextMessage(llm.RoleUser, text)
+		if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, Turn: turn + 1, Message: &m}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hits, err := Search(dir, "", "needle", 10)
+	if err != nil || len(hits) != 1 || hits[0].Turn != 2 {
+		t.Fatalf("hits = %+v, err %v; want one hit in turn 2", hits, err)
+	}
+}

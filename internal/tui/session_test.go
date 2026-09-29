@@ -591,7 +591,7 @@ func TestForkTitleAndSearchCommands(t *testing.T) {
 	h.keys("/history token bucket")
 	h.enter()
 	v := plain(h.m.View())
-	if !strings.Contains(v, "redis for real") || !strings.Contains(v, "Rate limiting for the API") || !strings.Contains(v, "assistant: I added a token bucket.") {
+	if !strings.Contains(v, "redis for real") || !strings.Contains(v, "Rate limiting for the API") || !strings.Contains(v, "assistant turn 1: I added a token bucket.") {
 		t.Fatalf("search view:\n%s", v)
 	}
 	h.keys("/history nothing-like-this")
@@ -957,5 +957,30 @@ func TestResumePickerShowsForkLineage(t *testing.T) {
 	}
 	if !strings.Contains(v, "parent of a match") {
 		t.Fatalf("the parent is not marked as context:\n%s", v)
+	}
+}
+
+// /resume <id> fork carries on in a copy, and the session being left
+// gives its lease back while the one entered takes it.
+func TestResumeForkOpensACopy(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hello back"), StopReason: llm.StopEndTurn})
+	h.keys("hi")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	old := h.m.opts.Session
+	h.keys("/clear")
+	h.enter()
+	cleared := h.m.opts.Session
+	h.keys("/resume " + old.Meta.ID + " fork")
+	h.enter()
+	cur := h.m.opts.Session
+	if cur.Meta.ID == old.Meta.ID || cur.Meta.ForkOf != old.Meta.ID {
+		t.Fatalf("/resume fork opened %s (fork of %q), want a copy of %s", cur.Meta.ID, cur.Meta.ForkOf, old.Meta.ID)
+	}
+	if !strings.Contains(plain(h.m.View()), "hello back") {
+		t.Errorf("the copy lacks the conversation:\n%s", plain(h.m.View()))
+	}
+	if !cur.Leased() || cleared.Leased() {
+		t.Errorf("leases: entered %v, left %v; want true, false", cur.Leased(), cleared.Leased())
 	}
 }

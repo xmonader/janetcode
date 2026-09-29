@@ -53,3 +53,21 @@ func TestTakeBgAnswer(t *testing.T) {
 		t.Fatalf("answer = %q %v", d, ok)
 	}
 }
+
+// The launcher writes its record before the child exists, with no pid;
+// a child that died before saying anything is found by its pid sidecar.
+func TestBgStatusWithoutPIDUsesThePIDSidecar(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "abc.jsonl")
+	if err := WriteBgStatus(p, BgStatus{State: BgRunning, Started: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := ReadBgStatus(p); got.State != BgRunning {
+		t.Fatalf("no pid known yet: %+v", got)
+	}
+	if err := os.WriteFile(strings.TrimSuffix(p, ".jsonl")+".pid", []byte("1073741824\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := ReadBgStatus(p); got.State != BgFailed {
+		t.Errorf("a child that died before writing its status = %+v, want failed", got)
+	}
+}

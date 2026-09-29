@@ -354,6 +354,12 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "that session belongs to a different directory", http.StatusBadRequest)
 		return
 	}
+	// Taken before anything switches: a session another janetcode is
+	// running turns in is refused and this view stays where it was.
+	if err := sess.Acquire(); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
 	s.setSession(sess)
 	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {

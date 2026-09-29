@@ -18,7 +18,15 @@ import (
 // into a conversation that never asked for them, and every later change
 // to either was written to the session left behind. That session keeps
 // what it had saved, and gets it back when it is resumed.
+//
+// The agent takes the incoming session's lease before anything changes
+// and gives the outgoing one's back: a session another process is
+// running turns in is refused with a *session.LeasedError, and the
+// conversation stays where it was.
 func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error {
+	if err := a.moveLease(sess); err != nil {
+		return err
+	}
 	a.switchSessionHooks(history)
 	a.setMessages(history)
 	a.SetPins(sess.Meta.Pins)
@@ -42,9 +50,28 @@ func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error 
 // later /accept or /loop change went to the original and the fork's own
 // record kept the state it was copied with.
 func (a *Agent) ForkSession(ns *session.Session) error {
+	if err := a.moveLease(ns); err != nil {
+		return err
+	}
 	a.SetLog(ns)
 	a.acceptMode().SetOnChange(func(am *session.AcceptMeta) { _ = ns.SetAccept(am) })
 	a.Cron.SetOnChange(func(specs []session.LoopSpec) { _ = ns.SetLoops(specs) })
 	a.UndoPath = ns.UndoPath()
 	return a.SaveUndo()
+}
+
+// moveLease takes to's lease and releases the current session's, when
+// the agent's log is a session that holds one.
+func (a *Agent) moveLease(to *session.Session) error {
+	from, _ := a.Log.(*session.Session)
+	if from == to {
+		return nil
+	}
+	if err := to.Acquire(); err != nil {
+		return err
+	}
+	if from != nil {
+		from.Release()
+	}
+	return nil
 }

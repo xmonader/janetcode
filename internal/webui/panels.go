@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
@@ -61,6 +62,22 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 		Depth  int    `json:"depth"`
 		Prefix string `json:"prefix"`
 		Note   string `json:"note,omitempty"`
+		// Hit is the line of the conversation that matched ?q=, and
+		// Turn the turn it is in: the list filter searches what was
+		// said, not only the titles.
+		Hit  string `json:"hit,omitempty"`
+		Turn int    `json:"turn,omitempty"`
+	}
+	hits := map[string]session.Hit{}
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		found, err := session.Search(dir, s.cwd(), q, 0)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		for _, h := range found {
+			hits[h.Info.Meta.ID] = h
+		}
 	}
 	nodes := session.Lineage(infos, cur)
 	out := make([]row, 0, len(nodes))
@@ -71,6 +88,7 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 			Messages: in.Messages, Updated: in.Updated.Format(time.RFC3339),
 			Current: n.Current, Settled: in.Meta.Settled,
 			Depth: n.Depth, Prefix: n.Prefix(), Note: n.Note(),
+			Hit: hits[in.Meta.ID].Snippet, Turn: hits[in.Meta.ID].Turn,
 		})
 	}
 	writeJSON(w, out)

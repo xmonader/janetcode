@@ -183,10 +183,15 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 // accept lock refuses before anything can allow; a deny rule refuses
 // before anything asks; and only what none of those settled reaches the
 // user.
-func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
-	hookNotes, hookAllowed, hookMustAsk, refusal := a.preToolHook(ctx, u, call, emit)
-	if refusal != "" {
-		return nil, refusal, nil
+func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) (notes []string, refusal string, err error) {
+	// basis is what settled the call, for the audit record written on
+	// the way out (see logPermission).
+	var basis string
+	defer func() { a.logPermission(t, u, basis, refusal, err) }()
+	hookNotes, hookAllowed, hookMustAsk, hookRefusal := a.preToolHook(ctx, u, call, emit)
+	if hookRefusal != "" {
+		basis = "pre-tool hook"
+		return nil, hookRefusal, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
 	if hookMustAsk {
@@ -212,6 +217,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// saved rule to skip past it (see accept.Mode.Denial).
 	if tool.MutatingCall(t, u.Input) {
 		if reason := a.locks().Denial(t, u.Input); reason != "" {
+			basis = "accept lock"
 			return nil, reason, nil
 		}
 		// toolGate judged the phase rule on the input the model sent; a
@@ -219,6 +225,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// test-file write rewritten into an implementation write would
 		// pass a gate its own input never faced.
 		if reason := a.locks().WritingDenial(t, u.Input); reason != "" {
+			basis = "accept lock"
 			return nil, reason, nil
 		}
 	}
@@ -227,9 +234,11 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// before the rules are consulted at all, so no allow rule and no mode
 	// can put it in front of the user as something to approve.
 	if hard != "" {
+		basis = "hard deny"
 		return nil, fmt.Sprintf("Refused: this command %s. janetcode never runs it, not even with auto-approve or an allow rule; do not retry it in another form.", hard), nil
 	}
 	if verdict == perm.Denied {
+		basis = "rule " + rule.String()
 		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
 	}
 	switch {
@@ -239,24 +248,30 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
 	if !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+		basis = a.shortcutBasis(t, u, verdict, rule, hookAllowed)
 		return hookNotes, "", nil
 	}
-	switch allowed, refusal := a.permissionHook(ctx, u, call, mustAsk, emit); {
-	case refusal != "":
-		return nil, refusal, nil
+	switch allowed, hr := a.permissionHook(ctx, u, call, mustAsk, emit); {
+	case hr != "":
+		basis = "permission hook"
+		return nil, hr, nil
 	case allowed:
+		basis = "permission hook"
 		return hookNotes, "", nil
 	}
 	if a.Approver == nil {
+		basis = "no approver"
 		return nil, "Permission denied: no approver configured for mutating tools.", nil
 	}
 	a.notifyHook("permission_prompt", "janetcode needs your permission to use "+u.Name)
-	d, reason, suggested, err := a.ask(ctx, u, call, subject, mustAsk)
-	if err != nil {
-		return nil, "", err
+	d, reason, suggested, askErr := a.ask(ctx, u, call, subject, mustAsk)
+	if askErr != nil {
+		basis = "the user (no answer)"
+		return nil, "", askErr
 	}
-	if refusal := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); refusal != "" {
-		return nil, refusal, nil
+	basis = "the user: " + d.String()
+	if r := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); r != "" {
+		return nil, r, nil
 	}
 	return hookNotes, "", nil
 }

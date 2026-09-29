@@ -693,7 +693,7 @@ func (m *model) cmdResume(text string, fields []string) (tea.Cmd, bool) {
 	if len(fields) < 2 {
 		return m.openSessionPicker(), true
 	}
-	m.resume(fields[1])
+	m.resume(strings.Join(fields[1:], " "))
 	return nil, false
 }
 
