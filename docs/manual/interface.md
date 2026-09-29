@@ -872,10 +872,10 @@ belonged to the code that is gone. Everything else in the file stays
 byte for byte as it was: key order, indent, how non-ASCII was written,
 the notebook's metadata and every other cell's outputs, so a review of
 the change shows only the cell that changed. New cells get an id in
-nbformat 4.5 notebooks and none in older ones. The tool stays out of the
-request until the session reads its first notebook (or the model finds
-it with `tool_search`), so projects without notebooks do not pay for its
-schema. Permission rules, protected paths and hooks treat it as a file
+nbformat 4.5 notebooks and none in older ones. The tool is deferred, so
+projects without notebooks do not pay for its schema: the rendering
+names it, and the model loads it with `tool_search`, which returns the
+schema in the same turn. Permission rules, protected paths and hooks treat it as a file
 edit: `notebook_edit(path:analysis/**)` is a rule, and a Claude Code hook
 matching `NotebookEdit` fires for it.
 

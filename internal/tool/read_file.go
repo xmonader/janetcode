@@ -28,10 +28,6 @@ type ReadFile struct {
 	// Cache, when set, is shared with subagents so a second read of the
 	// same unchanged file does not hit disk.
 	Cache *IOCache
-	// OnNotebook, when set, is called when a notebook is rendered, so the
-	// session can make notebook_edit available (it is deferred until a
-	// notebook turns up).
-	OnNotebook func()
 }
 
 func (ReadFile) Name() string { return "read_file" }
@@ -102,9 +98,6 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if isNotebookPath(in.Path) {
 		if nb, err := parseNotebook(data); err == nil {
 			t.Seen.Record(p, data)
-			if t.OnNotebook != nil {
-				t.OnNotebook()
-			}
 			return textfmt.Truncate(nb.render(in.Path)), nil
 		}
 	}

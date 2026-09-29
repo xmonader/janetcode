@@ -364,14 +364,6 @@ func (b *agentBuilder) stepLoops() error {
 	return nil
 }
 
-// activateNotebookEdit puts notebook_edit in every later request, once a
-// notebook has been read: the model is about to be told to use it.
-func (b *agentBuilder) activateNotebookEdit() {
-	if b.ag != nil {
-		b.ag.Tools.Activate("notebook_edit")
-	}
-}
-
 // stepCore builds the agent itself: the provider, the settings the
 // configuration and this run's flags settle on, and the tools that are
 // plain functions of the project directory.
@@ -382,7 +374,7 @@ func (b *agentBuilder) stepCore() error {
 		Provider: d.prov,
 		Log:      b.sess,
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, OnNotebook: b.activateNotebookEdit},
+			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
 			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
 			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files},
 			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb},
@@ -549,9 +541,11 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
-	// Notebooks are rare, so their edit tool is not in every request: the
-	// first notebook read_file shows switches it on for the rest of the
-	// session, and tool_search finds it before that.
+	// Notebooks are rare, so their edit tool is not in every request.
+	// read_file's rendering of a notebook names it, and tool_search loads
+	// it: that returns the schema in the same turn, which activating it
+	// from read_file could not (a turn's tool list is fixed when the turn
+	// starts, so the model was told to use a tool it had no schema for).
 	ag.Tools.AddDeferred(tool.NotebookEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {

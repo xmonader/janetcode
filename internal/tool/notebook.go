@@ -109,7 +109,7 @@ func (nb *notebook) render(display string) string {
 		head += " · " + lang
 	}
 	sb.WriteString(head + "\n")
-	sb.WriteString("(rendered as cells, not raw JSON; change it with notebook_edit, which takes the cell index or id shown in brackets)\n")
+	sb.WriteString("(rendered as cells, not raw JSON; change it with notebook_edit — load it with tool_search if you do not have it — which takes the cell index or id shown in brackets)\n")
 	for i, c := range cells {
 		sb.WriteString("\n" + cellHeader(i, c) + "\n")
 		src := c.get("source").text()
