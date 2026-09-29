@@ -809,6 +809,9 @@ func contains(xs []string, s string) bool {
 
 // Cache rebuilds the index when the tree changes.
 type Cache struct {
+	// Root is set before first use and afterwards only through SetRoot,
+	// under mu; readers outside the lock use the Root of the index Get
+	// returned instead.
 	Root string
 	// Parser, when set, is the grammar-backed parser the index uses. The
 	// composition root supplies it; nothing here registers itself.

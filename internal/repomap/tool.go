@@ -42,7 +42,10 @@ func TurnPrep(c *Cache, budget int) func(context.Context, []llm.Block) ([]llm.Bl
 		if err != nil || len(ix.Files) < 2 {
 			return blocks, ""
 		}
-		ranked := ix.Rank(text, ChangedFiles(ctx, c.Root))
+		// The index's own root, not the cache's: /cd moves that under the
+		// lock at any moment, and the changed files have to be relative
+		// to the tree this index was built from anyway.
+		ranked := ix.Rank(text, ChangedFiles(ctx, ix.Root))
 		m := ix.Render(ranked, budget)
 		if m == "" {
 			return blocks, ""
@@ -138,7 +141,8 @@ func (t Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		return strings.TrimRight(sb.String(), "\n"), nil
 	}
-	ranked := ix.Rank(in.Query, ChangedFiles(ctx, t.Cache.Root))
+	// ix.Root, not t.Cache.Root: see TurnPrep.
+	ranked := ix.Rank(in.Query, ChangedFiles(ctx, ix.Root))
 	if len(ranked) > in.Limit {
 		ranked = ranked[:in.Limit]
 	}
