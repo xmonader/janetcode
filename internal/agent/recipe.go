@@ -527,7 +527,7 @@ func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
 	var need []string
 	for i, st := range steps {
 		t, ok := a.Tools.Get(st.Tool)
-		if !ok || !t.Mutating() {
+		if !ok || !tool.MutatingCall(t, st.Input) {
 			continue
 		}
 		mustAsk := false

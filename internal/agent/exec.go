@@ -46,7 +46,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	}
 	parallel := func(u llm.Block) bool {
 		t, ok := a.Tools.Get(u.Name)
-		return ok && !t.Mutating()
+		return ok && !tool.MutatingCall(t, u.Input)
 	}
 
 	// The first error any call returned. execute only errors for
@@ -186,7 +186,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// allow rule and --yolo alike, and the prompt says which path it is
 	// asking about. It rides on the warning line the prompt already has,
 	// so both front-ends show it without knowing about any of this.
-	if t.Mutating() && !a.Off["protected"] {
+	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
 			mustAsk = true
 			if !strings.Contains(call.Warning, why) {
@@ -197,7 +197,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// A locked accept-test file is refused like a denied permission rule:
 	// before anything asks the user, and with no way for AutoApprove or a
 	// saved rule to skip past it (see accept.Mode.Denial).
-	if t.Mutating() {
+	if tool.MutatingCall(t, u.Input) {
 		if reason := a.locks().Denial(t, u.Input); reason != "" {
 			return nil, reason, nil
 		}
@@ -295,7 +295,7 @@ func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, cal
 	if w, ok := t.(tool.Warner); ok {
 		call.Warning = w.Warn(u.Input)
 	}
-	if g, ok := t.(tool.Guard); ok && t.Mutating() {
+	if g, ok := t.(tool.Guard); ok && tool.MutatingCall(t, u.Input) {
 		if ask, why := g.Guard(u.Input); ask {
 			mustAsk = true
 			if why != "" && !strings.Contains(call.Warning, why) {
@@ -323,7 +323,7 @@ func (a *Agent) permCall(name string, input json.RawMessage, subject string) per
 // mutating tool, and only when no approval shortcut covers it. A guarded
 // input (mustAsk) overrides every shortcut.
 func (a *Agent) mustPrompt(t tool.Tool, u *llm.Block, mustAsk bool, verdict perm.Verdict, hookAllowed bool) bool {
-	if !t.Mutating() {
+	if !tool.MutatingCall(t, u.Input) {
 		return false
 	}
 	if mustAsk {
@@ -500,13 +500,13 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// A rule scoped to these paths joins the conversation before the
 	// next model call, once for the session.
 	a.applyPathRules(t, u.Input, emit)
-	if t.Mutating() {
+	if tool.MutatingCall(t, u.Input) {
 		a.snapshotBefore(ctx, t, u.Input)
 	}
 	start := time.Now()
 	var pend []pending
 	var tamperedBefore string
-	if t.Mutating() {
+	if tool.MutatingCall(t, u.Input) {
 		// A locked file changed outside any tool call is put back before
 		// this call runs, so the note after it never blames this call.
 		tamperedBefore = a.acceptRestoreTampered("", emit)
@@ -539,7 +539,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err != nil {
 		out = "Error: " + err.Error()
 		isErr = true
-	} else if t.Mutating() {
+	} else if tool.MutatingCall(t, u.Input) {
 		a.mutated = true
 		a.mutations++
 		if editTool(u.Name) {
@@ -596,7 +596,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	if a.Off["coach"] {
 		// still record edits so the syntax check runs when only coaching is off
-	} else if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
+	} else if tool.MutatingCall(t, u.Input) { // edit coaching only touches serial (mutating) calls, so no lock is needed
 		out += a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 	} else if u.Name == "read_file" {
 		a.coachMu.Lock()
@@ -605,14 +605,14 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	if !a.Off["loops"] {
 		a.loopMu.Lock()
-		note, stop := a.loops.record(u.Name, u.Input, isErr, t.Mutating())
+		note, stop := a.loops.record(u.Name, u.Input, isErr, tool.MutatingCall(t, u.Input))
 		if stop {
 			a.stuck = true
 		}
 		a.loopMu.Unlock()
 		out += note
 	}
-	if t.Mutating() { // serial: safe to read the counters
+	if tool.MutatingCall(t, u.Input) { // serial: safe to read the counters
 		out += a.critique(emit)
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
@@ -748,7 +748,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
 	var pend []pending
 	var tamperedBefore string
-	if t.Mutating() {
+	if tool.MutatingCall(t, u.Input) {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
 		a.snapshotBefore(ctx, t, u.Input)
 		pend = a.before(t, u.Input)
@@ -759,7 +759,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	isErr := runErr != nil
 	if isErr {
 		out = "Error: " + runErr.Error()
-	} else if t.Mutating() {
+	} else if tool.MutatingCall(t, u.Input) {
 		a.after(u, intent, pend)
 		a.mutated = true
 		a.mutations++

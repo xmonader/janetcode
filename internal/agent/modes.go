@@ -35,7 +35,7 @@ func (a *Agent) readOnly() bool { return a.Settings().readOnly() }
 // (accept.Mode.Denial), after the pre-tool hook, because that check has to see
 // the input a hook may have rewritten.
 func (a *Agent) toolGate(t tool.Tool, input json.RawMessage) (reason string, denied bool) {
-	if !t.Mutating() {
+	if !tool.MutatingCall(t, input) {
 		return "", false
 	}
 	if s := a.Settings(); s.readOnly() {

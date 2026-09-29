@@ -440,6 +440,26 @@ func (JobTool) Description() string {
 	return "Manage background jobs started with bash background:true. list shows them; output returns the last lines of a job's output; wait blocks until a job finishes (up to timeout_ms); kill stops one; stdin writes a line to a running job (interactive programs). You are told automatically when a job finishes."
 }
 func (JobTool) Mutating() bool { return false }
+
+// MutatesCall is true for every action but list, output and wait. stdin
+// types a line into a program the user approved once — a shell or an
+// interpreter will run whatever it is sent — and kill stops a process, so
+// both are asked about like the command that started the job. An input
+// that does not decode, or an action this does not know, is treated as
+// mutating: the permission path is the safe place for it to fail.
+func (JobTool) MutatesCall(input json.RawMessage) bool {
+	var in struct {
+		Action string `json:"action"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return true
+	}
+	switch in.Action {
+	case "list", "output", "wait":
+		return false
+	}
+	return true
+}
 func (JobTool) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "action":{"type":"string","enum":["list","output","wait","kill","stdin"]},

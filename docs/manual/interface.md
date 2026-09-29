@@ -912,7 +912,10 @@ dev server or a long build does not block the turn. When the job ends,
 the model is told before its next call and you see `⚙ job 1 finished with
 exit 0` in the transcript, with the last lines of output. The `job` tool
 lists jobs, shows output, waits with a timeout, kills one, or writes a
-line to a running job's stdin (`job` action `stdin`). `/jobs` opens a
+line to a running job's stdin (`job` action `stdin`). Listing, output
+and waiting never prompt; `stdin` and `kill` are asked about like any
+command, since approving a background shell once does not approve what
+the model later types into it. `/jobs` opens a
 live overlay of them (empty if none); enter (or `/jobs <n>`) tails the
 log, `k` kills the highlighted job, esc closes. `/jobs kill <n>` and
 `/jobs stdin <n> <text>` still work typed. A one-shot `bash` call still

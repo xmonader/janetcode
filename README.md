@@ -164,7 +164,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `ask` | Put one or more labeled questions in front of you as tabs; Other is free text | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
 | `diagnostics` | Compile and type errors from the language server, for a file or the project | no |
-| `job` | List, read, wait on, kill, or write stdin to a background job | no |
+| `job` | List, read, wait on, kill, or write stdin to a background job | kill and stdin only |
 | `memory` | Remember a fact about the project, or search what is remembered | no |
 | `skill` | Load a skill's instructions on demand | no |
 | `goal_status` | Mark the session goal complete or blocked | no |

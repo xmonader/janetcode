@@ -532,6 +532,26 @@ type Guard interface {
 	Guard(input json.RawMessage) (ask bool, reason string)
 }
 
+// CallMutator is implemented by a tool that is read-only for most inputs
+// but acts on the world for some. Its Mutating reports false, so it is
+// still offered in read-only modes and to subagents and runs in the
+// parallel batch; MutatesCall names the inputs that must go through the
+// permission path, the mode gates and the serial batch like any mutating
+// call. See MutatingCall.
+type CallMutator interface {
+	MutatesCall(input json.RawMessage) bool
+}
+
+// MutatingCall reports whether this particular call of t is mutating: the
+// tool is mutating as a whole, or it says this input is.
+func MutatingCall(t Tool, input json.RawMessage) bool {
+	if t.Mutating() {
+		return true
+	}
+	m, ok := t.(CallMutator)
+	return ok && m.MutatesCall(input)
+}
+
 // Warner is implemented by tools that can flag risky inputs so the
 // permission prompt can call them out. Empty means nothing to flag.
 type Warner interface {
