@@ -299,7 +299,7 @@ func TestLedgerCountsTheRungTheUserChose(t *testing.T) {
 	if err := a.Run(context.Background(), "write", nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(ap.calls) != 1 || len(ap.calls[0].Rungs) != 2 || ap.calls[0].RuleIndex != 1 {
+	if len(ap.calls) != 1 || len(ap.calls[0].Rungs) != 3 || ap.calls[0].RuleIndex != 1 {
 		t.Fatalf("prompt = %+v", ap.calls)
 	}
 	if len(saved) != 1 || saved[0] != "write_file(docs/a.md)" {

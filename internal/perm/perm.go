@@ -766,12 +766,32 @@ func pathLadder(tool, subject string) ([]Rule, int) {
 		return append(rungs, Rule{Tool: tool}), 1
 	}
 	rungs = append(rungs, Rule{Tool: tool, Pattern: dir + "/*"})
+	// The same directory as a typed scope (scope.go): read: or write:
+	// judges the path after symlinks and .. are resolved, where the bare
+	// pattern above judges it as spelled, so a link in the directory that
+	// points out of it is not covered. Offered beside the bare rung, not
+	// instead of it, so answering without moving saves what it used to.
+	if s := pathScope(tool); s != "" {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: s + ":" + dir + "/*"}.compile())
+	}
 	// One level above the directory is the tree the file sits in. Higher
 	// than that is guesswork, and the root is never a rung.
 	if up := path.Dir(dir); !isTop(up) && up != dir {
 		rungs = append(rungs, Rule{Tool: tool, Pattern: up + "/*"})
 	}
 	return dedupe(rungs), 1
+}
+
+// pathScope is the typed scope a file tool's path falls under: write:
+// for the tools that write it, read: for those that read it, "" for none.
+func pathScope(tool string) string {
+	switch {
+	case writeTools[tool]:
+		return "write"
+	case readTools[tool]:
+		return "read"
+	}
+	return ""
 }
 
 // isTop reports whether a slash path is the top of a tree a rung must not

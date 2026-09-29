@@ -39,7 +39,7 @@ var webArgs = map[string]string{
 	"/jobs":        "[kill n | stdin n <text>]",
 	"/memory":      "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
 	"/remember":    "[-g] <fact>",
-	"/permissions": "",
+	"/permissions": "[check <command>]",
 	"/eval":        "keep [name] [--check cmd]",
 	"/mcp":         "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
 }
@@ -301,6 +301,12 @@ var webDispatch = map[string]webHandler{
 	},
 	"/reload": (*server).cmdReload,
 	"/permissions": func(s *server, arg string) (bool, error) {
+		// check <command> answers what the rules would decide, as in the
+		// terminal; anything else shows the summary.
+		if f := strings.Fields(arg); len(f) >= 2 && f[0] == "check" {
+			s.notice(s.opts.Agent.PermissionCheck(f[1:]))
+			return false, nil
+		}
 		s.sheet("permissions", s.permissionsText())
 		return false, nil
 	},
