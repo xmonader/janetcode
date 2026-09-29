@@ -3,8 +3,8 @@
 // notices, in the terminal, the screen-reader line interface and the web
 // page. It does not translate what the model writes (that is the
 // `language` setting's instruction to the model), command names, config
-// keys, or long reference text such as each command's description in
-// /help all, which stay English.
+// keys, or long reference text: in /help all only the everyday group's
+// command descriptions are catalogued, and the rest stay English.
 //
 // A string is its own key: T("allow once") is the English text, or its
 // translation when the active locale has one. A key the locale lacks is

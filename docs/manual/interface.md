@@ -136,7 +136,9 @@ with the keys they have in your session (your changes included):
 The actions are `submit`, `newline`, `cancel`, `interrupt`, `quit`,
 `expand`, `background`, `steer`, `redraw`, `mode_cycle`, `agents`,
 `effort`, `paste_image`, `complete`, `history_prev`, `history_next`,
-`history_search`, `external_editor`, `page_up` and `page_down`. A value is
+`history_search`, `external_editor`, `page_up`, `page_down` and `voice`
+(unbound until you give it a key: `"voice": "f5"` starts a recording and
+the same key stops it, as `/voice` does). A value is
 a key, a list of keys, or `""` to unbind the action; an action you name
 loses its default keys. A key is a name as the terminal reports it —
 `ctrl+r`, `alt+e`, `shift+tab`, `f2`, `pgup`, `enter` — or a chord of two,
@@ -392,8 +394,9 @@ message line, the turn's waiting states, the screen-reader interface's
 labels, and the browser page's buttons, tabs and placeholders — are
 shown in that language when janetcode carries it: Spanish (`es`) and
 French (`fr`) today. Anything the catalogue lacks is shown in English,
-and so is the rest of the interface (command descriptions in `/help
-all`, the manual, config keys); command names are never translated,
+and so is the rest of the interface (`/help all`'s command descriptions
+beyond the everyday group, the manual, config keys); command names are
+never translated,
 since they are what you type.
 
 With no `language` key the model follows you, and the interface takes
@@ -734,7 +737,8 @@ covers —
 In the terminal the list is a picker: enter on a row runs `/undo turn n`
 for that turn, the preview above, and `/undo apply` carries it out.
 Pressing esc twice on an empty prompt while no turn is running opens the
-same list. The web UI shows it as a sheet.
+same list. In the web UI it is a card: each row has a Preview button that
+runs `/undo turn n`, and Apply carries out the last preview.
 
 A checkpoint copies a file before the file tools change it. A copy over
 1 MiB is streamed to a blob beside the session's undo file rather than
@@ -784,7 +788,8 @@ before `r` saves anything — narrower to the left, wider to the right, with
 `2/3` on the key line saying where you stand. For `go test ./internal/...`
 the rungs are `bash(go test ./internal/...)`, `bash(go test *)` and
 `bash(go *)`; for `internal/agent/x.go` they are the file itself,
-`edit_file(internal/agent/*)` and `edit_file(internal/*)`; for a URL, the
+`edit_file(internal/agent/*)`, `edit_file(write:internal/agent/*)` and
+`edit_file(internal/*)`; for a URL, the
 page, its section of the site, then the whole host. The prompt starts on
 the rung it has always proposed, so pressing `r` straight away saves
 exactly what it used to, and a call with only one rung shows no ladder at
@@ -850,8 +855,13 @@ nothing.
 The `r` key never proposes a parameter rule: the ladder is about breadth
 — this path, its directory, the tree above it — and a field is not a
 wider or narrower version of anything. Parameter rules are written by
-hand, in the config file or with `/permissions allow <rule>`. The one
-exception is the network, below.
+hand, in the config file or with `/permissions allow <rule>`. Two
+exceptions: the network, below, and a file tool's directory, which is
+offered twice — as `edit_file(internal/agent/*)` and as the typed
+`edit_file(write:internal/agent/*)` (`read:` for the tools that read). The
+typed rung judges the path after symlinks and `..` are resolved, so a
+link in the directory that points out of it is not covered; the bare one
+judges the path as it is spelled.
 
 #### Typed scopes
 
@@ -940,7 +950,8 @@ refusal or the prompt says so — "Denied by permission rule
 bash(cmd:rm *) (it outranks allow rule bash(*))", "asks because of rule
 *(touches:**/.env) (it outranks allow rule read_file)" — and
 `/permissions check <command>` (or `/permissions check read_file
-{"path":".env"}`) answers the same question before anything runs.
+{"path":".env"}`) answers the same question before anything runs, in the
+terminal and in the web page alike.
 
 A subagent inherits every deny and ask rule of the session that started
 it, and none of its allow rules.
@@ -2671,8 +2682,12 @@ preview, diffs included, is printed on stderr at the end; with
 (`files` with their diffs, `actions` with each recorded call). The status
 line and the web mode chip say `DRY RUN` while it is on.
 
-grep, glob and read-only shell commands still see the files as they are
-on disk, not the preview.
+read_file, grep and glob see the preview: a pending edit's new text, a
+file only the preview holds, and not a file it deletes. A read-only shell
+command still reads the disk — running it against a copy of the tree
+would cost a copy of the tree — so while the preview holds anything its
+output ends with a note saying how many files have pending changes it
+did not see, and the model is told to use the file tools for those.
 
 `/sandbox workspace` runs local bash under a named profile (see *The
 sandbox* below); `/sandbox on` is the same as `/sandbox workspace`. File

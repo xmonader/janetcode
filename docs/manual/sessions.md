@@ -46,8 +46,9 @@ session 20260929-101500-a1b2 is open in another janetcode (the terminal interfac
   janetcode --show 20260929-101500-a1b2           read it without opening it
 ```
 
-Inside a session, `/resume <id> fork` is the same way on, and the web
-interface's conversation list reports the conflict instead of switching.
+Inside a session, `/resume <id> fork` is the same way on, in the terminal
+and the web page alike; clicking such a session in the web page's
+conversation list reports the conflict and offers to continue in a copy.
 Without the lease, two processes appending to one file interleaved their
 turns into a history neither of them wrote, and each saved its undo stack,
 `/accept` lock and loops over the other's. `--bg` hands the lease to the

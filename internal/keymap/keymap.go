@@ -45,6 +45,7 @@ const (
 	ExternalEditor Action = "external_editor"
 	PageUp         Action = "page_up"
 	PageDown       Action = "page_down"
+	Voice          Action = "voice"
 )
 
 // Def is one action's entry in the table.
@@ -77,6 +78,10 @@ var Defs = []Def{
 	{ExternalEditor, []string{"ctrl+x ctrl+e"}, "write the prompt in $VISUAL or $EDITOR"},
 	{PageUp, []string{"pgup", "ctrl+b", "ctrl+u"}, "scroll the transcript up (ctrl+b/u only on an empty prompt)"},
 	{PageDown, []string{"pgdown", "ctrl+f"}, "scroll the transcript down (ctrl+f only on an empty prompt)"},
+	// Unbound by default: every free key is one someone's terminal or
+	// multiplexer already takes, and the mic is not something to start by
+	// accident. {"keybindings": {"voice": "f5"}} gives it one.
+	{Voice, nil, "record a voice prompt; again stops and puts the transcript in the input (/voice)"},
 }
 
 // Keys is one action's keys as the config file writes them: a string for

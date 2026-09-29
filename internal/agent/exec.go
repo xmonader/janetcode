@@ -599,6 +599,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	out, images, err := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
+	if err == nil {
+		out += a.dryShellNote(u.Name)
+	}
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
 	}

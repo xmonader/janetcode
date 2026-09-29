@@ -19,6 +19,15 @@ type voiceDoneMsg struct {
 // /voice stop) stops it, and the transcript lands in the input to be
 // read, edited and sent like anything typed — never sent on its own,
 // since a mishearing sent unread is a request nobody made.
+// keyVoice is the voice action (unbound unless the keybindings config
+// gives it a key): /voice without typing it, so one key starts a
+// recording and the same key stops it.
+func (m *model) keyVoice(tea.KeyMsg) (tea.Cmd, bool) {
+	cmd := m.voiceCommand("")
+	m.refresh(false)
+	return cmd, true
+}
+
 func (m *model) voiceCommand(arg string) tea.Cmd {
 	if m.voiceStop != nil {
 		close(m.voiceStop)

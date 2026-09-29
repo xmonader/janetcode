@@ -194,6 +194,9 @@
     } else if (e.kind === "usage") {
       n.className = "turn card";
       n.innerHTML = usageCardHTML(e.data);
+    } else if (e.kind === "checkpoints") {
+      n.className = "turn card";
+      n.innerHTML = checkpointsCardHTML(e.data || []);
     } else if (e.kind === "sheet") {
       n.className = "turn sheet";
       n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="act copy-btn sheet-copy" data-copy="${e.id}" title="Copy output" aria-label="Copy output">${icon("copy")}</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;
@@ -286,6 +289,13 @@
   }
 
   log.addEventListener("click", async (ev) => {
+    // A card's own command buttons (the checkpoints card's preview and
+    // apply) run the command they name, as typing it would.
+    const cmdBtn = ev.target.closest("button[data-cmd]");
+    if (cmdBtn) {
+      await post("/api/command", { text: cmdBtn.dataset.cmd });
+      return;
+    }
     const wrap = ev.target.closest("[data-wrap]");
     if (wrap) {
       const pre = wrap.closest(".codeblock")?.querySelector("pre");
@@ -721,6 +731,18 @@
   // post never throws: a server that is down (restarting, killed) made
   // fetch reject, the promise went unhandled and the caller never learned
   // the message had gone nowhere.
+  // checkpointsCardHTML draws /checkpoints: newest first, each restore
+  // point with what it covers and a button that previews restoring the
+  // tree to before that turn; Apply carries out the last preview.
+  function checkpointsCardHTML(rows) {
+    const items = rows.map((c) =>
+      `<li><button type="button" class="act" data-cmd="/undo turn ${c.turn}" title="Preview restoring to before turn ${c.turn}">Preview</button> ` +
+      `<code>${esc(c.id)}</code> ${esc(c.what)} · <span class="dim">${esc(c.coverage)}</span>` +
+      (c.complete ? "" : ` <span class="warn">incomplete: ${esc((c.gaps || []).join("; "))}</span>`) + `</li>`).join("");
+    return `<div class="k">checkpoints</div><ul class="checkpoints">${items}</ul>` +
+      `<div><button type="button" class="act" data-cmd="/undo apply">Apply the last preview</button></div>`;
+  }
+
   async function post(path, body) {
     let r;
     try {
@@ -1577,7 +1599,20 @@
     // loaded thread on /events before it answers here. Clearing the log
     // again on this answer wiped a thread that had already arrived,
     // leaving the empty page over a conversation that was loaded.
-    if (await post("/api/load", { id: li.dataset.id })) {
+    // A session another janetcode is running turns in is refused with a
+    // conflict that names the way on: offer it, and continue in a copy.
+    let opened = false;
+    try {
+      const r = await fetch("/api/load", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: li.dataset.id }) });
+      const why = r.ok ? "" : await r.text();
+      if (r.ok) opened = true;
+      else if (r.status === 409 && why.includes("fork") && window.confirm(why.trim() + "\n\nContinue in a copy of it?")) {
+        opened = await post("/api/load", { id: li.dataset.id, fork: true });
+      } else statusEl.textContent = why || r.statusText;
+    } catch (e) {
+      statusEl.textContent = localNote = "Cannot reach janetcode. Is it still running?";
+    }
+    if (opened) {
       if (window.matchMedia("(max-width: 960px)").matches && !shell.classList.contains("nav-collapsed")) {
         setCollapsed("nav-collapsed", true);
       }

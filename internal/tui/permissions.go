@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -24,7 +23,7 @@ func (m *model) permissionsCommand(args []string) {
 	o := m.opts.Perms
 	ag := m.opts.Agent
 	if len(args) >= 2 && args[0] == "check" {
-		m.transcript.info(permissionCheck(ag, args[1:]))
+		m.transcript.info(ag.PermissionCheck(args[1:]))
 		return
 	}
 	if len(args) >= 2 && (args[0] == "allow" || args[0] == "deny" || args[0] == "ask") {
@@ -403,24 +402,4 @@ func (m *model) permissionImpact() string {
 	}
 	room := m.width - 4
 	return fitLine("  "+m.styles.dim.Render(sanitize(m.pending.call.Impact)), room)
-}
-
-// permissionCheck is /permissions check: what the rules decide about a
-// call and why. The argument is a bash command, or a tool name followed
-// by its JSON input (read_file {"path":".env"}).
-func permissionCheck(ag *agent.Agent, args []string) string {
-	tool, input := "bash", ""
-	if len(args) >= 2 && strings.HasPrefix(strings.TrimSpace(args[1]), "{") {
-		tool, input = args[0], strings.Join(args[1:], " ")
-	} else {
-		b, _ := json.Marshal(map[string]string{"command": strings.Join(args, " ")})
-		input = string(b)
-	}
-	if !json.Valid([]byte(input)) {
-		return "check: the input after the tool name is not JSON"
-	}
-	root := ag.Root
-	c := perm.Call{Tool: tool, Input: json.RawMessage(input), Root: root}
-	c.Subject = perm.SubjectIn(tool, c.Input, root)
-	return tool + " " + present.ToolSummary(tool, input, 80, root) + ": " + ag.RulesSnapshot().Explain(c)
 }

@@ -853,7 +853,7 @@ func TestPermissionLadderPayloadAndChoice(t *testing.T) {
 	if p.Name != "write_file" {
 		t.Fatal("no permission prompt")
 	}
-	if len(p.Rungs) != 2 || p.Rungs[0].Rule != "write_file(docs/n.txt)" || p.Rungs[1].Rule != "write_file(docs/*)" || p.RuleIndex != 1 {
+	if len(p.Rungs) != 3 || p.Rungs[0].Rule != "write_file(docs/n.txt)" || p.Rungs[1].Rule != "write_file(docs/*)" || p.Rungs[2].Rule != "write_file(write:docs/*)" || p.RuleIndex != 1 {
 		t.Fatalf("rungs = %+v index = %d", p.Rungs, p.RuleIndex)
 	}
 	if p.Rule != p.Rungs[p.RuleIndex].Rule {

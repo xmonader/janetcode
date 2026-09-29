@@ -394,7 +394,7 @@ func TestPermissionPromptLadderMovesAndSaves(t *testing.T) {
 		h.pump(func() bool { return h.m.pending != nil })
 		// The prompt opens on what r has always saved, and says where
 		// that stands on the ladder.
-		if v := plain(h.m.View()); !strings.Contains(v, "write_file(docs/*)") || !strings.Contains(v, "2/2") {
+		if v := plain(h.m.View()); !strings.Contains(v, "write_file(docs/*)") || !strings.Contains(v, "2/3") {
 			t.Fatalf("prompt view:\n%s", v)
 		}
 		for _, k := range move {
@@ -415,7 +415,8 @@ func TestPermissionPromptLadderMovesAndSaves(t *testing.T) {
 		{"narrowed", []tea.KeyMsg{left}, "write_file(docs/a.md)"},
 		{"back again", []tea.KeyMsg{left, right}, "write_file(docs/*)"},
 		{"clamped at the narrow end", []tea.KeyMsg{left, left, left}, "write_file(docs/a.md)"},
-		{"clamped at the wide end", []tea.KeyMsg{right, right}, "write_file(docs/*)"},
+		{"the typed rung beside it", []tea.KeyMsg{right}, "write_file(write:docs/*)"},
+		{"clamped at the wide end", []tea.KeyMsg{right, right, right}, "write_file(write:docs/*)"},
 		{"shift+tab narrows too", []tea.KeyMsg{{Type: tea.KeyShiftTab}}, "write_file(docs/a.md)"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

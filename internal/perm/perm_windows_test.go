@@ -4,6 +4,7 @@ package perm
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestWindowsPathRulesMatchTheCallTheyWereSavedFor(t *testing.T) {
 		t.Fatalf("subject = %q, want slash-separated", subject)
 	}
 	rungs := SuggestLadder("write_file", subject)
-	want := []string{"docs/guide/a.md", "docs/guide/*", "docs/*"}
+	want := []string{"docs/guide/a.md", "docs/guide/*", "write:docs/guide/*", "docs/*"}
 	if len(rungs) != len(want) {
 		t.Fatalf("rungs = %v, want %v", rungs, want)
 	}
@@ -25,7 +26,7 @@ func TestWindowsPathRulesMatchTheCallTheyWereSavedFor(t *testing.T) {
 		if r.Pattern != want[i] {
 			t.Errorf("rung %d = %q, want %q", i, r.Pattern, want[i])
 		}
-		if !Match(r.Pattern, subject) {
+		if !strings.Contains(r.Pattern, ":") && !Match(r.Pattern, subject) {
 			t.Errorf("rung %q does not match the call it came from (%q)", r.Pattern, subject)
 		}
 	}

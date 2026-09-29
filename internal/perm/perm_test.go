@@ -336,8 +336,8 @@ func TestSuggestLadder(t *testing.T) {
 		{"bash", "ls -la /tmp", []string{"bash(ls -la /tmp)", "bash(ls *)"}, 1},
 		{"bash", "git commit -m x", []string{"bash(git commit -m x)", "bash(git commit *)", "bash(git *)"}, 1},
 		{"bash", "go test ./... 2>&1", []string{"bash(go test ./... 2>&1)", "bash(go test *)", "bash(go *)"}, 1},
-		{"edit_file", "internal/agent/x.go", []string{"edit_file(internal/agent/x.go)", "edit_file(internal/agent/*)", "edit_file(internal/*)"}, 1},
-		{"read_file", "/etc/hosts", []string{"read_file(/etc/hosts)", "read_file(/etc/*)"}, 1},
+		{"edit_file", "internal/agent/x.go", []string{"edit_file(internal/agent/x.go)", "edit_file(internal/agent/*)", "edit_file(write:internal/agent/*)", "edit_file(internal/*)"}, 1},
+		{"read_file", "/etc/hosts", []string{"read_file(/etc/hosts)", "read_file(/etc/*)", "read_file(read:/etc/*)"}, 1},
 		{"write_file", "x.go", []string{"write_file(x.go)", "write_file"}, 1},
 		{"grep", ".", []string{"grep"}, 0},
 		{"fetch_url", "https://pkg.go.dev/net/http?tab=doc", []string{"fetch_url(https://pkg.go.dev/net/http?tab=doc)", "fetch_url(https://pkg.go.dev/net/*)", "fetch_url(https://pkg.go.dev/*)"}, 2},
@@ -386,7 +386,8 @@ func TestSuggestLadderFloor(t *testing.T) {
 			if c.tool == "bash" && (r.Pattern == "" || r.Pattern == "*") {
 				t.Errorf("ladder(%s, %q) reaches %s: every bash call", c.tool, c.subject, r)
 			}
-			if !r.matches(c.tool, c.subject) {
+			in, _ := json.Marshal(map[string]string{"path": c.subject, "command": c.subject, "url": c.subject})
+			if !r.matchesCall(Call{Tool: c.tool, Subject: c.subject, Input: in, Root: "/"}) {
 				t.Errorf("rung %s does not match the call it came from (%s, %q)", r, c.tool, c.subject)
 			}
 		}

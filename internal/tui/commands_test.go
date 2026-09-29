@@ -1652,6 +1652,9 @@ func TestGoalRoundsBudgetAndExhaustionInTheUI(t *testing.T) {
 	if g := agent.ActiveGoal(h.m.opts.Agent.Log.Events()); g == nil || g.MaxRounds != 4 {
 		t.Fatalf("after /goal rounds 4 = %+v", g)
 	}
+	// The goal carries on in a turn of its own; let it finish before the
+	// session directory is removed, or its writes race the cleanup.
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // TestConnectRejectedKeyGoesBackToTheKey: a 401 on the model list left the

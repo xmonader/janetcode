@@ -71,7 +71,7 @@ type dryRun struct {
 	seq     int
 }
 
-const dryRunSystem = "\n\n# Dry run\nThis session is a dry run. Plan and carry out the change as you normally would, but know what happens to each call: write_file and edit_file write to a preview the user reviews, and read_file shows you that preview, so continue editing on top of your own changes. Shell commands run only when they merely read (ls, cat, grep, git status/diff/log …); any other command, MCP tool or background job is recorded for the user and not run, and its result says so — do not retry it, and do not claim it succeeded or report output it never produced. When the change is complete, stop and summarise what the preview contains and which commands you would run to verify it. The user applies the preview with /dryrun apply."
+const dryRunSystem = "\n\n# Dry run\nThis session is a dry run. Plan and carry out the change as you normally would, but know what happens to each call: write_file and edit_file write to a preview the user reviews, and read_file, grep and glob see that preview, so continue editing on top of your own changes. Shell commands run only when they merely read (ls, cat, grep, git status/diff/log …), and they read the disk, not the preview; any other command, MCP tool or background job is recorded for the user and not run, and its result says so — do not retry it, and do not claim it succeeded or report output it never produced. When the change is complete, stop and summarise what the preview contains and which commands you would run to verify it. The user applies the preview with /dryrun apply."
 
 // dryState is the session's dry-run state, made on first use. A fork
 // uses its parent's.
@@ -85,6 +85,38 @@ func (a *Agent) dryState() *dryRun {
 		}
 	})
 	return a.dry
+}
+
+// dryPending is how many paths the dry run's overlay holds: what a
+// read-only shell command, which reads the disk, did not see.
+func (a *Agent) dryPending() int {
+	d := a.dryState()
+	d.mu.Lock()
+	o := d.overlay
+	d.mu.Unlock()
+	if o == nil {
+		return 0
+	}
+	return o.Len()
+}
+
+// dryShellNote is appended to a read-only shell command's output in a
+// dry run with pending changes: the shell reads the disk, so what it
+// printed is the tree before the preview, and a model that trusted it
+// would conclude its own edits never happened.
+func (a *Agent) dryShellNote(name string) string {
+	if name != "bash" || !a.DryRunOn() {
+		return ""
+	}
+	n := a.dryPending()
+	if n == 0 {
+		return ""
+	}
+	files := "files have"
+	if n == 1 {
+		files = "file has"
+	}
+	return fmt.Sprintf("\n[dry run: this command read the disk, not the preview — %d %s pending changes it did not see; read_file, grep and glob see them]", n, files)
 }
 
 // DryRunOn reports whether the session is a dry run.
