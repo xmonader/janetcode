@@ -704,6 +704,15 @@
         statusEl.textContent = msg.notice || "";
         break;
       case "connect": openConnect(); break;
+      case "compose":
+        // A /commit or /pr draft: into the composer only when it is empty,
+        // so nothing the user was typing is lost.
+        if (!input.value.trim() && msg.compose) {
+          input.value = msg.compose;
+          input.dispatchEvent(new Event("input"));
+          input.focus();
+        }
+        break;
     }
   }
 

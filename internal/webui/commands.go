@@ -20,7 +20,7 @@ import (
 // webArgs only narrows the argument shape where the web version accepts
 // less than the terminal's.
 var webCommands = []string{
-	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
+	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
@@ -108,6 +108,26 @@ var webDispatch = map[string]webHandler{
 	},
 	"/review": func(s *server, arg string) (bool, error) {
 		s.review(arg)
+		return false, nil
+	},
+	"/security-review": func(s *server, arg string) (bool, error) {
+		s.securityReview(arg)
+		return false, nil
+	},
+	"/commit": func(s *server, arg string) (bool, error) {
+		s.gitCommand("/commit", arg)
+		return false, nil
+	},
+	"/pr": func(s *server, arg string) (bool, error) {
+		s.gitCommand("/pr", arg)
+		return false, nil
+	},
+	"/pr-comments": func(s *server, arg string) (bool, error) {
+		s.gitCommand("/pr-comments", arg)
+		return false, nil
+	},
+	"/issue": func(s *server, arg string) (bool, error) {
+		s.gitCommand("/issue", arg)
 		return false, nil
 	},
 	"/loop": func(s *server, arg string) (bool, error) {

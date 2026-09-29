@@ -320,6 +320,10 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 	case recipeDoneMsg:
 		return m.finishRecipe(msg), true
 
+	case gitflowMsg:
+		m.handleGitflow(msg)
+		return nil, true
+
 	case btwMsg:
 		if msg.err != nil {
 			m.transcript.errorf("btw: %v", msg.err)

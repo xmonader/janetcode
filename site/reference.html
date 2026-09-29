@@ -123,6 +123,11 @@
 <tr><td><code>/edits</code></td><td></td><td>toggle auto-accept edits: file changes go through, commands still ask</td></tr>
 <tr><td><code>/sandbox</code></td><td><code>[on|off|image]</code></td><td>wrap local bash in docker (or sandbox-exec on macOS); off by default</td></tr>
 <tr><td><code>/review</code></td><td><code>[focus]</code></td><td>fan out two subagents over the current diff (bugs and tests)</td></tr>
+<tr><td><code>/security-review</code></td><td><code>[focus]</code></td><td>two read-only subagents review the diff for security problems; one report ranked by severity</td></tr>
+<tr><td><code>/commit</code></td><td><code>[-m message]</code></td><td>draft a commit message into the input box; /commit -m commits with a proof note</td></tr>
+<tr><td><code>/pr</code></td><td><code>[create &lt;title&gt;]</code></td><td>draft a pull request; /pr create pushes the branch and opens it with gh</td></tr>
+<tr><td><code>/pr-comments</code></td><td><code>[n]</code></td><td>fetch a pull request's reviews and comments with gh and share them with the model</td></tr>
+<tr><td><code>/issue</code></td><td><code>&lt;n&gt;</code></td><td>fetch a GitHub issue with gh and share it with the model</td></tr>
 <tr><td><code>/loop</code></td><td><code>[duration] [prompt|off|cancel id]</code></td><td>session-scoped repeating prompt; restored on resume of this session</td></tr>
 <tr><td><code>/settle</code></td><td></td><td>mark this session done with (or active again); settled sessions list last in /resume</td></tr>
 <tr><td><code>/connect</code></td><td></td><td>connect to a provider (preset or custom API) and pick a model</td></tr>
