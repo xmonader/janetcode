@@ -217,3 +217,54 @@ func TestParallelCallsMeasureTheContextWithoutARace(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A tool the cancellation interrupted was announced with EvToolRun, so it
+// has to be closed with EvToolResult too: without one the front-ends kept
+// its row spinning after the turn had stopped. The result says what the
+// history says.
+func TestCancelledToolEmitsItsResult(t *testing.T) {
+	var active, maxSeen int32
+	var order []string
+	var mu sync.Mutex
+	reg := tool.NewRegistry(slowTool{"r", false, &active, &maxSeen, &order, &mu})
+	f := &fake{responses: []*llm.Response{{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+		{Type: llm.BlockToolUse, ID: "1", Name: "r", Input: json.RawMessage(`1`)},
+		{Type: llm.BlockToolUse, ID: "2", Name: "r", Input: json.RawMessage(`2`)},
+	}}, StopReason: llm.StopToolUse}}}
+	a := &Agent{Provider: f, Tools: reg, Model: "m"}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(20 * time.Millisecond); cancel() }()
+	var (
+		evMu sync.Mutex
+		ran  = map[string]bool{}
+		done = map[string]Event{}
+	)
+	err := a.Run(ctx, "go", func(e Event) {
+		evMu.Lock()
+		defer evMu.Unlock()
+		switch e.Kind {
+		case EvToolRun:
+			ran[e.Call.ID] = true
+		case EvToolResult:
+			done[e.Call.ID] = e
+		}
+	})
+	if err != context.Canceled {
+		t.Fatalf("err = %v", err)
+	}
+	evMu.Lock()
+	defer evMu.Unlock()
+	if len(ran) != 2 {
+		t.Fatalf("ran = %v; both calls should have started", ran)
+	}
+	res := a.Messages[2].Blocks
+	for i, id := range []string{"1", "2"} {
+		e, ok := done[id]
+		if !ok {
+			t.Fatalf("call %s started but no EvToolResult was emitted", id)
+		}
+		if !e.IsError || e.Output != res[i].Text {
+			t.Fatalf("call %s result event = %q (error %v), history has %q", id, e.Output, e.IsError, res[i].Text)
+		}
+	}
+}

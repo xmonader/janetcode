@@ -23,6 +23,10 @@ import (
 // MaxParallelTools bounds concurrent read-only tool execution.
 const MaxParallelTools = 8
 
+// cancelledResult is the result a call the user's cancel interrupted or
+// never reached gets, in the history and in its result event alike.
+const cancelledResult = "Cancelled by user before the tool finished."
+
 // executeAll runs the turn's tool calls: the read-only calls that come
 // before the first call that cannot run in parallel run concurrently, and
 // everything from that call on runs one at a time in the model's order. It always
@@ -109,7 +113,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	// a tool_use and its tool_result, so a call that never ran gets a
 	// result saying so.
 	stop := func(err error) ([]llm.Block, []llm.Block, error) {
-		msg := "Cancelled by user before the tool finished."
+		msg := cancelledResult
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			msg = "Not run: the turn stopped before this call could be made (" + err.Error() + ")."
 		}
@@ -536,7 +540,12 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		a.after(u, intent, pend)
 	}
 	if ctx.Err() != nil && err != nil {
-		// The call was interrupted before it produced a result.
+		// The call was interrupted before it produced a result. It was
+		// announced with EvToolRun, so it is closed here with the text
+		// executeAll puts in the history for it; without a result every
+		// front-end kept the call looking as if it were still running.
+		emit(Event{Kind: EvToolResult, Call: &call, Output: cancelledResult, IsError: true, Duration: dur})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: cancelledResult, IsError: true, DurationMs: dur.Milliseconds()})
 		return "", nil, true, ctx.Err()
 	}
 	// When the tool completed (or ignored the context) but the turn was
