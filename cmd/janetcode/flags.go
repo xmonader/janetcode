@@ -63,6 +63,7 @@ type options struct {
 	evalCompact  int
 	allow        string
 	deny         string
+	ask          string
 	cont         bool
 	resume       string
 	showVersion  bool
@@ -113,7 +114,7 @@ var helpGroups = []struct {
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
-	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
+	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "ask", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
@@ -267,6 +268,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.evalCompact, "eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
 	fs.StringVar(&o.allow, "allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 	fs.StringVar(&o.deny, "deny", "", "comma-separated permission rules to refuse for this run")
+	fs.StringVar(&o.ask, "ask", "", "comma-separated sensitive-call rules for this run: what they match always asks, in every mode, e.g. '*(touches:**/.env)'")
 	fs.BoolVar(&o.cont, "continue", false, "resume the latest session for this directory")
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")

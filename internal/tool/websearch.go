@@ -96,6 +96,25 @@ func (t WebSearch) Run(ctx context.Context, input json.RawMessage) (string, erro
 }
 
 // Search runs the query against the configured backend.
+// Host is the host a search contacts: the configured endpoint's, or the
+// provider's own. A permission rule's host scope reads it (see
+// perm.RegisterHosts), so *(host:*.duckduckgo.com) in a deny rule turns
+// searching off the way it would a fetch.
+func (t WebSearch) Host() string {
+	base := t.Config.URL
+	if base == "" {
+		base = duckduckgoURL
+		if strings.ToLower(t.Config.Provider) == "brave" {
+			base = braveURL
+		}
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Host)
+}
+
 func (t WebSearch) Search(ctx context.Context, query string, n int) ([]SearchResult, error) {
 	client := t.Client
 	if client == nil {

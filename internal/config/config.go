@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -43,6 +44,12 @@ type Config struct {
 	// Notes are things load decided on the user's behalf and should say
 	// so: a provider switched because the configured one had no key.
 	Notes []string `json:"-"`
+
+	// Managed is the administrator's managed policy (see package
+	// managed), nil when there is none. load has already applied its
+	// settings; /config, --set and the mode switches consult it for what
+	// they may not change.
+	Managed *managed.Policy `json:"-"`
 
 	Provider  string `json:"provider"`
 	Model     string `json:"model"`
@@ -659,6 +666,13 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if ov.AutoApprove {
 		cfg.AutoApprove = true
 	}
+	pol, err := managed.Load(getenv)
+	if err != nil {
+		return nil, badf("%v", err)
+	}
+	if err := applyManaged(cfg, pol, ov); err != nil {
+		return nil, err
+	}
 
 	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
 	if cfg.Provider == "" {
@@ -732,6 +746,12 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	default:
 		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
 	}
+	if !pol.ProviderAllowed(cfg.Provider, active.Type) {
+		return nil, badValue(ov.Provider != "", "provider", "%v", pol.Refusal(fmt.Sprintf("provider %q", cfg.Provider)))
+	}
+	if !pol.ModelAllowed(cfg.Model) {
+		return nil, badValue(ov.Model != "", "model", "%v", pol.Refusal(fmt.Sprintf("model %q", cfg.Model)))
+	}
 	if !llm.ValidEffort(cfg.Effort) {
 		return nil, badValue(ov.Effort != "", "effort", "invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
 	}
@@ -796,6 +816,42 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	// A file that cannot be used beats credentials that are merely
 	// missing: /connect can supply a key, not repair a broken theme.
 	return cfg, credErr
+}
+
+// applyManaged lays the managed policy over a configuration that already
+// holds the file, the environment and the command line: its settings
+// replace theirs, a disabled --yolo is refused when it was asked for on
+// the command line and switched off when the file asked for it, and a
+// forced sandbox profile is the project's. A nil policy changes nothing.
+func applyManaged(cfg *Config, pol *managed.Policy, ov Overrides) error {
+	cfg.Managed = pol
+	if pol == nil {
+		return nil
+	}
+	if len(pol.Settings) > 0 {
+		obj, err := json.Marshal(pol.Settings)
+		if err != nil {
+			return badf("managed policy settings: %v", err)
+		}
+		dec := json.NewDecoder(strings.NewReader(string(obj)))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(cfg); err != nil {
+			return badf("managed policy %s: settings: %v", strings.Join(pol.Sources, ", "), err)
+		}
+	}
+	if pol.ModeDisabled(managed.ModeYolo) {
+		if ov.AutoApprove {
+			return badValue(true, "yolo", "%v", pol.Refusal("--yolo"))
+		}
+		if cfg.AutoApprove {
+			cfg.Notes = append(cfg.Notes, "auto_approve is off: the managed policy disables yolo")
+		}
+		cfg.AutoApprove = false
+	}
+	if pol.Sandbox != "" {
+		cfg.Sandbox = pol.Sandbox
+	}
+	return nil
 }
 
 // validateSandbox accepts an empty value, "off", or a profile name the

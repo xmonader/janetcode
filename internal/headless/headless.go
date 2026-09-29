@@ -431,7 +431,14 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 // reason for the model ("n use the config dir instead").
 func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
 	if !a.canAsk() {
-		fmt.Fprintf(a.out, "[permission] %s denied: stdin is not a terminal (use --yolo to auto-approve)\n", call.Name)
+		// An ask rule or a protected path is not settled by --yolo
+		// either: saying "use --yolo" to a run already under it sent
+		// people in a circle.
+		hint := "use --yolo to auto-approve"
+		if strings.Contains(call.Warning, "asks because of rule") || strings.Contains(call.Warning, "protected path") {
+			hint = "it asks in every mode, --yolo included: " + textfmt.Clip(textfmt.OneLine(call.Warning), 200)
+		}
+		fmt.Fprintf(a.out, "[permission] %s denied: stdin is not a terminal (%s)\n", call.Name, hint)
 		return agent.Deny, "", nil
 	}
 	select {

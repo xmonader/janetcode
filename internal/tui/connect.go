@@ -506,6 +506,10 @@ func splitKeys(v string) []string {
 func (m *model) applyConnect(modelID string) {
 	c := m.connect
 	cfg := m.connectConfig(modelID)
+	if err := settingsapply.Allowed(m.opts.Config, c.name, cfg.Providers[c.name].Type, modelID); err != nil {
+		m.fail(err.Error())
+		return
+	}
 	prov, err := m.opts.Build(cfg)
 	if err != nil {
 		m.enterStep(stepKeys)

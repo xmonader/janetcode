@@ -230,7 +230,18 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		return nil, fmt.Sprintf("Refused: this command %s. janetcode never runs it, not even with auto-approve or an allow rule; do not retry it in another form.", hard), nil
 	}
 	if verdict == perm.Denied {
-		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
+		return nil, fmt.Sprintf("Denied by permission rule %s%s. Do not retry this call; choose another approach or ask the user to change the rule.", rule, a.outranked(u, subject)), nil
+	}
+	// An ask rule marks the call as sensitive: it is put to the user
+	// whatever the mode, a session allowance or an allow rule would do,
+	// and even when the tool only reads. The answer covers this call
+	// only (mustAsk), and the prompt says which rule asked and which
+	// allow rule it outranked.
+	sensitive := verdict == perm.Ask && !rule.IsZero()
+	if sensitive {
+		mustAsk = true
+		why := "asks because of rule " + rule.String() + a.outranked(u, subject)
+		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 	}
 	switch {
 	case verdict == perm.Allowed:
@@ -238,7 +249,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	if !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+	if !sensitive && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
 		return hookNotes, "", nil
 	}
 	switch allowed, refusal := a.permissionHook(ctx, u, call, mustAsk, emit); {
@@ -325,6 +336,17 @@ func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict
 	subject = perm.SubjectIn(u.Name, u.Input, a.displayRoot())
 	verdict, rule, hard = a.decideCall(a.permCall(u.Name, u.Input, subject))
 	return subject, verdict, rule, hard
+}
+
+// outranked is the note a refusal or a forced prompt adds when an allow
+// rule would have covered the call: " (it outranks allow rule X)", so a
+// conflict between rules says which one won and why.
+func (a *Agent) outranked(u *llm.Block, subject string) string {
+	rs := a.RulesSnapshot()
+	if r, ok := rs.AllowedBy(a.permCall(u.Name, u.Input, subject)); ok {
+		return " (it outranks allow rule " + r.String() + ")"
+	}
+	return ""
 }
 
 // permCall is one call as the permission rules see it.
@@ -449,6 +471,12 @@ func (a *Agent) applyDecision(d Decision, reason string, suggested perm.Rule, na
 			a.allowSession(name)
 		}
 	case AllowAlways:
+		if a.Policy != nil && a.Policy.ManagedRulesOnly {
+			// Only the managed policy's allow rules apply, so "always"
+			// is this call only, and the user is told why.
+			emit(Event{Kind: EvNotice, Text: "allowed once: " + a.Policy.Refusal("a saved allow rule").Error()})
+			break
+		}
 		if !mustAsk && !suggested.IsZero() {
 			a.AddRule(perm.Allowed, suggested)
 			if a.SaveRule != nil {

@@ -118,3 +118,20 @@ func SwitchModel(cfg *config.Config, a *agent.Agent, model string, prov llm.Prov
 	}
 	a.SwitchModel(model, prov, cfg.PriceFor(model), cfg.MetaFor(model).ContextWindow)
 }
+
+// Allowed is whether the managed policy lets the session move to model on
+// the provider named provider (of type typ; "" when the provider is not
+// changing): /model and /connect in every front-end ask before switching.
+// A nil config, or no policy, allows everything.
+func Allowed(cfg *config.Config, provider, typ, model string) error {
+	if cfg == nil || cfg.Managed == nil {
+		return nil
+	}
+	if provider != "" && !cfg.Managed.ProviderAllowed(provider, typ) {
+		return cfg.Managed.Refusal(fmt.Sprintf("provider %q", provider))
+	}
+	if model != "" && !cfg.Managed.ModelAllowed(model) {
+		return cfg.Managed.Refusal(fmt.Sprintf("model %q", model))
+	}
+	return nil
+}

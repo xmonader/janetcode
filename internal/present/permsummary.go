@@ -17,6 +17,12 @@ type Permissions struct {
 	// "a" at a prompt.
 	SessionAllowed []string
 	Allow, Deny    []string
+	// Ask are the sensitive-call rules: what they match asks in every
+	// mode, reads included.
+	Ask []string
+	// Managed names what an administrator's managed policy fixes for
+	// this session (see config.Managed).
+	Managed []string
 	// Protected is how many protected path patterns are in force.
 	Protected int
 	// Sandbox names the sandbox commands run in, or "" when they run on
@@ -88,6 +94,9 @@ func PermissionSummary(p Permissions, change string) string {
 		if p.Protected > 0 {
 			asks = append(asks, "protected paths (dotfiles, git hooks, keys), in every mode")
 		}
+		if len(p.Ask) > 0 {
+			asks = append(asks, fmt.Sprintf("what the %s below match, in every mode", textfmt.Plural(len(p.Ask), "ask rule")))
+		}
 		if len(asks) > 0 {
 			row("asks first", asks...)
 		}
@@ -103,10 +112,17 @@ func PermissionSummary(p Permissions, change string) string {
 		row("where", "commands run on this machine, as you (no sandbox)")
 	}
 
-	if len(p.Allow)+len(p.Deny) > 0 {
+	if len(p.Managed) > 0 {
+		row("managed", p.Managed...)
+	}
+
+	if len(p.Allow)+len(p.Deny)+len(p.Ask) > 0 {
 		b.WriteString("\n")
 		for _, r := range p.Deny {
 			b.WriteString("  deny   " + r + "\n")
+		}
+		for _, r := range p.Ask {
+			b.WriteString("  ask    " + r + "\n")
 		}
 		for _, r := range p.Allow {
 			b.WriteString("  allow  " + r + "\n")

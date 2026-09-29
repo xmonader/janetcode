@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/treesitter"
 	"github.com/xmonader/janetcode/internal/whatif"
@@ -37,7 +38,7 @@ func runWhatIf(ctx context.Context, cfg *config.Config, prov llm.Provider, o wha
 		Config:   cfg,
 		Provider: prov,
 		Off:      textfmt.SplitCSV(o.off),
-		Deny:     textfmt.SplitCSV(o.deny),
+		Deny:     perm.SplitList(o.deny),
 		Prompt:   o.prompt,
 		Keep:     o.keep,
 		Log:      func(format string, args ...any) { fmt.Fprintf(os.Stderr, format+"\n", args...) },

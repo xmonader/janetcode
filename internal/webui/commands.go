@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -339,6 +340,11 @@ func (s *server) cmdClear(arg string) (bool, error) {
 
 func (s *server) cmdYolo(arg string) (bool, error) {
 	ag := s.opts.Agent
+	if !ag.Settings().AutoApprove {
+		if err := ag.ModeRefusal(managed.ModeYolo); err != nil {
+			return false, err
+		}
+	}
 	var on bool
 	ag.UpdateSettings(func(st *agent.Settings) {
 		st.AutoApprove = !st.AutoApprove
@@ -361,6 +367,11 @@ func (s *server) cmdRouting(arg string) (bool, error) {
 
 func (s *server) cmdAuto(arg string) (bool, error) {
 	ag := s.opts.Agent
+	if !ag.Settings().AutoMode {
+		if err := ag.ModeRefusal(managed.ModeAuto); err != nil {
+			return false, err
+		}
+	}
 	var on bool
 	ag.UpdateSettings(func(st *agent.Settings) {
 		st.AutoMode = !st.AutoMode
@@ -377,6 +388,11 @@ func (s *server) cmdAuto(arg string) (bool, error) {
 
 func (s *server) cmdEdits(arg string) (bool, error) {
 	ag := s.opts.Agent
+	if !ag.Settings().AutoEdits {
+		if err := ag.ModeRefusal(managed.ModeEdits); err != nil {
+			return false, err
+		}
+	}
 	var on bool
 	ag.UpdateSettings(func(st *agent.Settings) { st.AutoEdits = !st.AutoEdits; on = st.AutoEdits })
 	s.noteOnOff("auto-accept edits", on, "file changes go through, commands still ask")

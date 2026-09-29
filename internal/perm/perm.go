@@ -128,10 +128,14 @@ const (
 
 func (v Verdict) String() string { return [...]string{"ask", "allow", "deny"}[v] }
 
-// Rules is a set of allow and deny rules.
+// Rules is a set of allow, deny and ask rules. An ask rule marks a call
+// as sensitive: it is put to the user even when an allow rule, a session
+// allowance, /auto, /edits or --yolo would have let it run, and even when
+// the tool only reads (see DecideCall).
 type Rules struct {
 	Allow []Rule
 	Deny  []Rule
+	Ask   []Rule
 }
 
 // ParseAll parses rule strings, stopping at the first bad one.
@@ -173,21 +177,48 @@ func (rs Rules) Decide(tool, subject string) (Verdict, Rule) {
 // DecideCall matches a whole call. The order is the order of authority:
 // a hard deny (see HardDeny) refuses whatever the rules say and comes
 // back with the reason; then deny rules, so a deny always outranks an
-// allow however the two were written; then allow rules; anything
-// unmatched asks.
+// allow however the two were written; then ask rules, which come back as
+// Ask with the rule that matched (a non-zero Rule: the call is sensitive
+// and must be asked about whatever else would allow it); then allow
+// rules; anything unmatched asks with the zero Rule.
 func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
 	if why := HardDeny(c); why != "" {
 		return Denied, Rule{Tool: c.Tool}, why
 	}
+	dc := denyView(c)
 	for _, r := range rs.Deny {
-		if r.matchesCall(c) || r.matchesSegment(c) {
+		if r.matchesAny(dc) || r.matchesSegment(dc) {
 			return Denied, r, ""
+		}
+	}
+	for _, r := range rs.Ask {
+		if r.matchesAny(dc) || r.matchesSegment(dc) {
+			return Ask, r, ""
 		}
 	}
 	if r, ok := rs.allows(c); ok {
 		return Allowed, r, ""
 	}
 	return Ask, Rule{}, ""
+}
+
+// AllowedBy reports the allow rule that would cover the call if no deny
+// or ask rule stood in the way: what a refusal or a forced prompt names
+// as the rule it outranked, so a conflict says which rule won and why.
+func (rs Rules) AllowedBy(c Call) (Rule, bool) { return rs.allows(c) }
+
+// denyView is the call as deny and ask rules see it: a bash line with
+// its here-documents taken out, since a body is the command's stdin and
+// not commands — split at its newlines, a commit message mentioning
+// "rm -rf" was refused by bash(rm *). A here-document fed to something
+// that runs it (bash <<EOF, ssh host <<EOF, python3 - <<EOF) is code, and
+// is kept (see shell.HeredocRunsCode).
+func denyView(c Call) Call {
+	if c.Tool != "bash" || !strings.Contains(c.Subject, "<<") || shell.HeredocRunsCode(c.Subject) {
+		return c
+	}
+	c.Subject = shell.StripHeredocs(c.Subject)
+	return c
 }
 
 // dupRedirect is a descriptor duplication such as 2>&1 or >&2. Its & is
@@ -326,6 +357,20 @@ func (rs *Rules) Add(v Verdict, r Rule) bool {
 	return true
 }
 
+// addAsk appends an ask rule unless an equal one exists.
+func (rs *Rules) addAsk(r Rule) bool {
+	for _, e := range rs.Ask {
+		if e.Equal(r) {
+			return false
+		}
+	}
+	rs.Ask = append(rs.Ask, r.compile())
+	return true
+}
+
+// AddAsk adds an ask (sensitive) rule.
+func (rs *Rules) AddAsk(r Rule) bool { return rs.addAsk(r) }
+
 // hasAllow reports whether an equal rule is already saved as an allow.
 func (rs Rules) hasAllow(r Rule) bool {
 	for _, e := range rs.Allow {
@@ -339,6 +384,9 @@ func (rs Rules) hasAllow(r Rule) bool {
 // Merge returns the union of both sets, a's rules first.
 func Merge(a, b Rules) Rules {
 	out := Rules{}
+	for _, r := range append(append([]Rule{}, a.Ask...), b.Ask...) {
+		out.addAsk(r)
+	}
 	for _, r := range append(append([]Rule{}, a.Allow...), b.Allow...) {
 		out.Add(Allowed, r)
 	}
@@ -352,10 +400,18 @@ func (r Rule) matches(tool, subject string) bool {
 	return r.matchesCall(Call{Tool: tool, Subject: subject})
 }
 
-// matchesCall is the whole matcher: the tool has to be the call's (or
-// "*"), and then either the bare pattern matches the subject or every
-// parameter clause matches its field.
-func (r Rule) matchesCall(c Call) bool {
+// matchesCall is the whole matcher, as an allow rule reads it: the tool
+// has to be the call's (or "*"), and then either the bare pattern
+// matches the subject or every parameter clause matches its field. A
+// typed scope (see scope.go) with several values has to hold for all of
+// them.
+func (r Rule) matchesCall(c Call) bool { return r.match(c, modeAll) }
+
+// matchesAny is matchesCall as a deny or ask rule reads it: a typed
+// scope matches when any of its values does.
+func (r Rule) matchesAny(c Call) bool { return r.match(c, modeAny) }
+
+func (r Rule) match(c Call, mode matchMode) bool {
 	if r.Tool != c.Tool && r.Tool != "*" {
 		return false
 	}
@@ -375,6 +431,12 @@ func (r Rule) matchesCall(c Call) bool {
 	}
 	f := fields{tool: c.Tool, input: c.Input, root: c.Root}
 	for _, p := range r.params {
+		if isScope(p.Name, c.Tool) {
+			if !scopeMatch(p, c, &f, mode) {
+				return false
+			}
+			continue
+		}
 		if !matchAny(p.Pattern, f.values(p.Name)) {
 			return false
 		}
@@ -622,6 +684,18 @@ func bashLadder(tool, subject string) ([]Rule, int) {
 	}
 	// The exact command is the narrowest rung: no wildcard at all.
 	rungs := []Rule{{Tool: tool, Pattern: strings.Join(words, " ")}}
+	// A command that reaches the network is widened by the host, never
+	// past it: approving curl https://api.github.com/x offers
+	// bash(cmd:curl *, host:api.github.com), not curl *, which would
+	// allow the same command against any host. Two hosts in one command
+	// have no rung that covers both without covering more.
+	if hosts := shell.NetworkHosts(subject); len(hosts) > 0 {
+		if len(hosts) == 1 && !strings.ContainsAny(hosts[0], "*?, ()") {
+			rungs = append(rungs, Rule{Tool: tool, Pattern: "cmd:" + words[0] + " *, host:" + hosts[0]}.compile())
+			return rungs, 1
+		}
+		return rungs, 0
+	}
 	// Runners take a subcommand that decides what the command does, so
 	// there is a rung that keeps it — "go test *" — above which sits the
 	// runner alone, "go *". The floor is the leading word: never bash
@@ -744,6 +818,9 @@ func isWordy(w string) bool {
 type File struct {
 	Allow []string `json:"allow,omitempty"`
 	Deny  []string `json:"deny,omitempty"`
+	// Ask are sensitive-call rules: a call they match is always asked
+	// about (see Rules.Ask).
+	Ask []string `json:"ask,omitempty"`
 }
 
 // ProjectFile is the per-project rule file, relative to the project root.
@@ -781,5 +858,62 @@ func (f File) Rules() (Rules, error) {
 	if err != nil {
 		return Rules{}, err
 	}
-	return Rules{Allow: allow, Deny: deny}, nil
+	ask, err := ParseAll(f.Ask)
+	if err != nil {
+		return Rules{}, err
+	}
+	return Rules{Allow: allow, Deny: deny, Ask: ask}, nil
+}
+
+// SplitList splits a comma-separated list of rules, as --allow and
+// --deny take them, at the commas between rules and not at the ones
+// inside a rule's parentheses: bash(cmd:curl *, host:x.example),read_file
+// is two rules.
+func SplitList(s string) []string {
+	var out []string
+	depth, start := 0, 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				if part := strings.TrimSpace(s[start:i]); part != "" {
+					out = append(out, part)
+				}
+				start = i + 1
+			}
+		}
+	}
+	if part := strings.TrimSpace(s[start:]); part != "" {
+		out = append(out, part)
+	}
+	return out
+}
+
+// Explain says in one line what the rules decide about a call and why:
+// which rule won, and which allow rule it outranked when one would have
+// covered the call too. It is /permissions check's answer.
+func (rs Rules) Explain(c Call) string {
+	v, r, hard := rs.DecideCall(c)
+	allow, allowed := rs.AllowedBy(c)
+	outranks := ""
+	if allowed {
+		outranks = ", which outranks allow rule " + allow.String()
+	}
+	switch {
+	case hard != "":
+		return "refused whatever the rules say: this command " + hard
+	case v == Denied:
+		return "denied by rule " + r.String() + outranks
+	case v == Ask && !r.IsZero():
+		return "always asks because of rule " + r.String() + outranks + " (in every mode, --yolo included)"
+	case v == Allowed:
+		return "allowed by rule " + r.String() + " (runs without asking in every mode)"
+	}
+	return "no rule matches: whether it asks depends on the mode"
 }

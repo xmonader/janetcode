@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -17,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -136,6 +136,17 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	typed := &weburl.Set{}
 	typed.Note(initial)
 	typed.Note(o.promptText)
+	// A mode the managed policy disables is a usage error when asked for
+	// on the command line: quietly running with it off would be a run
+	// the caller did not ask for either.
+	for _, m := range []struct {
+		on         bool
+		flag, mode string
+	}{{o.autoMode, "auto", managed.ModeAuto}, {o.autoEdits, "auto-edits", managed.ModeEdits}} {
+		if m.on && cfg.Managed.ModeDisabled(m.mode) {
+			return r, headless.BadInput("--%s: %v", m.flag, cfg.Managed.Refusal("--"+m.flag))
+		}
+	}
 	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
@@ -145,6 +156,14 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	ag := built.agent
 
 	r.servers = mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
+	if pol := cfg.Managed; pol != nil {
+		r.servers.Allowed = func(name string) error {
+			if !pol.MCPAllowed(name) {
+				return pol.Refusal(fmt.Sprintf("MCP server %q", name))
+			}
+			return nil
+		}
+	}
 	r.onClose(r.servers.Close)
 	projectServers, projectHash, err := mcp.LoadProject(cwd)
 	if err != nil {
@@ -257,7 +276,9 @@ func (r *root) wireProject() error {
 
 // permissionRules assembles the permission rules for a project at cwd:
 // the configuration's, then the project's own file as far as it is
-// trusted (deny rules need no trust), then this run's --allow/--deny.
+// trusted (deny and ask rules need no trust: they only ever take
+// something away), then this run's --allow/--deny/--ask, and last the
+// managed policy's, which may drop every allow rule not its own.
 // /cd runs it again for the directory it moved to.
 func (r *root) permissionRules(cwd string) (rules, projRules perm.Rules, hash string, trusted bool, err error) {
 	rules, _ = r.cfg.Permissions.Rules() // validated by config.Load
@@ -270,23 +291,25 @@ func (r *root) permissionRules(cwd string) (rules, projRules perm.Rules, hash st
 	if trusted {
 		rules = perm.Merge(rules, projRules)
 	} else {
-		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
+		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny, Ask: projRules.Ask}) // deny and ask rules need no trust
 	}
 	for _, spec := range []struct {
 		name, flag string
 		v          perm.Verdict
-	}{{"allow", r.opts.allow, perm.Allowed}, {"deny", r.opts.deny, perm.Denied}} {
-		for _, part := range strings.Split(spec.flag, ",") {
-			if strings.TrimSpace(part) == "" {
-				continue
-			}
+	}{{"allow", r.opts.allow, perm.Allowed}, {"deny", r.opts.deny, perm.Denied}, {"ask", r.opts.ask, perm.Ask}} {
+		for _, part := range perm.SplitList(spec.flag) {
 			pr, perr := perm.Parse(part)
 			if perr != nil {
 				// The rule came from the command line: a usage error.
 				return rules, projRules, hash, trusted, headless.BadInput("--%s: %v", spec.name, perr)
 			}
+			if spec.v == perm.Ask {
+				rules.AddAsk(pr)
+				continue
+			}
 			rules.Add(spec.v, pr)
 		}
 	}
+	rules = r.cfg.Managed.Apply(rules)
 	return rules, projRules, hash, trusted, nil
 }

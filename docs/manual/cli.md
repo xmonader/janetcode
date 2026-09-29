@@ -58,6 +58,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--init` | write a starter config file |
 | `--init-project` | write a starter `JANETCODE.md` for this repository, from its languages, declared commands and layout, and exit. An existing one is never overwritten; `/init force` in a session replaces it. See [Project instructions](configuration.md#project-instructions) |
 | `--allow`, `--deny` | add a permission rule for this run |
+| `--ask` | add a sensitive-call rule for this run: what it matches always asks, in every mode, e.g. `--ask '*(touches:**/.env)'` (see [Permission rules](interface.md#permission-rules)) |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |
 | `--update` | replace this binary with the latest release: the download is checked against the release's `SHA256SUMS` and written beside the old binary before it is renamed over it. A build from source says it is not a release; `JANETCODE_RELEASES` points at a mirror |
 | `--version` | print the version |

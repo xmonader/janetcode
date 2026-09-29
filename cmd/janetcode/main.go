@@ -144,7 +144,7 @@ var argNames = map[string]string{
 	"model": "id", "provider": "name", "effort": "level", "r": "id", "resume": "id",
 	"web-addr": "host:port", "worktree": "branch", "add-dir": "dir", "theme": "name",
 	"p": "prompt", "output-format": "format", "until": "command", "watch": "command",
-	"allow": "rules", "deny": "rules", "mcp-auth": "server", "append-system-prompt": "text",
+	"allow": "rules", "deny": "rules", "ask": "rules", "mcp-auth": "server", "append-system-prompt": "text",
 	"off": "names", "prompt": "text", "recipe": "name", "replay": "session",
 	"session-profile": "path", "set": "key=value", "what-if": "session", "inspect": "subject",
 	"backup": "file", "restore": "file", "answer": "id",

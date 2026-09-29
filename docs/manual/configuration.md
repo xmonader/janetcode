@@ -130,6 +130,83 @@ including `/` — a leading `~` is your home directory, and a pattern
 ending in `/*` or `/**` covers the directory itself as well as what is
 in it.
 
+### Managed policy
+
+An organisation can install a policy that every session on a machine
+runs under and nobody inside a session can change: not `/config`, not
+`--set` or another flag, not the model, and not an edit to the user's
+own config file, because the policy is applied after all of them.
+
+It is one JSON file at a path only an administrator can write:
+
+| OS | path |
+|---|---|
+| Linux and the rest | `/etc/janetcode/managed.json` |
+| macOS | `/Library/Application Support/janetcode/managed.json` |
+| Windows | `%ProgramData%\janetcode\managed.json` |
+
+```json
+{
+  "message": "Managed by ACME IT, see go/janetcode",
+  "settings": { "effort": "high", "memory": false, "search": {"provider": "brave", "key": "${BRAVE_API_KEY}"} },
+  "permissions": {
+    "allow": ["bash(cmd:go test *)"],
+    "deny":  ["*(host:*.internal.example)", "bash(cmd:git push * --force*)"],
+    "ask":   ["*(touches:**/.env)", "*(secret:*)"]
+  },
+  "managed_permission_rules_only": false,
+  "disabled_tools": ["web_search", "mcp__*__delete*"],
+  "allowed_providers": ["corp-gateway"],
+  "allowed_models": ["claude-*", "qwen3*"],
+  "sandbox": "workspace",
+  "disabled_modes": ["yolo"],
+  "allowed_mcp_servers": ["github", "jira"]
+}
+```
+
+Every key is optional:
+
+- `settings` fixes config keys to a value, in the config file's own
+  shape. They override the file, the environment and the command line,
+  and `/config` and `--set` refuse to change them ("changing effort is
+  not allowed by the managed policy (/etc/janetcode/managed.json): …").
+- `permissions` are rules that always apply, in the shape of the
+  config's own (see [Permission rules](interface.md#permission-rules)).
+  Their deny and ask rules outrank every allow rule, as any deny does.
+  With `managed_permission_rules_only`, the policy's allow rules are the
+  only ones: the user's saved rules, the project's and `--allow` are
+  dropped, `/permissions allow` is refused, and `r` at a prompt allows
+  just that call.
+- `disabled_tools` are tool names, with wildcards, the model is never
+  offered — including MCP tools that come up later. Calling one gets
+  "tool is withheld by policy (disabled by the managed policy)" rather
+  than "unknown tool", so the model does not hunt for a workaround.
+- `allowed_providers` (by configured name or by type, `anthropic` or
+  `openai`) and `allowed_models` (wildcards) are the only ones a session
+  may start on or switch to with `/model` or `/connect`.
+- `sandbox` turns that sandbox profile on for every session, and
+  `/sandbox off` or another profile is refused.
+- `disabled_modes` are the approval shortcuts that cannot be turned on:
+  `yolo` (`--yolo`, `/yolo`, `auto_approve`), `auto` (`--auto`, `/auto`)
+  and `edits` (`--auto-edits`, `/edits`). A flag asking for one is a
+  usage error (exit 42); `auto_approve: true` in the user's file is
+  switched off with a note.
+- `allowed_mcp_servers` are the only MCP servers that may start, from
+  the config or a project's `.mcp.json`; the rest are listed by `/mcp`
+  with the reason. An empty list allows none.
+
+A file that exists and cannot be read or parsed stops janetcode from
+starting (exit 52): a policy that silently stopped applying would be
+worse. `JANETCODE_MANAGED_FILE` names one more policy file, for tests and
+container images; it is read *after* the system file and can only make
+the policy stricter — its disallowed things are added, its allow-lists
+are intersected with the system file's, and a setting, sandbox or
+message the system file fixes keeps the system file's value.
+
+`janetcode --inspect managed` prints the policy in force and where it
+came from, `/permissions` lists what it fixes under "managed", and
+`--doctor` reports it.
+
 ### What janetcode records about you
 
 Two small files in the config directory, and nothing else:
