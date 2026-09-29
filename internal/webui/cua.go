@@ -26,7 +26,9 @@ func (s *server) cmdCua(arg string) (bool, error) {
 }
 
 func (s *server) cuaStatus() string {
+	s.cfgMu.RLock()
 	on := s.opts.Config != nil && s.opts.Config.ComputerUseEnabled()
+	s.cfgMu.RUnlock()
 	line := "computer_use " + onOff(on)
 	d, ok := cua.Detect()
 	if !ok {
@@ -57,7 +59,9 @@ func (s *server) cuaOn() {
 	}
 	if s.opts.Config != nil {
 		on := true
+		s.cfgMu.Lock()
 		s.opts.Config.ComputerUse = &on
+		s.cfgMu.Unlock()
 		if s.opts.ConfigPath != "" {
 			if err := config.UpdateKey(s.opts.ConfigPath, "computer_use", true); err != nil {
 				s.errf("save config: %v", err)
@@ -89,7 +93,9 @@ func (s *server) cuaOn() {
 func (s *server) cuaOff() {
 	if s.opts.Config != nil {
 		off := false
+		s.cfgMu.Lock()
 		s.opts.Config.ComputerUse = &off
+		s.cfgMu.Unlock()
 		if s.opts.ConfigPath != "" {
 			_ = config.UpdateKey(s.opts.ConfigPath, "computer_use", false)
 		}

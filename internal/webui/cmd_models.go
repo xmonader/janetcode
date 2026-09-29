@@ -51,6 +51,8 @@ func (s *server) modelsAPI(w http.ResponseWriter, _ *http.Request) {
 	current := ag.Settings().Model
 	out["current"] = current
 	groups, ok := s.cachedOrLiveModels(current)
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	if !ok {
 		groups = s.configKnownModels(cfg, current)
 	}
@@ -106,10 +108,12 @@ func (s *server) cachedOrLiveModels(current string) ([]modelGroup, bool) {
 // Nil means nothing answered and there was nothing static to show.
 func (s *server) fetchLiveModels() []modelGroup {
 	cfg := s.opts.Config
+	s.cfgMu.RLock()
 	names := make([]string, 0, len(cfg.Providers))
 	for name := range cfg.Providers {
 		names = append(names, name)
 	}
+	s.cfgMu.RUnlock()
 	sort.Strings(names)
 	type answer struct {
 		rows []modelRow
@@ -121,7 +125,9 @@ func (s *server) fetchLiveModels() []modelGroup {
 			wg.Add(1)
 			go func(i int, name string) {
 				defer wg.Done()
+				s.cfgMu.RLock()
 				prov, err := s.opts.BuildProvider(name)
+				s.cfgMu.RUnlock()
 				if err != nil {
 					return
 				}
@@ -144,7 +150,9 @@ func (s *server) fetchLiveModels() []modelGroup {
 	}
 	// Merge: start from the static lists, upgrade rows the live sweep
 	// confirmed (context, live mark), then add live rows that are new.
+	s.cfgMu.RLock()
 	groups := s.configKnownModels(cfg, "")
+	s.cfgMu.RUnlock()
 	byProvider := map[string]int{}
 	for i, g := range groups {
 		byProvider[g.Provider] = i

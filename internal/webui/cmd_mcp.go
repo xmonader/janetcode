@@ -87,7 +87,10 @@ func (s *server) mcpListing() string {
 		}
 	}
 	var idle []string
-	for name := range o.Project {
+	s.mcpMu.Lock()
+	project := o.Project
+	s.mcpMu.Unlock()
+	for name := range project {
 		if !known[name] {
 			idle = append(idle, name)
 		}
@@ -108,7 +111,9 @@ func (s *server) mcpEnv() mcpcmd.Env {
 	env := mcpcmd.Env{
 		Cwd: s.cwd(), Manager: o.Manager, Trust: o.Trust, Global: o.Global,
 		Updated: func(servers map[string]mcp.ServerConfig, hash string) {
+			s.mcpMu.Lock()
 			o.Project, o.ProjectHash = servers, hash
+			s.mcpMu.Unlock()
 		},
 	}
 	if s.opts.ConfigDir != "" {
@@ -171,7 +176,9 @@ func (s *server) mcpRemove(args []string) {
 	}
 	name := names[0]
 	o := s.opts.MCP
+	s.mcpMu.Lock()
 	cfg, ok := o.Project[name]
+	s.mcpMu.Unlock()
 	if !ok {
 		if _, global := o.Global[name]; global {
 			s.errf("mcp %s comes from the config file, not %s · remove it there", name, mcp.ProjectFile)

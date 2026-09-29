@@ -22,6 +22,8 @@ func (s *server) model(arg string) {
 	}
 	cfg := s.opts.Config
 	var prov llm.Provider
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	if cfg != nil && s.opts.Models != nil {
 		// The name may belong to a provider other than the one in use;
 		// follow it rather than sending it to the wrong endpoint.
@@ -92,7 +94,9 @@ func (s *server) configKV(arg string) {
 		s.errf("usage: /config key=value")
 		return
 	}
+	s.cfgMu.Lock()
 	applied, err := settingsapply.Apply(s.opts.Config, s.opts.Agent, s.opts.ConfigPath, key, val)
+	s.cfgMu.Unlock()
 	if err != nil {
 		s.errf("config: %v", err)
 		return

@@ -273,6 +273,17 @@ type server struct {
 	// every open page is reading it. Everything reads it through
 	// provider().
 	provMu sync.RWMutex
+
+	// cfgMu guards *opts.Config: /connect replaces it and /model, /config
+	// and /cua set fields of it from one request while others (the
+	// connect form, the model menu) read it. The maps in it are replaced,
+	// never written in place, so a copy taken under the lock stays whole.
+	cfgMu sync.RWMutex
+
+	// mcpMu guards opts.MCP.Project and ProjectHash, which /mcp add and
+	// remove record from runBusy's goroutine while a plain /mcp, which
+	// runs outside it, lists them.
+	mcpMu sync.Mutex
 }
 
 // sess is the session this server is logging to, or nil.

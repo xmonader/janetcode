@@ -101,6 +101,8 @@ func (s *server) connectAPI(w http.ResponseWriter, r *http.Request) {
 // connectProviders is the providers that have a key first, then every
 // other preset. The page adds the two custom kinds.
 func (s *server) connectProviders() []connectProvider {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	cfg := s.opts.Config
 	var out []connectProvider
 	var names []string
@@ -139,6 +141,8 @@ func (s *server) connectProviders() []connectProvider {
 // and that provider as it will be saved. An empty key field keeps the
 // keys the provider already has.
 func (s *server) connectConfig(req connectRequest) (*config.Config, config.Provider, error) {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	cfg := s.opts.Config
 	name := strings.ToLower(strings.TrimSpace(req.Name))
 	if name == "" || strings.ContainsAny(name, " \t/\\") {
@@ -227,19 +231,25 @@ func (s *server) applyConnect(next *config.Config, name string, p config.Provide
 	if err != nil {
 		return "", err
 	}
+	s.cfgMu.Lock()
 	*s.opts.Config = *next
 	s.setProvider(name)
 	if known && s.opts.ConfigPath != "" {
 		meta := config.MetaOf(mi)
-		if s.opts.Config.Models == nil {
-			s.opts.Config.Models = map[string]config.ModelMeta{}
+		// A new map rather than a write into the old one, which copies
+		// of the config taken for another request still share.
+		models := make(map[string]config.ModelMeta, len(s.opts.Config.Models)+1)
+		for k, v := range s.opts.Config.Models {
+			models[k] = v
 		}
-		s.opts.Config.Models[model] = meta
+		models[model] = meta
+		s.opts.Config.Models = models
 		if err := config.SaveModelMeta(s.opts.ConfigPath, model, meta); err != nil {
 			s.errf("saving what %s said about %s: %v", name, model, err)
 		}
 	}
 	settingsapply.SwitchModel(s.opts.Config, s.opts.Agent, model, prov)
+	s.cfgMu.Unlock()
 	note := fmt.Sprintf("Connected to %s · %s", name, model)
 	if s.opts.ConfigPath != "" {
 		if err := config.Update(s.opts.ConfigPath, name, p, model); err != nil {
