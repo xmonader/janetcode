@@ -88,6 +88,7 @@ func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repomap.Cache, checks func() []string) func(context.Context, agent.ToolCall) string {
 	edit := tool.EditFile{Root: cd.Dir(), WS: ws}
 	write := tool.WriteFile{Root: cd.Dir(), WS: ws}
+	notebook := tool.NotebookEdit{Root: cd.Dir(), WS: ws}
 	return func(ctx context.Context, call agent.ToolCall) string {
 		var path, before, after string
 		var err error
@@ -96,6 +97,8 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 			path, before, after, err = edit.Result(ctx, call.Input)
 		case "write_file":
 			path, before, after, err = write.Result(ctx, call.Input)
+		case "notebook_edit":
+			path, before, after, err = notebook.Result(ctx, call.Input)
 		default:
 			return ""
 		}
@@ -361,6 +364,14 @@ func (b *agentBuilder) stepLoops() error {
 	return nil
 }
 
+// activateNotebookEdit puts notebook_edit in every later request, once a
+// notebook has been read: the model is about to be told to use it.
+func (b *agentBuilder) activateNotebookEdit() {
+	if b.ag != nil {
+		b.ag.Tools.Activate("notebook_edit")
+	}
+}
+
 // stepCore builds the agent itself: the provider, the settings the
 // configuration and this run's flags settle on, and the tools that are
 // plain functions of the project directory.
@@ -371,7 +382,7 @@ func (b *agentBuilder) stepCore() error {
 		Provider: d.prov,
 		Log:      b.sess,
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
+			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, OnNotebook: b.activateNotebookEdit},
 			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
 			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files},
 			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb},
@@ -538,6 +549,10 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
+	// Notebooks are rare, so their edit tool is not in every request: the
+	// first notebook read_file shows switches it on for the rest of the
+	// session, and tool_search finds it before that.
+	ag.Tools.AddDeferred(tool.NotebookEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the

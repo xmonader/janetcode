@@ -88,6 +88,7 @@ func TestProtectedWrites(t *testing.T) {
 	}{
 		{file("write_file", ".npmrc"), ".npmrc"},
 		{file("edit_file", ".git/config"), ".git/config"},
+		{file("notebook_edit", ".git/config"), ".git/config"},
 		{file("write_file", filepath.Join(home, ".zshenv")), "~/.zshenv"},
 		{file("write_file", "internal/perm/perm.go"), ""},
 		{file("read_file", filepath.Join(home, ".zshenv")), ""}, // reading is not writing

@@ -28,6 +28,10 @@ type ReadFile struct {
 	// Cache, when set, is shared with subagents so a second read of the
 	// same unchanged file does not hit disk.
 	Cache *IOCache
+	// OnNotebook, when set, is called when a notebook is rendered, so the
+	// session can make notebook_edit available (it is deferred until a
+	// notebook turns up).
+	OnNotebook func()
 }
 
 func (ReadFile) Name() string { return "read_file" }
@@ -89,6 +93,19 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 		// only make the entry miss.
 		if serr == nil {
 			t.Cache.Put(p, st.ModTime(), st.Size(), data)
+		}
+	}
+	// A notebook is JSON, and read as JSON its code is a list of quoted
+	// lines with the outputs — often base64 images — in between. Rendered
+	// as cells it reads as the notebook it is. A file that does not parse
+	// falls through and is shown as the text it is.
+	if isNotebookPath(in.Path) {
+		if nb, err := parseNotebook(data); err == nil {
+			t.Seen.Record(p, data)
+			if t.OnNotebook != nil {
+				t.OnNotebook()
+			}
+			return textfmt.Truncate(nb.render(in.Path)), nil
 		}
 	}
 	if extracted, ok := extractReadable(ctx, in.Path, data); ok {

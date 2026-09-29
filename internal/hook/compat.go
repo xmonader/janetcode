@@ -94,14 +94,15 @@ func decodeHooks(raw json.RawMessage) ([]Hook, error) {
 // matcher such as "Bash" or "Write|Edit" copied from their configs picks
 // the same tools here. An alias is compared whole, never as a pattern.
 var toolAliases = map[string][]string{
-	"bash":       {"Bash", "run_shell_command"},
-	"read_file":  {"Read"},
-	"write_file": {"Write"},
-	"edit_file":  {"Edit", "MultiEdit", "edit"},
-	"fetch_url":  {"WebFetch", "web_fetch"},
-	"web_search": {"WebSearch"},
-	"task":       {"Task", "Agent"},
-	"todo":       {"TodoWrite", "todo_write"},
+	"bash":          {"Bash", "run_shell_command"},
+	"read_file":     {"Read"},
+	"write_file":    {"Write"},
+	"edit_file":     {"Edit", "MultiEdit", "edit"},
+	"notebook_edit": {"NotebookEdit"},
+	"fetch_url":     {"WebFetch", "web_fetch"},
+	"web_search":    {"WebSearch"},
+	"task":          {"Task", "Agent"},
+	"todo":          {"TodoWrite", "todo_write"},
 }
 
 // matchesAlias reports whether a tool event's pattern names one of the

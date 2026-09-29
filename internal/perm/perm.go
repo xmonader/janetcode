@@ -517,7 +517,7 @@ func Subject(tool string, input json.RawMessage) string {
 	switch tool {
 	case "bash":
 		return strings.TrimSpace(str("command"))
-	case "read_file", "write_file", "edit_file", "list_dir":
+	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir":
 		return filepath.Clean(str("path"))
 	case "glob", "grep":
 		if p := str("path"); p != "" {
@@ -601,7 +601,7 @@ func ladder(tool, subject string) ([]Rule, int) {
 		return bashLadder(tool, subject)
 	case "fetch_url":
 		return urlLadder(tool, subject)
-	case "read_file", "write_file", "edit_file", "list_dir", "glob", "grep":
+	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir", "glob", "grep":
 		return pathLadder(tool, subject)
 	}
 	return []Rule{{Tool: tool}}, 0

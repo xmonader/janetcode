@@ -518,7 +518,7 @@ func toolKind(name string) string {
 	switch name {
 	case "read_file", "list_dir", "expand_output":
 		return kindRead
-	case "write_file", "edit_file":
+	case "write_file", "edit_file", "notebook_edit":
 		return kindEdit
 	case "grep", "glob", "repo_map":
 		return kindSearch

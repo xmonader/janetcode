@@ -855,6 +855,30 @@ allow rule, `--yolo` and a `pre_tool` hook all pass it by without being
 asked, and the model is told it was refused and not to retry it in
 another form.
 
+### Jupyter notebooks
+
+`read_file` on a `.ipynb` shows the notebook as cells, not as JSON: each
+cell's index, type, id and execution count, its source, and each output
+trimmed to 30 lines (stream text, results, errors without their colour
+codes; an image is named with its size, not dumped as base64). A file
+that does not parse as a notebook is shown as the text it is.
+
+Changing one goes through `notebook_edit`: `replace` a cell's source (or
+only its type), `insert` a cell at an index or after a cell id, or
+`delete` one. It asks, previews, undoes and records provenance like
+`edit_file`, and its preview is a diff of the cells as `read_file` shows
+them. Editing a code cell clears its outputs and execution count, which
+belonged to the code that is gone. Everything else in the file stays
+byte for byte as it was: key order, indent, how non-ASCII was written,
+the notebook's metadata and every other cell's outputs, so a review of
+the change shows only the cell that changed. New cells get an id in
+nbformat 4.5 notebooks and none in older ones. The tool stays out of the
+request until the session reads its first notebook (or the model finds
+it with `tool_search`), so projects without notebooks do not pay for its
+schema. Permission rules, protected paths and hooks treat it as a file
+edit: `notebook_edit(path:analysis/**)` is a rule, and a Claude Code hook
+matching `NotebookEdit` fires for it.
+
 ### Encodings, byte-order marks and line endings
 
 The model works in UTF-8 text with LF line endings; files on disk are
