@@ -136,7 +136,9 @@ with the keys they have in your session (your changes included):
 The actions are `submit`, `newline`, `cancel`, `interrupt`, `quit`,
 `expand`, `background`, `steer`, `redraw`, `mode_cycle`, `agents`,
 `effort`, `paste_image`, `complete`, `history_prev`, `history_next`,
-`history_search`, `external_editor`, `page_up` and `page_down`. A value is
+`history_search`, `external_editor`, `page_up`, `page_down` and `voice`
+(unbound until you give it a key: `"voice": "f5"` starts a recording and
+the same key stops it, as `/voice` does). A value is
 a key, a list of keys, or `""` to unbind the action; an action you name
 loses its default keys. A key is a name as the terminal reports it —
 `ctrl+r`, `alt+e`, `shift+tab`, `f2`, `pgup`, `enter` — or a chord of two,
@@ -734,7 +736,8 @@ covers —
 In the terminal the list is a picker: enter on a row runs `/undo turn n`
 for that turn, the preview above, and `/undo apply` carries it out.
 Pressing esc twice on an empty prompt while no turn is running opens the
-same list. The web UI shows it as a sheet.
+same list. In the web UI it is a card: each row has a Preview button that
+runs `/undo turn n`, and Apply carries out the last preview.
 
 A checkpoint copies a file before the file tools change it. A copy over
 1 MiB is streamed to a blob beside the session's undo file rather than

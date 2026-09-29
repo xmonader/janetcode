@@ -255,6 +255,7 @@ var actionKeys = map[keymap.Action]keyAction{
 	keymap.ExternalEditor: (*model).keyExternalEditor,
 	keymap.PageUp:         (*model).keyPageUp,
 	keymap.PageDown:       (*model).keyPageDown,
+	keymap.Voice:          (*model).keyVoice,
 }
 
 // fixedKeys are prompt keys that are not actions a user would move:
