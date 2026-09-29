@@ -48,6 +48,7 @@ func TestDetachedAppliesPatchAndCleansUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	gitOut(t, repo, "checkout", "--", "a.txt")
+	before := readFile(t, filepath.Join(repo, "a.txt"))
 
 	dir, cleanup, err := Detached(ctx, "test", repo, base, patch)
 	if err != nil {
@@ -59,8 +60,11 @@ func TestDetachedAppliesPatchAndCleansUp(t *testing.T) {
 	if got := readFile(t, filepath.Join(dir, "a.txt")); got != "one\npatched\n" {
 		t.Fatalf("checkout a.txt = %q, want the patch applied", got)
 	}
-	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
-		t.Fatalf("repo a.txt = %q, the real tree was touched", got)
+	// Compared with what the test's own checkout wrote, not "one\n": under
+	// Git for Windows' autocrlf that checkout writes CRLF, and the claim
+	// here is only that Detached leaves the real tree alone.
+	if got := readFile(t, filepath.Join(repo, "a.txt")); got != before {
+		t.Fatalf("repo a.txt = %q, the real tree was touched (was %q)", got, before)
 	}
 
 	cleanup()

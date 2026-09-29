@@ -35,6 +35,10 @@ type Repo struct {
 	// GIT_WORK_TREE, so every git call works on the private store over a
 	// directory that is not a repository itself.
 	env []string
+	// raw keeps git from converting file content on its way in or out
+	// (gitx.ByteExactEnv): an undo that turned LF into CRLF under Git for
+	// Windows' autocrlf would itself be a change to every restored file.
+	raw []string
 }
 
 // Shadow reports whether this is a private store over a directory that
@@ -53,7 +57,19 @@ func Open(ctx context.Context, dir string) (*Repo, error) {
 	if err != nil {
 		return nil, ErrNotRepo
 	}
-	return &Repo{Root: top, gitDir: gd}, nil
+	r := &Repo{Root: top, gitDir: gd}
+	r.raw = r.byteExact(ctx)
+	return r, nil
+}
+
+// byteExact is gitx.ByteExactEnv for this repository, its empty tree
+// worked out once here rather than on every git call.
+func (r *Repo) byteExact(ctx context.Context) []string {
+	empty, err := gitx.Run(ctx, r.Root, r.env, "hash-object", "-t", "tree", os.DevNull)
+	if err != nil {
+		empty = ""
+	}
+	return gitx.ByteExactEnv(strings.TrimSpace(empty))
 }
 
 // Snap identifies one snapshot.
@@ -455,5 +471,6 @@ func (r *Repo) run(ctx context.Context, index string, args ...string) (string, e
 		env = append(env, "GIT_INDEX_FILE="+index)
 	}
 	env = append(env, r.env...)
+	env = append(env, r.raw...)
 	return gitx.Run(ctx, r.Root, env, args...)
 }

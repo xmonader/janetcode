@@ -53,7 +53,8 @@ func Detached(ctx context.Context, label, repo, base string, patch []byte) (dir 
 		_ = os.RemoveAll(dir)
 		return "", nil, err
 	}
-	if _, err := gitx.Run(ctx, repo, nil, "worktree", "add", "--detach", "-q", dir, base); err != nil {
+	raw := gitx.ByteExact(ctx, repo)
+	if _, err := gitx.Run(ctx, repo, raw, "worktree", "add", "--detach", "-q", dir, base); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", nil, gitx.Wrapf(err, "git worktree add %s", base)
 	}
@@ -133,7 +134,11 @@ func applyPatch(ctx context.Context, dir string, patch []byte) error {
 	if len(bytes.TrimSpace(patch)) == 0 {
 		return nil
 	}
-	if err := gitx.Apply(ctx, dir, patch); err != nil {
+	// Byte-exact, as the checkout under it was: git apply converts line
+	// endings on the files it writes the same way a checkout does. Only
+	// the config overrides, not GIT_ATTR_SOURCE: git 2.43's apply
+	// segfaults with it set.
+	if err := gitx.ApplyEnv(ctx, dir, gitx.ByteExactEnv(""), patch); err != nil {
 		return gitx.Wrapf(err, "git apply")
 	}
 	return nil

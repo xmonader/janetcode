@@ -35,4 +35,8 @@ code --install-extension janetcode-0.1.0.vsix
 or, without packaging, link the folder into VS Code's extensions:
 `ln -s "$PWD" ~/.vscode/extensions/xmonader.janetcode-0.1.0`.
 
-`npm run check` checks the code with plain node.
+`npm run check` checks the code with plain node. `npm run test:e2e` (or
+`make vscode-test` from the repository root) runs the extension inside a
+real VS Code under `xvfb-run`, against a stand-in janetcode binary: it
+opens the terminal session, sends a selection and a file, and opens the
+panel, checking each one arrived.

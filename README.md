@@ -51,8 +51,11 @@ been run under wine (a live headless edit against a real model works;
 see `docs/notes/windows-wine.md`), and CI runs the test suite on
 `windows-latest`, but PowerShell itself could not be exercised under
 wine, and the command safety classifier reads commands as bash with
-Windows paths, so treat the shell side as lightly tested. The cheapest
-way to use janetcode on Windows today is WSL.
+Windows paths, so treat the shell side as lightly tested.
+`JANETCODE_SHELL` names a POSIX shell to use instead, such as Git Bash
+(`C:\Program Files\Git\bin\bash.exe`) or busybox-w32; that path has
+run live under wine. The cheapest way to use janetcode on Windows today
+is WSL.
 
 ## Quick start
 

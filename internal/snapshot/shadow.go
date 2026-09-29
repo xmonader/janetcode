@@ -65,7 +65,13 @@ func OpenShadow(ctx context.Context, dir, store string) (*Repo, error) {
 		// had when a turn began.
 		_ = os.Chmod(gitDir, 0o700)
 	}
-	return &Repo{Root: abs, gitDir: gitDir, env: []string{"GIT_DIR=" + gitDir, "GIT_WORK_TREE=" + abs}}, nil
+	// The store is janetcode's own, so no one's git configuration has any
+	// business in it: not the system's or the user's (a global
+	// core.autocrlf, a hooks path, an fsmonitor), only the overrides that
+	// keep the bytes exact.
+	r := &Repo{Root: abs, gitDir: gitDir, env: []string{"GIT_DIR=" + gitDir, "GIT_WORK_TREE=" + abs, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=" + os.DevNull}}
+	r.raw = r.byteExact(ctx)
+	return r, nil
 }
 
 // checkShadowSize walks dir and stops at the first bound it passes. A

@@ -58,3 +58,44 @@ their first real run.
 - Many tests are written with POSIX paths (`/work/proj`, `/tmp`); in
   `internal/shell` they now skip on Windows, elsewhere they still fail
   there for that reason.
+
+## Second pass (2026-09-30)
+
+**Undo line endings: fixed.** Every git call that copies content for a
+snapshot, an undo, a scratch checkout or an editing subagent's worktree
+now runs with `gitx.ByteExactEnv`: `core.autocrlf=false`,
+`core.safecrlf=false` and no global attributes file through
+`GIT_CONFIG_COUNT`, and `GIT_ATTR_SOURCE` set to the empty tree so a
+`.gitattributes` `eol=`/`text` rule cannot convert either (not for
+`git apply`: git 2.43's apply segfaults with it set). The shadow store
+for non-git directories also ignores the system and global config.
+Under wine with MinGit (whose system config sets `autocrlf=true`) the
+new byte-exact tests pass for snapshot, worktree and the subagent
+worktree, and the `internal/snapshot` and `internal/worktree` tests that
+failed before on `"a2\r\n"` now pass. Left failing there: `TestUncovered`
+(wine's symlinks) and `TestOpenReplacesAStaleRegistration` (the sharing
+violation above).
+
+**The bash tool runs, through busybox-w32.** PowerShell 7 still does
+not run under wine, so a shell override was added: `JANETCODE_SHELL`
+names a POSIX shell that takes `-c` (Git Bash, or busybox-w32 run as
+`busybox.exe sh -c`). With `JANETCODE_SHELL=C:\busybox.exe`
+(busybox64.exe from frippery.org):
+
+- `busybox.exe sh -c '…; exit 3'` returns 3 under wine.
+- A live `janetcode.exe -p` run against `deepseek/deepseek-v4.1-flash`
+  used the bash tool three times: `wc -l calc.txt` (2 lines), `echo DONE
+  > out.txt` (the file holds `DONE`), and `exit 7` (reported as exit
+  code 7). Exit 0.
+- `internal/agent`'s undo, redo, subagent-worktree and task tests, which
+  all drive the bash tool, pass under wine with it, apart from
+  `TestUndoRevertsATypechange` (wine's symlinks).
+- `internal/tool`: bash runs, but 13 tests still fail for test-side
+  reasons: POSIX paths (`/etc/passwd` as the outside file), Unix file
+  modes, busybox printing `pwd` with forward slashes, and wine's
+  symlinks.
+
+To repeat: put `busybox64.exe` in the prefix as `C:\busybox.exe`, then
+`JANETCODE_SHELL='C:\busybox.exe' GOOS=windows go test -exec wine ./internal/agent`.
+PowerShell itself remains unexercised until the `test-os` CI job runs on
+a real `windows-latest`.
