@@ -57,6 +57,17 @@ func New(meta *session.AcceptMeta, onChange func(*session.AcceptMeta)) *Mode {
 	return &Mode{meta: meta, OnChange: onChange}
 }
 
+// SetOnChange replaces the persistence callback, for when the session
+// that keeps the state changes under a live mode (a plain /fork).
+func (m *Mode) SetOnChange(f func(*session.AcceptMeta)) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.OnChange = f
+}
+
 // Meta is a copy of the current state, or nil when the mode is off.
 func (m *Mode) Meta() *session.AcceptMeta {
 	if m == nil {

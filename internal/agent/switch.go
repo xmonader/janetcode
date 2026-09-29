@@ -22,9 +22,15 @@ func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error 
 
 // ForkSession moves the live conversation to ns, a fork of the current
 // session: the conversation and its undo stack go with it, and the fork
-// owns the log from here on.
+// owns the log from here on — and the session record too: the /accept
+// state and the armed /loop jobs were being saved through callbacks
+// bound to the session left behind, so without re-pointing them every
+// later /accept or /loop change went to the original and the fork's own
+// record kept the state it was copied with.
 func (a *Agent) ForkSession(ns *session.Session) error {
 	a.SetLog(ns)
+	a.acceptMode().SetOnChange(func(am *session.AcceptMeta) { _ = ns.SetAccept(am) })
+	a.Cron.SetOnChange(func(specs []session.LoopSpec) { _ = ns.SetLoops(specs) })
 	a.UndoPath = ns.UndoPath()
 	return a.SaveUndo()
 }
