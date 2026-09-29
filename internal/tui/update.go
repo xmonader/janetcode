@@ -124,6 +124,10 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 		m.term.focused = false
 		return nil, true
 
+	case editorDoneMsg:
+		m.editorDone(msg)
+		return nil, true
+
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 			if m.clickTranscript(msg.Y) {

@@ -132,6 +132,8 @@ var configWhen = map[string][2]string{
 	"routes":               {"send a model name, or a prefix, to the provider that serves it", "you want to ask for a model by name alone"},
 	"mcp_servers":          {"MCP servers started for every project", "a tool server you use everywhere"},
 	"hooks":                {"commands run around tool calls and turns", "you want a formatter, a guard or a notifier in the loop"},
+	"keybindings":          {"move the prompt's keys: action name to a key, a list of keys, or \"\" to unbind (\"effort\": \"f2\", \"external_editor\": \"ctrl+x ctrl+e\"); /help keys lists the actions", "a key clashes with your terminal or multiplexer, or your fingers expect another binding"},
+	"vim_mode":             {"start the composer in vim mode: esc for normal mode (hjkl, w/b/e, 0/$, x, dd, cw, ciw), i/a/I/A/o back to insert; /vim toggles it", "you edit prompts the way you edit code"},
 	"status_line":          {"a command whose output is shown under the input", "you want the branch, the cost or anything a script can print always in view"},
 	"statusLine":           {"status_line, under the name Claude Code and Qwen Code give it", "you are pasting a status line from their settings"},
 	"permissions":          {"persistent allow and deny rules", "the same approval keeps coming up, or something must never run"},

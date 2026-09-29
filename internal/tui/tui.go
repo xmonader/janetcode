@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
@@ -73,6 +75,18 @@ type model struct {
 	// hist is the up/down recall of submitted prompts, loaded from and
 	// appended to a file per working directory (see history.go).
 	hist historyState
+	// hsearch is the reverse history search while it is open (ctrl+r).
+	hsearch *histSearch
+	// keys is which key runs which prompt action: the defaults with the
+	// config file's keybindings applied. chord is the first key of a
+	// two-key binding while the second is awaited.
+	keys  *keymap.Map
+	chord string
+	// vim is the composer's vim mode, when it is on.
+	vim vimState
+	// runEditor runs the external editor with the terminal handed over;
+	// nil is tea.ExecProcess. Tests run the command directly.
+	runEditor func(*exec.Cmd, tea.ExecCallback) tea.Cmd
 
 	// turn is the running turn: whether there is one, how to stop it,
 	// what it is doing, and what is waiting behind it.
@@ -187,9 +201,15 @@ func newModel(opts Options) *model {
 		spinner:    sp,
 		term:       newTermIntegration(),
 	}
+	m.keys = keymap.Default()
 	if opts.Config != nil {
 		m.followupOn = opts.Config.FollowupEnabled()
+		if opts.Config.KeyMap != nil {
+			m.keys = opts.Config.KeyMap
+		}
+		m.vim.on = opts.Config.VimMode
 	}
+	m.input.KeyMap.InsertNewline = key.NewBinding(key.WithKeys(singleKeys(m.keys.Keys(keymap.Newline))...))
 	m.life, m.endLife = context.WithCancel(context.Background())
 	if b, ok := prompt.GitBranch(opts.Cwd); ok {
 		m.branch = b

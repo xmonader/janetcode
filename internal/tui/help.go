@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/xmonader/janetcode/internal/keymap"
 )
 
 // briefHelp is what plain /help lists: the commands a first week reaches
@@ -69,7 +71,10 @@ func (m *model) helpText() string {
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	sb.WriteString("  shift+tab cycles ask → plan → auto → yolo · ctrl+r cycles how hard the model thinks (/effort) · ctrl+t opens the subagents overlay (/agents)\n")
+	fmt.Fprintf(&sb, "  %s cycles ask → plan → auto → yolo · %s cycles how hard the model thinks (/effort) · %s opens the subagents overlay (/agents)\n",
+		m.keys.Label(keymap.ModeCycle), m.keys.Label(keymap.Effort), m.keys.Label(keymap.Agents))
+	fmt.Fprintf(&sb, "  %s searches the prompt history as you type · %s writes the prompt in $VISUAL/$EDITOR · /vim edits the prompt the vim way · /help keys lists every key and its action (the keybindings config key moves them)\n",
+		m.keys.Label(keymap.HistorySearch), m.keys.Label(keymap.ExternalEditor))
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
 	all := m.allCommands()
 	byName := map[string]command{}
@@ -129,7 +134,29 @@ var helpGroups = []struct {
 }{
 	{"everyday", []string{"/help", "/connect", "/model", "/effort", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/compact-fast", "/clear", "/resume", "/settle", "/quit"}},
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/perf", "/context", "/review"}},
-	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor"}},
+	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/vim", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor"}},
 	{"the project", []string{"/init", "/memory", "/remember", "/forget", "/dream", "/sleep", "/skills", "/curator", "/verify", "/accept", "/rules", "/eval", "/recipe", "/proof", "/permissions", "/hooks", "/mcp", "/cua", "/lsp"}},
 	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints", "/followup", "/features", "/jev"}},
+}
+
+// keysHelpText is /help keys: every prompt action with the keys it has
+// in this session — the defaults with the config's keybindings applied —
+// so the sheet is right for the person reading it, not for the defaults.
+func (m *model) keysHelpText() string {
+	var sb strings.Builder
+	sb.WriteString("keys at the prompt · the keybindings config key moves any action: {\"keybindings\": {\"effort\": \"f2\"}}\n")
+	for _, d := range keymap.Defs {
+		fmt.Fprintf(&sb, "  %-16s %-22s %s\n", d.Action, m.keys.Label(d.Action), d.Help)
+	}
+	if changed := m.keys.Changed(); len(changed) > 0 {
+		names := make([]string, len(changed))
+		for i, a := range changed {
+			names[i] = string(a)
+		}
+		sb.WriteString("  yours: " + strings.Join(names, ", ") + " (moved from the defaults by your config)\n")
+	}
+	sb.WriteString("permission prompt: y allow once · a this session · r save a rule · n deny · esc deny · c cancel the turn\n")
+	sb.WriteString("reverse search (" + m.keys.Label(keymap.HistorySearch) + "): type to narrow · again for an older match · enter keeps it · esc puts back what you had\n")
+	sb.WriteString("vim mode (/vim, vim_mode): esc normal · h j k l w b e 0 ^ $ gg G move · x dd dw cw ciw diw D C p u edit · i a I A o O insert")
+	return sb.String()
 }

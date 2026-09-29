@@ -148,6 +148,7 @@ var dispatch = map[string]cmdHandler{
 		return nil, false
 	},
 	"/verbose": (*model).cmdVerbose,
+	"/vim":     (*model).cmdVim,
 	"/connect": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.openConnect(stepPick), true
 	},
@@ -378,12 +379,25 @@ func (m *model) cmdHelp(text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.help(m.helpText())
 		return nil, false
 	}
+	if len(fields) == 2 && isKeysQuery(fields[1]) {
+		m.transcript.help(m.keysHelpText())
+		return nil, false
+	}
 	if len(fields) > 1 && m.opts.Features != nil {
 		m.transcript.info(feature.AnswerWidth(m.opts.Features, strings.Join(fields[1:], " "), "", m.width-4))
 		return nil, false
 	}
 	m.transcript.help(m.briefHelpText())
 	return nil, false
+}
+
+// isKeysQuery is /help keys and its spellings.
+func isKeysQuery(w string) bool {
+	switch strings.ToLower(w) {
+	case "key", "keys", "keybinding", "keybindings", "shortcuts", "keyboard":
+		return true
+	}
+	return false
 }
 
 func (m *model) cmdQuit(text string, fields []string) (tea.Cmd, bool) {
@@ -482,6 +496,11 @@ func (m *model) cmdReadonly(text string, fields []string) (tea.Cmd, bool) {
 func (m *model) cmdVerbose(text string, fields []string) (tea.Cmd, bool) {
 	m.verbose = !m.verbose
 	m.note("verbose tool output " + onOff(m.verbose))
+	return nil, false
+}
+
+func (m *model) cmdVim(text string, fields []string) (tea.Cmd, bool) {
+	m.vimCommandLine(strings.Join(fields[1:], " "))
 	return nil, false
 }
 

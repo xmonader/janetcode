@@ -217,6 +217,9 @@ func (m *model) statusState() string {
 		st = m.styles.key
 	}
 	s := st.Render(mode)
+	if chip := m.vimChip(); chip != "" {
+		s += m.styles.faint.Render(" · ") + chip
+	}
 	// A tier above the provider's own default is a standing choice about
 	// what every call costs, so it sits with the mode rather than being
 	// something you have to run /effort to remember.
@@ -273,6 +276,8 @@ func (m *model) statusView() string {
 		left = m.styles.warn.Render("● denied · waiting for your reason")
 	case m.pending != nil:
 		left = m.styles.warn.Render("● approval needed")
+	case m.hsearch != nil:
+		left = m.styles.key.Render(m.searchStatus())
 	case m.turn.running && m.tight():
 		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText())
 	case m.turn.running:

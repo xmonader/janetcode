@@ -124,6 +124,11 @@ func (m *model) configCommand(arg string) {
 			}
 		}
 	}
+	if key == "vim_mode" {
+		if b, ok := applied.(bool); ok && b != m.vim.on {
+			m.setVim(b)
+		}
+	}
 	m.note("config " + key + "=" + fmt.Sprint(applied))
 }
 

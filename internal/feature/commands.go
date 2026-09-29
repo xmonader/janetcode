@@ -77,6 +77,7 @@ var commandWhen = map[string]string{
 	"/export":       "you want the conversation as a file to paste into a review or an issue",
 	"/theme":        "the current colours are hard to read, or you want a different look; try them live and keep the one you like",
 	"/verbose":      "tool output is being folded and you want all of it for the whole transcript",
+	"/vim":          "you edit prompts the way you edit code, with esc, dw and ciw",
 	"/quit":         "you are done",
 	"/why":          "the harness did something you did not ask for and you want it explained without spending a model call",
 	"/hints":        "the one-time hints are in your way, or you want them back",

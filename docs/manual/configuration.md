@@ -65,6 +65,13 @@ session shows any tier above the default on its status line.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
+`keybindings` moves the terminal interface's prompt keys, action name to
+a key, a list of keys or `""` to unbind (`{"effort": "f2"}`), and
+`vim_mode` (default off) starts the composer in vim mode; both are in
+[the interface manual](interface.md#your-own-keys-keybindings), and
+`/help keys` shows the table a session is using. A bad binding is a
+config error that names the action and the key.
+
 `lean_tools` (default on) defers the search tools behind `tool_search` —
 19% less context on fan-out work, one extra call when the model needs a
 search. `"lean_tools": false` exposes them all in every request.

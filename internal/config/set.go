@@ -80,6 +80,7 @@ var setters = map[string]setter{
 	// The features the slots exist for. Each was configurable in the
 	// file and nowhere else, which made "is the cascade on?" a question
 	// only a restart could answer.
+	"vim_mode":          boolKey(func(c *Config) *bool { return &c.VimMode }),
 	"stale_check_nudge": boolKey(func(c *Config) *bool { return &c.StaleCheckNudge }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/jev"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
@@ -108,6 +109,17 @@ type Config struct {
 	// Hooks run for every project. Project-specific ones go in
 	// <project>/.janetcode/hooks.json and need a one-time approval.
 	Hooks hook.Config `json:"hooks,omitempty"`
+	// Keybindings move the terminal interface's prompt keys: action name
+	// to a key, a list of keys, or "" to unbind it ("history_search":
+	// "ctrl+r", "effort": ["alt+e", "f2"]). An action named here loses its
+	// default keys. Unknown actions, keys bubbletea cannot report, plain
+	// characters and a key left on two actions are ErrBadConfig. KeyMap
+	// is the resolved table, built by load.
+	Keybindings keymap.Overrides `json:"keybindings,omitempty"`
+	KeyMap      *keymap.Map      `json:"-"`
+	// VimMode starts the composer in vim mode (normal/insert); /vim
+	// toggles it for the session.
+	VimMode bool `json:"vim_mode,omitempty"`
 	// StatusLine is a command whose output the terminal interface shows
 	// under the input; it gets the session as JSON on stdin.
 	StatusLine *statusline.Config `json:"status_line,omitempty"`
@@ -778,6 +790,11 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if _, err := cfg.Permissions.Rules(); err != nil {
 		return nil, badf("%s: permissions: %v", path, err)
 	}
+	km, err := keymap.Resolve(cfg.Keybindings)
+	if err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	cfg.KeyMap = km
 	if err := cfg.LSP.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}

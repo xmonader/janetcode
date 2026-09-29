@@ -66,9 +66,88 @@ ctrl+o           expand the last turn's output   ctrl+l   redraw
 pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 shift+tab        cycle ask → plan → auto → yolo (approvals, plan-first, safe-auto, auto-approve)
-ctrl+r           cycle the reasoning tier up the ladder and round again (/effort)
+alt+e            cycle the reasoning tier up the ladder and round again (/effort)
 ctrl+t           open the overlay of continuable subagents (/agents)
+ctrl+r           search the prompt history backwards as you type
+ctrl+x ctrl+e    write the prompt in $VISUAL / $EDITOR
 ```
+
+### Finding an old prompt: ctrl+r
+
+`ctrl+r` searches the prompt history backwards the way a shell does. The
+history is the one up and down step through: every prompt typed in this
+directory, in this session and the earlier ones. Each character you type
+narrows the search and the newest match is put in the composer as you
+go; `ctrl+r` again steps to an older match, skipping ones that read the
+same. The status line shows `(reverse-i-search)`query'`, and says
+`failing` when nothing matches. `enter` keeps the match in the composer —
+it is not sent, so you can edit it first — and `esc` puts back what you
+had typed before the search. Any other key (an arrow, `home`) keeps the
+match and then does what it does.
+
+The reasoning-tier cycle that used to be on `ctrl+r` is on `alt+e`: the
+shell convention wins, and `/effort` is still there.
+
+### Writing the prompt in your editor: ctrl+x ctrl+e
+
+`ctrl+x ctrl+e`, as in bash, hands the prompt to `$VISUAL`, or `$EDITOR`,
+or `vi` when neither is set (`notepad` on Windows). An editor that needs
+a flag to wait works as it would for git: `EDITOR="code --wait"`. The
+window gives the terminal to the editor and takes it back when it exits;
+what you saved comes back into the composer, without the trailing
+newline editors add, to read over and send. It is not sent on its own.
+An editor that exits non-zero leaves the prompt as it was.
+
+### Vim mode
+
+`/vim` (or `/vim on`, `/vim off`) gives the composer vim's two modes;
+`"vim_mode": true` in the config starts every session in it. It starts in
+insert mode, which is the ordinary composer. `esc` goes to normal mode
+— it no longer cancels the turn or clears the input from insert mode; in
+normal mode `esc` cancels a running turn as it always has, and otherwise
+does nothing. The status line shows `NORMAL` (with a pending operator,
+`NORMAL d`) or `INSERT` next to the mode.
+
+In normal mode: `h` `j` `k` `l`, `w` `b` `e`, `0` `^` `$`, `gg` `G` move;
+`x`, `dd`, `dw`, `de`, `d$`, `D`, `diw` delete (what was deleted goes to
+the register that `p` puts back, a whole line below the current one);
+`cw`, `ce`, `c$`, `C`, `cc`, `ciw` change; `i` `a` `I` `A` `o` `O` go back
+to insert mode; `u` undoes the last normal-mode edit. `enter` sends and
+the ctrl keys keep their meanings in both modes. A paste is text in
+either mode. It is the everyday subset, not an ex line or macros.
+
+### Your own keys: keybindings
+
+Every key at the prompt is an action with a name, and the config file's
+`keybindings` object moves any of them. `/help keys` lists the actions
+with the keys they have in your session (your changes included):
+
+```json
+{
+  "keybindings": {
+    "effort": ["f2", "alt+e"],
+    "history_search": "ctrl+r",
+    "external_editor": "ctrl+x ctrl+e",
+    "agents": ""
+  }
+}
+```
+
+The actions are `submit`, `newline`, `cancel`, `interrupt`, `quit`,
+`expand`, `background`, `steer`, `redraw`, `mode_cycle`, `agents`,
+`effort`, `paste_image`, `complete`, `history_prev`, `history_next`,
+`history_search`, `external_editor`, `page_up` and `page_down`. A value is
+a key, a list of keys, or `""` to unbind the action; an action you name
+loses its default keys. A key is a name as the terminal reports it —
+`ctrl+r`, `alt+e`, `shift+tab`, `f2`, `pgup`, `enter` — or a chord of two,
+`"ctrl+x ctrl+e"`. The file is refused at start, naming the problem, for
+an unknown action, a name that is not a key, a plain character (it could
+no longer be typed), a key left on two actions, or a key that is both
+bound and the start of a chord. Taking a key another action has by
+default means moving that action too, in the same object:
+`{"effort": "ctrl+t", "agents": "alt+a"}`. `ctrl+u`, `ctrl+b` and
+`ctrl+f` page only while the prompt is empty: with text in it they are
+the composer's own readline keys.
 
 ## Colour and themes
 
@@ -388,7 +467,7 @@ still wins over every one of them, and `/jev` says so when it is set.
 whatever the provider does on its own. Alone it reports the tier the
 session is asking for, marks it on the ladder and says whether the
 provider behind it takes one at all; `/effort up` and `/effort down` step
-a rung, and `ctrl+r` cycles up and round. The tier rides on every request
+a rung, and `alt+e` cycles up and round. The tier rides on every request
 from the next one onward, so it can be raised for one hard step and
 lowered again afterwards, in the middle of a session and even while a
 turn is running. It changes this session only — `/config effort=high`
