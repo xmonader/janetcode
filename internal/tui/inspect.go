@@ -90,14 +90,23 @@ func (m *model) inspectCommand(arg string) {
 		m.transcript.errorf("nothing is registered for inspection in this session")
 		return
 	}
-	ctx, cancel := context.WithTimeout(m.life, 60*time.Second)
-	defer cancel()
-	out, err := m.opts.Inspect.Report(ctx, arg)
-	if err != nil {
-		m.transcript.errorf("%v", err)
-		return
-	}
-	m.transcript.info(out)
+	// Off the UI goroutine: a subject may take a while (a network check,
+	// a long session log), and waiting for it here froze the whole
+	// interface for up to the minute's timeout. Subjects already answer
+	// the model's inspect tool from the agent's goroutine.
+	reg, send, life := m.opts.Inspect, m.send, m.life
+	go func() {
+		ctx, cancel := context.WithTimeout(life, 60*time.Second)
+		defer cancel()
+		out, err := reg.Report(ctx, arg)
+		send(inspectMsg{report: out, err: err})
+	}()
+}
+
+// inspectMsg carries an /inspect report back to the UI goroutine.
+type inspectMsg struct {
+	report string
+	err    error
 }
 
 // trajectoryCommand opens the ledger browser, or answers the arg'd

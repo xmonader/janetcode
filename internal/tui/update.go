@@ -329,6 +329,15 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 
+	case inspectMsg:
+		if msg.err != nil {
+			m.transcript.errorf("%v", msg.err)
+		} else {
+			m.transcript.info(msg.report)
+		}
+		m.refresh(false)
+		return nil, true
+
 	case doctorMsg:
 		if msg.report != "" {
 			m.transcript.info(msg.report)
