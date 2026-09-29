@@ -90,6 +90,9 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			if p.Type != n {
 				detail = p.Type + " · " + detail
 			}
+			if p.Type == "anthropic" && p.Bearer() {
+				detail += " (sent as a bearer token)"
+			}
 			if p.Model != "" {
 				detail += " · last model " + p.Model
 			}

@@ -43,7 +43,20 @@ name needs no `base_url`. `api_keys` lists extra keys to rotate through on
 `--provider openrouter` comes back with the model last used there. The older
 `anthropic`/`openai` sections are still read.
 
-Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
+An `anthropic`-type entry sends its key as `x-api-key`, as the Anthropic
+API wants. A gateway in front of the Messages API usually wants
+`Authorization: Bearer` instead: set `"auth": "bearer"` on the entry, or
+export the key as `ANTHROPIC_AUTH_TOKEN`, which Claude Code reads the same
+way (`ANTHROPIC_API_KEY` wins when both are set). For example, the Hero AI
+broker serves the Messages API for every model it routes:
+
+```sh
+export ANTHROPIC_AUTH_TOKEN=sk-hab-v1-...
+export ANTHROPIC_BASE_URL=https://api.ai02.ourhero.ai   # no /v1: the SDK adds it
+janetcode --provider anthropic --model deepseek/deepseek-v4.1-flash
+```
+
+Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
 `OPENAI_BASE_URL` (a key may be a comma-separated list), `JANETCODE_PROVIDER`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.

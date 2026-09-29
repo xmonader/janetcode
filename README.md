@@ -58,6 +58,10 @@ cd your/project
 janetcode
 ```
 
+A gateway that serves the Messages API and wants a bearer token takes
+`ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_BASE_URL` instead, as Claude Code
+does ([configuration](docs/manual/configuration.md)).
+
 Or with an OpenAI-compatible backend. Tested live against Alibaba's coding
 endpoint and OpenRouter:
 

@@ -206,6 +206,7 @@ Usage: janetcode [flags] [prompt]      interactive session in this directory,
 Environment:
   ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
       a key may be a comma-separated list; they are rotated on rate limits
+  ANTHROPIC_AUTH_TOKEN        the Anthropic key sent as a bearer token (gateways)
   JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
   JANETCODE_OFF=<names>       disables behaviours for a session (see --eval-off)
   JANETCODE_SYSTEM_MD=<file>  replaces the base system prompt
