@@ -623,6 +623,43 @@ func TestSummaryRetriesColdWhenModelCallsTool(t *testing.T) {
 	}
 }
 
+// A summary that did not come back is still paid for: the warm call that
+// answered with a tool call was billed by the provider whether the cold
+// retry then failed or came back empty, and so was an empty warm answer.
+func TestFailedSummaryStillBillsTheCallsMade(t *testing.T) {
+	history := func() []llm.Message {
+		return []llm.Message{
+			llm.TextMessage(llm.RoleUser, strings.Repeat("investigate the flaky suite ", 100)),
+			llm.TextMessage(llm.RoleAssistant, "working"),
+		}
+	}
+	cases := []struct {
+		name string
+		f    *fake
+		want int
+	}{
+		{"retry fails", &fake{
+			responses: []*llm.Response{toolCall("t1", "read_file", `{"path":"a.txt"}`)},
+			errs:      []error{nil, errors.New("503 overloaded")},
+		}, 1},
+		{"retry empty", &fake{responses: []*llm.Response{
+			toolCall("t1", "read_file", `{"path":"a.txt"}`),
+			text(" "),
+		}}, 2},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a := &Agent{Provider: c.f, Tools: tool.NewRegistry(tool.ReadFile{Root: t.TempDir()}), Model: "m", System: "sys", Messages: history()}
+			if err := a.ForceCompact(context.Background(), func(Event) {}); err == nil {
+				t.Fatal("compaction succeeded with no summary")
+			}
+			if a.Usage.InputTokens != c.want {
+				t.Fatalf("usage = %+v, want the %d call(s) that answered billed", a.Usage, c.want)
+			}
+		})
+	}
+}
+
 // Once an earlier summary wrote the model-maintained sections, a head the
 // harness observed richly — edits and commands, no new user request — is
 // compacted without a summary call.

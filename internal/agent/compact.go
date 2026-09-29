@@ -370,11 +370,15 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 		resp, err := a.summarise(ctx, head, instruction, schema)
 		if err != nil {
 			a.summaryFailedAt = time.Now()
+			if resp != nil { // a warm call answered before the retry failed
+				a.addUsage(a.Settings().Model, resp.Usage)
+			}
 			return fmt.Errorf("compact: %w", err)
 		}
 		summary = strings.TrimSpace(resp.Message.Text())
 		if summary == "" {
 			a.summaryFailedAt = time.Now()
+			a.addUsage(a.Settings().Model, resp.Usage) // an empty answer is billed too
 			return errors.New("compact: model returned an empty summary")
 		}
 		usage = resp.Usage
@@ -566,7 +570,9 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		Effort:    s.Effort,
 	}, nil)
 	if err != nil {
-		return nil, err
+		// The warm call was paid for all the same: the response goes
+		// back with the error so the caller can bill it.
+		return &llm.Response{Usage: resp.Usage}, err
 	}
 	cold.Usage.Add(resp.Usage) // both calls were paid for
 	return cold, nil
