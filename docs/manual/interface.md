@@ -666,7 +666,10 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   entries you wrote with `/remember` are never evicted by the cap.
 - **The model has a `memory` tool**: `recall` by query, `remember` when
   you tell it something worth keeping (it picks the type; the entry is
-  kept for this project), `forget`.
+  kept for this project), `forget` — of what it or the automatic
+  extraction wrote. An entry you saved with `/remember` is yours: the
+  tool refuses to forget it and tells the model to suggest `/forget`,
+  which only you can type.
 - **Automatic extraction.** After a turn that changed something, or one
   where you gave feedback ("never…", "always…", "prefer…"), a cheap extra
   call asks what the conversation *established*, as typed JSON entries

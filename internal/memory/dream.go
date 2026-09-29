@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -76,7 +77,7 @@ func (s *Store) ApplyDream(ops []DreamOp) (changed int, err error) {
 		switch strings.ToLower(op.Action) {
 		case "drop":
 			if e, ok := s.Get(op.Name); ok && e.Source != "user" {
-				if _, rerr := s.Remove(op.Name); rerr == nil {
+				if _, rerr := s.RemoveModel(op.Name); rerr == nil {
 					changed++
 				}
 			}
@@ -92,7 +93,7 @@ func (s *Store) ApplyDream(ops []DreamOp) (changed int, err error) {
 					continue
 				}
 				if e, ok := s.Get(name); ok && e.Source != "user" {
-					if _, rerr := s.Remove(name); rerr != nil {
+					if _, rerr := s.RemoveModel(name); rerr != nil && !errors.Is(rerr, ErrUserEntry) {
 						return changed, rerr
 					}
 				}
