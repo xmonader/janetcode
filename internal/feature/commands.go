@@ -93,6 +93,7 @@ var commandWhen = map[string]string{
 	"/dryrun":          "you want to see the whole change — every file diff and every command — before any of it touches the disk",
 	"/egress":          "you want to know which hosts the last turn sent data to, and which files and memories went with it",
 	"/trust":           "a repository ships skills, hooks or MCP servers and you want to see what it would let in, or let it in",
+	"/voice":           "typing is slow or painful for you, or a request is easier said than written",
 }
 
 // commandInvoke overrides what the catalogue says to type, for the few
@@ -157,6 +158,7 @@ var commandTopics = map[string][]string{
 	"/eval":            {"regression", "test", "keep", "replay", "task"},
 	"/proof":           {"evidence", "commit", "notes", "attribution", "audit", "provenance"},
 	"/recipe":          {"replay", "script", "automation", "macro", "save", "run", "no model", "tokens"},
+	"/voice":           {"voice", "speech", "microphone", "dictate", "dictation", "speak", "talk", "accessibility"},
 }
 
 // Commands renders the slash command table as catalogue entries. It reads the

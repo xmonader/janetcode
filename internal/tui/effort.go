@@ -17,7 +17,7 @@ func (m *model) effortCommand(arg string) {
 	m.showResult(m.opts.Agent.EffortCommand(arg))
 }
 
-// keyCycleEffort is ctrl+r: step the reasoning tier up the ladder, and
+// keyCycleEffort is alt+e (action effort): step the reasoning tier up the ladder, and
 // round to the provider's default at the top. It is the counterpart of
 // shift+tab for modes — the one setting you change between one step of a
 // task and the next, and the one the status line already shows.

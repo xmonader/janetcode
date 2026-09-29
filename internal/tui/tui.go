@@ -30,6 +30,9 @@ type model struct {
 	// is no longer there.
 	life    context.Context
 	endLife context.CancelFunc
+	// voiceStop is open while /voice records; closing it stops the
+	// recording and starts the transcription.
+	voiceStop chan struct{}
 	// styles is what every view draws with; a theme switch replaces it.
 	styles *styles
 	// quitArmedAt is when ctrl+c was last pressed while idle.

@@ -12,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -282,9 +283,9 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	switch {
 	case errors.Is(msg.err, context.Canceled):
 		m.transcript.dropEmptyTrailing()
-		m.transcript.abortUnfinished("cancelled")
-		m.transcript.errorf("cancelled after %s", elapsed)
-		m.status = "cancelled"
+		m.transcript.abortUnfinished(i18n.T("cancelled"))
+		m.transcript.errorf("%s", i18n.Tf("cancelled after %s", elapsed))
+		m.status = i18n.T("cancelled")
 	case errors.Is(msg.err, agent.ErrMaxIterations):
 		m.transcript.errorf("stopped after %d tool rounds in one turn · send a message to continue", m.opts.Agent.Settings().MaxIterations)
 		m.status = "stopped"

@@ -260,7 +260,42 @@ type Config struct {
 	// loop. Nil means the feature is invisible. When the block is
 	// present each consumer is still off until its own key says so.
 	Decisions *DecisionsConfig `json:"decisions,omitempty"`
+	// Language is the language the model answers in and the interface's
+	// own words are shown in: a code ("es", "pt-BR") or a name
+	// ("Spanish", "español"). Empty leaves the model to follow the user
+	// and takes the interface's language from LANG. The interface falls
+	// back to English for a language its catalogue does not carry; the
+	// model is told the language whatever it is.
+	Language string `json:"language,omitempty"`
+	// ScreenReader starts the terminal session as a linear, append-only
+	// line interface instead of the full-screen one (see --screen-reader).
+	ScreenReader *bool `json:"screen_reader,omitempty"`
+	// Voice configures speech-to-text for /voice. Nil uses the defaults:
+	// the active provider's endpoint and a whisper model.
+	Voice *VoiceConfig `json:"voice,omitempty"`
 }
+
+// VoiceConfig is the "voice" config block: where /voice sends a recording
+// to be transcribed. Every field may be empty.
+type VoiceConfig struct {
+	// Model is the transcription model; empty is "whisper-1".
+	Model string `json:"model,omitempty"`
+	// Endpoint is an OpenAI-compatible base URL (".../v1") whose
+	// /audio/transcriptions takes the recording. Empty is the active
+	// provider's base URL.
+	Endpoint string `json:"endpoint,omitempty"`
+	// APIKeyEnv names the environment variable holding the key for
+	// Endpoint. Empty is the active provider's key.
+	APIKeyEnv string `json:"api_key_env,omitempty"`
+	// Recorder is the command that records; empty detects arecord, sox's
+	// rec or ffmpeg on PATH. It gets the WAV path to write as its last
+	// argument and must stop cleanly on SIGINT.
+	Recorder string `json:"recorder,omitempty"`
+}
+
+// ScreenReaderOn reports whether the config asks for the screen-reader
+// interface.
+func (c *Config) ScreenReaderOn() bool { return c != nil && c.ScreenReader != nil && *c.ScreenReader }
 
 // DecisionsConfig is the "decisions" config block. Everything about it
 // is advisory: no answer it produces can permit, refuse or edit — the
@@ -874,6 +909,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, badf("%s: %v", path, err)
 	}
 	if _, err := cfg.EgressPolicy(); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	if err := ValidateLanguage(cfg.Language); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
 	// A file that cannot be used beats credentials that are merely

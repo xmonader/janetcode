@@ -36,6 +36,7 @@ func TestEverySettableKeyRefusesJunk(t *testing.T) {
 	free := map[string]bool{
 		"route_cheap": true, "advisor_model": true, "strong_model": true,
 		"vision_model": true, "theme": true, "model": true,
+		"voice.model": true, "voice.recorder": true,
 	}
 	for _, k := range SettableKeys {
 		if free[k] {

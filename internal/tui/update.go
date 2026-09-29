@@ -437,6 +437,10 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 
+	case voiceDoneMsg:
+		m.finishVoice(msg)
+		m.refresh(false)
+		return nil, true
 	case shellDoneMsg:
 		m.finishShell(msg)
 		var cmd tea.Cmd

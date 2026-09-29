@@ -89,6 +89,10 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.AdvisorMode = "off" },
 			func(a *agent.Agent) any { return a.AdvisorMode },
 			func(cfg *config.Config) any { return cfg.AdvisorMode }},
+		{"language", "Spanish",
+			func(a *agent.Agent) { a.SetLanguage("") },
+			func(a *agent.Agent) any { return a.Language() },
+			func(cfg *config.Config) any { return cfg.Language }},
 		{"advisor_max_consults", "4",
 			func(a *agent.Agent) { a.AdvisorMaxConsults = 1 },
 			func(a *agent.Agent) any { return a.AdvisorMaxConsults },
@@ -111,6 +115,12 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"vim_mode":      "a terminal-only composer setting: the TUI reads cfg.VimMode at start and its /config applies it to the window",
 		"computer_use":  "read via cfg.ComputerUseEnabled() when MCP servers start",
 		"vision_model":  "no consumer yet: resolved through cfg.Slot wherever it is eventually read",
+		"screen_reader": "read via cfg.ScreenReaderOn() when the session picks its interface",
+	}
+	for _, k := range config.SettableKeys {
+		if strings.HasPrefix(k, "voice.") {
+			noAgentField[k] = "read from cfg.Voice each time /voice transcribes"
+		}
 	}
 	// The decisions block is wired as a whole rather than key by key
 	// (see Apply), so its keys are audited by TestDecisionsKeysRewire

@@ -1,0 +1,109 @@
+{
+  "name": "janetcode",
+  "displayName": "janetcode",
+  "description": "Run the janetcode coding agent in VS Code: a terminal session in the workspace, the current file or selection as context, and the browser interface in a panel.",
+  "version": "0.1.0",
+  "publisher": "xmonader",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xmonader/janetcode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "agent",
+    "ai",
+    "coding agent",
+    "janetcode"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "janetcode.open",
+        "title": "Open janetcode",
+        "category": "janetcode"
+      },
+      {
+        "command": "janetcode.sendFile",
+        "title": "Add This File to janetcode",
+        "category": "janetcode"
+      },
+      {
+        "command": "janetcode.sendSelection",
+        "title": "Add Selection to janetcode",
+        "category": "janetcode"
+      },
+      {
+        "command": "janetcode.openWeb",
+        "title": "Open janetcode in a Panel",
+        "category": "janetcode"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "janetcode.sendSelection",
+          "when": "editorHasSelection",
+          "group": "janetcode@1"
+        },
+        {
+          "command": "janetcode.sendFile",
+          "group": "janetcode@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "janetcode.sendFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "janetcode@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "janetcode.open",
+        "key": "ctrl+alt+j",
+        "mac": "cmd+alt+j"
+      },
+      {
+        "command": "janetcode.sendSelection",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "janetcode",
+      "properties": {
+        "janetcode.path": {
+          "type": "string",
+          "default": "janetcode",
+          "description": "The janetcode binary: a name on PATH or an absolute path."
+        },
+        "janetcode.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments for the terminal session, e.g. [\"--model\", \"qwen3.8-27b\"]."
+        },
+        "janetcode.webPort": {
+          "type": "number",
+          "default": 8797,
+          "description": "Loopback port for the panel's janetcode --web server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js && node test/extension.test.js"
+  }
+}

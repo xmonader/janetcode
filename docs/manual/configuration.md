@@ -136,6 +136,34 @@ processes) inherit your environment unchanged and use their own trust
 settings: Node reads `NODE_EXTRA_CA_CERTS`, Python's requests reads
 `REQUESTS_CA_BUNDLE`, git reads `http.sslCAInfo`.
 
+`language` is the language the model answers in and the interface is
+shown in: `"language": "es"`, `"Spanish"` or `"español"` alike. The
+interface's own words are catalogued in Spanish and French and fall back
+to English otherwise; the model is told any language by name. Without
+it, the model follows you and the interface follows `LANG`. See
+[Language](interface.md#language).
+
+`screen_reader: true` starts every terminal session in the
+screen-reader line interface (see
+[The screen-reader interface](interface.md#the-screen-reader-interface)).
+
+`voice` is where `/voice` sends a recording, every field optional:
+
+```json
+"voice": {
+  "model": "whisper",
+  "endpoint": "https://api.openai.com/v1",
+  "api_key_env": "OPENAI_API_KEY",
+  "recorder": "arecord -q -f S16_LE -r 16000 -c 1 -t wav"
+}
+```
+
+`model` defaults to `whisper-1`; `endpoint` to the active provider's base
+URL when it speaks the OpenAI API, else `OPENAI_BASE_URL`; `api_key_env`
+to that provider's key; `recorder` to the first of `arecord`, `rec` and
+`ffmpeg` found. `/config voice.model=whisper` sets one field. See
+[Voice input](interface.md#voice-input).
+
 ### The sandbox key
 
 `sandbox` names the sandbox profile a session in this project starts

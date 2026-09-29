@@ -113,6 +113,11 @@ var dispatch = map[string]cmdHandler{
 		m.loopCommand(cmdArg(text, fields))
 		return nil, false
 	},
+	"/voice": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		cmd := m.voiceCommand(cmdArg(text, fields))
+		m.refresh(false)
+		return cmd, true
+	},
 	"/edits":       (*model).cmdEdits,
 	"/settle":      (*model).cmdSettle,
 	"/readonly":    (*model).cmdReadonly,

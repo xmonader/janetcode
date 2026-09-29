@@ -89,6 +89,9 @@ type Options struct {
 	// TrustGate decides how far the project's own capability files are
 	// let in (/trust). Nil leaves everything as before the levels.
 	TrustGate *trust.Gate
+	// Transcribe turns a recording the page made into text (the voice
+	// button). Nil hides the button.
+	Transcribe func(ctx context.Context, audioPath string) (string, error)
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -524,6 +527,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/new", s.newChat)
 	mux.HandleFunc("/api/load", s.loadSession)
 	mux.HandleFunc("/api/upload", s.upload)
+	mux.HandleFunc("/api/voice", s.voiceAPI)
+	mux.HandleFunc("/api/ui", s.uiAPI)
 	mux.HandleFunc("/api/complete", s.completeAPI)
 	mux.HandleFunc("/api/suggest", s.suggestAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)

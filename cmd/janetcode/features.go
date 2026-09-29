@@ -99,6 +99,7 @@ var flagWhen = map[string]string{
 	"fix":                    "the doctor listed repairs you want carried out: the safe, obvious ones only",
 	"proof":                  "code review, or months later: which session and turn wrote a committed file and what actually demonstrated it worked",
 	"theme":                  "one run in a different colour scheme without changing the config",
+	"screen-reader":          "you use a screen reader or a braille display, and a screen that redraws itself reads as noise",
 	"plain":                  "the terminal shows boxes or question marks where lines and marks should be, or you want a screen that does not move",
 	"web":                    "you want the session in a browser, on another screen or from a phone on the same machine",
 	"web-addr":               "the default loopback port is taken, or you are deliberately binding off loopback",
@@ -168,6 +169,9 @@ var configWhen = map[string][2]string{
 	"strong_model":         {"the strong slot of the cheap/default/strong trio: the model a turn escalates to when its verification gate keeps failing", "you want to run on a cheap model and buy the expensive one only for the turns that actually fail a real check"},
 	"escalate_after":       {"verification rounds the session's own model may fail before the rest of the turn runs on strong_model; 0 is off", "you are measuring or using the cascade and want to say how patient it is"},
 	"vision_model":         {"a model that reads images for a session model that cannot: each image is sent to it and its description goes to the session's model", "your model is text-only (DeepSeek, Qwen Coder, GLM) and you paste screenshots or use MCP tools that return images"},
+	"language":             {"the language the model answers in and the interface is shown in (Spanish and French are catalogued; others fall back to English for the interface)", "you would rather read and talk in a language other than English"},
+	"screen_reader":        {"start every session in the screen-reader line interface (--screen-reader)", "you always use a screen reader, so the full-screen interface is never the one you want"},
+	"voice":                {"where /voice records with and sends recordings to: model, endpoint, api_key_env, recorder", "your provider has no transcription endpoint, or its speech model is not called whisper-1"},
 	"decisions":            {"optional TypeSafe Jev decision client for advisory triage of verification failures; states are sent to its API, scrubbed of credential-shaped text", "a failing verify gate sends the model back for environmental or flaky failures it cannot fix; off unless configured"},
 }
 

@@ -5,10 +5,12 @@ package settingsapply
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -28,6 +30,9 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		fileKey, value := key, applied
 		if strings.HasPrefix(key, "decisions.") {
 			fileKey, value = "decisions", cfg.Decisions
+		}
+		if strings.HasPrefix(key, "voice.") {
+			fileKey, value = "voice", cfg.Voice
 		}
 		if err := config.UpdateKey(path, fileKey, value); err != nil {
 			return nil, fmt.Errorf("save config: %w", err)
@@ -75,6 +80,9 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetStrongModel(cfg.StrongModel)
 	case "vision_model":
 		a.SetVisionModel(cfg.VisionModel)
+	case "language":
+		a.SetLanguage(cfg.Language)
+		i18n.SetLanguage(i18n.Resolve(cfg.Language, os.Getenv))
 	case "stale_check_nudge":
 		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
 	case "escalate_after":

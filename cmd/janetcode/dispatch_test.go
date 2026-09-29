@@ -74,7 +74,7 @@ func TestSessionModeTableIsWellFormed(t *testing.T) {
 // feature-usage records for them would count a flag as a feature reached
 // for in a session nobody is having.
 func TestOnlySessionModesOpenTheUserRecords(t *testing.T) {
-	want := map[string]bool{"inspect": false, "recipe": false, "acp": true, "headless": true, "web": true, "tui": true}
+	want := map[string]bool{"inspect": false, "recipe": false, "acp": true, "headless": true, "web": true, "screen-reader": true, "tui": true}
 	for _, m := range sessionModes {
 		w, ok := want[m.name]
 		if !ok {

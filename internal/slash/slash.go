@@ -105,6 +105,7 @@ var Commands = withIdle([]Command{
 	{Name: "/proof", Args: "[commit | push [remote] | fetch [remote]]", Help: "which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked (mutation score included when logged); attaches one from this session first if the commit (default HEAD) has none yet; push/fetch move notes to/from a remote, since they are local only until pushed"},
 	{Name: "/features", Args: "[name [on|off]]", Help: "the extra models janetcode can call on (a cheaper one for simple steps, a stronger one when stuck, a reviewer) and the features that use them; a name and on|off switches one and saves it"},
 	{Name: "/jev", Args: "[on|off|model|provider|triage|intake|route|outcome [on|off]]", Help: "the optional Jev decision service, which judges failed checks and routes simple requests: its settings, what it has cost, and which of its uses are on; on|off switches it, model and provider open a list"},
+	{Name: "/voice", Args: "[stop]", Help: "record a prompt from the microphone and put its transcript in the input; /voice again stops and transcribes. Needs arecord, sox or ffmpeg, and an OpenAI-compatible /audio/transcriptions endpoint (the voice.* config keys)"},
 	{Name: "/quit", Args: "", Help: "exit"},
 })
 
