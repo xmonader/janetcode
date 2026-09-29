@@ -1010,20 +1010,83 @@ func safeWords(toks []string, depth int) bool {
 	case "find":
 		for _, t := range toks[1:] {
 			switch t {
-			case "-delete", "-exec", "-execdir", "-ok", "-okdir":
+			case "-delete", "-exec", "-execdir", "-ok", "-okdir",
+				"-fprint", "-fprint0", "-fprintf", "-fls":
 				return false
 			}
 		}
 		return true
 	}
-	return safeBin[toks[0]]
+	if !safeBin[toks[0]] {
+		return false
+	}
+	return !writesOrRuns(toks)
+}
+
+// writesOrRuns reports whether a command on the safe list is being given
+// one of the options that make it write a file or run another program:
+// `sort -o f` and `uniq in out` write, `sort --compress-program=x`,
+// `rg --pre x` and `ag --pager x` run x, `file -C` compiles a magic file,
+// and `date -s` and `hostname name` change the machine. The names are
+// safe; these uses of them are not reads.
+func writesOrRuns(toks []string) bool {
+	args := toks[1:]
+	has := func(long string, short byte) bool {
+		for _, a := range args {
+			if a == "--" {
+				return false
+			}
+			if long != "" && (a == long || strings.HasPrefix(a, long+"=")) {
+				return true
+			}
+			if short != 0 && len(a) > 1 && a[0] == '-' && a[1] != '-' && strings.IndexByte(a[1:], short) >= 0 {
+				return true
+			}
+		}
+		return false
+	}
+	switch toks[0] {
+	case "sort":
+		return has("--output", 'o') || has("--compress-program", 0)
+	case "uniq":
+		// uniq's second operand is the file it writes.
+		n := 0
+		for i := 0; i < len(args); i++ {
+			a := args[i]
+			switch {
+			case a == "-f" || a == "-s" || a == "-w":
+				i++
+			case strings.HasPrefix(a, "-") && a != "-":
+			default:
+				n++
+			}
+		}
+		return n > 1
+	case "rg":
+		return slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "--pre") })
+	case "ag":
+		return has("--pager", 0)
+	case "file":
+		return has("--compile", 'C')
+	case "date":
+		return has("--set", 's')
+	case "hostname":
+		return slices.ContainsFunc(args, func(a string) bool { return !strings.HasPrefix(a, "-") }) ||
+			has("--file", 'F') || has("--boot", 'b')
+	}
+	return false
 }
 
 func safeGit(args []string) bool {
 	i := 0
 	for i < len(args) && strings.HasPrefix(args[i], "-") {
-		switch args[i] {
-		case "-c", "--git-dir", "--work-tree":
+		switch {
+		case args[i] == "-c", args[i] == "--config-env", strings.HasPrefix(args[i], "--config-env="), strings.HasPrefix(args[i], "--exec-path"):
+			// -c core.fsmonitor=…, core.pager=…, diff.external=… and
+			// friends make any subcommand run a program of the
+			// caller's choosing.
+			return false
+		case args[i] == "--git-dir" || args[i] == "--work-tree":
 			i += 2
 		default:
 			i++
@@ -1036,13 +1099,49 @@ func safeGit(args []string) bool {
 	if !safeGitSub[sub] {
 		return false
 	}
-	if sub == "branch" {
-		for _, a := range args[i+1:] {
-			switch a {
-			case "-d", "-D", "-m", "-M", "--delete", "--move":
+	rest := args[i+1:]
+	for _, a := range rest {
+		// diff, log and show write their output to a file with --output.
+		if a == "--output" || strings.HasPrefix(a, "--output=") {
+			return false
+		}
+	}
+	switch sub {
+	case "branch":
+		// `git branch name` creates a branch; a name is only a pattern
+		// in list mode, or the argument of a filter.
+		list := false
+		for j := 0; j < len(rest); j++ {
+			a := rest[j]
+			switch {
+			case a == "-l" || a == "--list":
+				list = true
+			case slices.Contains([]string{"--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort", "--format", "--color", "--column", "--abbrev"}, a):
+				j++
+			case slices.Contains([]string{"-d", "-D", "-m", "-M", "-c", "-C", "-f", "-u", "-t", "--delete", "--move", "--copy", "--force", "--track", "--no-track", "--set-upstream-to", "--unset-upstream", "--edit-description", "--create-reflog"}, a),
+				strings.HasPrefix(a, "--set-upstream-to=") || strings.HasPrefix(a, "--track="):
 				return false
+			case strings.HasPrefix(a, "-"):
+			default:
+				if !list {
+					return false
+				}
 			}
 		}
+	case "symbolic-ref":
+		// With a second operand it sets the ref; -d deletes it.
+		n := 0
+		for j := 0; j < len(rest); j++ {
+			switch a := rest[j]; {
+			case a == "-d" || a == "--delete":
+				return false
+			case a == "-m":
+				j++
+			case !strings.HasPrefix(a, "-"):
+				n++
+			}
+		}
+		return n <= 1
 	}
 	return true
 }

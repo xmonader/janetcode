@@ -236,3 +236,58 @@ func TestWrappersAreReadAsTheyRun(t *testing.T) {
 		}
 	}
 }
+
+// SafeRead's allowlist names programs, and several of them write a file
+// or run another program when given the right option. Each of these ran
+// in AUTO mode without a prompt.
+func TestSafeReadRefusesTheWritingFormsOfSafePrograms(t *testing.T) {
+	for _, cmd := range []string{
+		"git -c core.fsmonitor=./x status",
+		"git -c core.pager=./x log",
+		"git --config-env=diff.external=X diff",
+		"git --exec-path=./x status",
+		"git log --output=x",
+		"git diff --output x",
+		"git show HEAD --output=/tmp/x",
+		"git branch newb",
+		"git branch -c old new",
+		"git branch -f main HEAD~3",
+		"git branch --set-upstream-to=origin/x",
+		"git branch -u origin/x",
+		"git branch --edit-description",
+		"git symbolic-ref HEAD refs/heads/x",
+		"git symbolic-ref -d HEAD",
+		"find . -fprint x",
+		"find . -fprintf x %p",
+		"find . -fls x",
+		"sort -o x y",
+		"sort -uo x y",
+		"sort --output=x y",
+		"sort --compress-program=./x y",
+		"uniq a b",
+		"uniq -c a b",
+		"rg --pre ./x foo",
+		"rg --pre=./x foo",
+		"ag --pager ./x foo",
+		"file -C -m x",
+		"date -s now",
+		"date --set=2020-01-01",
+		"hostname evil",
+	} {
+		if SafeRead(cmd) {
+			t.Errorf("SafeRead(%q) = true", cmd)
+		}
+	}
+	for _, cmd := range []string{
+		"git status", "git log -p --stat", "git diff --output-indicator-new=+ HEAD",
+		"git branch", "git branch -a", "git branch -vv", "git branch --list 'feat/*'",
+		"git branch --contains HEAD", "git branch --merged main",
+		"git symbolic-ref HEAD", "git symbolic-ref --short HEAD",
+		"sort -n x", "sort -k2,2 -t, x", "uniq -c x", "uniq -f 1 x", "rg foo", "ag foo",
+		"file x", "date", "date +%s", "hostname", "hostname -f", "find . -name '*.go' -print",
+	} {
+		if !SafeRead(cmd) {
+			t.Errorf("SafeRead(%q) = false", cmd)
+		}
+	}
+}
