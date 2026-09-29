@@ -21,6 +21,7 @@ var (
 	symbolRe     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
 	planFileExt  = regexp.MustCompile(`\.(go|py|pyi|ts|tsx|js|jsx|mjs|rs|java|kt|rb|c|h|cc|cpp|hpp|cs|swift|md|json|yaml|yml|toml|txt|sh|mod|sum|html|css|sql|proto)$`)
 	createWord   = regexp.MustCompile(`(?i)\b(add|adds|adding|create|creates|creating|new|introduce|introducing|define|defines|defining|write|writes|writing|implement|implements|implementing|generate|generating|rename\w*|move\w*|extract\w*|install\w*)\b`)
+	planPosition = regexp.MustCompile(`(:\d+(-\d+)?){1,2}$`)
 	maxPlanItems = 5
 )
 
@@ -72,8 +73,13 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 			switch {
 			case looksLikePath(span):
 				p := strings.TrimPrefix(span, "./")
-				if i := strings.LastIndexByte(p, ':'); i > 0 {
-					p = p[:i] // path:line
+				// path:line, path:line:col, path:a-b. All of the position
+				// goes: cutting only the last part left "path:line" of a
+				// position with a column, a file that never exists.
+				if loc := planPosition.FindStringIndex(p); loc != nil && loc[0] > 0 {
+					p = p[:loc[0]]
+				} else if i := strings.LastIndexByte(p, ':'); i > 0 {
+					p = p[:i]
 				}
 				if _, ok := ix.byPath[filepath.ToSlash(p)]; ok {
 					continue

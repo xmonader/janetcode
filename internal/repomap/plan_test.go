@@ -15,6 +15,11 @@ func TestCheckPlanFlagsUnknownNamesAndMissingFiles(t *testing.T) {
 	if note := c.CheckPlan(ctx, ok); note != "" {
 		t.Fatalf("false positive: %s", note)
 	}
+	// A position with a column is still the file: only ":col" used to be
+	// cut, and "api/handler.go:7" was reported missing.
+	if note := c.CheckPlan(ctx, "The panic is at `api/handler.go:7:12`, and `cmd/main.go:3-5` calls it."); note != "" {
+		t.Fatalf("path:line:col flagged: %s", note)
+	}
 	bad := "First read `store/cache.go`, then have `Handler.Flush()` call `store.Evict` and the `RetryPolicy`.\nThe `helper` in `web/app.ts` stays. Plain words like `error` and `handler` are not names."
 	note := c.CheckPlan(ctx, bad)
 	for _, want := range []string{"`store/cache.go` does not exist", "`Handler.Flush` is neither defined nor used", "`store.Evict` is neither", "`RetryPolicy` is neither"} {
