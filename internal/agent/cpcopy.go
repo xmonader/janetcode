@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -35,22 +36,25 @@ var maxCopyBytes int64 = maxManifestBytes
 const blobSuffix = ".blobs"
 
 // blobDir is where this agent's large checkpoint copies go: beside the
-// undo sidecar when there is one, so they survive a resume, and a
-// private temporary directory otherwise (an eval, a test, a subagent
-// without a session), made on first use.
+// undo sidecar when there is one, so they survive a resume, and a private
+// temporary directory otherwise (an eval, a test, a subagent without a
+// session). The fallback is only named here; streamBlob creates it when
+// a copy is actually too large to keep inline. Creating it up front left
+// an empty janetcode-cp-* directory in the temp dir for every agent
+// without a session that took a checkpoint at all (what-if runs, evals).
 func (k *checkpoints) blobDir() string {
 	if k.UndoPath != "" {
 		return k.UndoPath + blobSuffix
 	}
 	k.blobTemp.once.Do(func() {
-		if d, err := os.MkdirTemp("", "janetcode-cp-"); err == nil {
-			k.blobTemp.dir = d
-		}
+		var b [8]byte
+		_, _ = rand.Read(b[:])
+		k.blobTemp.dir = filepath.Join(os.TempDir(), fmt.Sprintf("janetcode-cp-%d-%x", os.Getpid(), b))
 	})
 	return k.blobTemp.dir
 }
 
-// blobTemp is blobDir's fallback directory, made on first use.
+// blobTemp is blobDir's fallback directory, named on first use.
 type blobTemp struct {
 	once sync.Once
 	dir  string
