@@ -58,6 +58,12 @@ const (
 	// the model-visible surface; the model is never shown a decision's
 	// probabilities.
 	TypeDecision = "decision"
+	// TypeTrust records a change of the project's trust level: Name is
+	// the level, Reason the project and every capability it affects.
+	TypeTrust = "trust/change"
+	// TypeEgress records what one turn sent off the machine (see
+	// internal/egress): Output carries the report as JSON.
+	TypeEgress = "egress/turn"
 )
 
 // Gate sources on a TypeGate event.

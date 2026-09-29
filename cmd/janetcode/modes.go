@@ -147,6 +147,9 @@ func (r *root) recipeMode() error {
 	if err != nil {
 		return fmt.Errorf("--recipe: %w", err)
 	}
+	if !r.gate.Exec(cwd, r.gate == nil) {
+		return headless.BadInput("--recipe: this project's recipes run once you trust it: add --trust full, or run /trust full in a session (project trust is %s)", r.gate.State(cwd).Level)
+	}
 	// A recipe is built through the same agent the normal headless
 	// run (-p) uses, so its steps see the same tools — including a
 	// configured MCP server's, when the recipe actually calls one.
@@ -232,6 +235,9 @@ func (r *root) headlessMode() error {
 		text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 	}
 	r.startMCP(ctx, true)
+	if line := trustNotice(r.gate, cwd); line != "" {
+		fmt.Fprintln(os.Stderr, line)
+	}
 	defer r.syncSession()
 	finish := startBgRun(ag, sess, cwd)
 	err := headless.Run(ctx, headless.Options{
@@ -257,7 +263,8 @@ func (r *root) webMode() error {
 	r.startMCP(ctx, false)
 	defer r.syncSession()
 	return webui.Run(ctx, webui.Options{
-		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
+		TrustGate: r.gate,
+		Agent:     ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For, Build: buildProvider,
@@ -340,8 +347,9 @@ func (r *root) tuiMode() error {
 			// running session never changes files behind the user.
 			return doctor(ctx, w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
-		Verify: r.uiVerify,
-		Perms:  r.uiPerms,
+		Verify:    r.uiVerify,
+		Perms:     r.uiPerms,
+		TrustGate: r.gate,
 	})
 }
 

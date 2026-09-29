@@ -56,6 +56,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 				m.transcript.errorf("no %s in %s", verify.ProjectFile, shortPath(m.opts.Cwd))
 			case o.ProjectTrusted:
 				m.note("project verification is already trusted")
+			case m.execTrustBlocked():
 			default:
 				if err := o.Trust.Trust(trust.VerifyKey(m.opts.Cwd), o.ProjectHash); err != nil {
 					m.transcript.errorf("record trust: %v", err)

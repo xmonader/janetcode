@@ -43,6 +43,7 @@ var flagWhen = map[string]string{
 	"auto":                   "you trust in-workspace edits and read-only commands but still want to see the rest",
 	"sandbox":                "you want bash isolated in a sandbox profile without retargeting file tools",
 	"readonly":               "you want answers about a repository with no chance of it being changed",
+	"trust":                  "a headless run should use (or refuse) the project's own skills, hooks, MCP servers and recipes without asking",
 	"c":                      "carry on where the last session in this directory left off",
 	"r":                      "reopen one session by id",
 	"auto-edits":             "you trust the edits but still want to see every command",

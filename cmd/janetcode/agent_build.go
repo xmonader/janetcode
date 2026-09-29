@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -153,6 +154,10 @@ type agentDeps struct {
 	// non-Go languages with, nil in a build without the grammars. The
 	// composition root supplies it; repomap registers nothing itself.
 	symbols repomap.Parser
+	// gate decides how far the project's own skills, agent profiles,
+	// commands, rules and executable files are let in (see trust.Gate).
+	// Nil lets everything in.
+	gate *trust.Gate
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -477,13 +482,14 @@ func (b *agentBuilder) stepAgentTools() error {
 // session.
 func (b *agentBuilder) stepKnowledge() error {
 	ag, cd, cfgDir, mem := b.ag, b.cd, b.d.cfgDir, b.d.mem
-	b.skills = func() []skill.Skill { return skill.WithBuiltins(skill.Load(cd.Dir(), cfgDir)) }
+	gate := b.d.gate
+	b.skills = func() []skill.Skill { return skill.WithBuiltins(skill.Load(gate.ProjectDir(cd.Dir()), cfgDir)) }
 	b.skillIn = &skill.Injector{Skills: b.skills}
-	b.rules = func() []rules.Rule { return rules.Load(cd.Dir(), cfgDir) }
+	b.rules = func() []rules.Rule { return rules.Load(gate.ProjectDir(cd.Dir()), cfgDir) }
 	b.ruleIn = &rules.Injector{Rules: b.rules}
 	ag.PathRules = b.ruleIn.For
 	ag.PathSkills = b.skillIn.ForPaths
-	b.task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cd.Dir(), cfgDir) }
+	b.task.Profiles = func() []skill.Profile { return skill.LoadProfiles(gate.ProjectDir(cd.Dir()), cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: b.skills, Used: b.skillIn.MarkUsed})
 	// The indexes are the part of the system prompt that grows with use
 	// rather than with the code, so their share of the window is what is

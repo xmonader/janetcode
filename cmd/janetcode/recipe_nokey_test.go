@@ -27,7 +27,12 @@ func TestRecipeRunsWithoutAKey(t *testing.T) {
 	os.WriteFile(filepath.Join(work, ".janetcode", "recipes", "look.json"), []byte(`{"name":"look","steps":[{"tool":"read_file","input":{"path":"f.txt"}}]}`), 0o644)
 
 	stdout, _ := captureStd(t)
-	if err := run([]string{"--recipe", "look"}); err != nil {
+	// An untrusted project's recipe does not run: it is the project's
+	// own list of tool calls.
+	if err := run([]string{"--recipe", "look"}); headless.ExitCode(err) != headless.ExitBadInput || !strings.Contains(err.Error(), "--trust full") {
+		t.Fatalf("an untrusted recipe ran: %v", err)
+	}
+	if err := run([]string{"--recipe", "look", "--trust", "full"}); err != nil {
 		t.Fatalf("a recipe with no key: %v", err)
 	}
 	if out := stdout(); !strings.Contains(out, "hello") {

@@ -55,10 +55,11 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"[FAIL] credentials",
-		"[ok  ] hooks        2 hooks in .janetcode/hooks.json · not trusted yet (/hooks trust in the TUI) · 0 global",
-		"[ok  ] verify       1 command in .janetcode/verify.json · not trusted yet (/verify trust in the TUI)",
+		"[ok  ] hooks        2 hooks in .janetcode/hooks.json · not trusted yet (/trust full, or /hooks trust in the TUI) · 0 global",
+		"[ok  ] verify       1 command in .janetcode/verify.json · not trusted yet (/trust full, or /verify trust in the TUI)",
 		"[ok  ] permissions  1 allow / 1 deny in .janetcode/permissions.json · allow rules not trusted yet",
-		"[ok  ] skills       1 skill (1 project, 0 global, 0 claude)",
+		"[ok  ] skills       1 skill (1 project, 0 global, 0 claude) · the project's are not used until it is trusted",
+		"[warn] trust        undecided (none) · governs skills, hooks, verify commands, allow rules",
 		"[ok  ] memory       0 memory entries (0 project, 0 global)",
 		"lexical recall only",
 		"lsp          gopls",

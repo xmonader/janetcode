@@ -23,7 +23,11 @@ type Custom struct {
 // of the same name. Pass "" to skip a location.
 func CustomCommands(cwd, configDir string) []Custom {
 	byName := map[string]Custom{}
-	for _, dir := range []string{configDir, filepath.Join(cwd, ".janetcode")} {
+	project := ""
+	if cwd != "" {
+		project = filepath.Join(cwd, ".janetcode")
+	}
+	for _, dir := range []string{configDir, project} {
 		if dir == "" {
 			continue
 		}

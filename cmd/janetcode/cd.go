@@ -177,7 +177,7 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 		if err != nil {
 			return "", err
 		}
-		trusted := cfg.Len() > 0 && r.trust.Trusted(trust.HooksKey(dir), hash)
+		trusted := cfg.Len() > 0 && r.gate.Exec(dir, r.trust.Trusted(trust.HooksKey(dir), hash))
 		runner := &hook.Runner{Config: r.cfg.Hooks, Cwd: dir, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 		if trusted {
 			runner.Config, _ = hook.MergeScoped(r.cfg.Hooks, cfg)
@@ -198,7 +198,7 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 			return "", err
 		}
 		defined := len(cfg.Commands) > 0 || cfg.Mutate != ""
-		trusted := defined && r.trust.Trusted(trust.VerifyKey(dir), hash)
+		trusted := defined && r.gate.Exec(dir, r.trust.Trusted(trust.VerifyKey(dir), hash))
 		if trusted {
 			r.ag.SetVerify(&verify.Runner{Config: cfg, Cwd: dir, Mutate: mutate.ForVerify,
 				Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}, false)
@@ -247,7 +247,7 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 			return "", err
 		}
 		r.projectServers, r.projectHash = servers, hash
-		r.projectTrusted = len(servers) > 0 && r.trust.Trusted(dir, hash)
+		r.projectTrusted = len(servers) > 0 && r.gate.Exec(dir, r.trust.Trusted(dir, hash))
 		if n := len(r.servers.Status()); n > 0 {
 			return "the old directory is kept by " + textfmt.Plural(n, "mcp server"), nil
 		}

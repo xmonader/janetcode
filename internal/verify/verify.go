@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // ProjectFile lists the commands, relative to the project root.
@@ -77,7 +78,11 @@ func Save(root string, c Config) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	return fsutil.AtomicWrite(p, append(data, '\n'))
+	if err := fsutil.AtomicWrite(p, append(data, '\n')); err != nil {
+		return err
+	}
+	trust.SelfWrote(root)
+	return nil
 }
 
 // Result is the outcome of one verification run.

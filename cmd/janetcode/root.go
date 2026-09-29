@@ -72,6 +72,7 @@ type root struct {
 	hints    *hints.Engine
 
 	trust          trust.Store
+	gate           *trust.Gate
 	tokens         *mcp.TokenStore
 	projectServers map[string]mcp.ServerConfig
 	projectHash    string
@@ -136,7 +137,12 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	typed := &weburl.Set{}
 	typed.Note(initial)
 	typed.Note(o.promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
+	gate, err := newTrustGate(cfgDir, o.trustLevel, os.Getenv)
+	if err != nil {
+		return r, err
+	}
+	r.gate = gate
+	deps := agentDeps{gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err
@@ -161,6 +167,25 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	return r, nil
 }
 
+// newTrustGate builds the project trust gate over the same store the
+// per-file approvals live in, with --trust (or JANETCODE_TRUST) as this
+// run's level when given.
+func newTrustGate(cfgDir, flagLevel string, getenv func(string) string) (*trust.Gate, error) {
+	g := &trust.Gate{Store: trust.Store{Path: filepath.Join(cfgDir, "mcp-trust.json")}}
+	for _, src := range []struct{ name, v string }{{"--trust", flagLevel}, {"JANETCODE_TRUST", getenv("JANETCODE_TRUST")}} {
+		if strings.TrimSpace(src.v) == "" {
+			continue
+		}
+		lvl, err := trust.ParseLevel(src.v)
+		if err != nil {
+			return nil, headless.BadInput("%s: %v", src.name, err)
+		}
+		g.Flag = lvl
+		break
+	}
+	return g, nil
+}
+
 // wireProject folds the project's own hooks, verification and permission
 // files into the agent -- each only as far as it is trusted -- and
 // registers the inspect subjects and the feature catalogue.
@@ -174,7 +199,7 @@ func (r *root) wireProject() error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
 	}
-	hooksTrusted := hooksCfg.Len() > 0 && ts.Trusted(trust.HooksKey(cwd), hooksHash)
+	hooksTrusted := hooksCfg.Len() > 0 && r.gate.Exec(cwd, ts.Trusted(trust.HooksKey(cwd), hooksHash))
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
 		var hookNotes []string
@@ -193,7 +218,7 @@ func (r *root) wireProject() error {
 		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
 	}
 	verifyDefined := len(verifyCfg.Commands) > 0 || verifyCfg.Mutate != ""
-	verifyTrusted := verifyDefined && ts.Trusted(trust.VerifyKey(cwd), verifyHash)
+	verifyTrusted := verifyDefined && r.gate.Exec(cwd, ts.Trusted(trust.VerifyKey(cwd), verifyHash))
 	if verifyTrusted {
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Mutate: mutate.ForVerify, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
 	} else if verifyDefined {
@@ -217,7 +242,7 @@ func (r *root) wireProject() error {
 	// Paths a write always asks about, whatever the mode: the defaults
 	// plus whatever protected_paths adds to them.
 	ag.Protected = perm.NewProtected(cfg.ProtectedPaths)
-	projectTrusted := len(projectServers) > 0 && ts.Trusted(cwd, projectHash)
+	projectTrusted := len(projectServers) > 0 && r.gate.Exec(cwd, ts.Trusted(cwd, projectHash))
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
@@ -242,6 +267,7 @@ func (r *root) wireProject() error {
 	catalog := buildCatalog(fs, ag.Tools)
 	registerFeatureSubject(subjects, catalog)
 	registerThemeSubject(subjects, cfg)
+	registerTrustSubject(subjects, r.gate, r.built.cd.Dir)
 	// Deferred: the model gets the schema only after asking for it, so a
 	// session that never wonders about the harness never pays for it.
 	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})
@@ -266,7 +292,7 @@ func (r *root) permissionRules(cwd string) (rules, projRules perm.Rules, hash st
 		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
 		err = nil
 	}
-	trusted = len(projRules.Allow) > 0 && r.trust.Trusted(trust.PermissionsKey(cwd), hash)
+	trusted = len(projRules.Allow) > 0 && r.gate.Exec(cwd, r.trust.Trusted(trust.PermissionsKey(cwd), hash))
 	if trusted {
 		rules = perm.Merge(rules, projRules)
 	} else {

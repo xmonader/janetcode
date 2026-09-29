@@ -793,6 +793,44 @@ they have fired; `pin` keeps one, `archive` moves it to
 `.janetcode/archived-skills/`, `restore` puts it back. Usage is stored in
 `.janetcode/skill-usage.json`. Hand-written skills are left alone.
 
+### Project trust
+
+A repository can ship more than code: skills and agent profiles the
+model reads, custom commands, path-scoped rules, and files that run
+things — hooks, MCP servers, verify commands, allow rules and recipes.
+None of it is used until you say how far to trust the project. The first
+time a session opens in a directory that ships any of it, the terminal
+asks, and the browser puts the same question at the top of the page:
+
+| level | what the project gets |
+|---|---|
+| `untrusted` | nothing it ships is used |
+| `instructions` | its skills, agent profiles, custom commands and rules |
+| `full` | also its hooks, `.mcp.json` servers, `verify.json`, the allow rules in `permissions.json` and its recipes |
+
+`/trust` shows the level, where it came from and every file it governs;
+`/trust full`, `/trust instructions` or `/trust untrusted` sets it, and a
+trailing `session` holds it only until you exit. `--inspect trust` and
+`--doctor` print the same report. A headless run uses the recorded level
+and says on stderr when the project ships something that is held back;
+`--trust <level>` (or `JANETCODE_TRUST`) sets it for one run without
+writing anything down.
+
+The level is recorded against a fingerprint of every one of those files,
+so an edited hook, a new skill or a changed `.mcp.json` undoes it and the
+question comes back. Files janetcode writes for you — `/verify set`, a
+saved recipe, `/mcp add` — keep the level you chose. Choosing
+`untrusted` also withdraws the older per-file approvals (`/hooks trust`,
+`/verify trust`, `/mcp trust`, `/permissions trust`), which still work on
+their own for a project nobody has chosen a level for. Every change of
+level is written to the session log with the project and the files it
+affects.
+
+Trust never approves a tool call: a trusted project's hook or MCP tool
+runs, but a write or a command still asks as your permission mode says.
+`JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as
+they always were.
+
 ### Changing janetcode's own settings always asks
 
 Everything that decides what janetcode may do without asking is a file:

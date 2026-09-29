@@ -30,6 +30,7 @@ var commandWhen = map[string]string{
 	"/redo":         "the undo was the mistake",
 	"/mcp":          "a project ships .mcp.json, or a remote server needs a login",
 	"/cua":          "you want the model to operate the desktop through Cua Driver, not pixel clicks",
+	"/trust":        "a repository ships skills, hooks or MCP servers and you want to see what it would let in, or let it in",
 	"/hooks":        "the project ships .janetcode/hooks.json and you want to see or enable it",
 	"/permissions":  "the same approval keeps coming up, or the project ships rules you want to trust",
 	"/verify":       "you want the harness to run the build or the tests after every change and hand failures back to the model",

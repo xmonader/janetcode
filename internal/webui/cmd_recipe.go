@@ -87,6 +87,10 @@ func (s *server) runRecipe(rest string) {
 		s.sheet("recipe "+name, recipe.FormatSteps(steps))
 		return
 	}
+	if g := s.opts.TrustGate; g != nil && !g.Exec(s.cwd(), false) {
+		s.errf("recipe run: this project's recipes run once you trust it: /trust full (a dry run still works)")
+		return
+	}
 	ctx, ok := s.begin("running recipe " + name)
 	if !ok {
 		s.errf("/recipe run waits for the turn to finish (esc cancels it)")

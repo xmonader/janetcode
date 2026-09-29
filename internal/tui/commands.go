@@ -166,6 +166,12 @@ var dispatch = map[string]cmdHandler{
 		}
 		return nil, false
 	},
+	"/trust": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		if cmd := m.trustCommand(fields[1:]); cmd != nil {
+			return cmd, true
+		}
+		return nil, false
+	},
 	"/hooks": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.hooksCommand(fields[1:])
 		return nil, false

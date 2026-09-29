@@ -70,7 +70,9 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	t.Chdir(work)
 
 	stdout, stderr := captureStd(t)
-	err := run([]string{"-p", "uppercase hello.txt into out.txt", "--provider", "openai", "--model", "test-model", "--yolo"})
+	// --trust instructions: the project's skill below is let in only
+	// once the project is trusted (TestProjectSkillsFollowTheTrustLevel).
+	err := run([]string{"-p", "uppercase hello.txt into out.txt", "--provider", "openai", "--model", "test-model", "--yolo", "--trust", "instructions"})
 	out, errOut := stdout(), stderr()
 	if err != nil {
 		t.Fatalf("run: %v\nstderr: %s", err, errOut)

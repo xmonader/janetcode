@@ -25,7 +25,7 @@ var webCommands = []string{
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua", "/trust",
 }
 
 var webArgs = map[string]string{
@@ -288,6 +288,10 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/cua": (*server).cmdCua,
+	"/trust": func(s *server, arg string) (bool, error) {
+		s.trustCommand(arg)
+		return false, nil
+	},
 	"/feedback": func(s *server, arg string) (bool, error) {
 		s.notice("recorded " + arg + " (not sent to the model)")
 		return false, nil
