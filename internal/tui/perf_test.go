@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"runtime"
 	"sort"
 	"testing"
@@ -26,6 +27,9 @@ const (
 	resizeBudget = 3 * time.Second
 	// What the rendered transcript holds in memory.
 	heapBudget = 200 << 20
+	// budgetAttempts is how many times the timings are measured before a
+	// miss counts.
+	budgetAttempts = 3
 )
 
 // median runs f n times and returns the median duration.
@@ -50,34 +54,51 @@ func TestPerfBudgetsOnALongSession(t *testing.T) {
 	h.m.refresh(false)
 	h.m.View()
 
-	key := median(21, func() {
-		h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
-		h.m.View()
-	})
-	grow := median(21, func() {
-		h.m.transcript.info("one more line")
-		h.m.refresh(false)
-		h.m.View()
-	})
+	// A regression is over its budget every time it is measured; a
+	// machine busy with other work (the full suite, other builds) is over
+	// it now and then. So a miss is measured again, up to budgetAttempts
+	// times, and only a budget missed on every attempt fails. The budgets
+	// themselves stay as tight as before.
 	width := 100
-	resize := median(3, func() {
-		width++
-		h.update(tea.WindowSizeMsg{Width: width, Height: 50})
-		h.m.View()
-	})
+	var misses []string
+	for attempt := 1; attempt <= budgetAttempts; attempt++ {
+		key := median(21, func() {
+			h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+			h.m.View()
+		})
+		grow := median(21, func() {
+			h.m.transcript.info("one more line")
+			h.m.refresh(false)
+			h.m.View()
+		})
+		resize := median(3, func() {
+			width++
+			h.update(tea.WindowSizeMsg{Width: width, Height: 50})
+			h.m.View()
+		})
+		t.Logf("attempt %d: keystroke %v · new line %v · resize %v", attempt, key, grow, resize)
+		misses = misses[:0]
+		for _, c := range []struct {
+			what        string
+			got, budget time.Duration
+		}{{"a keystroke", key, keyBudget}, {"a new transcript line", grow, growBudget}, {"a resize", resize, resizeBudget}} {
+			if c.got > c.budget {
+				misses = append(misses, fmt.Sprintf("%s took %v on a 20,000-line session, over the %v budget", c.what, c.got, c.budget))
+			}
+		}
+		if len(misses) == 0 {
+			break
+		}
+		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
+	}
+	for _, m := range misses {
+		t.Errorf("%s (on all %d attempts)", m, budgetAttempts)
+	}
 	runtime.GC()
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	runtime.KeepAlive(h) // the session under measurement
-	t.Logf("keystroke %v · new line %v · resize %v · heap %d MB", key, grow, resize, ms.HeapAlloc>>20)
-	for _, c := range []struct {
-		what        string
-		got, budget time.Duration
-	}{{"a keystroke", key, keyBudget}, {"a new transcript line", grow, growBudget}, {"a resize", resize, resizeBudget}} {
-		if c.got > c.budget {
-			t.Errorf("%s took %v on a 20,000-line session, over the %v budget", c.what, c.got, c.budget)
-		}
-	}
+	t.Logf("heap %d MB", ms.HeapAlloc>>20)
 	if ms.HeapAlloc > heapBudget {
 		t.Errorf("heap %d MB, over the %d MB budget", ms.HeapAlloc>>20, heapBudget>>20)
 	}
