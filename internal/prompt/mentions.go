@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -68,6 +69,13 @@ func ExpandMentions(cwd, text string) (string, []Attachment) {
 			continue
 		}
 		seen[m] = true
+		if !fi.IsDir() && !fi.Mode().IsRegular() {
+			// Opening a FIFO blocks until something writes to it, and a
+			// device can stream forever: neither is read.
+			fmt.Fprintf(&out, "\n\n<attached path=%q>\n(not a regular file: not read)\n</attached>", m)
+			atts = append(atts, Attachment{Path: m})
+			continue
+		}
 		if mt, ok := imageTypes[strings.ToLower(filepath.Ext(m))]; ok && !fi.IsDir() {
 			data, err := os.ReadFile(full)
 			if err != nil || len(data) > MaxImageBytes {
@@ -118,9 +126,13 @@ func attachmentBody(full string, fi os.FileInfo) string {
 		return "(unreadable: " + err.Error() + ")"
 	}
 	defer f.Close()
-	buf := make([]byte, MaxMentionBytes+1)
-	n, _ := f.Read(buf)
-	buf = buf[:n]
+	// One Read may return fewer bytes than are there (a network file
+	// system, a file still being written), so read up to the cap in full.
+	buf, err := io.ReadAll(io.LimitReader(f, MaxMentionBytes+1))
+	if err != nil {
+		return "(unreadable: " + err.Error() + ")"
+	}
+	n := len(buf)
 	if bytes.IndexByte(buf, 0) >= 0 {
 		return fmt.Sprintf("(binary file, %d bytes)", fi.Size())
 	}
