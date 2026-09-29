@@ -135,13 +135,13 @@ func TestShellFormsThatTouchTheSettingsAsk(t *testing.T) {
 	yes := []string{
 		`echo '{}' > .janetcode/hooks.json`,
 		`echo '{}' >> .mcp.json`,
-		`cp /tmp/x .janetcode/permissions.json`,
-		`mv /tmp/x .mcp.json`,
+		`cp src.json .janetcode/permissions.json`,
+		`mv src.json .mcp.json`,
 		`sed -i s/deny/allow/ .janetcode/permissions.json`,
-		`tee .janetcode/hooks.json < /tmp/x`,
+		`tee .janetcode/hooks.json < src.json`,
 		`rm -f .janetcode/permissions.json`,
 		`cat x | tee .janetcode/verify.json`,
-		`cp /tmp/x ` + filepath.Join(cfg, "janetcode", "config.json"),
+		`cp src.json ` + filepath.Join(cfg, "janetcode", "config.json"),
 		`rm -rf .janetcode/`,
 		`echo x > .janetcode/rules/a.md`,
 	}

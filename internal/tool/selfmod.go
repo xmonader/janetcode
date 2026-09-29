@@ -155,6 +155,9 @@ func selfPathToken(tk, root string) string {
 // would write to, and how. Only the obvious shell forms are recognised —
 // a redirect, and the file-writing commands with a path argument.
 func selfModifyingCommand(command, root string) string {
+	// Read Windows paths as paths, not as bash escapes: C:\Users\me\...
+	// otherwise became C:Usersme... and named nothing.
+	command = shell.WindowsPaths(command)
 	for _, seg := range shell.Segments(command) {
 		toks := shell.Words(seg)
 		if len(toks) == 0 {

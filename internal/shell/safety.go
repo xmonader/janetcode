@@ -136,7 +136,7 @@ func outputArg(toks []string, flags []string, i *int) (string, bool) {
 // Classify grades a command line run with root as the working directory.
 // The reason describes the first problem found.
 func Classify(command, root string) (Risk, string) {
-	return classify(forWindows(command), root, 0)
+	return classify(WindowsPaths(command), root, 0)
 }
 
 // classify is Classify with the wrapper depth carried in. A `sh -c` or an
@@ -832,7 +832,7 @@ func rooted(p string) bool {
 	return runtime.GOOS == "windows" && (strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`))
 }
 
-// forWindows readies a command line for the POSIX word splitting the
+// WindowsPaths readies a command line for the POSIX word splitting the
 // classifier does. The shell on Windows is PowerShell, where a backslash
 // is an ordinary character (its escape is the backtick) and is how every
 // path is written; read as a POSIX escape it vanished, so C:\Users became
@@ -844,7 +844,7 @@ func rooted(p string) bool {
 // backslash is left as the escape a bash-minded command means by it:
 // models write bash quoting on Windows too, and reading it as bash keeps
 // the quoting checks' judgement.
-func forWindows(command string) string {
+func WindowsPaths(command string) string {
 	if runtime.GOOS != "windows" || !strings.Contains(command, `\`) {
 		return command
 	}
@@ -1064,7 +1064,7 @@ func resolvePathArg(tk, cwd string) (string, bool) {
 // by the accept-tests lock to catch a bash command that would touch a
 // locked test file the same way edit_file/write_file are caught.
 func WriteTargets(command, root string) []string {
-	command = forWindows(command)
+	command = WindowsPaths(command)
 	var out []string
 	seen := map[string]bool{}
 	add := func(p string) {
