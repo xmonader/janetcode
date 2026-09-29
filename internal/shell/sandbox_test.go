@@ -151,6 +151,7 @@ func TestDockerArgvPerProfile(t *testing.T) {
 // TestSeatbeltPolicyPerProfile pins the sandbox-exec policy text each
 // profile produces. It is pure text, so it is checked on every OS.
 func TestSeatbeltPolicyPerProfile(t *testing.T) {
+	posixOnly(t)
 	root, extra := "/proj", "/extra"
 	tmp := filepath.Clean(os.TempDir())
 	cases := []struct {

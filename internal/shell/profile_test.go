@@ -77,6 +77,7 @@ func TestProfileTable(t *testing.T) {
 }
 
 func TestWritableRootsResolveTokens(t *testing.T) {
+	posixOnly(t)
 	p := Profile{WriteRoots: []string{WriteRootToken, WriteExtraToken, WriteTempToken}}
 	got := p.WritableRoots("/proj", []string{"/extra", "/proj"}, "/tmp")
 	want := []string{"/extra", "/proj", "/tmp"} // sorted, deduplicated
