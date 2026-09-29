@@ -1,9 +1,12 @@
 package shell
 
 import (
+	"cmp"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -155,6 +158,7 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 	if depth > MaxWrapperDepth {
 		return RiskUnknown, tooDeep
 	}
+	command = ifsRe.ReplaceAllString(command, " ")
 	unquoted := stripQuoted(command)
 	for _, c := range wholeLine {
 		if c.re.MatchString(unquoted) {
@@ -349,37 +353,38 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 	if depth > MaxWrapperDepth {
 		return RiskUnknown, tooDeep
 	}
-	skipOpts := func(i int) int {
-		for i < len(toks) && strings.HasPrefix(toks[i], "-") {
-			i++
-		}
-		return i
+	toks = commandWords(toks)
+	if len(toks) == 0 {
+		return RiskOrdinary, ""
 	}
 	switch toks[0] {
-	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
-		return classifyWords(toks[skipOpts(1):], seg, root, cwd, cwdKnown, depth+1)
+	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer", "timeout", "xargs":
+		return classifyWords(wrapped(toks), seg, root, cwd, cwdKnown, depth+1)
 	case "env":
-		i := 1
-		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
-			i++
-		}
-		return classifyWords(toks[i:], seg, root, cwd, cwdKnown, depth+1)
-	case "timeout":
-		i := skipOpts(1)
-		if i < len(toks) {
-			i++ // the duration
-		}
-		return classifyWords(toks[i:], seg, root, cwd, cwdKnown, depth+1)
-	case "sh", "bash", "zsh", "dash", "ksh":
-		for i := 1; i < len(toks)-1; i++ {
-			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				// The wrapped command line starts in the same directory
-				// the wrapper segment runs in.
-				return classifyAt(toks[i+1], root, cwd, cwdKnown, depth+1)
+		inner, chdir, _ := envWrapped(toks)
+		if chdir != "" {
+			if !cwdKnown && !isAbsoluteWord(chdir) {
+				cwd, cwdKnown = "", false
+			} else if dir, ok := resolvePathArg(chdir, cwd); ok {
+				cwd = dir
+			} else {
+				cwd, cwdKnown = "", false
 			}
 		}
+		return classifyWords(inner, seg, root, cwd, cwdKnown, depth+1)
+	case "sh", "bash", "zsh", "dash", "ksh":
+		if line, ok := shellCommand(toks); ok {
+			// The wrapped command line starts in the same directory
+			// the wrapper segment runs in. The wrapper's own
+			// redirection (`bash -c ls > ~/.bashrc`) writes too.
+			r, why := classifyAt(line, root, cwd, cwdKnown, depth+1)
+			r2, why2 := redirectRisk(seg, root, cwd, cwdKnown)
+			return worse(r, why, r2, why2)
+		}
 	case "eval":
-		return classifyAt(strings.Join(toks[1:], " "), root, cwd, cwdKnown, depth+1)
+		r, why := classifyAt(strings.Join(toks[1:], " "), root, cwd, cwdKnown, depth+1)
+		r2, why2 := redirectRisk(seg, root, cwd, cwdKnown)
+		return worse(r, why, r2, why2)
 	}
 	line := strings.Join(toks, " ")
 	for _, c := range catastrophic {
@@ -443,7 +448,12 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 			}
 		}
 	}
-	// Redirections write wherever they point.
+	return redirectRisk(seg, root, cwd, cwdKnown)
+}
+
+// redirectRisk grades a segment's redirections: they write wherever they
+// point.
+func redirectRisk(seg, root, cwd string, cwdKnown bool) (Risk, string) {
 	for _, raw := range redirectTargets(seg) {
 		tk := strings.Trim(raw, `"'`)
 		if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
@@ -464,6 +474,181 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 		}
 	}
 	return RiskOrdinary, ""
+}
+
+// worse returns the graver of two verdicts, the first on a tie.
+func worse(r1 Risk, why1 string, r2 Risk, why2 string) (Risk, string) {
+	if r2 > r1 {
+		return r2, why2
+	}
+	return r1, why1
+}
+
+// ifsRe matches an unexpanded $IFS, which the shell splits into the
+// space it holds: `rm${IFS}-rf${IFS}/` is `rm -rf /` spelled as one word.
+// An IFS the line sets itself is not followed; this is the spelling that
+// needs no setup.
+var ifsRe = regexp.MustCompile(`\$(?:\{IFS\}|IFS\b)`)
+
+// assignmentRe matches a VAR=value word.
+var assignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\+?=`)
+
+// commandWords returns a simple command's words from the command name
+// on: the VAR=value assignments before it are dropped, and a name given
+// as a path is reduced to the program it names. `X=1 rm -rf /` and
+// `/bin/rm -rf /` both run rm, and were both graded as some command the
+// classifier had never heard of.
+func commandWords(toks []string) []string {
+	for len(toks) > 0 && assignmentRe.MatchString(toks[0]) {
+		toks = toks[1:]
+	}
+	if len(toks) > 0 && strings.Contains(toks[0], "/") && toks[0] != "/" {
+		toks = append([]string{path.Base(toks[0])}, toks[1:]...)
+	}
+	return toks
+}
+
+// wrapperArgFlags are, per wrapper, the options that take the next word
+// as their argument. Skipping every leading dash-word and nothing else
+// made the argument the command: `sudo -u root rm -rf /` was judged as a
+// command named "root", `timeout -s KILL 5 rm -rf /` as one named "5".
+var wrapperArgFlags = map[string][]string{
+	"sudo":    {"-u", "-g", "-C", "-D", "-p", "-r", "-t", "-U", "-T", "--user", "--group", "--close-from", "--chdir", "--prompt", "--role", "--type", "--other-user", "--command-timeout"},
+	"doas":    {"-u", "-C"},
+	"nice":    {"-n", "--adjustment"},
+	"exec":    {"-a"},
+	"time":    {"-f", "-o", "--format", "--output"},
+	"stdbuf":  {"-i", "-o", "-e", "--input", "--output", "--error"},
+	"timeout": {"-s", "-k", "--signal", "--kill-after"},
+	"xargs":   {"-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s", "--arg-file", "--delimiter", "--eof", "--replace", "--max-lines", "--max-args", "--max-procs", "--max-chars", "--process-slot-var"},
+}
+
+// wrapped returns the command a wrapper (sudo, nice, timeout, xargs, …)
+// runs: its words after the wrapper's options, their arguments and, for
+// timeout, the duration.
+func wrapped(toks []string) []string {
+	flags := wrapperArgFlags[toks[0]]
+	i := 1
+	for i < len(toks) && strings.HasPrefix(toks[i], "-") && toks[i] != "-" {
+		if toks[i] == "--" {
+			i++
+			break
+		}
+		if slices.Contains(flags, toks[i]) {
+			i++
+		}
+		i++
+	}
+	if toks[0] == "timeout" {
+		i++ // the duration
+	}
+	if i >= len(toks) {
+		return nil
+	}
+	return toks[i:]
+}
+
+// envWrapped returns the command an env invocation runs, the directory
+// its -C moves it to ("" for none), and whether it sets or unsets
+// anything in the environment. -u names a variable rather than the
+// command, and -S splits its argument into more of env's own words,
+// which is to say it can carry the whole command.
+func envWrapped(toks []string) (inner []string, chdir string, changes bool) {
+	i := 1
+	for i < len(toks) {
+		tk := toks[i]
+		next := func() string {
+			if i+1 < len(toks) {
+				i++
+				return toks[i]
+			}
+			return ""
+		}
+		switch {
+		case tk == "--":
+			i++
+			return toks[min(i, len(toks)):], chdir, changes
+		case assignmentRe.MatchString(tk):
+			changes = true
+		case tk == "-u" || tk == "--unset":
+			next()
+			changes = true
+		case strings.HasPrefix(tk, "--unset="):
+			changes = true
+		case tk == "-C" || tk == "--chdir":
+			chdir = next()
+		case strings.HasPrefix(tk, "--chdir="):
+			chdir = strings.TrimPrefix(tk, "--chdir=")
+		case tk == "-S" || tk == "--split-string":
+			s := next()
+			rest, d, c := envWrapped(append(append([]string{"env"}, Words(s)...), toks[i+1:]...))
+			return rest, cmp.Or(d, chdir), c || changes
+		case strings.HasPrefix(tk, "--split-string="):
+			rest, d, c := envWrapped(append(append([]string{"env"}, Words(strings.TrimPrefix(tk, "--split-string="))...), toks[i+1:]...))
+			return rest, cmp.Or(d, chdir), c || changes
+		case len(tk) > 1 && tk[0] == '-' && tk[1] != '-':
+			// A cluster of short options; u, C and S take the rest of
+			// the cluster, or the next word, as their argument.
+			k := strings.IndexAny(tk, "uCS")
+			if k < 0 {
+				break
+			}
+			arg := tk[k+1:]
+			if arg == "" {
+				arg = next()
+			}
+			switch tk[k] {
+			case 'u':
+				changes = true
+			case 'C':
+				chdir = arg
+			case 'S':
+				rest, d, c := envWrapped(append(append([]string{"env"}, Words(arg)...), toks[i+1:]...))
+				return rest, cmp.Or(d, chdir), c || changes
+			}
+		case strings.HasPrefix(tk, "-"):
+		default:
+			return toks[i:], chdir, changes
+		}
+		i++
+	}
+	return nil, chdir, changes
+}
+
+// shellCommand returns the command line a `sh -c` invocation runs: the
+// first word after the shell's options, when one of the short-option
+// clusters among them holds c. Looking for a "c" in any dash-word and
+// taking the word after it read `bash --norc -c 'rm -rf /'` as running
+// "-c", and `bash -c -e 'rm -rf /'` as running "-e".
+func shellCommand(toks []string) (string, bool) {
+	hasC := false
+	i := 1
+	for ; i < len(toks); i++ {
+		tk := toks[i]
+		if tk == "--" || tk == "-" {
+			i++
+			break
+		}
+		if len(tk) < 2 || (tk[0] != '-' && tk[0] != '+') {
+			break
+		}
+		if strings.HasPrefix(tk, "--") {
+			if tk == "--rcfile" || tk == "--init-file" {
+				i++
+			}
+			continue
+		}
+		if tk[0] == '-' && strings.Contains(tk, "c") {
+			hasC = true
+		}
+		if strings.ContainsAny(tk[1:], "oO") {
+			i++ // -o/+o/-O name an option in the next word
+		}
+	}
+	if !hasC || i >= len(toks) {
+		return "", false
+	}
+	return toks[i], true
 }
 
 // isAbsoluteWord reports whether a path token names a fixed location
@@ -663,6 +848,7 @@ func writeTargetsAt(command, root, cwd string, cwdKnown bool, depth int, add fun
 	if depth > MaxWrapperDepth {
 		return
 	}
+	command = ifsRe.ReplaceAllString(command, " ")
 	entryCwd, entryKnown := cwd, cwdKnown
 	for _, seg := range Segments(command) {
 		toks := Words(seg)
@@ -682,44 +868,32 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 	if seg == "" || depth > MaxWrapperDepth || len(toks) == 0 {
 		return
 	}
-	skipOpts := func(i int) int {
-		for i < len(toks) && strings.HasPrefix(toks[i], "-") {
-			i++
-		}
-		return i
+	toks = commandWords(toks)
+	if len(toks) == 0 {
+		return
 	}
 	switch toks[0] {
-	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
-		collectWriteTargets(strings.Join(toks[skipOpts(1):], " "), toks[skipOpts(1):], root, cwd, cwdKnown, depth+1, add)
+	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer", "timeout", "xargs":
+		collectWriteTargets(seg, wrapped(toks), root, cwd, cwdKnown, depth+1, add)
 		return
 	case "env":
-		i := 1
-		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
-			i++
-		}
-		collectWriteTargets(strings.Join(toks[i:], " "), toks[i:], root, cwd, cwdKnown, depth+1, add)
-		return
-	case "timeout":
-		i := skipOpts(1)
-		if i < len(toks) {
-			i++ // the duration
-		}
-		collectWriteTargets(strings.Join(toks[i:], " "), toks[i:], root, cwd, cwdKnown, depth+1, add)
-		return
-	case "sh", "bash", "zsh", "dash", "ksh":
-		for i := 1; i < len(toks)-1; i++ {
-			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				for _, s := range Segments(toks[i+1]) {
-					collectWriteTargets(s, Words(s), root, cwd, cwdKnown, depth+1, add)
-				}
-				return
+		inner, chdir, _ := envWrapped(toks)
+		if chdir != "" {
+			if dir, ok := resolvePathArg(chdir, cwd); ok {
+				cwd = dir
 			}
 		}
+		collectWriteTargets(seg, inner, root, cwd, cwdKnown, depth+1, add)
+		return
+	case "sh", "bash", "zsh", "dash", "ksh":
+		if line, ok := shellCommand(toks); ok {
+			writeTargetsAt(line, root, cwd, cwdKnown, depth+1, add)
+		}
+		addRedirects(seg, cwd, add)
 		return
 	case "eval":
-		for _, s := range Segments(strings.Join(toks[1:], " ")) {
-			collectWriteTargets(s, Words(s), root, cwd, cwdKnown, depth+1, add)
-		}
+		writeTargetsAt(strings.Join(toks[1:], " "), root, cwd, cwdKnown, depth+1, add)
+		addRedirects(seg, cwd, add)
 		return
 	}
 	if mutators[toks[0]] {
@@ -732,6 +906,11 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 			}
 		}
 	}
+	addRedirects(seg, cwd, add)
+}
+
+// addRedirects adds the resolved targets of a segment's redirections.
+func addRedirects(seg, cwd string, add func(string)) {
 	for _, raw := range redirectTargets(seg) {
 		if abs, ok := resolvePathArg(strings.Trim(raw, `"'`), cwd); ok {
 			add(abs)
@@ -799,37 +978,31 @@ func safeWords(toks []string, depth int) bool {
 	if depth > MaxWrapperDepth {
 		return false
 	}
-	skipOpts := func(i int) int {
-		for i < len(toks) && strings.HasPrefix(toks[i], "-") {
-			i++
-		}
-		return i
-	}
 	switch toks[0] {
 	case "sudo", "doas":
 		return false
-	case "nice", "nohup", "time", "command", "builtin", "stdbuf", "unbuffer":
-		return safeWords(toks[skipOpts(1):], depth+1)
+	case "nice", "nohup", "time", "command", "builtin", "stdbuf", "unbuffer", "timeout":
+		if toks[0] == "time" && slices.ContainsFunc(toks, func(t string) bool { return t == "-o" || strings.HasPrefix(t, "--output") }) {
+			return false // GNU time -o writes its report to a file
+		}
+		return safeWords(wrapped(toks), depth+1)
 	case "env":
-		i := 1
-		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
-			i++
+		// A variable changes what the command does — BASH_ENV runs a
+		// file before `bash -c`, GIT_EXTERNAL_DIFF runs a program from
+		// `git diff`, LD_PRELOAD loads code into anything — so a
+		// command env changes the environment of is not a known read,
+		// whatever it is.
+		inner, chdir, changes := envWrapped(toks)
+		if changes || chdir != "" {
+			return false
 		}
-		if i >= len(toks) {
-			return true
-		}
-		return safeWords(toks[i:], depth+1)
-	case "timeout":
-		i := skipOpts(1)
-		if i < len(toks) {
-			i++
-		}
-		return safeWords(toks[i:], depth+1)
+		return safeWords(inner, depth+1)
 	case "sh", "bash", "zsh", "dash", "ksh":
-		for i := 1; i < len(toks)-1; i++ {
-			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				return safeRead(toks[i+1], depth+1)
-			}
+		if slices.Contains(toks, "--rcfile") || slices.Contains(toks, "--init-file") {
+			return false
+		}
+		if line, ok := shellCommand(toks); ok {
+			return safeRead(line, depth+1)
 		}
 		return false
 	case "git":

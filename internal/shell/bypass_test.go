@@ -152,3 +152,87 @@ func TestSubstitutionsAreJudgedAsCommands(t *testing.T) {
 		t.Errorf("single-quoted text graded %v", risk)
 	}
 }
+
+// A wrapper is judged by what it runs, which means reading its options
+// the way it does. Skipping every dash-word and nothing more made an
+// option's argument the command (`sudo -u root rm -rf /` ran "root"),
+// "c" anywhere in a dash-word was taken for -c (`bash --norc -c …` ran
+// "-c"), and a leading assignment or a path to the program hid the
+// command name altogether.
+func TestWrappersAreReadAsTheyRun(t *testing.T) {
+	root := "/work/repo"
+	for _, cmd := range []string{
+		"X=1 rm -rf /",
+		"A=1 B=2 sudo rm -rf /",
+		"/bin/rm -rf /",
+		"/usr/bin/sudo /bin/rm -rf /",
+		"sudo -u root rm -rf /",
+		"sudo -g wheel -- rm -rf /",
+		"doas -u root rm -rf /",
+		"nice -n 10 rm -rf /",
+		"timeout -s KILL 5 rm -rf /",
+		"timeout -k 1 5 rm -rf /",
+		"exec -a x rm -rf /",
+		"stdbuf -o L rm -rf /",
+		"env -u HOME rm -rf /",
+		"env -C /tmp rm -rf /",
+		"env -S 'rm -rf /'",
+		"env -iS'rm -rf /'",
+		"env --split-string='sudo rm -rf /'",
+		"bash --norc -c 'rm -rf /'",
+		"bash --rcfile x -c 'rm -rf /'",
+		"bash -c -e 'rm -rf /'",
+		"bash -o pipefail -c 'rm -rf /'",
+		"/bin/sh -c 'rm -rf /'",
+		"xargs rm -rf /",
+		"xargs -I {} rm -rf /",
+		"rm${IFS}-rf${IFS}/",
+		"rm$IFS-rf$IFS/",
+	} {
+		if risk, why := Classify(cmd, root); risk != RiskCatastrophic {
+			t.Errorf("Classify(%q) = %v %q, want catastrophic", cmd, risk, why)
+		}
+	}
+	for _, cmd := range []string{
+		"bash -c ls > ~/.bashrc",
+		"sh -c 'echo x' >> ~/.profile",
+		"eval ls > ~/.bashrc",
+		"env -C / touch etc/x",
+	} {
+		if risk, why := Classify(cmd, root); risk < RiskEscapes {
+			t.Errorf("Classify(%q) = %v %q, want escapes", cmd, risk, why)
+		}
+	}
+	for _, cmd := range []string{
+		"env GIT_EXTERNAL_DIFF=./x git diff",
+		"env BASH_ENV=./x bash -c ls",
+		"env LD_PRELOAD=./x.so ls",
+		"env -u PATH ls",
+		"env -C /etc cat passwd",
+		"bash --rcfile ls -c 'rm x'",
+		"bash -i --rcfile ./evil -c ls",
+		"bash -c -e 'rm x'",
+		"time -o out.txt ls",
+		"nice -n 10 rm x",
+	} {
+		if SafeRead(cmd) {
+			t.Errorf("SafeRead(%q) = true", cmd)
+		}
+	}
+	for _, cmd := range []string{"env", "env ls", "nice -n 5 ls", "timeout -s KILL 5 cat x", "bash -ec 'ls'"} {
+		if !SafeRead(cmd) {
+			t.Errorf("SafeRead(%q) = false", cmd)
+		}
+	}
+	for cmd, want := range map[string]string{
+		"sudo -u root tee locked_test.go":    "/work/repo/locked_test.go",
+		"X=1 /usr/bin/tee locked_test.go":    "/work/repo/locked_test.go",
+		"bash --norc -c 'rm locked_test.go'": "/work/repo/locked_test.go",
+		"bash -c ls > locked_test.go":        "/work/repo/locked_test.go",
+		"env -C sub rm locked_test.go":       "/work/repo/sub/locked_test.go",
+	} {
+		if got := WriteTargets(cmd, root); !slices.Contains(got, want) {
+			t.Errorf("WriteTargets(%q) = %v, missing %s", cmd, got, want)
+		}
+	}
+}
