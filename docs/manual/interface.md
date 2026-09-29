@@ -244,6 +244,113 @@ The header shows the git branch and the session's `+N −M`. Settings
 (the gear in the rail) sets Moon bright, Moon dark or System, the font
 size, and a sound when a turn finishes in a background tab.
 
+## The screen-reader interface
+
+The full-screen interface redraws itself many times a second: a spinner,
+a status bar, a transcript that re-wraps when the window changes size. A
+screen reader reads each redraw as new text, or nothing useful at all.
+`janetcode --screen-reader` runs the same session as a conversation on
+plain lines instead:
+
+```
+janetcode, screen reader mode. Working in /home/me/proj. Model qwen3.8-27b.
+Type a request and press enter. /help lists commands, /quit exits.
+Ready.
+> add a test for the parser
+Working.
+Running tool: read_file parser.go.
+Tool read_file finished.
+Result: package parser …
+Waiting for permission: write_file {"path":"parser_test.go",…}.
+Type y to allow once, a to allow for this session, r to save the rule write_file(parser_test.go), n to deny. You can add a reason after n.
+> y
+Allowed.
+Answer:
+I added parser_test.go with three cases.
+Outcome: ✓ verified: go test ./... passed
+Turn finished.
+Ready.
+```
+
+Every line is written once, below the one before, and never moved or
+overwritten: no cursor addressing, no carriage returns, no colour, no
+box drawing and no animation reach the terminal — whatever the model or
+a tool prints is stripped of escape sequences on the way out. States the
+full-screen interface shows as a glyph or a colour are said in words.
+The model's answer is handed over a line at a time rather than a word at
+a time, with Markdown's symbols taken off (`## Heading` is read as
+"Heading", `**bold**` as "bold", a code fence as "Code, go:" and "End
+of code."); bullets and numbers stay, since they are how a list is
+heard.
+
+Permission questions are answered by typing `y` (once), `a` (this tool
+for the session), `r` (save the offered rule) or `n`, optionally
+followed by a reason for the model. ctrl+c cancels a running turn and
+leaves the session open; at the prompt it exits, as do `/quit` and
+ctrl+d. `/cost` says what the session has spent, and `/voice` records a
+prompt (see [Voice input](#voice-input)). Everything else typed is sent
+to the model; `@path` attaches a file as it does in the full-screen
+interface.
+
+It starts with `--screen-reader`, `JANETCODE_SCREEN_READER=1` or
+`"screen_reader": true` in the config, and by itself when the
+environment has `ACCESSIBILITY_ENABLED=1`, which some Linux desktops
+export when a screen reader runs at login; `JANETCODE_SCREEN_READER=0`
+keeps the full-screen interface. The browser interface, `--web`, is the
+other accessible choice: it has landmarks and live announcements and
+passes an automated accessibility check (`make ui-a11y`).
+
+## Language
+
+`"language": "Spanish"` (or `es`, `español`, `pt-BR`, any language by
+name or code) does two things. The model is told to write every
+answer, explanation, question and plan in that language, whatever the
+request or the files are in, while code, identifiers, commands, commit
+messages and file contents stay in the language the project already
+uses. And the interface's own words — `/help`'s headings and first
+page, the permission prompt, the mode on the status line, the queued
+message line, the turn's waiting states, the screen-reader interface's
+labels, and the browser page's buttons, tabs and placeholders — are
+shown in that language when janetcode carries it: Spanish (`es`) and
+French (`fr`) today. Anything the catalogue lacks is shown in English,
+and so is the rest of the interface (command descriptions in `/help
+all`, the manual, config keys); command names are never translated,
+since they are what you type.
+
+With no `language` key the model follows you, and the interface takes
+its language from `LC_ALL`, `LC_MESSAGES` or `LANG`, so `LANG=es_ES.UTF-8`
+shows the Spanish interface without telling the model anything. A
+`language` naming one the catalogue lacks shows English, not `LANG`'s:
+you asked for a language, and English is the nearest the interface has.
+`/config language=<name>` changes both at once in a running session; the
+next model call carries the new instruction.
+
+## Voice input
+
+`/voice` records a prompt from the microphone; `/voice` again stops the
+recording, and the transcript is put in the input, after anything
+already typed, for you to read, correct and send. It is never sent on
+its own: a mishearing sent unread is a request nobody made. In the
+screen-reader interface, enter stops the recording, and the transcript
+is read back to you before an empty enter sends it. In the browser
+interface the microphone button beside the command button does the
+same, recording in the browser and transcribing on the server.
+
+Recording uses a program the machine already has — `arecord` (ALSA),
+sox's `rec`, or `ffmpeg` — found on `PATH` in that order, recording 16
+kHz mono WAV and stopped with an interrupt so it finishes the file.
+`voice.recorder` names another command; it runs in the shell with the
+file to write in `$JANETCODE_VOICE_FILE` (and appended as the last
+argument when the command does not mention it), and must stop cleanly
+on SIGINT. One recording is capped at five minutes.
+
+The recording goes to an OpenAI-compatible `/audio/transcriptions`
+endpoint: the active provider's when it speaks the OpenAI API, else
+`OPENAI_BASE_URL` (or OpenAI's) with `OPENAI_API_KEY`. `voice.endpoint`
+and `voice.api_key_env` point it elsewhere, and `voice.model` names the
+model (`whisper-1` by default; many gateways call it `whisper`). When
+`language` is set it is passed along as a hint.
+
 ## The terminal takes part
 
 janetcode tells the terminal what is happening, so the terminal can help:

@@ -2,10 +2,13 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -136,6 +139,33 @@ var setters = map[string]setter{
 	"decisions.intake_route":    consumerKey("route"),
 	"decisions.session_outcome": consumerKey("outcome"),
 
+	// Any language may be named: the model is told it as given, and the
+	// interface falls back to English when its catalogue lacks it.
+	"language": func(c *Config, val string) (any, error) {
+		if err := ValidateLanguage(val); err != nil {
+			return nil, err
+		}
+		c.Language = val
+		return val, nil
+	},
+	"screen_reader": boolPtr(func(c *Config) **bool { return &c.ScreenReader }),
+
+	// The voice block, written whole the way the decisions block is.
+	"voice.model": voiceKey(nil, func(v *VoiceConfig) *string { return &v.Model }),
+	"voice.endpoint": voiceKey(func(s string) error {
+		if s == "" || strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+			return nil
+		}
+		return fmt.Errorf("voice.endpoint wants an http(s) base URL such as https://api.openai.com/v1, or empty for the provider's")
+	}, func(v *VoiceConfig) *string { return &v.Endpoint }),
+	"voice.api_key_env": voiceKey(func(s string) error {
+		if s == "" || envName.MatchString(s) {
+			return nil
+		}
+		return fmt.Errorf("voice.api_key_env wants the name of an environment variable, such as OPENAI_API_KEY")
+	}, func(v *VoiceConfig) *string { return &v.APIKeyEnv }),
+	"voice.recorder": voiceKey(nil, func(v *VoiceConfig) *string { return &v.Recorder }),
+
 	"theme": func(c *Config, val string) (any, error) {
 		// Refused here as well as at load, for the same reason effort is:
 		// a name nothing can resolve would be written to the file, ignored
@@ -259,6 +289,41 @@ func intKey(name string, positive bool, field func(*Config) *int) setter {
 func stringKey(field func(*Config) *string) setter {
 	return func(c *Config, val string) (any, error) {
 		*field(c) = val
+		return val, nil
+	}
+}
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// ValidateLanguage accepts a language as a person would name it — "es",
+// "pt-BR", "Spanish", "español", "Brazilian Portuguese" — and refuses
+// anything else: the value is written into the system prompt, so it is
+// held to letters, spaces, hyphens and underscores, at most 40 of them.
+func ValidateLanguage(s string) error {
+	if utf8.RuneCountInString(s) > 40 {
+		return fmt.Errorf("language wants a language name or code, at most 40 characters")
+	}
+	for _, r := range s {
+		if !unicode.IsLetter(r) && r != ' ' && r != '-' && r != '_' {
+			return fmt.Errorf("language wants a language name or code such as es, pt-BR or Spanish (empty follows the user)")
+		}
+	}
+	return nil
+}
+
+// voiceKey builds a setter for one string of the voice block, writing a
+// block when the config has none. check, when set, refuses a value.
+func voiceKey(check func(string) error, field func(*VoiceConfig) *string) setter {
+	return func(c *Config, val string) (any, error) {
+		if check != nil {
+			if err := check(val); err != nil {
+				return nil, err
+			}
+		}
+		if c.Voice == nil {
+			c.Voice = &VoiceConfig{}
+		}
+		*field(c.Voice) = val
 		return val, nil
 	}
 }

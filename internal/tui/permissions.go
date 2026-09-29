@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/trust"
@@ -296,7 +297,7 @@ func (m *model) permissionKeysAt(tool, rule, learned string, expandable bool, ru
 	if rungs > 1 {
 		ladder = fmt.Sprintf(" ←→ %d/%d", rung+1, rungs)
 	}
-	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule + ladder + note}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
+	long := []seg{{"y", " " + i18n.T("allow once")}, {"a", " " + i18n.Tf("always for %s this session", tool)}, {"r", " " + i18n.Tf("save rule %s", rule+ladder+note)}, {"n", " " + i18n.T("deny (and say why)")}, {"c", " " + i18n.T("cancel the turn")}}
 	if expandable {
 		long = append(long, seg{"", "(ctrl+o expands)"})
 	}
@@ -315,26 +316,32 @@ func (m *model) permissionKeysAt(tool, rule, learned string, expandable bool, ru
 	rule = shortenPaths(m.opts.Cwd, rule)
 	// "a always for bash" read as a permanent grant; a is this session
 	// only, and r is the one that lasts, so the short forms say so.
-	medium := []seg{{"y", " once"}, {"a", " all " + tool + " this session"}, {"r", " save " + rule + ladder + note}, {"n", " deny"}, {"c", " cancel"}}
+	medium := []seg{{"y", " " + i18n.T("once")}, {"a", " " + i18n.Tf("all %s this session", tool)}, {"r", " " + i18n.Tf("save %s", rule+ladder+note)}, {"n", " " + i18n.T("deny")}, {"c", " " + i18n.T("cancel")}}
 	if s, w := render(medium, " · "); w <= room {
 		return s
 	}
 	// The hint outlives the learned note here: the note explains why r is
 	// worth pressing, but without the hint a widened rule reads as the
 	// only rule there ever was.
-	narrow := []seg{{"y", ""}, {"a", " session"}, {"r", " save " + rule + ladder}, {"n", " deny"}, {"c", " cancel"}}
+	session, save, deny, cancel := " "+i18n.T("session"), " "+i18n.T("save %s"), " "+i18n.T("deny"), " "+i18n.T("cancel")
+	narrow := []seg{{"y", ""}, {"a", session}, {"r", fmt.Sprintf(save, rule+ladder)}, {"n", deny}, {"c", cancel}}
 	if s, w := render(narrow, "  "); w <= room {
 		return s
 	}
 	// Only now is the rule itself cut, to whatever the fixed part leaves.
-	fixed := lipgloss.Width("y  a session  r save   n deny  c cancel")
+	fixed := lipgloss.Width("y  a" + session + "  r" + fmt.Sprintf(save, "") + "  n" + deny + "  c" + cancel)
 	if left := room - fixed; left >= 6 && lipgloss.Width(rule) > left {
-		narrow[2].text = " save " + truncateLine(rule, left)
+		narrow[2].text = fmt.Sprintf(save, truncateLine(rule, left))
 		if s, w := render(narrow, "  "); w <= room {
 			return s
 		}
 	}
-	s, _ := render([]seg{{"y", ""}, {"a", " session"}, {"r", " save rule"}, {"n", " deny"}, {"c", " cancel"}}, " · ")
+	s, w := render([]seg{{"y", ""}, {"a", session}, {"r", " " + i18n.T("save rule")}, {"n", deny}, {"c", cancel}}, " · ")
+	if w > room {
+		// Only a language whose words run longer than English's gets
+		// here: the keys alone, which /help spells out.
+		s, _ = render([]seg{{"y", ""}, {"a", ""}, {"r", ""}, {"n", ""}, {"c", ""}}, " · ")
+	}
 	return s
 }
 

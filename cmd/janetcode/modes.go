@@ -55,6 +55,7 @@ var sessionModes = []sessionMode{
 	{"acp", func(o *options) bool { return o.acpMode }, true, (*root).acpMode},
 	{"headless", func(o *options) bool { return o.promptText != "" || o.watchCmd != "" }, true, (*root).headlessMode},
 	{"web", func(o *options) bool { return o.web }, true, (*root).webMode},
+	{"screen-reader", func(o *options) bool { return o.screenReader }, true, (*root).screenReaderMode},
 	{"tui", func(*options) bool { return true }, true, (*root).tuiMode},
 }
 
@@ -244,6 +245,29 @@ func (r *root) headlessMode() error {
 	return err
 }
 
+// screenReaderMode is the interactive session as a line conversation for
+// a screen reader (headless.Converse): the terminal interface's session,
+// drawn as lines that are written once and never redrawn.
+func (r *root) screenReaderMode() error {
+	if r.needsConnect {
+		return headless.BadInput("no API key for the screen-reader session: set ANTHROPIC_API_KEY or OPENAI_API_KEY (and OPENAI_BASE_URL), or run janetcode --init; the line interface has no /connect wizard")
+	}
+	if err := interactiveTerminal(); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	defer stop()
+	r.startMCP(ctx, true)
+	defer r.syncSession()
+	return headless.Converse(ctx, headless.ConverseOptions{
+		Options: headless.Options{
+			Agent: r.ag, Session: r.sess, Stdin: os.Stdin, Stdout: os.Stdout, Cwd: r.cwd,
+			Memory: r.mem, AutoMemory: r.cfg.AutoMemory(),
+		},
+		Voice: voiceSession(r.cfg),
+	})
+}
+
 // webMode serves the session in a browser instead of the terminal.
 func (r *root) webMode() error {
 	o, cfg, ag, cwd, cfgDir, cfgPath := r.opts, r.cfg, r.ag, r.cwd, r.cfgDir, r.cfgPath
@@ -267,6 +291,7 @@ func (r *root) webMode() error {
 			return buildProvider(&sub)
 		},
 		Workspace: built.ws, CD: built.cd, MCP: mcpOpts, Skills: built.skillInjector,
+		Transcribe: transcribeFile(cfg),
 		Doctor: func(ctx context.Context, w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a
 			// running session never changes files behind the user.
@@ -342,6 +367,7 @@ func (r *root) tuiMode() error {
 		},
 		Verify: r.uiVerify,
 		Perms:  r.uiPerms,
+		Voice:  voiceSession(cfg),
 	})
 }
 

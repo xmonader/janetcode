@@ -491,6 +491,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .model-group .model-btn:has(+ .effort-chip[hidden]) { border-radius: 8px; }
 .effort-chip .i { width: 13px; height: 13px; }
 .mode-chip[data-mode="YOLO"] { background: var(--bad-soft); color: var(--bad); }
+#voice-btn.on { background: var(--bad-soft); color: var(--bad); }
 .mode-chip[data-mode="AUTO"],
 .mode-chip[data-mode="EDITS"] { background: var(--ok-soft); color: var(--ok); }
 .mode-chip[data-mode="PLAN"] { background: var(--warn-soft); color: var(--warn); }

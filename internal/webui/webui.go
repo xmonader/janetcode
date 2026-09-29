@@ -86,6 +86,9 @@ type Options struct {
 	// live model call, so it takes the server's context and stops when
 	// the server does.
 	Doctor func(context.Context, io.Writer) error
+	// Transcribe turns a recording the page made into text (the voice
+	// button). Nil hides the button.
+	Transcribe func(ctx context.Context, audioPath string) (string, error)
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -516,6 +519,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/new", s.newChat)
 	mux.HandleFunc("/api/load", s.loadSession)
 	mux.HandleFunc("/api/upload", s.upload)
+	mux.HandleFunc("/api/voice", s.voiceAPI)
+	mux.HandleFunc("/api/ui", s.uiAPI)
 	mux.HandleFunc("/api/complete", s.completeAPI)
 	mux.HandleFunc("/api/suggest", s.suggestAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)

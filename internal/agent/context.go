@@ -27,7 +27,7 @@ func (a *Agent) systemPrompt() string {
 		}
 		system += sb.String()
 	}
-	return system + a.modeSystem()
+	return system + a.languageSystem() + a.modeSystem()
 }
 
 // CacheRate is the share of session input tokens served from the
@@ -73,7 +73,7 @@ func (a *Agent) Context() ContextReport {
 	sys := a.SystemPrompt()
 	r.System = len(sys) / 4
 	r.Base, r.Project = splitPromptTokens(sys)
-	r.Modes = len(a.modeSystem()) / 4
+	r.Modes = (len(a.modeSystem()) + len(a.languageSystem())) / 4
 	extra := a.extra()
 	r.Extra = len(extra) / 4
 	r.Memory, r.Skills = splitExtraTokens(extra)

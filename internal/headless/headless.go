@@ -17,6 +17,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/gitx"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/present"
@@ -62,6 +63,14 @@ type Options struct {
 	// between-turns backstop for the rounds --until and --watch drive.
 	// Zero means no ceiling.
 	MaxCostUSD float64
+
+	// printer, when set, renders each event in text mode instead of
+	// printEvent: the screen-reader conversation's labelled lines.
+	printer func(agent.Event)
+	// conversing marks a turn that is one of many in a conversation
+	// (Converse): the session does not end with it, so the end-of-session
+	// work waits for the conversation's end.
+	conversing bool
 }
 
 // DefaultUntilRounds bounds the re-loops when --until keeps failing.
@@ -302,19 +311,19 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			// already written this event as a line of its own.
 			return
 		}
+		if opts.printer != nil {
+			opts.printer(e)
+			return
+		}
 		printEvent(opts, e)
 	})
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
 	}
-	// A headless run is one session per process, so its end is the
-	// session's end. The outcome classification (item 9) runs first and
-	// writes its answer into the record, so consolidation reads a record
-	// that says how the session ended; with the consumer off it does
-	// nothing at all.
-	ag.ClassifySessionOutcome(ctx)
-	if err == nil && opts.Memory != nil && opts.AutoMemory && !ag.Off["sleep"] && ag.LastTurnMutated() {
-		sleepSession(ctx, opts)
+	if !opts.conversing {
+		// A headless run is one session per process, so its end is the
+		// session's end.
+		endSession(ctx, opts, err == nil && ag.LastTurnMutated())
 	}
 	// The turn is already on disk: every message was appended to the log as
 	// it happened. Only the title still needs writing.
@@ -326,6 +335,19 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 		}
 	}
 	return explainFailure(err, opts)
+}
+
+// endSession is the work a session's end owes. The outcome classification
+// (item 9) runs first and writes its answer into the record, so
+// consolidation reads a record that says how the session ended; with the
+// consumer off it does nothing at all. mutated says whether the session
+// changed anything worth consolidating.
+func endSession(ctx context.Context, opts Options, mutated bool) {
+	ag := opts.Agent
+	ag.ClassifySessionOutcome(ctx)
+	if mutated && opts.Memory != nil && opts.AutoMemory && !ag.Off["sleep"] {
+		sleepSession(ctx, opts)
+	}
 }
 
 // stdinApprover asks on the terminal; without a terminal it denies, so a
@@ -342,6 +364,9 @@ type stdinApprover struct {
 	// interactive, since a pipe is not a terminal.
 	src         io.Reader
 	interactive func() bool
+	// screenReader words the question for the line interface: the state
+	// in words, then the call, then what to type (askSpoken).
+	screenReader bool
 
 	// asking admits one prompt at a time. Parallel subagents that bubble
 	// their approvals, or a background fork beside the main agent, ask
@@ -442,37 +467,93 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 	case <-a.done:
 		return agent.Deny, "", nil
 	}
-	if call.Preview != "" {
-		fmt.Fprintf(a.out, "\n%s\n", strings.TrimRight(call.Preview, "\n"))
+	if a.screenReader {
+		a.askSpoken(call)
+	} else {
+		if call.Preview != "" {
+			fmt.Fprintf(a.out, "\n%s\n", strings.TrimRight(call.Preview, "\n"))
+		}
+		if call.Warning != "" {
+			fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
+		}
+		rule := ""
+		if call.Rule != "" {
+			rule = fmt.Sprintf(" / [r]ule %s saved for good", call.Rule)
+		}
+		fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session%s / [n]o (add a reason after n): ", call.Name, textfmt.Clip(textfmt.OneLine(string(call.Input)), 200), rule)
 	}
+	s, err := a.nextLine(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return agent.Deny, "", ctx.Err()
+		}
+		return agent.Deny, "", nil
+	}
+	d, reason := parseAnswer(s)
+	if a.screenReader {
+		if d == agent.Deny {
+			fmt.Fprintln(a.out, i18n.T("Denied."))
+		} else {
+			fmt.Fprintln(a.out, i18n.T("Allowed."))
+		}
+	}
+	return d, reason, nil
+}
+
+// parseAnswer reads y, a, r or n, the last optionally followed by a
+// reason for the model ("n use the config dir instead"). Anything else
+// is a no.
+func parseAnswer(s string) (agent.Decision, string) {
+	word, rest, _ := strings.Cut(strings.TrimSpace(s), " ")
+	switch strings.ToLower(word) {
+	case "y", "yes":
+		return agent.Allow, ""
+	case "a", "always":
+		return agent.AllowSession, ""
+	case "r", "rule":
+		return agent.AllowAlways, ""
+	}
+	return agent.Deny, strings.TrimSpace(rest)
+}
+
+// askSpoken is the permission question for a screen reader: the state
+// named first, in words, then what the call would do, then what to type
+// — each on a line of its own, nothing drawn and nothing overwritten.
+func (a *stdinApprover) askSpoken(call agent.ToolCall) {
+	what := call.Name
+	if in := textfmt.Clip(textfmt.OneLine(string(call.Input)), 200); in != "" {
+		what += " " + in
+	}
+	fmt.Fprintln(a.out, i18n.Tf("Waiting for permission: %s.", safe(what)))
 	if call.Warning != "" {
-		fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
+		fmt.Fprintln(a.out, "WARNING: "+safe(call.Warning))
 	}
-	rule := ""
+	if call.Preview != "" {
+		fmt.Fprintln(a.out, readable(safe(strings.TrimRight(call.Preview, "\n"))))
+	}
 	if call.Rule != "" {
-		rule = fmt.Sprintf(" / [r]ule %s saved for good", call.Rule)
+		fmt.Fprintln(a.out, i18n.Tf("Type y to allow once, a to allow for this session, r to save the rule %s, n to deny. You can add a reason after n.", call.Rule))
+	} else {
+		fmt.Fprintln(a.out, i18n.T("Type y to allow once, a to allow for this session, n to deny. You can add a reason after n."))
 	}
-	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session%s / [n]o (add a reason after n): ", call.Name, textfmt.Clip(textfmt.OneLine(string(call.Input)), 200), rule)
+	fmt.Fprint(a.out, "> ")
+}
+
+// nextLine is the next line typed, read by the approver's one reader so a
+// conversation's prompts and its permission answers never race for the
+// same input.
+func (a *stdinApprover) nextLine(ctx context.Context) (string, error) {
 	a.start.Do(func() { go a.readLines() })
 	select {
 	case <-ctx.Done():
-		return agent.Deny, "", ctx.Err()
+		return "", ctx.Err()
 	case <-a.done:
-		return agent.Deny, "", nil
+		return "", io.EOF
 	case r := <-a.lines:
 		if r.err != nil && r.s == "" {
-			return agent.Deny, "", nil
+			return "", r.err
 		}
-		word, rest, _ := strings.Cut(strings.TrimSpace(r.s), " ")
-		switch strings.ToLower(word) {
-		case "y", "yes":
-			return agent.Allow, "", nil
-		case "a", "always":
-			return agent.AllowSession, "", nil
-		case "r", "rule":
-			return agent.AllowAlways, "", nil
-		}
-		return agent.Deny, strings.TrimSpace(rest), nil
+		return strings.TrimRight(r.s, "\r\n"), nil
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -140,12 +141,12 @@ func (m *model) footerNotice() string {
 		// finding the message has not gone anywhere yet.
 		// The message is clipped first so the keys survive: a long
 		// message used to push "up takes it back" off an 80-column row.
-		hint := " · sends when this turn ends · up takes it back, ctrl+s steers it into this turn"
+		hint := i18n.T(" · sends when this turn ends · up takes it back, ctrl+s steers it into this turn")
 		if room < 110 {
-			hint = " · waits for this turn · ↑ takes back · ctrl+s steers"
+			hint = i18n.T(" · waits for this turn · ↑ takes back · ctrl+s steers")
 		}
 		msgRoom := max(10, room-lipgloss.Width(hint)-17)
-		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(truncateLine(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]), msgRoom))+m.styles.faint.Render(hint), room)
+		return fitLine("  "+m.styles.faint.Render(i18n.Tf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(truncateLine(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]), msgRoom))+m.styles.faint.Render(hint), room)
 	case m.notice.live():
 		return fitLine("  "+m.styles.dim.Render(m.notice.text), room)
 	}
@@ -179,17 +180,17 @@ func (m *model) statusMode() string {
 func (m *model) statusModeHint() string {
 	switch m.statusMode() {
 	case "PLAN":
-		return "reads only · writes a plan · /plan approve runs it"
+		return i18n.T("reads only · writes a plan · /plan approve runs it")
 	case "READ-ONLY":
-		return "inspect only"
+		return i18n.T("inspect only")
 	case "YOLO":
-		return "tools run without asking"
+		return i18n.T("tools run without asking")
 	case "AUTO":
-		return "edits and known-safe reads run · other commands ask"
+		return i18n.T("edits and known-safe reads run · other commands ask")
 	case "EDITS":
-		return "file changes go through · commands ask"
+		return i18n.T("file changes go through · commands ask")
 	default:
-		return "edits and commands ask first"
+		return i18n.T("edits and commands ask first")
 	}
 }
 

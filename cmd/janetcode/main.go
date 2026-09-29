@@ -17,6 +17,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -356,6 +357,17 @@ func (s *startup) stageModeChecks() (bool, error) {
 // usable one, and starts the background price refresh.
 func (s *startup) stageConfig() (bool, error) {
 	s.cfg, s.needsConnect, s.cfgErr = loadConfig(s.opts)
+	// The interface's language is settled before anything is drawn: from
+	// the language key when it names a catalogued one, else from LANG.
+	lang := ""
+	if s.cfg != nil {
+		lang = s.cfg.Language
+	}
+	i18n.SetLanguage(i18n.Resolve(lang, os.Getenv))
+	if !s.opts.screenReader {
+		want, off := headless.ScreenReaderWanted(os.Getenv)
+		s.opts.screenReader = !off && (want || s.cfg.ScreenReaderOn())
+	}
 	if done, err := offlineInspect(s.fs, s.opts, s.cfg, s.cfgErr); done {
 		return true, err
 	}

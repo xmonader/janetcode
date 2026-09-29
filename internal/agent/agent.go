@@ -311,6 +311,9 @@ type Agent struct {
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).
 	settingsMu sync.Mutex
+	// language is the language the model answers in (language.go),
+	// guarded by settingsMu.
+	language string
 	// offToggled holds the switches a front-end flipped mid-session
 	// (ToggleOff), guarded by settingsMu. They are kept apart from Off
 	// because Off is read without a lock all over the turn loop, and a

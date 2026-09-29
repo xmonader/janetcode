@@ -86,7 +86,10 @@ type Options struct {
 	// the caller's context because it makes a live model call; /doctor
 	// runs it off the UI goroutine under the session's life context, so
 	// quitting stops it. Nil leaves /doctor as a short local note.
-	Doctor   func(context.Context, io.Writer) error
+	Doctor func(context.Context, io.Writer) error
+	// Voice records from the microphone until stop is closed and returns
+	// the transcript (/voice). Nil says there is no voice input here.
+	Voice    func(ctx context.Context, stop <-chan struct{}) (string, error)
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string

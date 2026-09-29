@@ -67,11 +67,21 @@ func (s *server) requireToken(w http.ResponseWriter, r *http.Request) bool {
 			s.loginPage(w, "That token is not the one janetcode printed.")
 			return true
 		}
-		http.SetCookie(w, &http.Cookie{
+		c := &http.Cookie{
 			Name: cookieName(s.opts.Token), Value: s.opts.Token, Path: "/",
 			MaxAge: 30 * 24 * 3600, HttpOnly: true, SameSite: http.SameSiteStrictMode,
 			Secure: r.TLS != nil,
-		})
+		}
+		if embedded(r) {
+			// Framed by an editor's webview (editors/vscode): the page
+			// is a cross-site frame there, and a Strict cookie is never
+			// sent from one, so every call after this redirect would be
+			// refused. Only on loopback, where the browser accepts a
+			// Secure cookie over plain http; the Origin and Host gates
+			// still stand behind it.
+			c.SameSite, c.Secure = http.SameSiteNoneMode, true
+		}
+		http.SetCookie(w, c)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return true
 	}
@@ -85,6 +95,12 @@ func (s *server) requireToken(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Cache-Control", "no-store")
 	http.Error(w, "unauthorized: open the link janetcode printed, which carries the access token", http.StatusUnauthorized)
 	return true
+}
+
+// embedded reports whether the page was asked for to be framed by an
+// editor (?embed=1) on a loopback address.
+func embedded(r *http.Request) bool {
+	return r.URL.Query().Get("embed") == "1" && loopbackHost(r.Host)
 }
 
 // loginPage asks for the token when the page is opened without it.
