@@ -21,7 +21,7 @@ import (
 // less than the terminal's.
 var webCommands = []string{
 	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
-	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
+	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
@@ -141,6 +141,10 @@ var webDispatch = map[string]webHandler{
 	"/compact-fast": (*server).cmdCompactFast, "/compress-fast": (*server).cmdCompactFast,
 	"/undo": (*server).cmdUndo,
 	"/redo": (*server).cmdRedo,
+	"/checkpoints": func(s *server, arg string) (bool, error) {
+		s.sheet("checkpoints", agent.FormatCheckpoints(s.cwd(), s.opts.Agent.CheckpointList()))
+		return false, nil
+	},
 	"/changes": func(s *server, arg string) (bool, error) {
 		s.sheet("changes", s.changesText(arg))
 		return false, nil

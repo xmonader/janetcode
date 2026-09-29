@@ -516,6 +516,35 @@ the summary replaced the messages that marked where the turn started, so
 that point can no longer be located and cutting at a guess would take
 the wrong messages. The preview says so in as many words.
 
+#### The checkpoint list: /checkpoints, esc esc
+
+`/checkpoints` lists every restore point the session holds, newest
+first: its id (`t4·1a2b3c4`, the turn and the git snapshot behind it),
+when it was taken, what the turn said it was doing, and what restoring it
+covers —
+
+- **whole work tree (git snapshot)**, so shell changes go back too, or
+  **file copies only** outside git, where only what the file tools
+  changed can be put back;
+- the files the file tools changed and how many paths the turn left
+  different;
+- whether it is **complete**: a file that could not be read before the
+  turn, or was too large to copy (see below), is listed as a gap, and the
+  checkpoint is marked incomplete. A complete checkpoint with a manifest
+  also promises that an undo leaves later edits alone.
+
+In the terminal the list is a picker: enter on a row runs `/undo turn n`
+for that turn, the preview above, and `/undo apply` carries it out.
+Pressing esc twice on an empty prompt while no turn is running opens the
+same list. The web UI shows it as a sheet.
+
+A checkpoint copies a file before the file tools change it. A copy over
+1 MiB is streamed to a blob beside the session's undo file rather than
+held in memory; a file over 256 MiB is not copied at all. Outside git you
+are told when that happens, before the change is made, and `/undo` then
+leaves that file as it is and says why rather than writing an empty
+"before" over it. Inside git the snapshot still covers it.
+
 ### Permission rules
 
 `/permissions` (in the terminal or the browser) starts with a plain

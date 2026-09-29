@@ -100,6 +100,7 @@ type model struct {
 	goal           goalCache                // the status line's goal note, as last folded from the log
 	finder         findState                // the last /find, so a repeat advances
 	picker         *picker                  // open searchable list
+	lastEsc        time.Time                // an esc on an idle, empty prompt: a second soon after opens /checkpoints
 	connect        *connect                 // open provider/model dialog
 	wiz            *wizard                  // open step dialog (/mcp add)
 	ov             overlayState             // live panel over the transcript; empty kind is closed
