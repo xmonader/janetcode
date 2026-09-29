@@ -119,6 +119,35 @@ func TestFetchThroughAPrivateProxy(t *testing.T) {
 	}
 }
 
+// The proxy is chosen per request, not once per fetch: HTTP_PROXY and
+// HTTPS_PROXY can name different proxies, NO_PROXY exempts some hosts,
+// and a same-host redirect from http to https changes which applies. A
+// proxy the redirect is sent through is as much the user's as the first
+// one, and dialling it must not be refused as a private target.
+func TestFetchFollowsARedirectThroughAnotherProxy(t *testing.T) {
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("landed via the second proxy"))
+	}))
+	defer second.Close()
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://example.test/landed", http.StatusFound)
+	}))
+	defer first.Close()
+	p1, _ := url.Parse(first.URL)
+	p2, _ := url.Parse(second.URL)
+	client := &http.Client{Transport: &http.Transport{Proxy: func(r *http.Request) (*url.URL, error) {
+		if r.URL.Path == "/landed" {
+			return p2, nil
+		}
+		return p1, nil
+	}}}
+	in, _ := json.Marshal(map[string]string{"url": "http://example.test/start"})
+	out, err := FetchURL{Client: client}.Run(context.Background(), in)
+	if err != nil || !strings.Contains(out, "landed via the second proxy") {
+		t.Fatalf("the redirect's proxy was refused: %q %v", out, err)
+	}
+}
+
 func TestFetchDialGuardJudgesTheConnectedAddress(t *testing.T) {
 	for addr, want := range map[string]bool{
 		"127.0.0.1:80":          true,

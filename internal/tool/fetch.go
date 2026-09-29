@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -90,7 +91,7 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		return nil
 	}
 	if !named {
-		guarded.Transport = guardDial(client.Transport, req)
+		guarded.Transport = guardDial(client.Transport)
 	}
 	client = &guarded
 	req.Header.Set("User-Agent", "janetcode/1 (+https://github.com/xmonader/janetcode)")
@@ -156,9 +157,14 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 //
 // A proxy is exempt: it is the user's own configuration, may well sit on a
 // private address, and resolves the target itself, so for a proxied
-// request only the literal check applies. A RoundTripper that is not an
-// *http.Transport has no dialer to guard and is returned as is.
-func guardDial(rt http.RoundTripper, req *http.Request) http.RoundTripper {
+// request only the literal check applies. Which proxy that is, is asked
+// of the transport's Proxy for every request it sends — HTTP_PROXY and
+// HTTPS_PROXY can differ, NO_PROXY exempts some hosts, and a redirect
+// from http to https changes which applies — so the addresses exempted
+// are the ones Proxy actually handed out, not the one it named for the
+// first request. A RoundTripper that is not an *http.Transport has no
+// dialer to guard and is returned as is.
+func guardDial(rt http.RoundTripper) http.RoundTripper {
 	var tr *http.Transport
 	switch v := rt.(type) {
 	case nil:
@@ -168,20 +174,30 @@ func guardDial(rt http.RoundTripper, req *http.Request) http.RoundTripper {
 	default:
 		return rt
 	}
-	proxy := ""
-	if tr.Proxy != nil {
-		if p, err := tr.Proxy(req); err == nil && p != nil {
-			port := p.Port()
-			if port == "" {
-				port = map[string]string{"http": "80", "https": "443", "socks5": "1080", "socks5h": "1080"}[p.Scheme]
+	var mu sync.Mutex
+	proxies := map[string]bool{}
+	if pick := tr.Proxy; pick != nil {
+		tr.Proxy = func(r *http.Request) (*url.URL, error) {
+			p, err := pick(r)
+			if err == nil && p != nil {
+				port := p.Port()
+				if port == "" {
+					port = map[string]string{"http": "80", "https": "443", "socks5": "1080", "socks5h": "1080"}[p.Scheme]
+				}
+				mu.Lock()
+				proxies[strings.ToLower(net.JoinHostPort(p.Hostname(), port))] = true
+				mu.Unlock()
 			}
-			proxy = strings.ToLower(net.JoinHostPort(p.Hostname(), port))
+			return p, err
 		}
 	}
 	direct := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 	checked := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: refusePrivateDial}
 	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		if proxy != "" && strings.ToLower(addr) == proxy {
+		mu.Lock()
+		proxy := proxies[strings.ToLower(addr)]
+		mu.Unlock()
+		if proxy {
 			return direct.DialContext(ctx, network, addr)
 		}
 		return checked.DialContext(ctx, network, addr)
