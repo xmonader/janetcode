@@ -137,7 +137,9 @@ func RelPath(cwd, p string) string {
 	if r := textfmt.RelTo(cwd, p); r != p {
 		return r
 	}
-	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home) {
+	// Home itself or a path under it — not any path that merely starts
+	// with the same letters, which turned /home/me2/x into "~2/x".
+	if home, err := os.UserHomeDir(); err == nil && home != "" && (p == home || strings.HasPrefix(p, home+string(filepath.Separator))) {
 		return "~" + strings.TrimPrefix(p, home)
 	}
 	return p
