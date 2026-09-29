@@ -29,6 +29,10 @@ type askState struct {
 	opt       int
 	othering  bool
 	reply     chan []agent.Answer
+	// draft is what was in the composer when the questions came up. The
+	// "Other" answer is typed in the composer and finishing clears it,
+	// so the message the user was writing is put back afterwards.
+	draft string
 }
 
 type tuiAsker struct{ send func(tea.Msg) }
@@ -81,7 +85,9 @@ func (m *model) openAsk(msg askMsg) {
 		questions: qs,
 		answers:   make([]agent.Answer, len(qs)),
 		reply:     msg.reply,
+		draft:     m.input.Value(),
 	}
+	m.setInput("")
 	m.input.Blur()
 	m.turn.setPhase("waiting for your answer")
 	m.refresh(false)
@@ -94,6 +100,7 @@ func (m *model) finishAsk() {
 	}
 	m.asking = nil
 	m.input.Reset()
+	m.setInput(s.draft)
 	m.input.Focus()
 	m.turn.setPhase("")
 	select {

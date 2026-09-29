@@ -68,3 +68,30 @@ func TestTwoAsksAtOnceAreBothAnswered(t *testing.T) {
 		t.Fatalf("second answered %+v", a)
 	}
 }
+
+// TestAskKeepsTheDraft: a question from the model that arrived while the
+// user was typing their next message threw that message away — the
+// "Other" answer is typed in the same composer, and finishing the
+// questions cleared it.
+func TestAskKeepsTheDraft(t *testing.T) {
+	for _, other := range []bool{false, true} {
+		h := newHarness(t)
+		h.m.input.SetValue("my next message")
+		reply := make(chan []agent.Answer, 1)
+		h.update(askMsg{ctx: context.Background(), questions: []agent.Question{{Prompt: "q?", Options: []agent.AskOption{{Label: "Yes"}, {Label: "No"}}}}, reply: reply})
+		if other {
+			h.keys("3") // Other
+			h.keys("my own answer")
+			h.enter()
+		} else {
+			h.keys("1")
+		}
+		a := <-reply
+		if other && (len(a) != 1 || a[0].Reason != "my own answer") {
+			t.Fatalf("the Other answer is %+v", a)
+		}
+		if got := h.m.input.Value(); got != "my next message" {
+			t.Fatalf("other=%v: after answering, the composer holds %q, want the draft back", other, got)
+		}
+	}
+}
