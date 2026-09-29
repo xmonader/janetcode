@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -221,7 +222,30 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 		// whole tree to before the turn, not just what the turn changed.
 		done, err = a.restore(ctx, cp, false)
 	}
+	intent := fmt.Sprintf("restore the work tree to before turn %d", tr.Turn)
 	if err != nil {
+		// A restore can fail part-way, with some files already put back.
+		// Returning the bare error left those moves unrecorded, so /undo
+		// <n> could not take them back and /changes never showed them.
+		// What did change is recorded; the checkpoints stay (the tree is
+		// not at turn n's state, so they still describe states ahead of
+		// it) and the conversation is left alone, so the restore can
+		// simply be run again.
+		var moved int
+		for _, p := range paths {
+			now, nerr := os.ReadFile(p)
+			if (nerr == nil) == existed[p] && bytes.Equal(now, before[p]) {
+				continue
+			}
+			moved++
+			a.record(Change{Turn: a.turnN, Tool: "undo", Intent: intent, Path: p, Existed: existed[p], Before: before[p], After: now, Gone: errors.Is(nerr, os.ErrNotExist)})
+		}
+		if moved > 0 {
+			if serr := a.SaveUndo(); serr != nil {
+				a.debugf("save undo: %v", serr)
+			}
+			err = fmt.Errorf("%w (%d file(s) were put back before it stopped; they are recorded as a change, so /changes lists them and /undo <n> takes them back, and /undo turn %d can be run again)", err, moved, tr.Turn)
+		}
 		return UndoReport{}, err
 	}
 	a.cp.mu.Lock()
@@ -235,7 +259,7 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 	var rep UndoReport
 	for _, p := range paths {
 		now, nerr := os.ReadFile(p)
-		a.record(Change{Turn: a.turnN, Tool: "undo", Intent: fmt.Sprintf("restore the work tree to before turn %d", tr.Turn), Path: p, Existed: existed[p], Before: before[p], After: now, Gone: errors.Is(nerr, os.ErrNotExist)})
+		a.record(Change{Turn: a.turnN, Tool: "undo", Intent: intent, Path: p, Existed: existed[p], Before: before[p], After: now, Gone: errors.Is(nerr, os.ErrNotExist)})
 	}
 	for _, d := range done {
 		verb, path, ok := strings.Cut(d, " ")

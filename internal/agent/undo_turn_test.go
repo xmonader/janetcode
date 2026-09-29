@@ -245,6 +245,55 @@ func TestRestoreToTurnOutsideGitUsesTheFileCopies(t *testing.T) {
 	}
 }
 
+// A restore that puts some files back and then fails on another used to
+// return the error with nothing recorded: the files it did put back were
+// not a change /undo <n> could take back, and nothing said they had
+// moved. What was actually restored is now recorded, and the turn's
+// checkpoint is kept, so the restore can be retried or taken back.
+func TestRestoreToTurnThatFailsPartWayRecordsWhatItRestored(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"a.txt","content":"changed"}`),
+		toolCall("t2", "write_file", `{"path":"y","content":"new"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "one", nil); err != nil {
+		t.Fatal(err)
+	}
+	// y cannot be removed any more: it is a directory with a file in it.
+	y := filepath.Join(root, "y")
+	if err := os.Remove(y); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(y, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.PreviewUndoTurn(context.Background(), 1, false); err != nil {
+		t.Fatal(err)
+	}
+	before := len(a.Changes())
+	if _, err := a.ApplyPendingUndo(context.Background(), false); err == nil {
+		t.Fatal("the restore could not remove y, so it should report an error")
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
+		t.Fatalf("a.txt = %q; setup expected it restored before the failure", data)
+	}
+	var recorded []string
+	for _, c := range a.Changes()[before:] {
+		if c.Tool == "undo" {
+			recorded = append(recorded, filepath.Base(c.Path))
+		}
+	}
+	if len(recorded) != 1 || recorded[0] != "a.txt" {
+		t.Fatalf("recorded undo changes = %v, want just a.txt", recorded)
+	}
+	if got := a.RestorableTurns(); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("restorable turns = %v; the partial restore should keep turn 1 to retry", got)
+	}
+}
+
 // texts is every message's text, for a test asserting something is not
 // anywhere in the conversation.
 func texts(msgs []llm.Message) []string {
