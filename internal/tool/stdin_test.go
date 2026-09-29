@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -207,5 +208,24 @@ func TestLooksLikePrompt(t *testing.T) {
 		if got := looksLikePrompt(c.out, c.strong); got != c.want {
 			t.Errorf("looksLikePrompt(%q, %v) = %v", c.out, c.strong, got)
 		}
+	}
+}
+
+// node waits on its input in epoll, not read: the weaker signal, which
+// counts only after a quiet spell with a prompt on screen.
+func TestBashEventLoopPromptIsSeen(t *testing.T) {
+	needsProc(t)
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node not installed")
+	}
+	jobs := &Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	out := bashRun(t, Bash{Root: t.TempDir(), Jobs: jobs}, map[string]any{"command": `node -e "require('readline').createInterface({input:process.stdin,output:process.stdout}).question('package name: (demo) ',a=>{console.log('name='+(a||'demo'));process.exit(0)})"`})
+	if !strings.Contains(out, "waiting for input") || !strings.Contains(out, "package name:") {
+		t.Fatalf("node prompt not seen: %q", out)
+	}
+	id, _ := strconv.Atoi(jobIDRe.FindStringSubmatch(out)[1])
+	if r := jobRun(t, jobs, fmt.Sprintf(`{"action":"stdin","id":%d,"text":""}`, id)); !strings.Contains(r, "name=demo") {
+		t.Fatalf("enter took no default: %q", r)
 	}
 }
