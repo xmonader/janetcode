@@ -36,6 +36,7 @@ type workspace struct {
 	Edits     bool        `json:"edits"`
 	Plan      bool        `json:"plan"`
 	ReadOnly  bool        `json:"readonly"`
+	DryRun    bool        `json:"dry_run"`
 	Mode      string      `json:"mode"`
 	Terminals []termItem  `json:"terminals,omitempty"`
 	Ptc       []ptcItem   `json:"ptc,omitempty"`
@@ -175,6 +176,7 @@ func (s *server) workspace() workspace {
 	ws.Edits = modes.AutoEdits
 	ws.Plan = modes.PlanMode
 	ws.ReadOnly = modes.ReadOnly
+	ws.DryRun = ag.DryRunOn()
 	ws.Mode = sessionMode(ag)
 	if terms := termsOf(ag); terms != nil {
 		for _, x := range terms.List() {

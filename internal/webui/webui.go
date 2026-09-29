@@ -372,6 +372,7 @@ type statusPayload struct {
 	Edits    bool   `json:"edits"`
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
+	DryRun   bool   `json:"dry_run"`
 	Mode     string `json:"mode"`
 	// Effort is the reasoning tier the session asks for, empty when it
 	// is the provider's own default — the chip beside the mode.
@@ -1070,6 +1071,7 @@ func (s *server) statusOf(f sessionState) statusPayload {
 		st.Edits = modes.AutoEdits
 		st.Plan = modes.PlanMode
 		st.ReadOnly = modes.ReadOnly
+		st.DryRun = s.opts.Agent.DryRunOn()
 		st.Mode = sessionMode(s.opts.Agent)
 		st.Effort = modes.Effort
 		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(modes.Price); ok {

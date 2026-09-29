@@ -29,6 +29,7 @@ type options struct {
 	autoMode     bool
 	sandboxOn    bool
 	readonly     bool
+	dryRun       bool
 	continueC    bool
 	resumeR      string
 	autoEdits    bool
@@ -113,7 +114,7 @@ var helpGroups = []struct {
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
-	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
+	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
@@ -233,6 +234,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.autoMode, "auto", false, "auto mode: in-workspace edits and known-safe reads run; other commands ask (/auto toggles it)")
 	fs.BoolVar(&o.sandboxOn, "sandbox", false, "wrap local bash in the workspace sandbox profile (docker, seatbelt or Landlock); the sandbox config key picks another profile; file tools stay on the host")
 	fs.BoolVar(&o.readonly, "readonly", false, "read-only: no edits or commands, the model can only inspect")
+	fs.BoolVar(&o.dryRun, "dry-run", false, "dry run: the model plans and edits a preview, and commands that change things are recorded instead of run; nothing reaches the disk until /dryrun apply. With -p the preview (diffs, commands not run) is printed at the end, and is the dry_run field of --output-format json")
 	fs.BoolVar(&o.continueC, "c", false, "short for --continue")
 	fs.StringVar(&o.resumeR, "r", "", "short for --resume <id>")
 	fs.BoolVar(&o.autoEdits, "auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")

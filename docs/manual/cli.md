@@ -26,6 +26,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--sandbox` | wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; `/sandbox` toggles it |
 | `--auto-edits` | auto-accept file edits; commands still ask. `/edits` toggles the same thing mid-session |
 | `--readonly` | read, search and answer, but change nothing |
+| `--dry-run` | the model plans and edits a preview; commands that change things are recorded, not run, and nothing reaches the disk until `/dryrun apply`. With `-p` the preview is printed at the end (stderr), and is the `dry_run` field of `--output-format json`. See [Dry run](interface.md#dry-run-see-the-whole-change-first) |
 | `--append-system-prompt "<text>"` | add text (or `@file`) to the system prompt for this run (TUI sessions too); `JANETCODE_SYSTEM_MD=<file>` replaces the base prompt instead. Both are recorded in eval results, so a prompt A/B stays traceable |
 | `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one (including one started with `--bg`) |
 | `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume`. What its permission mode asks about waits for `--answer`; it runs `--yolo` only when given (see [sessions](sessions.md)) |

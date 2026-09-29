@@ -62,6 +62,11 @@ const (
 	// implementation exists, so this is the phase doing its job, not a
 	// failed check.
 	VerdictTestsWritten Verdict = "tests written"
+	// VerdictDryRun: the turn ran in a dry run, so nothing it edited
+	// reached the disk and nothing it would have run ran. A simulated
+	// command is no check, and the ordinary fold would count one as a
+	// pass.
+	VerdictDryRun Verdict = "dry run"
 )
 
 // TurnOutcome is the verdict with what it was decided from, so the user
@@ -102,7 +107,7 @@ type TurnOutcome struct {
 // not in an alarm. Only Verdict == VerdictVerified is the strong claim.
 func (o TurnOutcome) OK() bool {
 	switch o.Verdict {
-	case VerdictVerified, VerdictSelfChecked, VerdictNoChanges, VerdictTestsWritten:
+	case VerdictVerified, VerdictSelfChecked, VerdictNoChanges, VerdictTestsWritten, VerdictDryRun:
 		return true
 	}
 	return false
@@ -679,6 +684,15 @@ func (o TurnOutcome) Correction() string {
 
 // Outcome is the verdict for the turn just finished.
 func (a *Agent) Outcome() TurnOutcome {
+	if a.DryRunOn() {
+		files, calls := len(a.dryFiles()), 0
+		for _, x := range a.DryRunActions() {
+			if x.Kind != "file" && x.Kind != "network" {
+				calls++
+			}
+		}
+		return TurnOutcome{Verdict: VerdictDryRun, Why: fmt.Sprintf("nothing was changed or run: %d file(s) previewed, %d call(s) recorded · /dryrun show", files, calls)}
+	}
 	if a.Log == nil {
 		return TurnOutcome{Verdict: VerdictNoChanges, Why: "no session log to judge from"}
 	}

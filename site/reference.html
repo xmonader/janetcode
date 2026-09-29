@@ -113,6 +113,7 @@
 <tr><td><code>/ssh</code></td><td><code>[user@host[:/path]|off]</code></td><td>run file tools and bash on a remote host over ssh; off returns here</td></tr>
 <tr><td><code>/docker</code></td><td><code>[container[:/path]|off]</code></td><td>run file tools and bash in a docker container; off returns here</td></tr>
 <tr><td><code>/readonly</code></td><td></td><td>toggle read-only mode (no edits or commands)</td></tr>
+<tr><td><code>/dryrun</code></td><td>[on|off|show|apply [n,m…]|discard]</td><td>dry run: edits go to a preview, commands that change things are recorded but not run; apply writes the files</td></tr>
 <tr><td><code>/memory</code></td><td></td><td>what janetcode remembers about this project</td></tr>
 <tr><td><code>/skills</code></td><td></td><td>skill files available to the model</td></tr>
 <tr><td><code>/rules</code></td><td></td><td>path-scoped project rules: what brings each in, and which have been sent this session</td></tr>
@@ -178,6 +179,7 @@
 <tr><td><code>--sandbox</code></td><td>wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; <code>/sandbox</code> toggles it</td></tr>
 <tr><td><code>--auto-edits</code></td><td>auto-accept file edits; commands still ask. <code>/edits</code> toggles the same thing mid-session</td></tr>
 <tr><td><code>--readonly</code></td><td>read, search and answer, but change nothing</td></tr>
+<tr><td><code>--dry-run</code></td><td>edits go to a preview and commands are recorded, not run, until <code>/dryrun apply</code></td></tr>
 <tr><td><code>--continue</code> (or <code>-c</code>), <code>--resume &lt;id&gt;</code> (or <code>-r</code>)</td><td>carry on the last session here, or a named one (including one started with <code>--bg</code>)</td></tr>
 <tr><td><code>--bg</code></td><td>run the prompt in the background, print the session id, and return; reopen with <code>--resume</code>. What its permission mode asks about waits for <code>--answer</code>; it runs <code>--yolo</code> only when given</td></tr>
 <tr><td><code>--answer &lt;id&gt; [allow|session|deny]</code></td><td>show or settle the permission request a <code>--bg</code> run is waiting on</td></tr>

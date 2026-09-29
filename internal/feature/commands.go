@@ -51,6 +51,7 @@ var commandWhen = map[string]string{
 	"/ssh":          "the files you want the model to edit live on another machine you can reach with ssh",
 	"/docker":       "the files you want the model to edit live in a running container",
 	"/readonly":     "you want answers about the code with no chance of it being changed",
+	"/dryrun":       "you want to see the whole change — every file diff and every command — before any of it touches the disk",
 	"/memory":       "you want to see, or correct, what janetcode has learned about this project",
 	"/dream":        "auto-memory has piled up overlapping facts and you want them merged",
 	"/sleep":        "a session just did something worth learning from and you want it consolidated into memory now, not at the next goal",

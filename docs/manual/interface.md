@@ -2071,6 +2071,53 @@ asking) → ask. The current mode stays on the status line (and as a
 header prefix); cycling it does not print into the transcript. `/edits`
 and `/readonly` stay their own toggles.
 
+### Dry run: see the whole change first
+
+`/dryrun` (or `--dry-run` on the command line) lets the model carry out
+the task while nothing it does reaches the disk or the world. Approving
+calls one at a time shows the change a piece at a time; a dry run shows
+all of it before any of it happens.
+
+- `write_file` and `edit_file` write to a preview instead of the file.
+  `read_file` reads the preview back, so the model can edit a file twice
+  and see its own work, and the diff you review is the real one.
+- A shell command runs only when it merely reads — the same allowlist
+  auto mode uses (`ls`, `cat`, `grep`, `git status`/`diff`/`log` …) — and
+  not in the background. Any other command is recorded, not run, and the
+  model is told so.
+- An MCP tool the server does not mark read-only, a job's `stdin` or
+  `kill`, a script, the terminal, the computer and an editing subagent
+  are recorded the same way. `fetch_url` and `web_search` run, since they
+  only read, and the preview lists the hosts they reached.
+- Nothing recorded asks for permission: a preview is not an approval.
+  Each entry says what the ordinary path would do with it — `would allow`,
+  `would ask (why)` or `would deny (the rule)`.
+
+`/dryrun show` is the preview: every file that would change with its
+diff, the commands and tools that were not run, the network reads that
+were, the mode and sandbox the real run would use, and the verify
+commands that would run after it. `/dryrun status` lists the same
+without the diffs; `/dryrun` alone turns the dry run on or off. Then:
+
+- `/dryrun apply` writes every previewed file, as one checkpoint that
+  `/undo` takes back, and ends the dry run. `/dryrun apply 1,3` writes
+  only those files (the numbers are the preview's). The model is told
+  which files were written and which of its commands never ran, and runs
+  the ones still needed for real — each through the permission prompt.
+- `/dryrun discard` drops the preview and stays in the dry run, for
+  another go at the plan.
+- `/dryrun off` ends the dry run; an unapplied preview is dropped and the
+  model is told none of it happened.
+
+A fork shares the parent's dry run and preview. With `-p --dry-run` the
+preview, diffs included, is printed on stderr at the end; with
+`--output-format json` it is the `dry_run` field of the result
+(`files` with their diffs, `actions` with each recorded call). The status
+line and the web mode chip say `DRY RUN` while it is on.
+
+grep, glob and read-only shell commands still see the files as they are
+on disk, not the preview.
+
 `/sandbox workspace` runs local bash under a named profile (see *The
 sandbox* below); `/sandbox on` is the same as `/sandbox workspace`. File
 tools, `/ssh` and `/docker` are unchanged: only the shell is isolated,

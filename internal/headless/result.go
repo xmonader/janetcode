@@ -1,5 +1,7 @@
 package headless
 
+import "github.com/xmonader/janetcode/internal/agent"
+
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
 // cliresult.go) by importing this package.
@@ -65,6 +67,17 @@ type CLIResult struct {
 	// detour, nothing to report — and an empty list (omitted) means the
 	// run never left its own model.
 	Routes []CLIRoute `json:"routes,omitempty"`
+	// DryRun is the preview a --dry-run run built instead of changing
+	// anything: the files it would change with their diffs, and every
+	// call it recorded rather than made. Omitted outside a dry run.
+	DryRun *CLIDryRun `json:"dry_run,omitempty"`
+}
+
+// CLIDryRun is a dry run's preview in the result object: the same content
+// /dryrun show gives in the terminal.
+type CLIDryRun struct {
+	Files   []agent.DryFile   `json:"files"`
+	Actions []agent.DryAction `json:"actions"`
 }
 
 // CLIRoute is one model call served away from the session's own model.

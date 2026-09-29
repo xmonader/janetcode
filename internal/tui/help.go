@@ -129,7 +129,7 @@ var helpGroups = []struct {
 }{
 	{"everyday", []string{"/help", "/connect", "/model", "/effort", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/compact-fast", "/clear", "/resume", "/settle", "/quit"}},
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/perf", "/context", "/review"}},
-	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor"}},
+	{"steering the session", []string{"/plan", "/readonly", "/dryrun", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor"}},
 	{"the project", []string{"/init", "/memory", "/remember", "/forget", "/dream", "/sleep", "/skills", "/curator", "/verify", "/accept", "/rules", "/eval", "/recipe", "/proof", "/permissions", "/hooks", "/mcp", "/cua", "/lsp"}},
 	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints", "/followup", "/features", "/jev"}},
 }

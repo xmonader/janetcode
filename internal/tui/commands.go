@@ -95,6 +95,7 @@ var dispatch = map[string]cmdHandler{
 	"/edits":    (*model).cmdEdits,
 	"/settle":   (*model).cmdSettle,
 	"/readonly": (*model).cmdReadonly,
+	"/dryrun":   (*model).cmdDryrun,
 	"/plan": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.planCommand(cmdArg(text, fields)), true
 	},

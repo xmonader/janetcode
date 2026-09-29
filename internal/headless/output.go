@@ -202,10 +202,13 @@ type recorder struct {
 	model     string
 	provider  string
 	price     *llm.Price
+	// errOut is the run's stderr, where text mode puts a dry run's
+	// preview.
+	errOut io.Writer
 }
 
 func newRecorder(opts Options, format Format) *recorder {
-	r := &recorder{format: format, out: opts.Stdout, start: time.Now(), started: map[string]bool{}}
+	r := &recorder{format: format, out: opts.Stdout, errOut: opts.Stderr, start: time.Now(), started: map[string]bool{}}
 	if format == FormatStreamJSON {
 		r.enc = json.NewEncoder(opts.Stdout)
 	}
@@ -431,6 +434,15 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		}
 		res.CostSource = r.usage.CostSource(r.price)
 	}
+	if ag != nil && ag.DryRunOn() {
+		res.DryRun = &CLIDryRun{Files: ag.DryRunFiles(), Actions: ag.DryRunActions()}
+		if res.DryRun.Files == nil {
+			res.DryRun.Files = []agent.DryFile{}
+		}
+		if res.DryRun.Actions == nil {
+			res.DryRun.Actions = []agent.DryAction{}
+		}
+	}
 	if err != nil {
 		res.IsError, res.Error = true, err.Error()
 	}
@@ -441,6 +453,12 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 // already said everything it is going to say.
 func (r *recorder) finish(ag *agent.Agent, err error) {
 	if r.format == FormatText {
+		// A dry run's whole product is its preview, and nothing else in
+		// text mode would show it: the report, diffs included, goes to
+		// stderr with the rest of the run's own account of itself.
+		if ag != nil && ag.DryRunOn() && r.errOut != nil {
+			fmt.Fprintf(r.errOut, "\n%s\n", ag.DryRunReport(true))
+		}
 		return
 	}
 	res := r.result(ag, err)
