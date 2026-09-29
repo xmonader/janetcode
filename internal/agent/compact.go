@@ -171,7 +171,12 @@ func (a *Agent) toolTokens() int {
 // EstimateTokens approximates the prompt size of the current history. It
 // uses the last real input-token count when available and a
 // character-class estimate (see estimateTokens) for what was added since.
-// It must be called from the goroutine running the turn.
+// It reads the history and the last call's counts without a lock, so it
+// is for code that no turn is writing them under: the turn goroutine
+// itself, the tool calls it runs in parallel while it waits on them (the
+// oversized-output guard), or a front end while no turn is running. A
+// front end reading during a turn uses TokenEstimate, the figure this
+// publishes.
 func (a *Agent) EstimateTokens() int {
 	// The real count already includes the system prompt and the tool
 	// schemas — a provider bills them inside every call's input — so they
