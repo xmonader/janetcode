@@ -46,10 +46,13 @@ kept green and the shell paths are switched by OS, so `bash`, hooks,
 verification commands, `--watch`/`--until` checks and background jobs
 run through PowerShell (`pwsh` if installed, else Windows PowerShell)
 with the command passed as `-EncodedCommand` to avoid quoting rules, and
-cancelled commands are killed with `taskkill /T`. None of that has been
-exercised on a real Windows machine yet, and the command safety
-classifier still reasons about POSIX shell syntax, so treat it as
-untested. The cheapest way to use janetcode on Windows today is WSL.
+cancelled commands are killed with `taskkill /T`. The Windows build has
+been run under wine (a live headless edit against a real model works;
+see `docs/notes/windows-wine.md`), and CI runs the test suite on
+`windows-latest`, but PowerShell itself could not be exercised under
+wine, and the command safety classifier reads commands as bash with
+Windows paths, so treat the shell side as lightly tested. The cheapest
+way to use janetcode on Windows today is WSL.
 
 ## Quick start
 
