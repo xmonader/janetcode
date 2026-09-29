@@ -44,10 +44,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   untested on a Mac; the `workspace` sandbox keeps unix sockets (use
   `strict`); `settingsapply` can write the decisions map a web request's
   config copy shares.
-- GitHub Action, `/pr` and `/pr-comments` tested against a fake `gh` and
+- GitHub Action, `/pr` and `/pr-comments` tested against a stub `gh` and
   (action) under nektos/act, never against github.com (needs a push).
-- New timing-sensitive tests exist; the box's load from parallel forks
-  made `TestPerfBudgetsOnALongSession`/`TestStartupBudget` flaky.
+- The Landlock egress rule is by port: a remote host on the proxy's port is
+  reachable. Docker egress: host services on 0.0.0.0 reachable.
 
 ## Key Decisions
 - ctrl+r is reverse prompt search (shell convention); effort cycling moved to

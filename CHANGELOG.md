@@ -95,6 +95,17 @@ with deepseek-v4.1-flash, mimo-v2.6-flash and qwen3.8-27b unless noted.
   seatbelt mach-lookup narrowed to an allowlist.
 - **Large repositories:** grep allocates 20x less on kubernetes; the repo
   map samples across the tree and ranks the request's files first.
+- **Second pass:** the egress policy is enforced for sandboxed bash
+  through a filtering proxy (Landlock allows only its port; docker uses an
+  internal network); `--acp`, the SDK and `--mcp-serve` start MCP servers,
+  including those an editor passes; audit records name the real basis of a
+  headless refusal and the files bash changed; undo is byte-exact under
+  `core.autocrlf`; `JANETCODE_SHELL` picks a POSIX shell on Windows;
+  `make vscode-test` runs the extension in real VS Code; `make action-test`
+  runs the Action under act; `r` offers typed path rules; `/permissions
+  check`, `/resume … fork` and a checkpoints card in the web; a dry run's
+  grep and glob see pending edits; fixed a panic on the first MCP
+  reconnect of a headless run.
 
 ### Deep review (2026-09-29)
 About 240 fixes from a file-by-file review. Each has a regression test; the
