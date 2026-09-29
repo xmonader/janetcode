@@ -467,6 +467,7 @@ func (c *client) handle(method string, params json.RawMessage) {
 		if err := json.Unmarshal(params, &p); err != nil {
 			return
 		}
+		p.URI = canonicalURI(p.URI)
 		c.docM.Lock()
 		st := c.diags[p.URI]
 		st.seq++
