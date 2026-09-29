@@ -36,6 +36,12 @@ func (a *Agent) setMessages(msgs []llm.Message) {
 	}
 	a.Messages = msgs
 	a.msgMu.Unlock()
+	// A history opened in place of this one brings its own call ids.
+	// They are added, not swapped in: the ids already handed out stay
+	// taken, since the event log and archive still hold them.
+	if a.callIDs != nil {
+		noteCallIDs(msgs, a.callIDs)
+	}
 	// The last call's input count stands for the messages it was sent
 	// with, and EstimateTokens trusts it for every index below
 	// lastInputMsgs. Those messages were just replaced — an /undo cut, a

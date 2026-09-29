@@ -620,7 +620,10 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	// it: the transcript, the permission prompt and the log all key
 	// by it. The reply still goes back under the server's own id.
 	if a.callIDs == nil {
+		// The first reply of this agent: the history it was given
+		// before it — a --resume, a fork's inheritance — counts.
 		a.callIDs = map[string]bool{}
+		noteCallIDs(a.Messages, a.callIDs)
 	}
 	normalizeCallIDs(&resp.Message, a.callIDs, a.turnN, a.stepN)
 	a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens

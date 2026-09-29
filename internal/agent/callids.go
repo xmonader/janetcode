@@ -44,6 +44,22 @@ func normalizeCallIDs(m *llm.Message, used map[string]bool, turn, step int) {
 	}
 }
 
+// noteCallIDs adds every tool-call id in msgs to used. A conversation
+// that arrives whole — a resumed session, one opened with /resume, a
+// forked child's inherited history — already holds ids the server handed
+// out, and a server that numbers calls per response will send the same
+// call_0 again; without them in the set the new call would share an id
+// with the old one.
+func noteCallIDs(msgs []llm.Message, used map[string]bool) {
+	for _, m := range msgs {
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockToolUse && b.ID != "" {
+				used[b.ID] = true
+			}
+		}
+	}
+}
+
 func uniqueID(base string, used map[string]bool) string {
 	if !used[base] {
 		return base

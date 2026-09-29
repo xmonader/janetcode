@@ -86,3 +86,60 @@ func TestRepeatedProviderIDsStillPairUp(t *testing.T) {
 		}
 	}
 }
+
+// A resumed conversation already holds ids the server handed out; a
+// server that numbers calls per response sends call_0 again on the first
+// turn after the resume, and it must not be taken for the old call. Both
+// ways a history arrives are covered: assigned before the first turn (a
+// process started with --resume) and swapped in by OpenSession on an
+// agent that has already run (/resume inside a session).
+func TestResumedHistoryIDsAreNotReused(t *testing.T) {
+	history := func() []llm.Message {
+		return []llm.Message{
+			llm.TextMessage(llm.RoleUser, "read it"),
+			{Role: llm.RoleAssistant, Blocks: []llm.Block{toolUse("call_0", "read_file")}},
+			{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockToolResult, ToolUseID: "call_0", Text: "alpha"}}},
+			llm.TextMessage(llm.RoleAssistant, "read"),
+		}
+	}
+	assertUnique := func(t *testing.T, msgs []llm.Message) {
+		t.Helper()
+		ids := map[string]int{}
+		for _, m := range msgs {
+			for _, b := range m.Blocks {
+				if b.Type == llm.BlockToolUse {
+					ids[b.ID]++
+				}
+			}
+		}
+		for id, n := range ids {
+			if n > 1 {
+				t.Fatalf("id %q names %d calls", id, n)
+			}
+		}
+	}
+	turn := func() *fake {
+		return &fake{responses: []*llm.Response{toolCall("call_0", "read_file", `{"path":"a.txt"}`), text("done")}}
+	}
+
+	t.Run("assigned at startup", func(t *testing.T) {
+		a, _ := newAgent(t, turn(), nil)
+		a.Messages = history()
+		if err := a.Run(context.Background(), "again", func(Event) {}); err != nil {
+			t.Fatal(err)
+		}
+		assertUnique(t, a.Messages)
+	})
+	t.Run("opened after a turn", func(t *testing.T) {
+		a, _ := newAgent(t, &fake{responses: []*llm.Response{text("hi")}}, nil)
+		if err := a.Run(context.Background(), "first", func(Event) {}); err != nil {
+			t.Fatal(err)
+		}
+		a.setMessages(history())
+		a.Provider = turn()
+		if err := a.Run(context.Background(), "again", func(Event) {}); err != nil {
+			t.Fatal(err)
+		}
+		assertUnique(t, a.Messages)
+	})
+}
