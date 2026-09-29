@@ -121,6 +121,7 @@ func TestSubjectAndSuggest(t *testing.T) {
 		{"bash", "./scripts/run.sh --all", "bash(./scripts/run.sh *)"},
 		{"fetch_url", "https://pkg.go.dev/net/http?tab=doc", "fetch_url(https://pkg.go.dev/*)"},
 		{"edit_file", "internal/agent/x.go", "edit_file(internal/agent/*)"},
+		{"notebook_edit", "analysis/q3.ipynb", "notebook_edit(analysis/*)"},
 		{"write_file", "x.go", "write_file"},
 		{"mcp__x__y", "q", "mcp__x__y"},
 	} {

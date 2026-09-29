@@ -91,6 +91,16 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 			t.Cache.Put(p, st.ModTime(), st.Size(), data)
 		}
 	}
+	// A notebook is JSON, and read as JSON its code is a list of quoted
+	// lines with the outputs — often base64 images — in between. Rendered
+	// as cells it reads as the notebook it is. A file that does not parse
+	// falls through and is shown as the text it is.
+	if isNotebookPath(in.Path) {
+		if nb, err := parseNotebook(data); err == nil {
+			t.Seen.Record(p, data)
+			return textfmt.Truncate(nb.render(in.Path)), nil
+		}
+	}
 	if extracted, ok := extractReadable(ctx, in.Path, data); ok {
 		t.Seen.Record(p, data)
 		return extracted, nil

@@ -43,6 +43,22 @@ type Job struct {
 	// line in the pipe, so this job can never be written to again
 	// without splicing one command onto another.
 	stdinErr error
+	// Terminal is set for a job running on a pseudo-terminal
+	// (interactive: true): its log holds what a terminal would show,
+	// carriage returns and escapes included, and Enter is a carriage
+	// return.
+	Terminal bool
+	// Note says something about how the job was started that its caller
+	// should hear, such as a terminal that was asked for and could not
+	// be had.
+	Note string
+}
+
+// JobOptions are the ways a job can be started.
+type JobOptions struct {
+	// Terminal runs the command on a pseudo-terminal, for programs that
+	// only prompt, or only prompt properly, when they have one.
+	Terminal bool
 }
 
 // Jobs runs commands detached from the tool call that started them and
@@ -66,6 +82,11 @@ func (j *Jobs) Start(root, command string) (*Job, error) {
 // StartOn is Start on a workspace: a remote host runs the command through
 // ssh or docker exec, as a local process the job can still kill.
 func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
+	return j.StartWith(ws, root, command, JobOptions{})
+}
+
+// StartWith is StartOn with options.
+func (j *Jobs) StartWith(ws *Workspace, root, command string, opts JobOptions) (*Job, error) {
 	if j == nil {
 		return nil, errors.New("background jobs are not available")
 	}
@@ -93,6 +114,23 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 		os.Remove(out.Name())
 		return nil, err
 	}
+	if opts.Terminal {
+		if job, err := j.startTerminal(id, command, cmd, out); err == nil || !errors.Is(err, errNoTerminal) {
+			return job, err
+		}
+		// No pseudo-terminal here (Windows): a pipe is the next best
+		// thing, and most prompts still work on one.
+		job, err := j.startPipe(id, command, cmd, out)
+		if job != nil {
+			job.Note = "no terminal is available on this system, so the job reads a pipe instead; a program that insists on a terminal may not prompt"
+		}
+		return job, err
+	}
+	return j.startPipe(id, command, cmd, out)
+}
+
+// startPipe starts a job whose stdin is a pipe janetcode writes to.
+func (j *Jobs) startPipe(id int, command string, cmd *exec.Cmd, out *os.File) (*Job, error) {
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		out.Close()
@@ -114,9 +152,16 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
-	go func() {
-		err := cmd.Wait()
-		out.Close()
+	go j.reap(job, cmd.Wait, func() { out.Close() })
+	return job, nil
+}
+
+// reap waits for a started job to end and records how it ended. cleanup
+// runs after the wait and before the job is marked done.
+func (j *Jobs) reap(job *Job, wait func() error, cleanup func()) {
+	{
+		err := wait()
+		cleanup()
 		j.mu.Lock()
 		if job.stdin != nil {
 			_ = job.stdin.Close()
@@ -134,8 +179,7 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 		}
 		j.mu.Unlock()
 		close(job.done)
-	}()
-	return job, nil
+	}
 }
 
 // Adopt takes over a command that is already running in the foreground:
@@ -144,6 +188,12 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 // caller's own Wait goroutine will send the command's result on, so the
 // process is waited for exactly once.
 func (j *Jobs) Adopt(command string, cmd *exec.Cmd, out *swapBuffer, wait <-chan error) (*Job, error) {
+	return j.AdoptWith(command, cmd, out, wait, nil)
+}
+
+// AdoptWith is Adopt for a command whose stdin is a pipe the caller holds
+// the write end of: the job takes it, so the job tool can write to it.
+func (j *Jobs) AdoptWith(command string, cmd *exec.Cmd, out *swapBuffer, wait <-chan error, stdin io.WriteCloser) (*Job, error) {
 	if j == nil {
 		return nil, errors.New("background jobs are not available")
 	}
@@ -172,6 +222,9 @@ func (j *Jobs) Adopt(command string, cmd *exec.Cmd, out *swapBuffer, wait <-chan
 		pid = cmd.Process.Pid
 	}
 	job := &Job{ID: id, Command: command, Pid: pid, Started: time.Now(), OutPath: f.Name(), cmd: cmd, done: make(chan struct{})}
+	if stdin != nil && !isNilFile(stdin) {
+		job.stdin = stdin
+	}
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
@@ -179,6 +232,10 @@ func (j *Jobs) Adopt(command string, cmd *exec.Cmd, out *swapBuffer, wait <-chan
 		err := <-wait
 		f.Close()
 		j.mu.Lock()
+		if job.stdin != nil {
+			_ = job.stdin.Close()
+			job.stdin = nil
+		}
 		job.Done, job.Ended = true, time.Now()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
@@ -289,13 +346,23 @@ func (j *Jobs) Kill(id int) error {
 // job tool runs in the parallel read-only batch, so that was a hung
 // turn. A write abandoned this way stays parked until the job reads or
 // is killed (Kill closes the pipe, which errors it out).
+//
+// An empty line is a line: pressing Enter to take a prompt's default is
+// most of what answering an installer is. On a terminal job the line ends
+// with a carriage return, which is what the Enter key sends — a program
+// in raw mode (a node prompt, a menu) looks for exactly that.
 func (j *Jobs) Write(ctx context.Context, id int, data string) error {
-	if strings.TrimSpace(data) == "" {
-		return fmt.Errorf("nothing to write")
-	}
-	if !strings.HasSuffix(data, "\n") {
+	data = strings.TrimSuffix(strings.TrimSuffix(data, "\n"), "\r")
+	if job, ok := j.Get(id); ok && job.Terminal {
+		data += "\r"
+	} else {
 		data += "\n"
 	}
+	return j.WriteRaw(ctx, id, data)
+}
+
+// WriteRaw writes data to a running job's stdin as it is.
+func (j *Jobs) WriteRaw(ctx context.Context, id int, data string) error {
 	job := j.find(id)
 	if job == nil {
 		return fmt.Errorf("no job %d", id)
@@ -385,7 +452,11 @@ func (j *Jobs) Output(id, n int) (string, error) {
 			data = data[i+1:]
 		}
 	}
-	s := strings.TrimRight(string(data), "\n")
+	s := string(data)
+	if job.Terminal {
+		s = termText(s)
+	}
+	s = strings.TrimRight(s, "\n")
 	if n > 0 {
 		lines := strings.Split(s, "\n")
 		if len(lines) > n {
@@ -427,7 +498,11 @@ func (j *Jobs) Finished() []string {
 func (job Job) Summary() string {
 	cmd := textfmt.ClipBytes(job.Command, 80)
 	if !job.Done {
-		return fmt.Sprintf("job %d running for %s (pid %d): %s", job.ID, time.Since(job.Started).Round(time.Second), job.Pid, cmd)
+		kind := "job"
+		if job.Terminal {
+			kind = "interactive job"
+		}
+		return fmt.Sprintf("%s %d running for %s (pid %d): %s", kind, job.ID, time.Since(job.Started).Round(time.Second), job.Pid, cmd)
 	}
 	return fmt.Sprintf("job %d finished with exit %d after %s: %s", job.ID, job.Exit, job.Ended.Sub(job.Started).Round(time.Second), cmd)
 }
@@ -437,7 +512,7 @@ type JobTool struct{ Jobs *Jobs }
 
 func (JobTool) Name() string { return "job" }
 func (JobTool) Description() string {
-	return "Manage background jobs started with bash background:true. list shows them; output returns the last lines of a job's output; wait blocks until a job finishes (up to timeout_ms); kill stops one; stdin writes a line to a running job (interactive programs). You are told automatically when a job finishes."
+	return "Manage background jobs (bash background or interactive). list; output returns a job's last lines; wait blocks until it finishes (up to timeout_ms); kill stops it; stdin types text and Enter (empty text: just Enter; eof: true then ends input) and returns what the job printed next. You are told when a job finishes."
 }
 func (JobTool) Mutating() bool { return false }
 
@@ -466,17 +541,19 @@ func (JobTool) Schema() json.RawMessage {
 "id":{"type":"integer","description":"Job id (from the bash result or list)"},
 "lines":{"type":"integer","description":"For output: how many trailing lines (default 100)"},
 "timeout_ms":{"type":"integer","description":"For wait: how long to wait (default 120000, max 600000)"},
-"text":{"type":"string","description":"For stdin: the line to write to the running job"}},
+"text":{"type":"string","description":"For stdin: the line to type"},
+"eof":{"type":"boolean","description":"For stdin: then end the input (Ctrl-D)"}},
 "required":["action"],"additionalProperties":false}`)
 }
 
 func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
-		Action    string `json:"action"`
-		ID        int    `json:"id"`
-		Lines     int    `json:"lines"`
-		TimeoutMS int    `json:"timeout_ms"`
-		Text      string `json:"text"`
+		Action    string  `json:"action"`
+		ID        int     `json:"id"`
+		Lines     int     `json:"lines"`
+		TimeoutMS int     `json:"timeout_ms"`
+		Text      *string `json:"text"`
+		EOF       bool    `json:"eof"`
 	}
 	if err := decode(input, &in); err != nil {
 		return "", err
@@ -528,10 +605,39 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		}
 		return fmt.Sprintf("job %d killed", in.ID), nil
 	case "stdin":
-		if err := t.Jobs.Write(ctx, in.ID, in.Text); err != nil {
-			return "", err
+		if in.Text == nil && !in.EOF {
+			return "", fmt.Errorf("stdin needs text (empty text presses Enter) or eof: true")
 		}
-		return fmt.Sprintf("wrote to job %d stdin", in.ID), nil
+		from := t.Jobs.logSize(in.ID)
+		if in.Text != nil {
+			if err := t.Jobs.Write(ctx, in.ID, *in.Text); err != nil {
+				return "", err
+			}
+		}
+		if in.EOF {
+			if err := t.Jobs.CloseInput(ctx, in.ID); err != nil {
+				return "", err
+			}
+		}
+		// The answer is worth having in the same call: the next prompt,
+		// or the error the answer caused. A second call to read it is a
+		// round trip for every question an installer asks.
+		reply := t.Jobs.Settle(ctx, in.ID, from, 5*time.Second)
+		job, _ := t.Jobs.Get(in.ID)
+		what := "typed into"
+		if in.Text == nil {
+			what = "ended the input of"
+		}
+		msg := fmt.Sprintf("%s job %d. ", what, in.ID)
+		if strings.TrimSpace(reply) == "" {
+			msg += "It has printed nothing since."
+		} else {
+			msg += "It printed:\n" + textfmt.TruncateTo(reply, 4000)
+		}
+		if job.Done {
+			msg += "\n" + job.Summary()
+		}
+		return msg, nil
 	}
 	return "", fmt.Errorf("unknown action %q", in.Action)
 }

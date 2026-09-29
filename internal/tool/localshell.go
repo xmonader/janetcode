@@ -5,13 +5,25 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/xmonader/janetcode/internal/procgroup"
 	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // localShell builds the exec.Cmd for a command: a remote workspace uses
 // the host, an enabled sandbox wraps docker/sandbox-exec, otherwise the
-// default shell in root.
+// default shell in root. Every one of them runs without a controlling
+// terminal (procgroup.NoTerminal), so a program that asks on /dev/tty
+// fails at once instead of stopping until the timeout.
 func localShell(ctx context.Context, ws *Workspace, sb *shell.Sandbox, root, command string) (*exec.Cmd, error) {
+	cmd, err := buildShell(ctx, ws, sb, root, command)
+	if err != nil {
+		return nil, err
+	}
+	procgroup.NoTerminal(cmd)
+	return cmd, nil
+}
+
+func buildShell(ctx context.Context, ws *Workspace, sb *shell.Sandbox, root, command string) (*exec.Cmd, error) {
 	if ws != nil && !ws.Local() {
 		return ws.Host().Command(ctx, command)
 	}

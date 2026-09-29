@@ -111,8 +111,10 @@ const (
 	emptyProjectSystemCeiling = 6000
 	// toolSchemaCeiling is name + description + schema over every tool a
 	// full session offers: 13,862 bytes for seventeen, after the
-	// duplicated edit_file locator came out.
-	toolSchemaCeiling = 14320
+	// duplicated edit_file locator came out. 14,707 on 2026-09-29, when
+	// bash took stdin and interactive and the job tool's stdin learned
+	// eof: commands that ask questions stopped failing or hanging.
+	toolSchemaCeiling = 14720
 )
 
 // TestFirstRequestSystemPromptCeiling: an empty directory is the floor of

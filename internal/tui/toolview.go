@@ -109,7 +109,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		}
 	}
 	sb.WriteString(name + " " + t.styles.dim.Render(summary))
-	if !e.done && !e.running && !pendingHere && o.preview != nil && (e.call.Name == "edit_file" || e.call.Name == "write_file") {
+	if !e.done && !e.running && !pendingHere && o.preview != nil && (e.call.Name == "edit_file" || e.call.Name == "write_file" || e.call.Name == "notebook_edit") {
 		// The arguments are complete but the call has not run: show what
 		// it would do now, while the model is still writing the rest of
 		// the turn, rather than after the fact.

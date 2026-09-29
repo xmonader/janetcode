@@ -1759,3 +1759,36 @@ func TestReplayedMissingReadIsNotAFailure(t *testing.T) {
 		}
 	}
 }
+
+// /jobs stdin types a line into a running job from the browser, spaces
+// and all, as the terminal's /jobs stdin does.
+func TestJobsStdinFromTheBrowser(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	ag := &agent.Agent{Model: "m", Log: sess, Tools: tool.NewRegistry()}
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: sess, Jobs: jobs, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	job, err := jobs.Start(root, `read x; echo "got [$x]"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"text": "/jobs stdin " + strconv.Itoa(job.ID) + " two  words"})
+	res, err := http.Post(ts.URL+"/api/command", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := jobs.Wait(ctx, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := jobs.Output(job.ID, 0); out != "got [two  words]" {
+		t.Fatalf("job read %q", out)
+	}
+}

@@ -90,6 +90,7 @@ func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repomap.Cache, checks func() []string) func(context.Context, agent.ToolCall) string {
 	edit := tool.EditFile{Root: cd.Dir(), WS: ws}
 	write := tool.WriteFile{Root: cd.Dir(), WS: ws}
+	notebook := tool.NotebookEdit{Root: cd.Dir(), WS: ws}
 	return func(ctx context.Context, call agent.ToolCall) string {
 		var path, before, after string
 		var err error
@@ -98,6 +99,8 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 			path, before, after, err = edit.Result(ctx, call.Input)
 		case "write_file":
 			path, before, after, err = write.Result(ctx, call.Input)
+		case "notebook_edit":
+			path, before, after, err = notebook.Result(ctx, call.Input)
 		default:
 			return ""
 		}
@@ -559,6 +562,12 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
+	// Notebooks are rare, so their edit tool is not in every request.
+	// read_file's rendering of a notebook names it, and tool_search loads
+	// it: that returns the schema in the same turn, which activating it
+	// from read_file could not (a turn's tool list is fixed when the turn
+	// starts, so the model was told to use a tool it had no schema for).
+	ag.Tools.AddDeferred(tool.NotebookEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the

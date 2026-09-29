@@ -36,7 +36,7 @@ var webArgs = map[string]string{
 	"/diff":        "[path]",
 	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
 	"/loop":        "[duration] [prompt|off]",
-	"/jobs":        "[kill n]",
+	"/jobs":        "[kill n | stdin n <text>]",
 	"/memory":      "[query]",
 	"/remember":    "[-g] <fact>",
 	"/permissions": "",

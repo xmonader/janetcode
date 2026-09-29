@@ -29,3 +29,7 @@ func killGroup(cmd *exec.Cmd) error {
 	}
 	return nil
 }
+
+// NoTerminal is a no-op on Windows, where a child's console is chosen
+// when it is created and a new process group already keeps it apart.
+func NoTerminal(cmd *exec.Cmd) {}
