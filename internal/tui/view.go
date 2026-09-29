@@ -254,8 +254,6 @@ func changedFiles(root string) ([]changedFile, error) {
 // whole terminal with no way out.
 const gitTimeout = 10 * time.Second
 
-// gitOut is git's untrimmed stdout (a patch keeps its final newline); a
-// failure is reported as git's own stderr.
 // gitDiff is the working-tree patch for one path. /diff revert gives it to
 // git apply -R, so its format is pinned against the user's diff
 // configuration (dropped prefixes, colour, an external tool, textconv).
@@ -264,6 +262,8 @@ func gitDiff(dir, path string) (string, error) {
 	return gitOut(dir, append(args, "--", path)...)
 }
 
+// gitOut is git's untrimmed stdout (a patch keeps its final newline); a
+// failure is reported as git's own stderr.
 func gitOut(dir string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
