@@ -20,7 +20,9 @@ func SeatbeltPolicy(p Profile, root string, extra []string) string {
 	b.WriteString("(version 1)\n(deny default)\n(allow file-read*)\n")
 	roots := p.WritableRoots(root, extra, os.TempDir())
 	for _, r := range roots {
-		b.WriteString(`(allow file-write* (subpath "` + r + `"))` + "\n")
+		for _, rr := range seatbeltPaths(r) {
+			b.WriteString(`(allow file-write* (subpath ` + sbString(rr) + `))` + "\n")
+		}
 	}
 	if len(roots) > 0 {
 		// The macOS temp dir is reached through three names.
@@ -31,7 +33,9 @@ func SeatbeltPolicy(p Profile, root string, extra []string) string {
 	for _, g := range p.DenyGlobs {
 		if head := literalDenyPrefix(g); head != "" {
 			for _, r := range roots {
-				b.WriteString(`(deny file-write* (subpath "` + filepath.Join(r, head) + `"))` + "\n")
+				for _, rr := range seatbeltPaths(r) {
+					b.WriteString(`(deny file-write* (subpath ` + sbString(filepath.Join(rr, head)) + `))` + "\n")
+				}
 			}
 			continue
 		}
@@ -54,6 +58,28 @@ func SeatbeltPolicy(p Profile, root string, extra []string) string {
 	}
 	b.WriteString("(allow ipc-posix-shm)\n")
 	return b.String()
+}
+
+// seatbeltPaths returns the names a rule for dir has to carry: dir as
+// given and, when it differs, the path its symlinks resolve to. Seatbelt
+// matches the resolved path of what a command opens, so a rule on the
+// unresolved name alone never fires. For an allow rule that only fails
+// closed, but a deny rule did not: with the project under /tmp (a link
+// to /private/tmp, which the temp-dir rule allows), strict's deny on
+// /tmp/proj/.git matched nothing and git history was writable after all.
+func seatbeltPaths(dir string) []string {
+	out := []string{dir}
+	if real, err := filepath.EvalSymlinks(dir); err == nil && real != dir {
+		out = append(out, filepath.Clean(real))
+	}
+	return out
+}
+
+// sbString quotes a path as a seatbelt string literal. A directory name
+// holding a double quote otherwise ends the string early and the rest of
+// the name is read as policy.
+func sbString(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
 // isTempRoot reports whether the temp dir is among the write roots.

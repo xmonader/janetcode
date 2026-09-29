@@ -200,6 +200,38 @@ func TestSeatbeltPolicyPerProfile(t *testing.T) {
 	}
 }
 
+// Seatbelt matches the resolved path of what a command opens, so a rule
+// has to name that path too: strict's deny on <root>/.git written only
+// under a symlinked root's own name never fired. And a quote in a path
+// must not end the policy string.
+func TestSeatbeltPolicyNamesResolvedPaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no symlinks to speak of")
+	}
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip(err)
+	}
+	real, _ = filepath.EvalSymlinks(real)
+	p, _ := FindProfile("strict")
+	policy := SeatbeltPolicy(p, link, nil)
+	for _, w := range []string{
+		`(allow file-write* (subpath "` + link + `"))`,
+		`(allow file-write* (subpath "` + real + `"))`,
+		`(deny file-write* (subpath "` + filepath.Join(link, ".git") + `"))`,
+		`(deny file-write* (subpath "` + filepath.Join(real, ".git") + `"))`,
+	} {
+		if !strings.Contains(policy, w) {
+			t.Errorf("policy is missing %q:\n%s", w, policy)
+		}
+	}
+	odd := SeatbeltPolicy(p, `/proj/a"))(allow file-write* (subpath "/x`, nil)
+	if !strings.Contains(odd, `(subpath "/proj/a\"))(allow file-write* (subpath \"/x"))`) {
+		t.Errorf("a quote in the root was not escaped:\n%s", odd)
+	}
+}
+
 // TestSetSandboxParsing covers the whole /sandbox argument surface.
 func TestSetSandboxParsing(t *testing.T) {
 	if runtime.GOOS == "windows" {
