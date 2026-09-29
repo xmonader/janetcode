@@ -102,6 +102,7 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 	// *os.File stdin is handed to the child directly. io.Pipe would make
 	// Wait hang on a copy goroutine until we closed the write end.
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = out, out, pr
+	guard := sandboxGitGuard(ws, j.Sandbox, root)
 	if err := cmd.Start(); err != nil {
 		pw.Close()
 		pr.Close()
@@ -116,6 +117,9 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 	j.mu.Unlock()
 	go func() {
 		err := cmd.Wait()
+		if note := guard.Restore(); note != "" {
+			fmt.Fprintf(out, "\n%s\n", note)
+		}
 		out.Close()
 		j.mu.Lock()
 		if job.stdin != nil {

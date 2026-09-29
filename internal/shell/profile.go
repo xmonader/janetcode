@@ -60,10 +60,13 @@ var secretGlobs = []string{
 var Profiles = []Profile{
 	{
 		Name:        "workspace",
-		Description: "writes confined to the project root, the session's extra dirs and the temp dir; reads broad; network allowed",
+		Description: "writes confined to the project root, the session's extra dirs and the temp dir, with git hooks off limits; reads broad; network allowed",
 		WriteRoots:  []string{WriteRootToken, WriteExtraToken, WriteTempToken},
-		DenyGlobs:   secretGlobs,
-		Network:     true,
+		// .git stays writable so commits, checkouts and fetches work; its
+		// hooks do not, since a hook runs later outside the sandbox. Config
+		// and the .git pointer are guarded key by key (see GitGuard).
+		DenyGlobs: append([]string{".git/hooks/**"}, secretGlobs...),
+		Network:   true,
 	},
 	{
 		Name:        "read-only",
