@@ -39,6 +39,16 @@
         term.focus();
         return;
       }
+      // Still opening: its open handler wires this terminal up. Starting
+      // another here left two sockets on one closure, so the first one's
+      // open handler bound keystrokes to the second terminal a second
+      // time, every key went to the shell twice, and the first socket's
+      // shell was never closed.
+      if (term && termWS && termWS.readyState === WebSocket.CONNECTING) {
+        term.options.theme = termTheme();
+        return;
+      }
+      if (termWS) termWS.close();
       if (term) {
         term.dispose();
         term = null;
@@ -57,24 +67,30 @@
       term.loadAddon(termFit);
       term.open(termView);
       const proto = location.protocol === "https:" ? "wss" : "ws";
-      termWS = new WebSocket(`${proto}://${location.host}/api/term`);
-      termWS.onmessage = (ev) => {
+      // Each handler talks to its own socket and terminal, and one that is
+      // no longer current does nothing.
+      const ws = new WebSocket(`${proto}://${location.host}/api/term`);
+      const t = term;
+      termWS = ws;
+      ws.onmessage = (ev) => {
+        if (ws !== termWS) return;
         try {
           const m = JSON.parse(ev.data);
-          if (m.type === "out") term.write(m.data);
+          if (m.type === "out") t.write(m.data);
         } catch (_) {}
       };
-      termWS.onopen = () => {
-        term.onData((d) => termWS.readyState === WebSocket.OPEN && termWS.send(JSON.stringify({ type: "in", data: d })));
+      ws.onopen = () => {
+        if (ws !== termWS) { ws.close(); return; }
+        t.onData((d) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: "in", data: d })));
         document.fonts.ready.then(fitTerm);
         fitTerm();
         new ResizeObserver(() => fitTerm()).observe(termView);
-        term.focus();
+        t.focus();
       };
       // A shell whose server went away used to sit on its last prompt,
       // taking keystrokes that went nowhere.
-      termWS.onclose = () => {
-        if (term) term.write("\r\n\x1b[2m[disconnected: the shell ended. Open the Terminal tab again for a new one]\x1b[0m\r\n");
+      ws.onclose = () => {
+        if (ws === termWS && term === t) t.write("\r\n\x1b[2m[disconnected: the shell ended. Open the Terminal tab again for a new one]\x1b[0m\r\n");
       };
     }
 

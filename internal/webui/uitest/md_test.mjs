@@ -153,6 +153,55 @@ check('escape amp', render('a & b', true).includes('a &amp; b'));
   check('full doc final differs from last prefix (final highlighting)', render(doc, true) !== prev);
 }
 
+// --- terminal tab: one socket per terminal, however fast the tab flips -----
+// Leaving the Terminal tab and coming back while its socket was still
+// opening started a second one; the first one's open handler then bound
+// keystrokes to the new terminal too, so every key reached the shell twice
+// and the first shell never closed.
+{
+  const vm = require('vm');
+  const sockets = [], terms = [];
+  class FakeWS {
+    constructor(url) { this.url = url; this.readyState = 0; this.sent = []; sockets.push(this); }
+    send(d) { this.sent.push(d); }
+    close() { if (this.readyState !== 3) { this.readyState = 3; if (this.onclose) this.onclose(); } }
+  }
+  Object.assign(FakeWS, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  class FakeTerm {
+    constructor() { this.options = {}; this.rows = 24; this.cols = 80; this.data = []; this.out = ''; terms.push(this); }
+    loadAddon() {} open() {} focus() {} dispose() { this.disposed = true; }
+    onData(fn) { this.data.push(fn); }
+    write(s) { this.out += s; }
+  }
+  const win = {
+    WebSocket: FakeWS, Terminal: FakeTerm,
+    FitAddon: { FitAddon: class { fit() {} } },
+    ResizeObserver: class { observe() {} },
+    requestAnimationFrame: () => {},
+    location: { protocol: 'http:', host: 'x' },
+    document: { documentElement: { dataset: {} }, fonts: { ready: new Promise(() => {}) } },
+  };
+  win.window = win;
+  vm.runInNewContext(readFileSync(join(here, '../static/terminal.js'), 'utf8'), win);
+  const tt = win.JanetTerminal({ hidden: true, clientHeight: 400 });
+  tt.show(); tt.hide(); tt.show();
+  for (const ws of sockets) if (ws.readyState === 0) { ws.readyState = 1; ws.onopen(); }
+  for (const fn of terms[terms.length - 1].data) fn('a');
+  const ins = sockets.flatMap((ws) => ws.sent).filter((d) => JSON.parse(d).type === 'in');
+  check('terminal: a key reaches the shell once', ins.length === 1, `sent ${ins.length} times`);
+  const live = sockets.filter((ws) => ws.readyState !== 3).length;
+  check('terminal: one live socket', live === 1, `${live} live of ${sockets.length}`);
+  // A dead shell's socket is replaced, and the old one's late events land nowhere.
+  const old = sockets[sockets.length - 1];
+  old.close();
+  tt.show();
+  const fresh = sockets[sockets.length - 1];
+  check('terminal: a closed socket is replaced', fresh !== old);
+  fresh.readyState = 1; fresh.onopen();
+  old.onmessage({ data: JSON.stringify({ type: 'out', data: 'STALE' }) });
+  check('terminal: a stale socket writes nothing', !terms[terms.length - 1].out.includes('STALE'));
+}
+
 console.log(`md-test: ${pass} pass, ${fail} fail`);
 if (bad.length) { console.log('FAILURES:'); for (const b of bad) console.log(' -', b); }
 process.exit(fail ? 1 : 0);
