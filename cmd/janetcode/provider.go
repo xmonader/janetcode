@@ -61,6 +61,7 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 		return anthropic.New(anthropic.Config{
 			APIKeys:      p.Keys(),
 			BaseURL:      p.BaseURL,
+			Bearer:       p.Bearer(),
 			Thinking:     cfg.ThinkingEnabled(),
 			HideThinking: !cfg.ThinkingShown(),
 			Effort:       cfg.Effort,

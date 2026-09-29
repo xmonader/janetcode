@@ -185,7 +185,7 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		}
 		if ch.Error != nil {
 			// The server spoke: a structured refusal is not a truncation.
-			return nil, &APIError{Status: 200, Message: llm.BoundErrorMessage(ch.Error.Message)}
+			return nil, streamError(ch.Error)
 		}
 		gotChunk = true
 		st.add(ch)

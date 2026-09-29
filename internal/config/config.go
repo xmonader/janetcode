@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/statusline"
@@ -79,6 +80,11 @@ type Config struct {
 	// dark, light, or the name of a builtin or user theme. See the themes
 	// package for the builtins.
 	Theme string `json:"theme,omitempty"`
+	// CAFile is a PEM file of extra certificate authorities every
+	// outbound HTTPS connection trusts beside the system's (a
+	// TLS-intercepting proxy, a private gateway). JANETCODE_CA_FILE adds
+	// one from the environment. See netcfg.
+	CAFile string `json:"ca_file,omitempty"`
 	// Themes are user-defined palettes by name, each a role→colour map with
 	// an optional base to inherit from. They override or add to the
 	// builtins and are validated on load (a bad colour or an unknown role
@@ -543,7 +549,16 @@ func Load(ov Overrides) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return load(p, os.Getenv, ov)
+	cfg, err := load(p, os.Getenv, ov)
+	// The extra roots go in before any client is built from this
+	// configuration: a provider, MCP or fetch_url made first would
+	// refuse the proxy's certificate for the rest of the process.
+	if cfg != nil && cfg.CAFile != "" {
+		if _, caErr := netcfg.AddCAFile(cfg.CAFile); caErr != nil {
+			return nil, badf("config %s: ca_file: %v", p, caErr)
+		}
+	}
+	return cfg, err
 }
 
 // inferProvider picks a backend when none was configured: Anthropic when
@@ -572,10 +587,10 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]Provider{}
 	}
-	fold := func(name, typ string, legacy ProviderConfig, keyEnv, urlEnv string) {
+	fold := func(name, typ string, legacy ProviderConfig, keyEnv, tokenEnv, urlEnv string) {
 		e, ok := cfg.Providers[name]
 		if !ok {
-			if legacy.APIKey == "" && legacy.BaseURL == "" && getenv(keyEnv) == "" && getenv(urlEnv) == "" {
+			if legacy.APIKey == "" && legacy.BaseURL == "" && getenv(keyEnv) == "" && (tokenEnv == "" || getenv(tokenEnv) == "") && getenv(urlEnv) == "" {
 				return
 			}
 			e = Provider{Type: typ}
@@ -592,14 +607,25 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 		if k := getenv(keyEnv); k != "" {
 			e.SetKeys(strings.Split(k, ","))
 			e.envKeys = true
+			if typ == "anthropic" {
+				e.Auth = ""
+			}
+		} else if t := getenv(tokenEnv); t != "" {
+			// ANTHROPIC_AUTH_TOKEN, as Claude Code reads it: the same
+			// key, sent as a bearer token, which is what gateways in
+			// front of the Messages API ask for. An x-api-key variable
+			// set beside it wins, as it does in the SDK.
+			e.SetKeys(strings.Split(t, ","))
+			e.envKeys = true
+			e.Auth = "bearer"
 		}
 		if u := getenv(urlEnv); u != "" {
 			e.BaseURL = u
 		}
 		cfg.Providers[name] = e
 	}
-	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")
-	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "OPENAI_BASE_URL")
+	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
+	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "", "OPENAI_BASE_URL")
 	for n, e := range cfg.Providers {
 		if pre, ok := FindPreset(n); ok {
 			if e.Type == "" {
@@ -648,6 +674,13 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 	}
 	mergeProviders(cfg, getenv)
+	for _, n := range cfg.ProviderNames() {
+		switch strings.ToLower(strings.TrimSpace(cfg.Providers[n].Auth)) {
+		case "", "api_key", "bearer":
+		default:
+			return nil, badf("config %s: providers.%s.auth: %q is not one of api_key, bearer", path, n, cfg.Providers[n].Auth)
+		}
+	}
 	// Normalised as cfg.Provider is below, so "OpenRouter" in the file
 	// is recognised as the provider the file's model belongs to.
 	fileProvider, fileModel := strings.ToLower(strings.TrimSpace(cfg.Provider)), cfg.Model

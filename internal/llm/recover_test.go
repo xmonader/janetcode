@@ -17,6 +17,35 @@ func args(t *testing.T, c RecoveredCall) map[string]any {
 	return m
 }
 
+// Sonnet 4.6 through a Bedrock-backed gateway ended a turn with its bash
+// call written into the text as "[tool_use]{...}"; the turn stopped with
+// the check never run (2026-09-29).
+func TestRecoverBracketedToolUseBlock(t *testing.T) {
+	text := "So there are 10 pairs.\n\nNow let me verify with a test:[tool_use]{\"id\":\"toolu_01\",\"name\":\"bash\",\"input\":{\"command\":\"go test -run 'TestX{1}' -v\"}}"
+	calls, rest, ok := RecoverToolCalls(text)
+	if !ok || len(calls) != 1 {
+		t.Fatalf("ok=%v calls=%v", ok, calls)
+	}
+	if calls[0].Name != "bash" || string(calls[0].Input) != `{"command":"go test -run 'TestX{1}' -v"}` {
+		t.Fatalf("call = %s %s", calls[0].Name, calls[0].Input)
+	}
+	if strings.Contains(rest, "tool_use") || !strings.Contains(rest, "10 pairs") {
+		t.Fatalf("remaining = %q", rest)
+	}
+}
+
+func TestRecoverBracketedToolUseSkipsFencedAndBroken(t *testing.T) {
+	for _, text := range []string{
+		"```\n[tool_use]{\"name\":\"bash\",\"input\":{\"command\":\"ls\"}}\n```",
+		"[tool_use]{\"name\":\"bash\",\"input\":",
+		"[tool_use] is how the block is written",
+	} {
+		if calls, _, ok := RecoverToolCalls(text); ok {
+			t.Errorf("%q recovered %v", text, calls)
+		}
+	}
+}
+
 func TestRecoverInvokeBlock(t *testing.T) {
 	text := "<function_calls>\n<invoke name=\"read_file\">\n<parameter name=\"path\">main.go</parameter>\n</invoke>\n</function_calls>"
 	calls, remaining, ok := RecoverToolCalls(text)

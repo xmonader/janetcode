@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -127,7 +128,8 @@ func Extract(ctx context.Context, p llm.Provider, model string, msgs []llm.Messa
 // first, or plain lines as project facts.
 func ParseExtracted(text string) []Extracted {
 	text = joinPrettyJSON(text)
-	var out []Extracted
+	var out, plain []Extracted
+	talking := false
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-* "))
 		if line == "" || strings.HasPrefix(line, "```") || strings.EqualFold(strings.Trim(line, "."), "none") {
@@ -142,11 +144,27 @@ func ParseExtracted(text string) []Extracted {
 			continue
 		}
 		if len(line) > 20 && !strings.HasPrefix(line, "{") {
-			out = append(out, Extracted{Description: Clean(line), Body: line})
+			if agentTalk.MatchString(line) {
+				talking = true
+			}
+			plain = append(plain, Extracted{Description: Clean(line), Body: line})
 		}
+	}
+	// A plain line is a fact only when the reply was the list it was
+	// asked for. A model that carried on the conversation instead
+	// ("Wait, that output would be a pass… Let me re-read.") wrote its own
+	// musings, and each one used to be stored as a project fact (seen on
+	// Sonnet 4.6, 2026-09-29).
+	if !talking {
+		out = append(out, plain...)
 	}
 	return out
 }
+
+// agentTalk is a line of the agent narrating its own work, or echoing a
+// tool block as text ("[tool_result]--- FAIL: TestCountPairs", seen from
+// the same reply), which no memory entry is written as.
+var agentTalk = regexp.MustCompile(`(?i)\b(let me|let's|i'll|i will|i'm going to|i need to|now i)\b|^(wait|actually|hmm|ok(ay)?)\b|^\[tool_(use|result)\]`)
 
 // joinPrettyJSON rejoins a JSON object a model printed across several
 // lines onto one, so the line-oriented parser reads it. Lines that are

@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -245,6 +246,12 @@ var startupStages = []startupStage{
 }
 
 func run(args []string) error {
+	// Extra certificate authorities from the environment go in first,
+	// before anything (--update included) builds an HTTP client; the
+	// config's ca_file is added by config.Load.
+	if err := netcfg.FromEnv(os.Getenv); err != nil {
+		return fmt.Errorf("%w: %v", config.ErrBadConfig, err)
+	}
 	s := &startup{args: args}
 	defer s.close()
 	for _, stage := range startupStages {

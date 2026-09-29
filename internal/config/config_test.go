@@ -29,6 +29,33 @@ func TestDefaultsFromEnvOnly(t *testing.T) {
 	}
 }
 
+// ANTHROPIC_AUTH_TOKEN is read as Claude Code reads it: the key sent as a
+// bearer token, for a gateway in front of the Messages API that refuses
+// x-api-key. An ANTHROPIC_API_KEY beside it wins.
+func TestAnthropicAuthTokenFromEnv(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := load(filepath.Join(dir, "missing.json"), env(map[string]string{"ANTHROPIC_AUTH_TOKEN": "tok", "ANTHROPIC_BASE_URL": "https://gw.example"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := cfg.Providers["anthropic"]
+	if cfg.Provider != "anthropic" || p.APIKey != "tok" || !p.Bearer() || p.BaseURL != "https://gw.example" || !p.KeysFromEnv() {
+		t.Fatalf("provider = %+v", p)
+	}
+	cfg, err = load(filepath.Join(dir, "missing.json"), env(map[string]string{"ANTHROPIC_AUTH_TOKEN": "tok", "ANTHROPIC_API_KEY": "key"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := cfg.Providers["anthropic"]; p.APIKey != "key" || p.Bearer() {
+		t.Fatalf("x-api-key variable lost to the token: %+v", p)
+	}
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"providers":{"gw":{"type":"anthropic","api_key":"k","auth":"basic"}}}`), 0o600)
+	if _, err := load(path, env(nil), Overrides{}); err == nil || !strings.Contains(err.Error(), "auth") {
+		t.Fatalf("unknown auth accepted: %v", err)
+	}
+}
+
 func TestProviderInferredFromKey(t *testing.T) {
 	cfg, err := load(filepath.Join(t.TempDir(), "missing.json"), env(map[string]string{"OPENAI_API_KEY": "k", "JANETCODE_MODEL": "m"}), Overrides{})
 	if err != nil {

@@ -16,6 +16,9 @@ import (
 // real calls costs nothing when they do not appear, and rescues the turn
 // when they do.
 
+// toolUseTag starts a tool_use block a model wrote into its text.
+const toolUseTag = "[tool_use]"
+
 var (
 	invokeRe    = regexp.MustCompile(`(?s)<invoke\s+name=["']([^"']+)["']\s*>(.*?)</invoke>`)
 	parameterRe = regexp.MustCompile(`(?s)<parameter\s+name=["']([^"']+)["']\s*>(.*?)</parameter>`)
@@ -35,7 +38,7 @@ type RecoveredCall struct {
 // blocks are a small part of a mostly prose answer — a model explaining
 // the format, or quoting one back, is not asking for the call.
 func RecoverToolCalls(text string) (calls []RecoveredCall, remaining string, ok bool) {
-	if text == "" || (!strings.Contains(text, "<invoke") && !strings.Contains(text, "<tool_call>")) {
+	if text == "" || (!strings.Contains(text, "<invoke") && !strings.Contains(text, "<tool_call>") && !strings.Contains(text, toolUseTag)) {
 		return nil, text, false
 	}
 	type span struct {
@@ -92,6 +95,39 @@ func RecoverToolCalls(text string) (calls []RecoveredCall, remaining string, ok 
 			args = json.RawMessage(`{}`)
 		}
 		spans = append(spans, span{m[0], m[1], RecoveredCall{Name: obj.Name, Input: args}})
+	}
+	// "[tool_use]" followed by the block's own JSON ({"id","name","input"}):
+	// a Claude model behind a gateway (Sonnet 4.6 through a Bedrock-backed
+	// broker, 2026-09-29) serialising its tool_use block into the text
+	// instead of emitting it. The object is read with a decoder, since its
+	// input can hold braces a regexp would miscount.
+	for from := 0; ; {
+		i := strings.Index(text[from:], toolUseTag)
+		if i < 0 {
+			break
+		}
+		start := from + i
+		from = start + len(toolUseTag)
+		if fences.covers(start) {
+			continue
+		}
+		rest := text[from:]
+		lead := len(rest) - len(strings.TrimLeft(rest, " \t\r\n"))
+		dec := json.NewDecoder(strings.NewReader(rest[lead:]))
+		var obj struct {
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
+		}
+		if dec.Decode(&obj) != nil || obj.Name == "" {
+			continue
+		}
+		args := obj.Input
+		if len(args) == 0 || !json.Valid(args) || args[0] != '{' {
+			args = json.RawMessage(`{}`)
+		}
+		end := from + lead + int(dec.InputOffset())
+		spans = append(spans, span{start, end, RecoveredCall{Name: obj.Name, Input: args}})
+		from = end
 	}
 	if len(spans) == 0 {
 		return nil, text, false

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/update"
 )
 
@@ -20,6 +21,10 @@ func selfUpdate() error {
 	if p, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = p
 	}
+	// Only for its ca_file: a download through a TLS-intercepting proxy
+	// needs the proxy's CA. A config that cannot be read is not this
+	// command's business; the download says so if it needed one.
+	_, _ = config.Load(config.Overrides{})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	res, err := update.Run(ctx, nil, update.Base(), version, exe)

@@ -43,7 +43,20 @@ name needs no `base_url`. `api_keys` lists extra keys to rotate through on
 `--provider openrouter` comes back with the model last used there. The older
 `anthropic`/`openai` sections are still read.
 
-Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
+An `anthropic`-type entry sends its key as `x-api-key`, as the Anthropic
+API wants. A gateway in front of the Messages API usually wants
+`Authorization: Bearer` instead: set `"auth": "bearer"` on the entry, or
+export the key as `ANTHROPIC_AUTH_TOKEN`, which Claude Code reads the same
+way (`ANTHROPIC_API_KEY` wins when both are set). For example, the Hero AI
+broker serves the Messages API for every model it routes:
+
+```sh
+export ANTHROPIC_AUTH_TOKEN=sk-hab-v1-...
+export ANTHROPIC_BASE_URL=https://api.ai02.ourhero.ai   # no /v1: the SDK adds it
+janetcode --provider anthropic --model deepseek/deepseek-v4.1-flash
+```
+
+Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
 `OPENAI_BASE_URL` (a key may be a comma-separated list), `JANETCODE_PROVIDER`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
@@ -88,6 +101,40 @@ the reasoning.
 tool call — a readable narrative at roughly a fifth more context per
 call. Unlike `thinking` there is no per-request budget to weigh it
 against; the reasons are read or they are not.
+
+### Proxies and private certificate authorities
+
+Every connection janetcode makes (the providers, `fetch_url`,
+`web_search`, remote MCP servers and their OAuth logins, `--update`, the
+decisions service, the price table) goes through the proxy the standard
+variables name: `HTTPS_PROXY` (and `HTTP_PROXY` for plain http), with
+`NO_PROXY` listing hosts to reach directly (`localhost,127.0.0.1,.corp`).
+Lower-case spellings work too.
+
+A proxy that intercepts TLS, or a gateway with a certificate from a
+private CA, needs that CA trusted. Put its certificate (PEM, one or more)
+in a file and name it:
+
+```json
+{ "ca_file": "~/certs/corp-root.pem" }
+```
+
+or `JANETCODE_CA_FILE=~/certs/corp-root.pem` for a run. Both may be set;
+each adds to the system's roots and replaces nothing. A file that cannot
+be read or holds no certificate is a configuration error (exit 52), not a
+warning, because the alternative is every call failing later with a
+certificate error that does not say why.
+
+`SSL_CERT_FILE` and `SSL_CERT_DIR` are honoured on every platform. On
+Linux and the BSDs they *replace* the system bundle, as they do for
+OpenSSL and curl; on macOS and Windows, where Go verifies against the
+system store and would otherwise ignore them, janetcode adds what they
+name to the system roots.
+
+Commands janetcode runs for you (`bash`, hooks, MCP servers started as
+processes) inherit your environment unchanged and use their own trust
+settings: Node reads `NODE_EXTRA_CA_CERTS`, Python's requests reads
+`REQUESTS_CA_BUNDLE`, git reads `http.sslCAInfo`.
 
 ### The sandbox key
 
@@ -288,8 +335,14 @@ for directly.
 
 `fallback_models` is an ordered list (at most three are used, duplicates and
 the model in use dropped) tried when a call fails in a way another model
-could survive: an exhausted quota or plan, or rate limits and server errors
-that outlived the provider's own retries. A bad request, a context overflow
+could survive: an exhausted quota or plan, rate limits and server errors
+that outlived the provider's own retries, or an endpoint that could not be
+reached at all (connection refused or reset, a name that does not resolve,
+a stream that stalled or was cut off on every attempt). The decision reads
+the HTTP status, the error type a server sends inside an open stream
+(`overloaded_error`, `insufficient_quota`, OpenRouter's numeric `code`) and
+the transport error itself; only a provider message with none of those is
+judged by its words. A bad request, a context overflow
 or a cancellation fails as it always did — another model would fail the same
 way. Each name is routed like any other, so a fallback may live on a
 different provider. The partial answer from the failed attempt is discarded,

@@ -296,11 +296,14 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 		ag.Log = opts.Session
 	}
 	err := ag.RunBlocks(ctx, blocks, func(e agent.Event) {
-		rec.event(e)
+		sep := rec.event(e)
 		if !rec.text() {
 			// json collects and prints once at the end; stream-json has
 			// already written this event as a line of its own.
 			return
+		}
+		if sep != "" {
+			fmt.Fprint(opts.Stdout, sep)
 		}
 		printEvent(opts, e)
 	})
