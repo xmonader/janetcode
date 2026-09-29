@@ -1148,6 +1148,33 @@ host is refused too. Shell commands are judged by the hosts they spell
 out, which is recognition rather than enforcement: a command can reach a
 host it does not name. The model provider is always allowed.
 
+With the sandbox on (`/sandbox workspace`, or any profile that has a
+network), bash is held to the policy for every host, named or not.
+janetcode runs a small filtering proxy on loopback, points the command's
+`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` (both spellings) at it with
+`NO_PROXY` cleared, and takes every other way out away:
+
+- Landlock (ABI 4, Linux 6.7+) allows TCP connect to the proxy's port
+  alone, and a seccomp filter takes UDP and unix sockets (so DNS too: the
+  proxy resolves names). The rule is by port, so a remote host listening
+  on that same port would be reachable. An older kernel cannot narrow
+  TCP, and sandboxed commands are refused while the policy is active.
+- docker puts the container on an internal network, `janetcode-egress`,
+  which has no route out; the proxy listens on its gateway. Services on
+  the host that listen on every address are reachable from it too.
+- seatbelt allows network-outbound only to the proxy on localhost.
+
+Each host goes through the policy as the connection is made: allowed
+hosts pass, blocked ones get `403` from the proxy, and an `ask` host is
+put to you as a bash prompt ("network access to <host>"), with a yes
+remembered for the session; with no one to ask (headless) it is refused.
+What went through shows in `/egress` as "sandboxed command (egress
+proxy)" with the bytes sent. `/egress` and `--doctor` say how far the
+active backend enforces it. A client that ignores the proxy variables
+simply cannot connect. `JANETCODE_SANDBOX_BACKEND` and
+`JANETCODE_SANDBOX_IMAGE` pick the backend and docker image for a run,
+as `/sandbox landlock` and `/sandbox <image>` do in a session.
+
 With `memory_confirm` on (or `/memory confirm on` for the session), what
 the model or the extractor decides to remember waits instead of being
 saved: `/memory pending` lists each with where it was learned, its scope

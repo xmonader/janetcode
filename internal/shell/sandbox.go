@@ -44,6 +44,9 @@ type Sandbox struct {
 	// forced is the profile a managed policy fixes (see Force): the
 	// sandbox cannot be turned off or moved to another profile.
 	forced, forcedBy string
+	// proxy, when set, is the egress proxy a profile with a network is
+	// narrowed to (see sandbox_egress.go).
+	proxy EgressProxy
 }
 
 // Force fixes the sandbox on at profile for the rest of the session:

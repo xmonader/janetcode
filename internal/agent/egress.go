@@ -52,7 +52,49 @@ func (a *Agent) EgressSummary() string {
 	} else {
 		body = "no turn has run yet in this session"
 	}
-	return a.EgressPolicy.Describe() + "\n\n" + body + "\n\nEvery turn's report is in the session log (egress/turn) and in headless JSON (\"egress\")."
+	return a.EgressPolicy.Describe() + a.egressBashNote() + "\n\n" + body + "\n\nEvery turn's report is in the session log (egress/turn) and in headless JSON (\"egress\")."
+}
+
+// egressBashNote says how far the policy reaches bash, "" with no policy.
+func (a *Agent) egressBashNote() string {
+	if !a.EgressPolicy.Active() {
+		return ""
+	}
+	if note := a.Sandbox.EgressNote(); note != "" {
+		return "\nbash: " + note
+	}
+	return "\nbash: no sandbox routes it through the egress proxy, so the policy reaches bash only through the hosts a command spells out"
+}
+
+// StartEgressProxy starts the filtering proxy a sandboxed bash command is
+// narrowed to while the egress policy is active (see egress.Proxy and
+// shell.Sandbox.SetEgressProxy), and returns it for the caller to close.
+// Nil, nil when there is no policy or no sandbox to route.
+func (a *Agent) StartEgressProxy() (*egress.Proxy, error) {
+	if !a.EgressPolicy.Active() || a.Sandbox == nil {
+		return nil, nil
+	}
+	px := &egress.Proxy{Policy: a.EgressPolicy, Recorder: a.EgressRecorder, Ask: a.askEgressHost}
+	if err := px.Start(); err != nil {
+		return nil, err
+	}
+	a.Sandbox.SetEgressProxy(px)
+	return px, nil
+}
+
+// askEgressHost puts a host the policy wants asked about to the person,
+// as a bash call: a sandboxed command is trying to reach it through the
+// proxy. No approver (a headless run with no one to ask) refuses.
+func (a *Agent) askEgressHost(host string) bool {
+	if a.Approver == nil {
+		return false
+	}
+	in, _ := json.Marshal(map[string]string{"command": "network access to " + host + " (through the egress proxy)"})
+	d, err := a.Approver.Approve(context.Background(), ToolCall{
+		ID: "egress-" + host, Name: "bash", Input: in,
+		Warning: "a sandboxed command wants to connect to " + host + ", which the egress policy does not allow without asking",
+	})
+	return err == nil && d != Deny
 }
 
 // egressTurn opens the turn's ledger on ctx. A subagent's turn runs under

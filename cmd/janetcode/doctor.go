@@ -30,6 +30,7 @@ import (
 	"github.com/xmonader/janetcode/internal/rates"
 	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/treesitter"
@@ -133,6 +134,9 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			if cas := netcfg.Added(); len(cas) > 0 {
 				sort.Strings(cas)
 				row(true, "certificates", "trusted beside the system roots: "+strings.Join(cas, ", "))
+			}
+			if pol, _ := cfg.EgressPolicy(); pol.Active() {
+				row(true, "egress", pol.Describe()+" · bash: "+egressBashReach(cfg))
 			}
 			if cfg.Decisions != nil {
 				d := cfg.Decisions
@@ -619,3 +623,27 @@ func doctorLine(w io.Writer, mark, what, detail string) {
 		fmt.Fprintf(w, "%*s%s\n", col+8, "", strings.TrimLeft(l, " "))
 	}
 }
+
+// egressBashReach says how far the egress policy would reach bash with
+// this configuration's sandbox, the way /egress says it in a session.
+func egressBashReach(cfg *config.Config) string {
+	sb := &shell.Sandbox{}
+	if v := os.Getenv("JANETCODE_SANDBOX_BACKEND"); v != "" {
+		_ = sb.SetBackend(v)
+	}
+	profile := sandboxProfile(cfg.Sandbox, false)
+	if pol := cfg.Managed; pol != nil && pol.Sandbox != "" {
+		profile = pol.Sandbox
+	}
+	if profile != "" && sb.SetProfile(profile) == nil {
+		_ = sb.Enable()
+	}
+	sb.SetEgressProxy(doctorProxy{})
+	return sb.EgressNote()
+}
+
+// doctorProxy stands in for the egress proxy a session would start.
+type doctorProxy struct{}
+
+func (doctorProxy) Port() int                          { return 0 }
+func (doctorProxy) ListenOn(ip string) (string, error) { return ip + ":0", nil }

@@ -81,13 +81,13 @@ func TestLandlockNoNetworkTakesUnixAndUDPSocketsToo(t *testing.T) {
 }
 
 func TestRulesetAttrScopesFromABI6(t *testing.T) {
-	if a := rulesetAttr(4, false); a.Scoped != 0 || a.Access_net == 0 {
+	if a := rulesetAttr(4, false, false); a.Scoped != 0 || a.Access_net == 0 {
 		t.Errorf("ABI 4 no-net: %+v", a)
 	}
-	if a := rulesetAttr(6, false); a.Scoped != unix.LANDLOCK_SCOPE_SIGNAL|unix.LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET {
+	if a := rulesetAttr(6, false, false); a.Scoped != unix.LANDLOCK_SCOPE_SIGNAL|unix.LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET {
 		t.Errorf("ABI 6 no-net scoped = %#x", a.Scoped)
 	}
-	if a := rulesetAttr(6, true); a.Scoped != unix.LANDLOCK_SCOPE_SIGNAL || a.Access_net != 0 {
+	if a := rulesetAttr(6, true, false); a.Scoped != unix.LANDLOCK_SCOPE_SIGNAL || a.Access_net != 0 {
 		t.Errorf("ABI 6 with network: %+v", a)
 	}
 }
