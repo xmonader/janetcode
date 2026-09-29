@@ -30,7 +30,7 @@ and measurements behind each round are in `docs/notes/history.md`.
   blocked.
 
 ### Deep review (2026-09-29)
-About 230 fixes from a file-by-file review. Each has a regression test; the
+About 240 fixes from a file-by-file review. Each has a regression test; the
 commit bodies give the failure scenario.
 - **Permissions.** An allow rule covers a compound line (`&&`, `;`, `|`,
   newline) or a `$( )`/backtick/`<( )` substitution only when every command
@@ -88,6 +88,8 @@ commit bodies give the failure scenario.
   - An overload error sent mid-stream is retried when no content has
     arrived yet.
   - A stall before the response headers arrive is retried.
+  - Tool calls in an Anthropic-compatible reply that says `end_turn` are
+    run instead of dropped.
 - **Other.**
   - A prerelease build updates to its release.
   - Session forks keep their `/accept` and `/loop` state.

@@ -50,7 +50,7 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Open UI questions: shared view model for TUI/web. app.js is still ~2,000
   lines: the transcript, composer, sessions rail and workspace pane share
   mutable state and were left together.
-- Deep review 2026-09-29 (~230 fixes, CHANGELOG "Deep review") left these
+- Deep review 2026-09-29 (~240 fixes, CHANGELOG "Deep review") left these
   open as design questions: two processes on one session file have no lock;
   MCP servers that exit stay listed (no reconnect); seatbelt allows all
   mach-lookup; Landlock doesn't govern unix sockets; the workspace sandbox
