@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -78,6 +79,32 @@ func TestQueuedPromptSentAfterVerifyAndRecipe(t *testing.T) {
 				t.Fatalf("after %s the queue is %q and running=%v; want it sent", name, h.m.turn.queued, h.m.turn.running)
 			}
 			h.pump(func() bool { return !h.m.turn.running })
+		})
+	}
+}
+
+// TestQueuedPromptComesBackAfterACancelledVerifyOrRecipe: esc on a turn
+// puts what was queued behind it back in the input rather than sending
+// it. A /verify or /recipe run cancelled with esc sent it instead, so the
+// user stopped one thing and got another started.
+func TestQueuedPromptComesBackAfterACancelledVerifyOrRecipe(t *testing.T) {
+	for name, done := range map[string]tea.Msg{
+		"verify": verifyDoneMsg{},
+		"recipe": recipeDoneMsg{recipe: recipe.Recipe{Name: "r"}, err: context.Canceled},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.m.startTurn("working")
+			h.keys("and then this")
+			h.enter()
+			h.m.cancelTurn()
+			h.update(done)
+			if h.m.turn.running || len(h.m.turn.queued) != 0 {
+				t.Fatalf("after a cancelled %s: running=%v queued=%q; want nothing sent", name, h.m.turn.running, h.m.turn.queued)
+			}
+			if got := h.m.input.Value(); got != "and then this" {
+				t.Fatalf("the input holds %q, want the queued prompt back", got)
+			}
 		})
 	}
 }

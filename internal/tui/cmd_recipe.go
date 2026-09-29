@@ -121,6 +121,7 @@ type recipeDoneMsg struct {
 // the handover — the same submit path a queued prompt or a goal round
 // uses to start its next turn.
 func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
+	cancelled := m.turn.cancelling
 	m.turn.running = false
 	m.turn.cancelling = false
 	if m.turn.cancel != nil {
@@ -136,6 +137,12 @@ func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 		// What was queued meanwhile waits behind the handover turn,
 		// whose end sends it.
 		return m.submit(res.Handover)
+	}
+	if cancelled || msg.err != nil {
+		// As after a turn: what was queued behind a run that was
+		// cancelled or failed goes back in the input, not to the model.
+		m.restoreQueued()
+		return nil
 	}
 	return m.sendQueued()
 }

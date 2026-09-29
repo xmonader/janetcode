@@ -364,7 +364,16 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		return cmd, true
 
 	case verifyDoneMsg:
+		cancelled := m.turn.cancelling
 		m.finishVerify(msg)
+		if cancelled {
+			// esc stopped the checks: what was queued behind them goes
+			// back in the input, as it does when a turn is cancelled.
+			m.turn.cancelling = false
+			m.restoreQueued()
+			m.refresh(false)
+			return nil, true
+		}
 		cmd := m.sendQueued()
 		m.refresh(false)
 		return cmd, true
