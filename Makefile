@@ -4,7 +4,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build install test race lint check clean dist run eval eval-baseline eval-train cross harness-bench harness-bench-large \
-	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-visual ui-shot
+	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-visual ui-shot vscode-test action-test
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -25,6 +25,11 @@ md-test:
 # uses, light and dark. Pure node.
 ui-a11y:
 	node internal/webui/uitest/a11y.mjs
+
+# The VS Code extension in a real VS Code (downloaded once into
+# editors/vscode/.vscode-test), under a virtual display.
+vscode-test:
+	cd editors/vscode && npm install --no-audit --no-fund && node test/extension.test.js && xvfb-run -a node test/e2e/run.js
 
 race:
 	go test -race $(PKG)
