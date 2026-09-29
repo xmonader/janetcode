@@ -273,6 +273,24 @@ func TestCutDesc(t *testing.T) {
 	}
 }
 
+// A recipe name becomes a file name under .janetcode/recipes, so one that
+// carries a path ("../../x") would write or read outside it.
+func TestRecipeNameCannotLeaveTheRecipesDir(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "proj")
+	steps := []Step{{Tool: "bash", Input: json.RawMessage(`{"command":"echo hi"}`)}}
+	for _, name := range []string{"../../escaped", "../x", "a/b", `a\b`, ".."} {
+		if path, err := Save(root, Recipe{Name: name, Steps: steps}); err == nil {
+			t.Fatalf("Save(%q) wrote %s", name, path)
+		}
+		if _, err := Load(root, name); err == nil || errors.Is(err, ErrNoRecipe) {
+			t.Fatalf("Load(%q) = %v, want the name refused", name, err)
+		}
+	}
+	if _, err := Save(root, Recipe{Name: "fine.v2", Steps: steps}); err != nil {
+		t.Fatalf("a plain name was refused: %v", err)
+	}
+}
+
 func TestSaveLoadList(t *testing.T) {
 	root := t.TempDir()
 	r := Recipe{Name: "deploy", Description: "deploys staging", Steps: []Step{

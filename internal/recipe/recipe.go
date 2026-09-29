@@ -393,6 +393,16 @@ func expandValue(v any, values map[string]string) (any, error) {
 // the same way .janetcode/commands and .janetcode/evals are.
 func recipesDir(root string) string { return filepath.Join(root, ".janetcode", "recipes") }
 
+// checkName refuses a recipe name that is not a plain file name. The name
+// becomes <name>.json under the recipes directory, so "../../x" (typed at
+// /recipe save or passed to --recipe) wrote or read outside it.
+func checkName(name string) error {
+	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." || !filepath.IsLocal(name+".json") {
+		return fmt.Errorf("recipe name %q must be a plain name, without path separators", name)
+	}
+	return nil
+}
+
 // Save writes a recipe to <root>/.janetcode/recipes/<name>.json. It
 // refuses to overwrite an existing file: a recipe is meant to be reviewed
 // and committed, and silently replacing one destroys that review.
@@ -400,6 +410,9 @@ func Save(root string, r Recipe) (path string, err error) {
 	name := strings.TrimSpace(r.Name)
 	if name == "" {
 		return "", errors.New("recipe needs a name")
+	}
+	if err := checkName(name); err != nil {
+		return "", err
 	}
 	if len(r.Steps) == 0 {
 		return "", errors.New("recipe has no steps")
@@ -429,6 +442,9 @@ func Load(root, name string) (Recipe, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Recipe{}, errors.New("recipe name is empty")
+	}
+	if err := checkName(name); err != nil {
+		return Recipe{}, err
 	}
 	data, err := os.ReadFile(filepath.Join(recipesDir(root), name+".json"))
 	if err != nil {
