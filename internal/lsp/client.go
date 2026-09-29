@@ -399,8 +399,12 @@ func (c *client) read(r *bufio.Reader) {
 			// reports with its stderr. Anything else is the stream itself
 			// going wrong — a frame bigger than the limit, a header that
 			// is not LSP — and is the only account anyone will get of it,
-			// since the process may keep running.
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			// since the process may keep running. A closed pipe is the
+			// exit too: cmd.Wait closes stdout once the process is gone,
+			// possibly while this read is still in it, and "file already
+			// closed" must not take the place of the exit status and
+			// stderr the reaper is about to report.
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, os.ErrClosed) {
 				c.fail(err)
 			}
 			return
