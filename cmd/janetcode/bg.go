@@ -118,6 +118,9 @@ func bgPermissionArgs(o *options) []string {
 	if o.sandboxOn {
 		rules = append(rules, "--sandbox")
 	}
+	if o.dryRun {
+		rules = append(rules, "--dry-run")
+	}
 	return append(mode, rules...)
 }
 

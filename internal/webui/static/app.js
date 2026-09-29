@@ -498,7 +498,7 @@
   let localNote = "", lastServerStatus = "";
   function finishStatus(st) {
     statusEl.classList.toggle("busy", !!st.running);
-    if (st.mode) setModeChip(st.mode);
+    if (st.mode) setModeChip(st.mode, st.dry_run);
     setEffortChip(st.effort);
     if (st.phase) lastFlavor = st.phase;
     relabelThinking();
@@ -515,13 +515,15 @@
     });
   }
 
-  function setModeChip(mode) {
+  // dry says the session is a dry run: not a permission mode of its own
+  // but a layer over whichever is set, so the chip names both.
+  function setModeChip(mode, dry) {
     const chip = document.getElementById("mode-chip");
     if (!chip) return;
     const m = mode || "ask";
     const names = { ask: "Ask first", AUTO: "Auto", EDITS: "Auto-edit", PLAN: "Plan", "READ-ONLY": "Read-only", YOLO: "Allow all" };
-    chip.textContent = names[m] || m;
-    chip.title = "Permission mode: " + (names[m] || m) + " — click to switch";
+    chip.textContent = (names[m] || m) + (dry ? " · dry run" : "");
+    chip.title = "Permission mode: " + (names[m] || m) + (dry ? " (dry run: nothing reaches the disk until /dryrun apply)" : "") + " — click to switch";
     chip.dataset.mode = m;
   }
 
@@ -1474,7 +1476,8 @@
       document.getElementById("mode-edits").classList.toggle("on", !!ws.edits);
       document.getElementById("mode-plan").classList.toggle("on", !!ws.plan);
       document.getElementById("mode-ro").classList.toggle("on", !!ws.readonly);
-      setModeChip(ws.mode);
+      document.getElementById("mode-dry").classList.toggle("on", !!ws.dry_run);
+      setModeChip(ws.mode, ws.dry_run);
       lastWorkspace = ws;
       paintGit(ws);
       paintTurnFiles(ws.files);

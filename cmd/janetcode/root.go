@@ -154,6 +154,9 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	}
 	r.onClose(built.close)
 	ag := built.agent
+	if o.dryRun {
+		ag.SetDryRun(true)
+	}
 
 	r.servers = mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
 	if pol := cfg.Managed; pol != nil {

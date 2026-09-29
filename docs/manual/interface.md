@@ -529,7 +529,14 @@ tree is snapshotted before the first mutating tool of a turn (a hidden
 commit under `refs/janetcode/cp/`, taken through a temporary index so
 HEAD, your index and your branches are never touched), so changes made by
 shell commands, generated files and deletions all revert. Outside git the
-files changed through `edit_file`/`write_file` are restored from copies.
+same snapshots are taken into a private store in janetcode's data
+directory (`shadow/` beside `sessions/`; nothing is written into the
+project), so shell changes revert there too. A directory too large to
+snapshot every turn (over 20,000 files or 512 MiB), a home directory and
+the file system root get no store, and there the files changed through
+`edit_file`/`write_file` are restored from copies. The store is never
+used for proof notes or a session's recorded start, which need your own
+repository's history.
 Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
@@ -576,10 +583,10 @@ touched, when:
 
 What it restores is recorded as changes of its own, exactly as `/undo n`
 records a revert, so the restore appears in `/changes` and `/blame` and
-`/undo <n>` can take it back. Outside a git repository there is no
-work-tree snapshot, so the restore falls back to the copies the file
-tools made — the same fallback `/undo` uses, covering file-tool changes
-only.
+`/undo <n>` can take it back. Outside a git repository the private
+store's snapshot does the same job; where there is none (see above), the
+restore falls back to the copies the file tools made — the same fallback
+`/undo` uses, covering file-tool changes only.
 
 A rewind drops, from turn n on: every message of those turns (prompts,
 replies, tool calls and their results), the undo checkpoints of those
@@ -598,6 +605,36 @@ themselves, when the conversation has been compacted since turn n began:
 the summary replaced the messages that marked where the turn started, so
 that point can no longer be located and cutting at a guess would take
 the wrong messages. The preview says so in as many words.
+
+#### The checkpoint list: /checkpoints, esc esc
+
+`/checkpoints` lists every restore point the session holds, newest
+first: its id (`t4·1a2b3c4`, the turn and the git snapshot behind it),
+when it was taken, what the turn said it was doing, and what restoring it
+covers —
+
+- **whole work tree (git snapshot)**, so shell changes go back too —
+  inside a repository or through the private store outside one — or
+  **file copies only** where there is neither, and only what the file
+  tools changed can be put back;
+- the files the file tools changed and how many paths the turn left
+  different;
+- whether it is **complete**: a file that could not be read before the
+  turn, or was too large to copy (see below), is listed as a gap, and the
+  checkpoint is marked incomplete. A complete checkpoint with a manifest
+  also promises that an undo leaves later edits alone.
+
+In the terminal the list is a picker: enter on a row runs `/undo turn n`
+for that turn, the preview above, and `/undo apply` carries it out.
+Pressing esc twice on an empty prompt while no turn is running opens the
+same list. The web UI shows it as a sheet.
+
+A checkpoint copies a file before the file tools change it. A copy over
+1 MiB is streamed to a blob beside the session's undo file rather than
+held in memory; a file over 256 MiB is not copied at all. Outside git you
+are told when that happens, before the change is made, and `/undo` then
+leaves that file as it is and says why rather than writing an empty
+"before" over it. Inside git the snapshot still covers it.
 
 ### Permission rules
 
@@ -2382,6 +2419,53 @@ run; other commands still ask) → **yolo** (`/yolo`, tools run without
 asking) → ask. The current mode stays on the status line (and as a
 header prefix); cycling it does not print into the transcript. `/edits`
 and `/readonly` stay their own toggles.
+
+### Dry run: see the whole change first
+
+`/dryrun` (or `--dry-run` on the command line) lets the model carry out
+the task while nothing it does reaches the disk or the world. Approving
+calls one at a time shows the change a piece at a time; a dry run shows
+all of it before any of it happens.
+
+- `write_file` and `edit_file` write to a preview instead of the file.
+  `read_file` reads the preview back, so the model can edit a file twice
+  and see its own work, and the diff you review is the real one.
+- A shell command runs only when it merely reads — the same allowlist
+  auto mode uses (`ls`, `cat`, `grep`, `git status`/`diff`/`log` …) — and
+  not in the background. Any other command is recorded, not run, and the
+  model is told so.
+- An MCP tool the server does not mark read-only, a job's `stdin` or
+  `kill`, a script, the terminal, the computer and an editing subagent
+  are recorded the same way. `fetch_url` and `web_search` run, since they
+  only read, and the preview lists the hosts they reached.
+- Nothing recorded asks for permission: a preview is not an approval.
+  Each entry says what the ordinary path would do with it — `would allow`,
+  `would ask (why)` or `would deny (the rule)`.
+
+`/dryrun show` is the preview: every file that would change with its
+diff, the commands and tools that were not run, the network reads that
+were, the mode and sandbox the real run would use, and the verify
+commands that would run after it. `/dryrun status` lists the same
+without the diffs; `/dryrun` alone turns the dry run on or off. Then:
+
+- `/dryrun apply` writes every previewed file, as one checkpoint that
+  `/undo` takes back, and ends the dry run. `/dryrun apply 1,3` writes
+  only those files (the numbers are the preview's). The model is told
+  which files were written and which of its commands never ran, and runs
+  the ones still needed for real — each through the permission prompt.
+- `/dryrun discard` drops the preview and stays in the dry run, for
+  another go at the plan.
+- `/dryrun off` ends the dry run; an unapplied preview is dropped and the
+  model is told none of it happened.
+
+A fork shares the parent's dry run and preview. With `-p --dry-run` the
+preview, diffs included, is printed on stderr at the end; with
+`--output-format json` it is the `dry_run` field of the result
+(`files` with their diffs, `actions` with each recorded call). The status
+line and the web mode chip say `DRY RUN` while it is on.
+
+grep, glob and read-only shell commands still see the files as they are
+on disk, not the preview.
 
 `/sandbox workspace` runs local bash under a named profile (see *The
 sandbox* below); `/sandbox on` is the same as `/sandbox workspace`. File

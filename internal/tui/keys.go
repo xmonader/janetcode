@@ -337,6 +337,11 @@ func (m *model) keyEscape(tea.KeyMsg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 	}
+	// Idle with nothing typed: esc esc opens the checkpoints, the quick
+	// way back to before a turn.
+	if cmd := m.escRewind(); cmd != nil {
+		return cmd, true
+	}
 	return nil, false
 }
 

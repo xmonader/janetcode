@@ -341,6 +341,10 @@ func (a *Agent) checkpointPreview(ctx context.Context, cp Checkpoint) ([]string,
 			out = append(out, "cannot restore "+f.Path+" (not captured)")
 			continue
 		}
+		if f.TooLarge {
+			out = append(out, "cannot restore "+f.Path+" (too large to copy)")
+			continue
+		}
 		if f.Existed {
 			out = append(out, "restore "+f.Path)
 		} else {

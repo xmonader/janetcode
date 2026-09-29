@@ -296,6 +296,10 @@ type Agent struct {
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
 	PlanMode bool
+	// dry is the dry-run state (see dryrun.go), made on first use under
+	// dryOnce; a fork uses its UndoOwner's.
+	dry     *dryRun
+	dryOnce sync.Once
 	// Jobs, when set, is polled before each model call so finished
 	// background commands are reported to the model as they complete.
 	Jobs *tool.Jobs

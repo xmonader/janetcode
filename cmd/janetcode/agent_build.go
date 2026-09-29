@@ -616,15 +616,14 @@ func (b *agentBuilder) stepDecisions() error {
 }
 
 // stepUndo opens the session's undo ledger and the snapshot store behind
-// it. Neither is fatal: a project that is not a git repository has no
-// snapshots, and an undo file that cannot be read costs the session its
-// history of changes, not its ability to run.
+// it. Neither is fatal: a project that is not a git repository gets a
+// shadow store when it is small enough (see openSnapshots), and an undo
+// file that cannot be read costs the session its history of changes, not
+// its ability to run.
 func (b *agentBuilder) stepUndo() error {
 	ag := b.ag
 	ag.UndoPath = b.sess.UndoPath()
-	if snaps, err := snapshot.Open(context.Background(), b.d.cwd); err == nil {
-		ag.Snapshots = snaps
-	}
+	ag.Snapshots = openSnapshots(b.d.cwd, b.d.sessDir)
 	if err := ag.LoadUndo(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
@@ -658,4 +657,25 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		}
 	}
 	return b.result(), nil
+}
+
+// openSnapshots is the snapshot store /undo uses in dir: the repository
+// dir is in, or, outside git, a shadow store in janetcode's data
+// directory (snapshot.OpenShadow) so a turn's shell changes can be undone
+// there too. nil when dir is neither — a home directory, a tree too large
+// to snapshot every turn — and /undo falls back to the file tools' copies.
+func openSnapshots(dir, sessDir string) *snapshot.Repo {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if repo, err := snapshot.Open(ctx, dir); err == nil {
+		return repo
+	}
+	if sessDir == "" {
+		return nil
+	}
+	repo, err := snapshot.OpenShadow(ctx, dir, filepath.Join(filepath.Dir(sessDir), "shadow"))
+	if err != nil {
+		return nil
+	}
+	return repo
 }

@@ -220,6 +220,12 @@ func (m *model) statusState() string {
 	if chip := m.vimChip(); chip != "" {
 		s += m.styles.faint.Render(" · ") + chip
 	}
+	// A dry run is not a permission mode — it sits on top of whichever
+	// one is set — but nothing on screen would otherwise say that the
+	// edits the transcript shows never reached the disk.
+	if ag := m.opts.Agent; ag != nil && ag.DryRunOn() {
+		s += m.styles.key.Render(" · DRY RUN")
+	}
 	// A tier above the provider's own default is a standing choice about
 	// what every call costs, so it sits with the mode rather than being
 	// something you have to run /effort to remember.

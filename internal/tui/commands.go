@@ -113,9 +113,11 @@ var dispatch = map[string]cmdHandler{
 		m.loopCommand(cmdArg(text, fields))
 		return nil, false
 	},
-	"/edits":    (*model).cmdEdits,
-	"/settle":   (*model).cmdSettle,
-	"/readonly": (*model).cmdReadonly,
+	"/edits":       (*model).cmdEdits,
+	"/settle":      (*model).cmdSettle,
+	"/readonly":    (*model).cmdReadonly,
+	"/dryrun":      (*model).cmdDryrun,
+	"/checkpoints": (*model).cmdCheckpoints,
 	"/plan": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.planCommand(cmdArg(text, fields)), true
 	},

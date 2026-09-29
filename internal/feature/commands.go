@@ -89,6 +89,8 @@ var commandWhen = map[string]string{
 	"/pr":              "the branch is ready and you want it pushed with a pull request whose description is drafted from its commits",
 	"/pr-comments":     "a reviewer left comments on the pull request and you want the model to address them",
 	"/issue":           "the work starts from a GitHub issue and you want the model to read it",
+	"/checkpoints":     "something went wrong a few turns back and you want to see what you can go back to, and how much of it a restore would cover",
+	"/dryrun":          "you want to see the whole change — every file diff and every command — before any of it touches the disk",
 }
 
 // commandInvoke overrides what the catalogue says to type, for the few

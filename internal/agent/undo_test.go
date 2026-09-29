@@ -392,7 +392,7 @@ func TestUndoReportsAFailedCapture(t *testing.T) {
 	}
 	a := &Agent{}
 	a.cp.beginTurn(1, 0)
-	a.cp.snapshot(context.Background(), nil, touchTool{paths: []string{path}}, nil)
+	a.cp.snapshot(context.Background(), nil, "", touchTool{paths: []string{path}}, nil)
 	cps := a.Checkpoints()
 	if len(cps) != 1 || len(cps[0].Files) != 1 || !cps[0].Files[0].Failed {
 		t.Fatalf("checkpoint = %+v", cps)

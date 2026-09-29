@@ -544,6 +544,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if reason, denied := a.toolGate(t, u.Input); denied {
 		return refuse(reason, true)
 	}
+	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
+		return out, nil, false, nil
+	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "", nil, true, err
@@ -556,13 +559,15 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// A rule scoped to these paths joins the conversation before the
 	// next model call, once for the session.
 	a.applyPathRules(t, u.Input, emit)
-	if tool.MutatingCall(t, u.Input) {
-		a.snapshotBefore(ctx, t, u.Input)
+	// A dry run lets through only calls that read (see dryIntercept):
+	// they need no checkpoint and do not make the turn a mutating one.
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
+		a.snapshotBefore(ctx, t, u.Input, emit)
 	}
 	start := time.Now()
 	var pend []pending
 	var tamperedBefore string
-	if tool.MutatingCall(t, u.Input) {
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		// A locked file changed outside any tool call is put back before
 		// this call runs, so the note after it never blames this call.
 		tamperedBefore = a.acceptRestoreTampered("", emit)
@@ -600,7 +605,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err != nil {
 		out = "Error: " + err.Error()
 		isErr = true
-	} else if tool.MutatingCall(t, u.Input) {
+	} else if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		a.mutated = true
 		a.mutations++
 		if editTool(u.Name) {
@@ -799,6 +804,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		return reason, true, true
 	}
 	u := llm.Block{ID: id, Name: name, Input: input}
+	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
+		return out, false, false
+	}
 	_, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "Error: " + err.Error(), true, false
@@ -811,9 +819,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
 	var pend []pending
 	var tamperedBefore string
-	if tool.MutatingCall(t, u.Input) {
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
-		a.snapshotBefore(ctx, t, u.Input)
+		a.snapshotBefore(ctx, t, u.Input, emit)
 		pend = a.before(t, u.Input)
 	}
 	start := time.Now()
@@ -822,7 +830,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	isErr := runErr != nil
 	if isErr {
 		out = "Error: " + runErr.Error()
-	} else if tool.MutatingCall(t, u.Input) {
+	} else if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		a.after(u, intent, pend)
 		a.mutated = true
 		a.mutations++
