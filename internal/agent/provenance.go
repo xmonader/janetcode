@@ -43,6 +43,13 @@ func (a *Agent) before(t tool.Tool, input []byte) []pending {
 	var out []pending
 	for _, p := range paths {
 		pd := pending{path: p}
+		if st, err := os.Stat(p); err == nil && st.Size() > maxChangesBytes {
+			// Past the whole record's own bound: one such change would
+			// hold the record over it by itself (record never evicts
+			// the last change) and cost its size in memory twice. The
+			// turn's checkpoint still covers the file for /undo.
+			continue
+		}
 		if data, err := os.ReadFile(p); err == nil {
 			pd.data, pd.existed = data, true
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -60,6 +67,9 @@ func (a *Agent) before(t tool.Tool, input []byte) []pending {
 // back to reading the transcript.
 func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 	for _, p := range pend {
+		if st, err := os.Stat(p.path); err == nil && st.Size() > maxChangesBytes {
+			continue // see before
+		}
 		data, err := os.ReadFile(p.path)
 		exists := err == nil
 		if !exists && !p.existed || exists && p.existed && bytes.Equal(data, p.data) {

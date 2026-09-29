@@ -514,7 +514,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// next model call, once for the session.
 	a.applyPathRules(t, u.Input, emit)
 	if tool.MutatingCall(t, u.Input) {
-		a.snapshotBefore(ctx, t, u.Input)
+		a.snapshotBefore(ctx, t, u.Input, emit)
 	}
 	start := time.Now()
 	var pend []pending
@@ -768,7 +768,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	var tamperedBefore string
 	if tool.MutatingCall(t, u.Input) {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
-		a.snapshotBefore(ctx, t, u.Input)
+		a.snapshotBefore(ctx, t, u.Input, emit)
 		pend = a.before(t, u.Input)
 	}
 	start := time.Now()
