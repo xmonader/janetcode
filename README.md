@@ -233,7 +233,8 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /accept <request> (write acceptance tests first; /accept approve locks them as a gate)
 /readonly  (toggle read-only: the model can inspect but change nothing)
-/sandbox [on|off]  /review [focus]  /loop [duration] <prompt>
+/sandbox [on|off]  /review [focus]  /security-review [focus]  /loop [duration] <prompt>
+/commit (draft a message, edit, send)  /pr (draft, then push and open)  /pr-comments [n]  /issue <n>
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)

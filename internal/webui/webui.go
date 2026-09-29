@@ -339,6 +339,9 @@ type envelope struct {
 	Notice    string           `json:"notice,omitempty"`
 	Error     string           `json:"error,omitempty"`
 	Questions []agent.Question `json:"questions,omitempty"`
+	// Compose is a draft for the composer: /commit and /pr put the
+	// command that commits or pushes there for the user to edit and send.
+	Compose string `json:"compose,omitempty"`
 }
 
 type helloPayload struct {
@@ -660,7 +663,9 @@ func (s *server) emit(e envelope) {
 	// state: kept in the log it was replayed to every page that loaded or
 	// reconnected afterwards, and the form popped open again long after
 	// the provider was connected.
-	if e.Type != "connect" {
+	// "compose" likewise: a replayed draft would overwrite what the user
+	// has typed since.
+	if e.Type != "connect" && e.Type != "compose" {
 		s.log = append(s.log, e)
 		if len(s.log) > 2000 {
 			s.log = s.log[len(s.log)-1500:]

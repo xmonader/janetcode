@@ -391,6 +391,10 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /sandbox [on|off|workspace|read-only|strict|backend|image]  (run local bash under a sandbox profile; file tools stay here)
 /review [focus]  (two subagents read the current diff: bugs and tests)
+/security-review [focus]  (two read-only subagents look for attacks in the diff; one report, most severe first)
+/commit [-m message]  (draft a message into the input box; sending /commit -m commits it)
+/pr [create <title>]  (draft a pull request; sending /pr create pushes and opens it)
+/pr-comments [n]   /issue <n>  (fetch a pull request's reviews or an issue with gh and share it)
 /loop [duration] [prompt|off]  (repeat a prompt this session; restored on resume)
 /agents [id|new <brief>|fork <brief>]  (overlay of subagents; new starts a general one, fork inherits this conversation)
 /add-dir <path>  (grant file tools another local directory)
@@ -1309,6 +1313,64 @@ building once something an undone one defined disappears from under it),
 naming each file and either what the language server found or that the
 file could not be checked; with no language server either, it says
 plainly that nothing verified the result.
+
+### Commits, pull requests and GitHub
+
+`/commit` writes the commit message so you do not have to, and still lets
+you read it before anything lands. It looks at what a commit would hold —
+the staged changes when something is staged, otherwise every change in the
+work tree, new files included — asks the session's model for a message in
+the style of the repository's last ten subjects, and puts
+`/commit -m <draft>` in the input box. Above it the transcript lists the
+files. Edit the message there (ctrl+j for a new line) and press enter to
+commit, or esc to drop it. The model drafts with the conversation behind
+it, so the body can say why, not only what. The diff it is shown is
+redacted the way a tool result is.
+
+With nothing staged, untracked files whose names say they hold
+credentials — `.env`, `*.pem`, `*.key`, `id_rsa`, `.netrc`, … — are left
+out and named, and a change that adds something shaped like an API key
+gets a warning above the draft. `/commit -m <message>` commits straight
+away, and attaches this session's [proof note](#proof-in-the-commit) to
+the new commit the way a `git commit` the model ran would.
+
+`/pr` does the same for a pull request. It reads the branch, the remote it
+pushes to (the branch's own, else `origin`) and the base (the remote's
+default branch, else `main` or `master`), lists the commits the base
+lacks, and drafts a title and a Markdown body into the input box as
+`/pr create <title>`, the body on the lines after it. **Nothing is pushed
+until you send that line**: the draft is the confirmation. Sending it runs
+`git push -u` and `gh pr create`; without `gh` installed and logged in it
+pushes and prints GitHub's compare URL to open the pull request from.
+
+```
+/commit                      # draft; the input box now holds /commit -m feat: …
+/pr                          # draft; the input box holds /pr create <title>\n<body>
+/pr-comments                 # reviews and comments on this branch's pull request
+/pr-comments 42              # … or on #42
+/issue 17                    # issue #17, its labels and comments
+```
+
+`/pr-comments [n]` and `/issue <n>` bring GitHub into the conversation:
+`gh` fetches the pull request's description, reviews, inline comments
+(with file and line) and conversation, or the issue with its labels and
+comments, and the text is shown and shared with the model as context for
+your next prompt — "address the review comments" then needs no pasting.
+Both need `gh` installed and logged in (`gh auth login`); they read only.
+
+`/security-review [focus]` is `/review` with an attacker's brief. Two
+read-only subagents read the current diff: one follows untrusted input to
+where it is used (injection, path traversal, request forgery, unsafe
+deserialization, missing output encoding), the other checks access and
+leaks (authorization, secrets, cryptography, insecure defaults,
+check-then-use races). Each reports one line per finding with a severity;
+janetcode merges the two, drops a finding both wrote, and shows one list,
+critical first, which is also shared with the model so "fix the high ones"
+works as the next prompt. A reviewer that ignores the format is not lost:
+what it wrote is shown after the ranked list.
+
+Running janetcode on pull requests in CI is covered in
+[Continuous integration](ci.md).
 
 ### Proof in the commit
 

@@ -8,3 +8,4 @@ The [README](../../README.md) covers install, quick start and what has been meas
 - [Evals](evals.md)
 - [Command-line reference](cli.md)
 - [Editor integration (ACP)](editor.md)
+- [Continuous integration](ci.md)

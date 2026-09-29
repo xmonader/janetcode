@@ -88,6 +88,26 @@ var dispatch = map[string]cmdHandler{
 	"/review": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.reviewCommand(cmdArg(text, fields)), true
 	},
+	"/security-review": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.securityReviewCommand(cmdArg(text, fields))
+		return nil, false
+	},
+	"/commit": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.gitCommand("/commit", cmdArg(text, fields))
+		return nil, false
+	},
+	"/pr": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.gitCommand("/pr", cmdArg(text, fields))
+		return nil, false
+	},
+	"/pr-comments": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.gitCommand("/pr-comments", cmdArg(text, fields))
+		return nil, false
+	},
+	"/issue": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.gitCommand("/issue", cmdArg(text, fields))
+		return nil, false
+	},
 	"/loop": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.loopCommand(cmdArg(text, fields))
 		return nil, false

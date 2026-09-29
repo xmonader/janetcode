@@ -1,0 +1,140 @@
+name: janetcode
+description: Run the janetcode coding agent on pull requests, issues and comments — review a pull request, answer an @janetcode mention, or run a prompt.
+author: xmonader
+branding:
+  icon: terminal
+  color: purple
+
+inputs:
+  mode:
+    description: >-
+      review (comment a review of the pull request's diff), mention (answer a
+      comment that contains the trigger), prompt (run the prompt input), or
+      auto: review on pull_request events, mention on comment and issue
+      events, prompt otherwise.
+    default: auto
+  prompt:
+    description: The prompt for mode prompt; for review and mention, extra instructions added to the built-in brief.
+    default: ""
+  trigger:
+    description: The word a comment must contain for mode mention to act.
+    default: "@janetcode"
+  allowed-associations:
+    description: >-
+      Comma-separated author associations whose mentions are answered
+      (OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, …). Anyone else's mention
+      is ignored, so a stranger cannot spend your key.
+    default: OWNER,MEMBER,COLLABORATOR
+  allow-edits:
+    description: >-
+      false: the agent reads and answers only (--readonly). true (mode
+      mention or prompt): it may edit files and run commands in the runner
+      (--yolo); its changes are committed to a new branch and a pull request
+      is opened.
+    default: "false"
+  comment:
+    description: Post the answer as a comment on the pull request or issue.
+    default: "true"
+  max-cost:
+    description: Stop the run once it has spent this many US dollars (--max-cost). 0 means no ceiling.
+    default: "1.00"
+  max-turns:
+    description: Cap on the model calls of the run (--max-turns). Empty means the default.
+    default: ""
+  model:
+    description: The model (--model).
+    default: ""
+  provider:
+    description: The backend (--provider), anthropic or openai. Empty picks from the key given.
+    default: ""
+  anthropic-api-key:
+    description: Anthropic API key (pass a secret).
+    default: ""
+  openai-api-key:
+    description: Key for an OpenAI-compatible endpoint (pass a secret).
+    default: ""
+  openai-base-url:
+    description: Base URL of the OpenAI-compatible endpoint (OpenRouter, a broker, vLLM…).
+    default: ""
+  version:
+    description: The janetcode release tag to install; empty is the latest release.
+    default: ""
+  install-from:
+    description: release (download a checked release, building from the action's own source when that fails) or source (always build from the action's source).
+    default: release
+  github-token:
+    description: Token gh uses to read the pull request and post comments.
+    default: ${{ github.token }}
+  fail-on-error:
+    description: Fail the step when janetcode exits non-zero.
+    default: "true"
+
+outputs:
+  result:
+    description: The answer janetcode gave.
+    value: ${{ steps.run.outputs.result }}
+  cost-usd:
+    description: What the run cost, from the result object.
+    value: ${{ steps.run.outputs.cost-usd }}
+  exit-code:
+    description: janetcode's exit code (see the manual's exit code table).
+    value: ${{ steps.run.outputs.exit-code }}
+  session-id:
+    description: The session id of the run.
+    value: ${{ steps.run.outputs.session-id }}
+  skipped:
+    description: true when mode mention found no trigger, or the author was not allowed.
+    value: ${{ steps.run.outputs.skipped }}
+  pr-url:
+    description: The pull request opened with the agent's changes, when allow-edits made any.
+    value: ${{ steps.run.outputs.pr-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install janetcode from a release
+      id: release
+      if: inputs.install-from != 'source'
+      continue-on-error: true
+      shell: bash
+      env:
+        JANETCODE_VERSION: ${{ inputs.version }}
+        JANETCODE_INSTALL_DIR: ${{ runner.temp }}/janetcode-bin
+      run: sh "$GITHUB_ACTION_PATH/install.sh"
+
+    - name: Set up Go to build janetcode from source
+      if: inputs.install-from == 'source' || steps.release.outcome == 'failure'
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache: false
+
+    - name: Build janetcode from the action's source
+      if: inputs.install-from == 'source' || steps.release.outcome == 'failure'
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/janetcode-bin"
+        cd "$GITHUB_ACTION_PATH"
+        go build -trimpath -o "$RUNNER_TEMP/janetcode-bin/janetcode" ./cmd/janetcode
+
+    - name: Run janetcode
+      id: run
+      shell: bash
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_TRIGGER: ${{ inputs.trigger }}
+        INPUT_ALLOWED_ASSOCIATIONS: ${{ inputs.allowed-associations }}
+        INPUT_ALLOW_EDITS: ${{ inputs.allow-edits }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_MAX_COST: ${{ inputs.max-cost }}
+        INPUT_MAX_TURNS: ${{ inputs.max-turns }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_PROVIDER: ${{ inputs.provider }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        OPENAI_BASE_URL: ${{ inputs.openai-base-url }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        JANETCODE_BIN: ${{ runner.temp }}/janetcode-bin/janetcode
+      run: bash "$GITHUB_ACTION_PATH/ci/action/run.sh"

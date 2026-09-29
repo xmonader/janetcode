@@ -78,6 +78,11 @@ var Commands = withIdle([]Command{
 	{Name: "/edits", Args: "", Help: "toggle auto-accept edits: file changes go through, commands still ask"},
 	{Name: "/sandbox", Args: "[on|off|workspace|read-only|strict|backend|image]", Help: "run local bash under a sandbox profile (docker, seatbelt or Landlock); off by default"},
 	{Name: "/review", Args: "[focus]", Help: "fan out two subagents over the current diff (bugs and tests)"},
+	{Name: "/security-review", Args: "[focus]", Help: "fan out two read-only subagents over the current diff with a security brief (injection, path traversal, request forgery, access checks, secrets, crypto) and rank what they find by severity"},
+	{Name: "/commit", Args: "[-m message]", Help: "draft a commit message for the staged changes (or, with none staged, every change) and put /commit -m <draft> in the input box to edit; -m commits, with a proof note attached"},
+	{Name: "/pr", Args: "[create <title>]", Help: "draft a pull request title and body and show what would be pushed where; /pr create <title> (newline, body) pushes the branch and opens it with gh, or prints the compare URL without gh"},
+	{Name: "/pr-comments", Args: "[n]", Help: "fetch a pull request's description, reviews and comments with gh (the current branch's by default) and share them with the model"},
+	{Name: "/issue", Args: "<n>", Help: "fetch a GitHub issue with gh and share it with the model"},
 	{Name: "/loop", Args: "[duration] [prompt|off|cancel id]", Help: "session-scoped repeating prompt; restored on resume of this session"},
 	{Name: "/settle", Args: "", Help: "mark this session done with (or active again); settled sessions list last in /resume"},
 	{Name: "/connect", Args: "", Help: "connect to a provider (preset or custom API) and pick a model"},
@@ -105,7 +110,7 @@ var Commands = withIdle([]Command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe"}
+var idleOnly = []string{"/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe", "/commit", "/pr", "/pr-comments", "/issue"}
 
 // withIdle sets Idle on every command idleOnly names. It runs as part of
 // initialising Commands, so no reader ever sees the table without it.
