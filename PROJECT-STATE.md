@@ -39,8 +39,8 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   session leases, audit/replay).
 
 ## Known Gaps (verify before relying on)
-- `fetch_url` and remote-MCP private-target guards are literal-IP only (no
-  DNS-resolution check) — open since 2026-09-17.
+- Remote-MCP private-target guard is literal-IP only (no DNS-resolution
+  check); `fetch_url` now checks the resolved IP at dial time (2026-09-29).
 - `fallback.go` classifies provider errors by free-text regex.
 - Checkpoint file copies unbounded for single >16 MB changes; non-git undo
   cannot see post-turn edits.
@@ -50,8 +50,13 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Open UI questions: shared view model for TUI/web. app.js is still ~2,000
   lines: the transcript, composer, sessions rail and workspace pane share
   mutable state and were left together.
-- `update.Newer` compares only vX.Y.Z: a v0.3.0-rc build does not update to
-  v0.3.0.
+- Deep review 2026-09-29 (~230 fixes, CHANGELOG "Deep review") left these
+  open as design questions: two processes on one session file have no lock;
+  MCP servers that exit stay listed (no reconnect); seatbelt allows all
+  mach-lookup; Landlock doesn't govern unix sockets; the workspace sandbox
+  profile leaves `.git` writable; `settingsapply` can write the decisions
+  map a web request's config copy shares; the memory tool's "forget" can
+  remove `/remember` entries.
 
 ## Key Decisions
 - Go + bubbletea; product name is janetcode, not the Janet language (2026-09-07).

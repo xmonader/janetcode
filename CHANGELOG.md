@@ -29,6 +29,72 @@ and measurements behind each round are in `docs/notes/history.md`.
   are only warned about. Tested against 400 real-world skills: none were
   blocked.
 
+### Deep review (2026-09-29)
+About 230 fixes from a file-by-file review. Each has a regression test; the
+commit bodies give the failure scenario.
+- **Permissions.** An allow rule covers a compound line (`&&`, `;`, `|`,
+  newline) or a `$( )`/backtick/`<( )` substitution only when every command
+  in it is allowed. A deny rule refuses its command anywhere in the line.
+  Protected paths and janetcode's own settings are judged through symlinks
+  and case-insensitive names. Typing into or killing a background job asks,
+  like the command that started it. `monitor` gets bash's guards. `--doctor
+  --fix` no longer trusts a repository's verify commands for you.
+- **Shell classifier.** Escaped quotes, `$'…'`, line continuations, every
+  redirection form (`2>`, `>|`, `&>`), command and process substitution,
+  wrapper options (`sudo -u`, `timeout -s`, `env -u`), `find -exec/-delete`,
+  and git/sort/rg options that run or write things are now read as the shell
+  reads them. Previewing a `sed -i` no longer runs its `e`/`w` commands. The
+  seatbelt profile matches resolved paths, so `/tmp` projects are covered.
+- **Network and credentials.** `fetch_url` checks the address a name
+  actually resolves to, including after redirects and DNS rebinding. MCP
+  never sends its headers or token to another host. Scripts, language
+  servers and mutation tests no longer see provider keys, and model-run
+  commands no longer see the web UI token. Redaction catches keys in JSON,
+  URL passwords, and GitHub, GitLab and Slack tokens. Hook notes and failing
+  verify output are redacted.
+- **Terminal safety.** Tool output, model text, plan steps and ask dialogs
+  can no longer send terminal control sequences (clipboard writes, screen
+  clears).
+- **Data loss.** An atomic write through a symlink writes the target instead
+  of replacing the link. `/undo` leaves pre-existing ignored files alone,
+  reverts edits to ignored files, and never restores a snapshot into another
+  worktree. Keep-or-revert only reverts the turn's own edits. `--backup`
+  never replaces an existing backup with an empty one. Recipe replay changes
+  only the lines it recorded. `edit_file` refuses overlapping matches as
+  ambiguous. Mixed line endings survive an edit.
+- **Hangs and crashes.** Parallel permission and `ask` prompts now queue in
+  the TUI, web UI and headless mode instead of replacing each other. Before,
+  the turn hung, or an answer went to the wrong call. Also fixed:
+  - forks the model starts no longer fail on their first call
+  - `/routing` during a turn no longer crashes
+  - a hook printing 64 KB or more no longer crashes
+  - `/jobs stdin`, `/inspect`, MCP calls, FIFOs and a background process
+    left by a command no longer hang
+- **Turns and history.** A reply that stops (loop detector, refusal, paused
+  turn) leaves no unanswered tool calls behind to break the next request.
+  A read placed after an edit in the same batch sees the edit. Compaction,
+  pruning and the archive pair results with the right call when a server
+  reuses call ids.
+- **Cost.**
+  - Subagents stop at what is left of `--max-cost`.
+  - A fallback or a subagent on another model uses that model's price and
+    context window.
+  - `--max-cost` and `/budget` refuse NaN and Inf.
+  - `--bg` passes on `--model`, `--max-cost` and the other run flags.
+  - The token estimate no longer counts the system prompt twice, so
+    compaction no longer fires early.
+- **Providers.**
+  - An Anthropic stream that ends early is retried as a truncation.
+  - An overload error sent mid-stream is retried when no content has
+    arrived yet.
+  - A stall before the response headers arrive is retried.
+- **Other.**
+  - A prerelease build updates to its release.
+  - Session forks keep their `/accept` and `/loop` state.
+  - Memory and undo files are 0600.
+  - LSP file URIs are escaped and positions count UTF-16.
+  - Many smaller TUI, web UI, ACP, plan, recipe and eval fixes.
+
 ### Web UI (`--web`)
 - A browser session: live workspace pane (plan, files, jobs, subagents),
   embedded terminal, trajectory panel with timeline and search, structured
