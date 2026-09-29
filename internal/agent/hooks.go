@@ -10,6 +10,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/secret"
 	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 )
 
@@ -61,6 +62,18 @@ func (a *Agent) runHook(ctx context.Context, in hook.Input, emit func(Event)) ho
 		return hook.Result{Input: in.Input}
 	}
 	res := h.Run(ctx, in)
+	// Notes, a denial's reason and a stop hook's continue text are read
+	// by the model, and a hook that cats a config or a log can print a
+	// key into them: they get the redaction tool output gets. The
+	// rewritten Input is left alone, since it is what the tool runs and
+	// may legitimately carry a secret.
+	if !a.Off["scrub"] {
+		for i, n := range res.Notes {
+			res.Notes[i], _ = secret.Redact(n)
+		}
+		res.Reason, _ = secret.Redact(res.Reason)
+		res.Continue, _ = secret.Redact(res.Continue)
+	}
 	if emit != nil {
 		for _, m := range res.Messages {
 			emit(Event{Kind: EvNotice, Text: in.Event + " hook: " + m})

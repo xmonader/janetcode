@@ -83,6 +83,36 @@ func TestHooksDenyRewriteAnnotateAndContinue(t *testing.T) {
 	}
 }
 
+// A hook's stdout becomes a note the model reads, and a hook that prints
+// a config or an env dump hands it whatever key was there. The note goes
+// through the same redaction as tool output; the hook's own env is
+// already scrubbed, but a key in a file it cats is not.
+func TestHookNoteIsRedacted(t *testing.T) {
+	key := "ghp_" + strings.Repeat("aB3d", 9)
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"v1"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, &seesApprover{})
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.PostTool: {{Match: "write_file", Command: `echo "token ` + key + `"`}},
+	}}}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range a.Messages {
+		for _, b := range m.Blocks {
+			if strings.Contains(b.Text, key) {
+				t.Fatalf("the key reached the conversation: %q", b.Text)
+			}
+		}
+	}
+	if r := a.Messages[2].Blocks[0]; !strings.Contains(r.Text, "[hook: token [redacted]]") {
+		t.Fatalf("note = %q", r.Text)
+	}
+}
+
 func TestStopHookIsBounded(t *testing.T) {
 	var rs []*llm.Response
 	for i := 0; i < 6; i++ {
