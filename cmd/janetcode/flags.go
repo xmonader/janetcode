@@ -75,6 +75,8 @@ type options struct {
 	plain        bool
 	screenReader bool
 	selfUpdate   bool
+	uninstall    bool
+	purge        bool
 	listSess     bool
 	// fork continues --resume/--continue in a copy of the session.
 	fork bool
@@ -129,7 +131,7 @@ var helpGroups = []struct {
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "web", "web-addr", "worktree", "add-dir", "theme", "plain", "screen-reader"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "sandbox", "trust"}},
-	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "version"}},
+	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
 }
@@ -293,6 +295,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")
+	fs.BoolVar(&o.uninstall, "uninstall", false, "remove this binary if janetcode installed it (install.sh or a release build), print what was removed, then exit; the config and data directories stay unless --purge is given")
+	fs.BoolVar(&o.purge, "purge", false, "with --uninstall: also remove the config directory (settings, API keys, permission rules, MCP logins) and the data directory (sessions, memory, archives)")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.fork, "fork", false, "with --resume or --continue: continue in a copy of the session, leaving the original as it was -- the way on when another janetcode has it open")
 	fs.StringVar(&o.showSess, "show", "", "print a saved session's conversation as Markdown and exit, without opening it: safe while another janetcode has it open")

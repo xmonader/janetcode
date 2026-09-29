@@ -2673,7 +2673,7 @@ tools, `/ssh` and `/docker` are untouched, so only the shell is confined.
 
 | profile | writes | reads | network | never writable |
 |---|---|---|---|---|
-| `workspace` | the project root, the directories `/add-dir` granted, and the temp dir | anything | allowed | `.janetcode/**`, `**/id_rsa`, `**/id_ed25519`, `**/.ssh/**`, `**/.aws/credentials` |
+| `workspace` | the project root, the directories `/add-dir` granted, and the temp dir | anything | allowed | `.git/hooks/**`, `.janetcode/**`, `**/id_rsa`, `**/id_ed25519`, `**/.ssh/**`, `**/.aws/credentials` |
 | `read-only` | nothing | anything | allowed | — (nothing is writable) |
 | `strict` | the project root, the `/add-dir` directories, and the temp dir | anything | **none** | `.git/**` and everything `workspace` denies |
 
@@ -2688,6 +2688,25 @@ can start every session sandboxed with the `sandbox` config key (see
 `strict` denies writes to `.git/**`, which means git cannot commit
 inside it. That is the point of the profile; use `workspace` when the
 model is expected to commit.
+
+**What `workspace` does with `.git`.** Commits, checkouts, fetches and
+branch changes work: `.git` is writable. Three things in it are not left
+to the command, because they run code later, outside the sandbox, the
+next time you type a git command: hooks, config keys that name a
+program (`core.hooksPath`, `core.fsmonitor`, `core.sshCommand`,
+`alias.*`, filter and diff drivers, `include.path`, …), and the `.git`
+entry itself (a worktree's `gitdir:` line). Before each sandboxed
+command janetcode records them — for the repository, a worktree's
+common directory and every submodule under `.git/modules` — and after
+it puts back whatever changed, saying so in the command's output. Config
+is judged key by key: the keys ordinary git writes (`branch.*` tracking,
+`remote.*` URLs and refspecs, `user.name`, `user.email`, plain
+preferences such as `pull.rebase`) stand; any other key changed, added
+or removed puts the file back. A change you do want (a new alias, a
+hook) is one to make with the sandbox off. docker and seatbelt also
+mount or deny `.git/hooks` directly; Landlock cannot, since its grants
+cover everything beneath the project root, so there the after-the-fact
+check is the enforcement.
 
 **Backends.** macOS uses `sandbox-exec` (seatbelt). Linux uses docker
 when it is installed, and **Landlock** otherwise — the kernel LSM, no
@@ -2705,14 +2724,33 @@ What each backend can and cannot do:
 - **seatbelt** writes a policy with a `subpath` rule per write root, a
   `deny` rule per deny glob (a `subpath` for a directory, a regex for a
   wildcard glob) and `deny network*` for `strict`. Reads stay broad by
-  design.
+  design. Mach services are an allowlist rather than every one on the
+  machine: directory lookups, logging, preferences, the per-user temp
+  dir, certificate trust and file-system events, plus name resolution
+  and network configuration under a profile with the network. A tool
+  that needs another service fails to reach it;
+  `JANETCODE_SANDBOX_MACH=name,name` adds services by name. (This list
+  has not been exercised on a Mac yet.)
 - **Landlock** confines writes to the profile's roots in the kernel.
   It has allow rules only, so it cannot carve a deny glob out of a root
   it made writable. It also cannot take a network away before ABI 4
   (Linux 6.7), so `strict` **refuses to run** on such a kernel rather
   than pretending — install docker, or use `workspace`. From ABI 4 it
-  denies TCP bind and connect, but not UDP (DNS included) or unix
-  sockets; docker's `--network=none` is the stronger no.
+  denies TCP bind and connect, and a seccomp filter on `socket(2)` takes
+  the rest: under a profile with no network a command may make a TCP
+  socket (which Landlock keeps from connecting) or a netlink one (the
+  kernel's interface table, which `getaddrinfo` reads) and nothing else
+  — no unix socket (the docker daemon, an ssh agent), no UDP (DNS
+  included), no raw or SCTP socket. `socketpair` still works, since
+  both ends are inside the sandbox; `io_uring`, which can make sockets
+  without `socket(2)`, is refused; and a 32-bit or x32 binary's
+  syscalls are refused outright under `strict`. The filter exists for
+  amd64 and arm64; elsewhere `strict` refuses to run under Landlock.
+  From ABI 6 (Linux 6.12) the command is also scoped out of signalling
+  processes outside its sandbox, under every profile, and out of
+  abstract unix sockets under `strict`. Under `workspace`, which keeps
+  the network, unix sockets stay reachable: use `strict` when the
+  command must not reach a local daemon.
 
 Whatever the backend, a deny glob is also enforced before the command
 runs: janetcode reads the command line with the same static analysis the

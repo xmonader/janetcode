@@ -173,6 +173,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 	}
 
+	guard := sandboxGitGuard(t.WS, t.Sandbox, root)
 	err = cmd.Start()
 	if pipeR != nil {
 		pipeR.Close() // the child holds its own copy
@@ -188,9 +189,17 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	// The wait runs in its own goroutine so the command can be handed to
 	// the jobs registry while it is still running: the same channel is
-	// then the job's wait, so the process is reaped exactly once.
+	// then the job's wait, so the process is reaped exactly once. What
+	// the guard puts back is said in the output, which by then is either
+	// this result or, after a promotion, the job's log.
 	wait := make(chan error, 1)
-	go func() { wait <- cmd.Wait() }()
+	go func() {
+		err := cmd.Wait()
+		if note := guard.Restore(); note != "" {
+			fmt.Fprintf(out, "\n%s\n", note)
+		}
+		wait <- err
+	}()
 	fg := t.Running.add(in.Command, cmd, out)
 	defer t.Running.remove(fg)
 

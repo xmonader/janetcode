@@ -80,6 +80,8 @@ var flagWhen = map[string]string{
 	"resume":                 "reopen one session by id",
 	"version":                "you are reporting a bug, or a script needs the build",
 	"update":                 "a new release is out and you installed janetcode from a release binary",
+	"uninstall":              "you are done with janetcode and want the binary it installed gone",
+	"purge":                  "an uninstall that should also take your settings, keys and sessions with it; --backup them first if there is any doubt",
 	"sessions":               "you want the ids before choosing one to resume",
 	"fork":                   "the session you want is open in another janetcode, or you want to branch it and keep the original",
 	"show":                   "reading a past conversation, or one another janetcode is running, without opening it",

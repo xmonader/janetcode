@@ -42,3 +42,14 @@ func buildShell(ctx context.Context, ws *Workspace, sb *shell.Sandbox, root, com
 	shell.SetProcessGroup(cmd)
 	return cmd, nil
 }
+
+// sandboxGitGuard snapshots what in the repository's .git runs code later
+// (hooks, config, the .git pointer), for a command about to run in the
+// sandbox; nil when the command is not sandboxed. Its Restore runs when
+// the command ends, however it ends.
+func sandboxGitGuard(ws *Workspace, sb *shell.Sandbox, root string) *shell.GitGuard {
+	if sb == nil || !sb.Enabled() || (ws != nil && !ws.Local()) {
+		return nil
+	}
+	return shell.SnapshotGit(root)
+}

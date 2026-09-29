@@ -159,6 +159,19 @@ func TestInstallScript(t *testing.T) {
 	if err != nil || fi.Mode().Perm()&0o111 == 0 || !strings.Contains(out, "installed") || !strings.Contains(out, "v0.4.0") {
 		t.Fatalf("not installed: %v\n%s", err, out)
 	}
+	// The receipt it leaves is the one --uninstall reads: even a binary
+	// whose version reads as a source build is recognised by its bytes.
+	installed := filepath.Join(dir, "janetcode")
+	rc, err := ReadReceipt(installed)
+	if err != nil || rc == nil || rc.Version != "v0.4.0" {
+		t.Fatalf("install.sh left no usable receipt: %+v %v", rc, err)
+	}
+	if _, err := PlanUninstall(installed, "dev-x", nil, false); err != nil {
+		t.Fatalf("--uninstall does not recognise what install.sh installed: %v", err)
+	}
+	if !strings.Contains(out, "janetcode --uninstall") {
+		t.Fatalf("install.sh does not say how to uninstall:\n%s", out)
+	}
 
 	asset := Asset("v0.4.0", runtime.GOOS, runtime.GOARCH)
 	bad := fakeReleases(t, "v0.4.0", []byte("tampered"), hex.EncodeToString(make([]byte, 32))+"  "+asset+"\n")

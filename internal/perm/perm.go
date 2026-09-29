@@ -16,8 +16,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -81,6 +83,13 @@ func Parse(s string) (Rule, error) {
 		return Rule{}, fmt.Errorf("bad rule %q: want tool(pattern)", s)
 	}
 	r := Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}
+	// A file tool's subject is slash-separated on every OS (see Subject),
+	// so on Windows a path rule written with backslashes, as Windows
+	// paths are, is read with slashes; nothing in the pattern language
+	// uses a backslash.
+	if fileTools[r.Tool] && runtime.GOOS == "windows" {
+		r.Pattern = strings.ReplaceAll(r.Pattern, `\`, "/")
+	}
 	// A parameter rule is validated here rather than at match time, so a
 	// typo is reported to whoever wrote it instead of quietly matching
 	// nothing. Its spacing is canonicalised so the same rule written two
@@ -499,14 +508,15 @@ func otherSpelling(tool, p, root string) string {
 		return ""
 	}
 	root = filepath.Clean(root)
+	// Slash-separated like the subject it stands beside (see Subject).
 	if !filepath.IsAbs(p) {
-		return filepath.Join(root, p)
+		return filepath.ToSlash(filepath.Join(root, p))
 	}
 	rel, err := filepath.Rel(root, filepath.Clean(p))
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return ""
 	}
-	return rel
+	return filepath.ToSlash(rel)
 }
 
 // matchAny reports whether the pattern matches any of a field's values;
@@ -579,11 +589,16 @@ func Subject(tool string, input json.RawMessage) string {
 	switch tool {
 	case "bash":
 		return strings.TrimSpace(str("command"))
+	// A path subject is written with forward slashes on every OS. On
+	// Windows filepath.Clean gave docs\a.md, while the rungs Suggest
+	// offers and the rules people write are docs/* — so a directory rule
+	// saved from a prompt never matched the very call it was saved for,
+	// and a saved file rule could not be shared with a Unix machine.
 	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir":
-		return filepath.Clean(str("path"))
+		return filepath.ToSlash(filepath.Clean(str("path")))
 	case "glob", "grep":
 		if p := str("path"); p != "" {
-			return filepath.Clean(p)
+			return filepath.ToSlash(filepath.Clean(p))
 		}
 		return "."
 	case "fetch_url":
@@ -741,8 +756,11 @@ func pathLadder(tool, subject string) ([]Rule, int) {
 		return []Rule{{Tool: tool}}, 0
 	}
 	rungs := []Rule{{Tool: tool, Pattern: subject}}
-	dir := filepath.Dir(subject)
-	if dir == "." || dir == "/" {
+	// path, not filepath: the subject is slash-separated on every OS (see
+	// Subject), and filepath.Dir on Windows would turn it back into
+	// backslashes that no rung could then match.
+	dir := path.Dir(subject)
+	if isTop(dir) {
 		// Nothing to widen to but the tool itself, which is what
 		// Suggest has always proposed here.
 		return append(rungs, Rule{Tool: tool}), 1
@@ -750,10 +768,17 @@ func pathLadder(tool, subject string) ([]Rule, int) {
 	rungs = append(rungs, Rule{Tool: tool, Pattern: dir + "/*"})
 	// One level above the directory is the tree the file sits in. Higher
 	// than that is guesswork, and the root is never a rung.
-	if up := filepath.Dir(dir); up != "." && up != "/" && up != dir {
+	if up := path.Dir(dir); !isTop(up) && up != dir {
 		rungs = append(rungs, Rule{Tool: tool, Pattern: up + "/*"})
 	}
 	return dedupe(rungs), 1
+}
+
+// isTop reports whether a slash path is the top of a tree a rung must not
+// widen to: ".", "/", or a Windows drive ("C:", "C:/").
+func isTop(dir string) bool {
+	d := strings.TrimSuffix(dir, "/")
+	return d == "." || d == "" || (len(d) == 2 && d[1] == ':')
 }
 
 // dedupe drops rungs equal to one already in the list, keeping order: a

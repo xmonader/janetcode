@@ -113,7 +113,7 @@ func TestReadLineCapped(t *testing.T) {
 	r := bufio.NewReaderSize(strings.NewReader("a\r\n\nbc\n"+strings.Repeat("y", 40)+"\nlast"), 16)
 	var got []string
 	for {
-		line, clipped, err := readLineCapped(r, 20)
+		line, clipped, err := readLineCapped(r, 20, nil)
 		if err != nil && len(line) == 0 && !clipped {
 			break
 		}

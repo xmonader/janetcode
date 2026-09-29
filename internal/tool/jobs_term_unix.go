@@ -3,6 +3,8 @@
 package tool
 
 import (
+	"github.com/xmonader/janetcode/internal/shell"
+
 	"errors"
 	"fmt"
 	"io"
@@ -20,7 +22,7 @@ var errNoTerminal = errors.New("no pseudo-terminal on this system")
 // stdout and stderr are the terminal, it is the terminal's session leader
 // (so /dev/tty is this terminal, and a password prompt reaches the job
 // tool instead of failing), and what it shows is copied into the log.
-func (j *Jobs) startTerminal(id int, command string, cmd *exec.Cmd, out *os.File) (*Job, error) {
+func (j *Jobs) startTerminal(id int, command string, cmd *exec.Cmd, out *os.File, guard *shell.GitGuard) (*Job, error) {
 	// Programs look at TERM to decide how much terminal to use. dumb
 	// keeps them to plain lines, which is what a log can hold.
 	env := cmd.Env
@@ -63,6 +65,9 @@ func (j *Jobs) startTerminal(id int, command string, cmd *exec.Cmd, out *os.File
 		select {
 		case <-copied:
 		case <-time.After(2 * time.Second):
+		}
+		if note := guard.Restore(); note != "" {
+			fmt.Fprintf(out, "\n%s\n", note)
 		}
 		out.Close()
 	})

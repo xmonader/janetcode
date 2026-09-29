@@ -114,23 +114,24 @@ func (j *Jobs) StartWith(ws *Workspace, root, command string, opts JobOptions) (
 		os.Remove(out.Name())
 		return nil, err
 	}
+	guard := sandboxGitGuard(ws, j.Sandbox, root)
 	if opts.Terminal {
-		if job, err := j.startTerminal(id, command, cmd, out); err == nil || !errors.Is(err, errNoTerminal) {
+		if job, err := j.startTerminal(id, command, cmd, out, guard); err == nil || !errors.Is(err, errNoTerminal) {
 			return job, err
 		}
 		// No pseudo-terminal here (Windows): a pipe is the next best
 		// thing, and most prompts still work on one.
-		job, err := j.startPipe(id, command, cmd, out)
+		job, err := j.startPipe(id, command, cmd, out, guard)
 		if job != nil {
 			job.Note = "no terminal is available on this system, so the job reads a pipe instead; a program that insists on a terminal may not prompt"
 		}
 		return job, err
 	}
-	return j.startPipe(id, command, cmd, out)
+	return j.startPipe(id, command, cmd, out, guard)
 }
 
 // startPipe starts a job whose stdin is a pipe janetcode writes to.
-func (j *Jobs) startPipe(id int, command string, cmd *exec.Cmd, out *os.File) (*Job, error) {
+func (j *Jobs) startPipe(id int, command string, cmd *exec.Cmd, out *os.File, guard *shell.GitGuard) (*Job, error) {
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		out.Close()
@@ -152,7 +153,12 @@ func (j *Jobs) startPipe(id int, command string, cmd *exec.Cmd, out *os.File) (*
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
-	go j.reap(job, cmd.Wait, func() { out.Close() })
+	go j.reap(job, cmd.Wait, func() {
+		if note := guard.Restore(); note != "" {
+			fmt.Fprintf(out, "\n%s\n", note)
+		}
+		out.Close()
+	})
 	return job, nil
 }
 

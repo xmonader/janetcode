@@ -22,8 +22,8 @@ func TestProfileTable(t *testing.T) {
 			name:       "workspace",
 			writeRoots: []string{WriteRootToken, WriteExtraToken, WriteTempToken},
 			network:    true,
-			denies:     []string{"/proj/.janetcode/state.json", "/proj/keys/id_rsa", "/home/u/.ssh/config"},
-			allows:     []string{"/proj/main.go", "/proj/.git/config"},
+			denies:     []string{"/proj/.janetcode/state.json", "/proj/keys/id_rsa", "/home/u/.ssh/config", "/proj/.git/hooks/pre-commit"},
+			allows:     []string{"/proj/main.go", "/proj/.git/config", "/proj/.git/objects/ab/cdef", "/proj/.git/refs/heads/main"},
 		},
 		{
 			name:       "read-only",
@@ -77,6 +77,7 @@ func TestProfileTable(t *testing.T) {
 }
 
 func TestWritableRootsResolveTokens(t *testing.T) {
+	posixOnly(t)
 	p := Profile{WriteRoots: []string{WriteRootToken, WriteExtraToken, WriteTempToken}}
 	got := p.WritableRoots("/proj", []string{"/extra", "/proj"}, "/tmp")
 	want := []string{"/extra", "/proj", "/tmp"} // sorted, deduplicated
