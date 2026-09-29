@@ -75,6 +75,17 @@ func (k *checkpoints) snaps() Snapshotter {
 	return k.Snapshots
 }
 
+// userRepo is Snapshots when it is the user's own repository, and nil
+// for none or for a shadow store (snapshot.OpenShadow): that one backs
+// /undo outside git, but it holds no history of the user's, so proof
+// notes and a session's recorded start commit must not look in it.
+func (k *checkpoints) userRepo() *snapshot.Repo {
+	if k.Snapshots == nil || k.Snapshots.Shadow() {
+		return nil
+	}
+	return k.Snapshots
+}
+
 // LastUndoRemoved is how many messages the last Undo took out of the
 // conversation, for a front-end that mirrors the history.
 func (k *checkpoints) LastUndoRemoved() int { return k.undoRemoved }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/skill"
-	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"
@@ -111,14 +109,17 @@ func registerRooted(cd *agent.CD, r rootedDeps) {
 	})
 	cd.Add("snapshots", func(dir string) (string, error) {
 		// /undo and the proof notes snapshot the repository the session is
-		// in. A move to somewhere that is not a git work tree leaves the
-		// session without them, which is worth saying.
-		repo, err := snapshot.Open(context.Background(), dir)
-		if err != nil {
-			r.ag.Snapshots = nil
-			return "not a git repository: no snapshots or proof notes here", nil
-		}
+		// in. Somewhere that is not a git work tree gets a private store
+		// for /undo but no proof notes, and a tree too large for one gets
+		// neither; both are worth saying.
+		repo := openSnapshots(dir, r.d.sessDir)
 		r.ag.Snapshots = repo
+		switch {
+		case repo == nil:
+			return "not a git repository, and too large for a private snapshot store: /undo covers file-tool changes only, no proof notes here", nil
+		case repo.Shadow():
+			return "not a git repository: /undo snapshots it in a private store; no proof notes here", nil
+		}
 		return "", nil
 	})
 	cd.Add("archive", func(dir string) (string, error) {

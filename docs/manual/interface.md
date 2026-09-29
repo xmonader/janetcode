@@ -446,7 +446,14 @@ tree is snapshotted before the first mutating tool of a turn (a hidden
 commit under `refs/janetcode/cp/`, taken through a temporary index so
 HEAD, your index and your branches are never touched), so changes made by
 shell commands, generated files and deletions all revert. Outside git the
-files changed through `edit_file`/`write_file` are restored from copies.
+same snapshots are taken into a private store in janetcode's data
+directory (`shadow/` beside `sessions/`; nothing is written into the
+project), so shell changes revert there too. A directory too large to
+snapshot every turn (over 20,000 files or 512 MiB), a home directory and
+the file system root get no store, and there the files changed through
+`edit_file`/`write_file` are restored from copies. The store is never
+used for proof notes or a session's recorded start, which need your own
+repository's history.
 Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
@@ -493,10 +500,10 @@ touched, when:
 
 What it restores is recorded as changes of its own, exactly as `/undo n`
 records a revert, so the restore appears in `/changes` and `/blame` and
-`/undo <n>` can take it back. Outside a git repository there is no
-work-tree snapshot, so the restore falls back to the copies the file
-tools made — the same fallback `/undo` uses, covering file-tool changes
-only.
+`/undo <n>` can take it back. Outside a git repository the private
+store's snapshot does the same job; where there is none (see above), the
+restore falls back to the copies the file tools made — the same fallback
+`/undo` uses, covering file-tool changes only.
 
 A rewind drops, from turn n on: every message of those turns (prompts,
 replies, tool calls and their results), the undo checkpoints of those
@@ -523,9 +530,10 @@ first: its id (`t4·1a2b3c4`, the turn and the git snapshot behind it),
 when it was taken, what the turn said it was doing, and what restoring it
 covers —
 
-- **whole work tree (git snapshot)**, so shell changes go back too, or
-  **file copies only** outside git, where only what the file tools
-  changed can be put back;
+- **whole work tree (git snapshot)**, so shell changes go back too —
+  inside a repository or through the private store outside one — or
+  **file copies only** where there is neither, and only what the file
+  tools changed can be put back;
 - the files the file tools changed and how many paths the turn left
   different;
 - whether it is **complete**: a file that could not be read before the

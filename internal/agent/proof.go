@@ -194,10 +194,10 @@ func looksLikeGitCommit(cmd string) bool {
 // not be read, e.g. an unborn branch); it costs one more `git rev-parse`
 // only for commands that matched looksLikeGitCommit in the first place.
 func (a *Agent) checkCommitAttach(ctx context.Context, preHead string, emit func(Event)) {
-	if a.Off["proof"] || a.Snapshots == nil || !a.Settings().ProofNotes {
+	if a.Off["proof"] || a.userRepo() == nil || !a.Settings().ProofNotes {
 		return
 	}
-	root := a.Snapshots.Root
+	root := a.userRepo().Root
 	postHead, err := proof.Resolve(ctx, root, "HEAD")
 	if err != nil || postHead == "" || postHead == preHead {
 		return
@@ -239,7 +239,7 @@ func (a *Agent) attachCommitProof(ctx context.Context, sha string, emit func(Eve
 // turn-end gates ran, and their runs belong in its evidence. Attach merges
 // by session and turn, so the refreshed turn replaces the earlier one.
 func (a *Agent) refreshProofNotes(ctx context.Context, emit func(Event)) {
-	if a.Snapshots == nil {
+	if a.userRepo() == nil {
 		return
 	}
 	for _, sha := range a.proofCommits {
@@ -256,9 +256,9 @@ const ProofAttachedNotice = "proof attached to "
 // headForCommitCheck reads HEAD cheaply, only ever called for a bash
 // command that already matched looksLikeGitCommit.
 func (a *Agent) headForCommitCheck(ctx context.Context) string {
-	if a.Snapshots == nil {
+	if a.userRepo() == nil {
 		return ""
 	}
-	head, _ := proof.Resolve(ctx, a.Snapshots.Root, "HEAD")
+	head, _ := proof.Resolve(ctx, a.userRepo().Root, "HEAD")
 	return head
 }

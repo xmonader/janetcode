@@ -31,7 +31,17 @@ var ErrNotRepo = errors.New("not a git repository")
 type Repo struct {
 	Root   string // top level of the work tree
 	gitDir string
+	// env is set for a shadow repository (see OpenShadow): GIT_DIR and
+	// GIT_WORK_TREE, so every git call works on the private store over a
+	// directory that is not a repository itself.
+	env []string
 }
+
+// Shadow reports whether this is a private store over a directory that
+// is not a git repository (OpenShadow): its snapshots serve /undo, but it
+// has no history of the user's, so nothing may treat it as one — proof
+// notes, a session's start commit, an eval replay.
+func (r *Repo) Shadow() bool { return r != nil && r.env != nil }
 
 // Open finds the repository containing dir, or ErrNotRepo.
 func Open(ctx context.Context, dir string) (*Repo, error) {
@@ -194,7 +204,7 @@ func (r *Repo) keepIgnored(ctx context.Context, items [][2]string) ([][2]string,
 	}
 	// --no-index: a created path is by definition not in the snapshot,
 	// and the real index is not what the snapshot was built from.
-	out, err := gitx.RunInput(ctx, r.Root, created, "check-ignore", "--no-index", "--stdin", "-z")
+	out, err := gitx.RunInputEnv(ctx, r.Root, r.env, created, "check-ignore", "--no-index", "--stdin", "-z")
 	ignored := map[string]bool{}
 	switch {
 	case err == nil:
@@ -287,7 +297,7 @@ func (r *Repo) Uncovered(ctx context.Context, s Snap, paths []string) ([]string,
 		for _, rel := range rels {
 			in = append(append(in, rel...), 0)
 		}
-		o, err := gitx.RunInputEnv(ctx, r.Root, []string{"GIT_INDEX_FILE=" + idx}, in, "check-ignore", "--stdin", "-z")
+		o, err := gitx.RunInputEnv(ctx, r.Root, append([]string{"GIT_INDEX_FILE=" + idx}, r.env...), in, "check-ignore", "--stdin", "-z")
 		if gitx.ExitCode(err) == 1 {
 			return nil, nil
 		}
@@ -422,7 +432,7 @@ func (r *Repo) Diff(ctx context.Context, s Snap) ([]string, error) {
 // exits 1 for a missing revision). Any other failure is an error, so a
 // cancelled ctx is not mistaken for an unborn branch.
 func (r *Repo) head(ctx context.Context) (string, error) {
-	h, err := gitx.Run(ctx, r.Root, nil, "rev-parse", "--verify", "-q", "HEAD")
+	h, err := gitx.Run(ctx, r.Root, r.env, "rev-parse", "--verify", "-q", "HEAD")
 	if gitx.ExitCode(err) == 1 {
 		return "", nil
 	}
@@ -444,5 +454,6 @@ func (r *Repo) run(ctx context.Context, index string, args ...string) (string, e
 	if index != "" {
 		env = append(env, "GIT_INDEX_FILE="+index)
 	}
+	env = append(env, r.env...)
 	return gitx.Run(ctx, r.Root, env, args...)
 }
