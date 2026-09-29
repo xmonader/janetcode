@@ -26,6 +26,20 @@ func main() {
 	dir := flag.String("dir", ".", "working directory")
 	model := flag.String("model", "", "model override")
 	provider := flag.String("provider", "", "provider override (openai, anthropic, or one from the config)")
+	var servers []sdk.MCPServer
+	flag.Func("mcp", `an MCP server for the session, "name=command arg..." or "name=https://url" (repeatable)`, func(v string) error {
+		name, spec, ok := strings.Cut(v, "=")
+		if !ok || name == "" || spec == "" {
+			return fmt.Errorf("want name=command or name=url")
+		}
+		if strings.HasPrefix(spec, "http://") || strings.HasPrefix(spec, "https://") {
+			servers = append(servers, sdk.MCPServer{Name: name, URL: spec})
+			return nil
+		}
+		f := strings.Fields(spec)
+		servers = append(servers, sdk.MCPServer{Name: name, Command: f[0], Args: f[1:]})
+		return nil
+	})
 	flag.Parse()
 	prompt := strings.Join(flag.Args(), " ")
 	if prompt == "" {
@@ -37,7 +51,7 @@ func main() {
 
 	in := bufio.NewReader(os.Stdin)
 	res, err := sdk.Run(ctx, sdk.Options{
-		Binary: *bin, Dir: *dir, Model: *model, Provider: *provider, Mode: sdk.ModeAutoEdits,
+		Binary: *bin, Dir: *dir, Model: *model, Provider: *provider, Mode: sdk.ModeAutoEdits, MCPServers: servers,
 		OnEvent: func(e sdk.Event) {
 			switch e.Kind {
 			case sdk.EventText:

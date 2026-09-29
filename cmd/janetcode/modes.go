@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -174,7 +175,14 @@ func (r *root) acpMode() error {
 	defer stop()
 	first := built
 	used := false
+	// current is the agent NewAgent last handed out, and currentRoot its
+	// directory; StartMCP runs right after it, under the same lock.
+	current, currentRoot := first.agent, cwd
+	mcpFor := acpMCP{r: r, ctx: ctx, managers: map[*agent.Agent]*mcptool.Manager{}}
 	srv := acp.New(acp.Options{
+		StartMCP: func(_ string, servers map[string]mcp.ServerConfig) {
+			mcpFor.start(current, currentRoot, servers)
+		},
 		In: os.Stdin, Out: os.Stdout, Log: os.Stderr, Version: version,
 		NewAgent: func(sessionCwd, resume string) (acp.TurnRunner, *session.Session, error) {
 			// The editor says which directory the session is for, and
@@ -216,6 +224,7 @@ func (r *root) acpMode() error {
 			// the session is for the directory it was built for.
 			if !used && resume == "" && root == cwd {
 				used = true
+				current, currentRoot = first.agent, root
 				return acp.Wrap(first.agent), s, nil
 			}
 			used = true
@@ -225,6 +234,7 @@ func (r *root) acpMode() error {
 			if err != nil {
 				return nil, nil, err
 			}
+			current, currentRoot = b.agent, root
 			return acp.Wrap(b.agent), s, nil
 		},
 	})

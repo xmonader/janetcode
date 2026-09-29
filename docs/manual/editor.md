@@ -48,9 +48,14 @@ the full path to the binary:
 the key, or when `~/.config/janetcode/config.json` names a provider.
 janetcode advertises no login methods, so the IDE asks for none. What a
 JetBrains client sends beyond Zed — `terminal` and `_meta` client
-capabilities, and the IDE's own MCP servers (stdio and http) in
-`session/new` — is accepted; the IDE's MCP servers are not started by
-janetcode, which uses its own (`mcp_servers`, `.mcp.json`). The
+capabilities — is accepted. MCP servers the IDE passes in `session/new`
+or `session/load` (stdio, http and sse, which janetcode advertises in
+`mcpCapabilities`) are started for that session on top of janetcode's
+own (`mcp_servers`, and the project's `.mcp.json` once trusted), and the
+session answers once they are up (at most a minute). The IDE is your own
+program, so its servers need no project trust; a managed policy's
+`allowed_mcp_servers` still applies. The same holds for the Go SDK
+(`Options.MCPServers`) and `--mcp-serve`, which run over ACP. The
 handshake is pinned by `TestJetBrainsHandshake` and was run live against
 a real model.
 

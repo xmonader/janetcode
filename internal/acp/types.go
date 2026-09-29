@@ -38,6 +38,7 @@ type initializeResult struct {
 type agentCapabilities struct {
 	LoadSession        bool               `json:"loadSession"`
 	PromptCapabilities promptCapabilities `json:"promptCapabilities"`
+	MCPCapabilities    mcpCapabilities    `json:"mcpCapabilities"`
 }
 
 type promptCapabilities struct {
@@ -53,8 +54,9 @@ type authMethod struct {
 }
 
 type newSessionParams struct {
-	Cwd                   string   `json:"cwd"`
-	AdditionalDirectories []string `json:"additionalDirectories,omitempty"`
+	Cwd                   string          `json:"cwd"`
+	AdditionalDirectories []string        `json:"additionalDirectories,omitempty"`
+	MCPServers            []mcpServerSpec `json:"mcpServers,omitempty"`
 }
 
 type newSessionResult struct {
@@ -62,8 +64,9 @@ type newSessionResult struct {
 }
 
 type loadSessionParams struct {
-	SessionID string `json:"sessionId"`
-	Cwd       string `json:"cwd"`
+	SessionID  string          `json:"sessionId"`
+	Cwd        string          `json:"cwd"`
+	MCPServers []mcpServerSpec `json:"mcpServers,omitempty"`
 }
 
 type promptParams struct {
