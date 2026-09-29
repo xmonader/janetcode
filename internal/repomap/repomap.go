@@ -78,6 +78,9 @@ func Build(ctx context.Context, root string, sym Parser) (*Index, error) {
 	}
 	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), sym: sym, byPath: map[string]int{}, definers: map[string][]int{}}
 	for _, p := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		abs := filepath.Join(root, filepath.FromSlash(p))
 		// Only regular files: a directory, FIFO or device that happens to
 		// carry a source extension is not source, and reading a FIFO
@@ -120,7 +123,12 @@ func listFiles(ctx context.Context, root string) ([]string, error) {
 		sort.Strings(out)
 		return out, nil
 	}
+	// The walk is the slow path — no git, possibly a very large tree — so
+	// it stops when the caller gives up rather than running to the end.
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if cerr := ctx.Err(); cerr != nil {
+			return cerr
+		}
 		if err != nil {
 			return nil
 		}
