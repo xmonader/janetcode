@@ -276,12 +276,13 @@ func TestRouteStepCacheRuleFollowsTheSessionsCurrentProvider(t *testing.T) {
 }
 
 // halfThenFail streams some text and then fails, the way a connection
-// dropped mid-answer does once the provider has said something.
+// dropped mid-answer does once the provider has said something. With no
+// text it fails before saying anything, as a refused request does.
 type halfThenFail struct{ text string }
 
 func (halfThenFail) Name() string { return "half-provider" }
 func (h halfThenFail) Stream(_ context.Context, _ llm.Request, emit func(llm.Event)) (*llm.Response, error) {
-	if emit != nil {
+	if emit != nil && h.text != "" {
 		emit(llm.Event{Type: llm.EventTextDelta, Text: h.text})
 	}
 	return nil, errors.New("connection reset mid-answer")
@@ -319,5 +320,36 @@ func TestFailedRoutedCallDiscardsItsHalfAnswer(t *testing.T) {
 	}
 	if discard < 0 || discard > whole {
 		t.Fatalf("no discard between the routed call's half answer (%d) and Model's reply (%d): discard=%d", half, whole, discard)
+	}
+}
+
+// A routed call refused before it streamed anything (an unknown model, a
+// bad key) left nothing on the screen to take back. The discard said a
+// half answer had been cut off all the same: headless -p wrote a stray
+// newline into the answer on stdout and a "[discarded]" line on stderr,
+// and ACP told the client an answer above was being resent.
+func TestFailedRoutedCallThatStreamedNothingDiscardsNothing(t *testing.T) {
+	main := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		text("the whole answer"),
+	}}
+	a, _ := newAgent(t, main, nil)
+	a.RouteCheap = "cheap-model"
+	a.Route = func(model string) (llm.Provider, string, error) { return halfThenFail{}, model, nil }
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "read the file", emit); err != nil {
+		t.Fatal(err)
+	}
+	routed := false
+	for _, e := range *evs {
+		if e.Kind == EvDiscard {
+			t.Fatal("a routed call that streamed nothing was discarded")
+		}
+		if e.Kind == EvNotice && strings.Contains(e.Text, "routed call to") {
+			routed = true
+		}
+	}
+	if !routed {
+		t.Fatal("the step was not routed, so the test proves nothing")
 	}
 }

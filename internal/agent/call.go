@@ -37,7 +37,8 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	// dipping to a cheaper tier, so the cascade is asked first.
 	if prov, model, ok := a.escalateStep(emit); ok {
 		why, _ := a.escalated()
-		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "strong", kind: "escalate", why: why}, emit)
+		streamed, track := streamedAny(emit)
+		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "strong", kind: "escalate", why: why}, track)
 		if err == nil {
 			return resp, nil
 		}
@@ -45,11 +46,16 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 			return nil, err
 		}
 		// What the failed call streamed is void, as before a fallback:
-		// Model's reply replaces it rather than running on from it.
-		emit(Event{Kind: EvDiscard})
+		// Model's reply replaces it rather than running on from it. A
+		// call refused before it said anything has nothing to take back,
+		// and a discard would tell the front-ends an answer was cut off.
+		if *streamed {
+			emit(Event{Kind: EvDiscard})
+		}
 		emit(Event{Kind: EvNotice, Text: "escalated call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
 	} else if prov, model, why, ok := a.routeStep(emit); ok {
-		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "cheap", kind: "route", why: why}, emit)
+		streamed, track := streamedAny(emit)
+		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "cheap", kind: "route", why: why}, track)
 		if err == nil {
 			a.stats.routed()
 			return resp, nil
@@ -57,7 +63,9 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		if ctx.Err() != nil {
 			return nil, err
 		}
-		emit(Event{Kind: EvDiscard})
+		if *streamed {
+			emit(Event{Kind: EvDiscard})
+		}
 		emit(Event{Kind: EvNotice, Text: "routed call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
 		a.stepRoute.taint("a routed call failed")
 	}
@@ -66,6 +74,22 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		return resp, nil
 	}
 	return a.fallback(ctx, err, emit)
+}
+
+// streamedAny wraps emit to note whether the call put any part of an
+// answer in front of the user: text, thinking or a tool call. Whether a
+// failed call's output needs discarding depends on it.
+func streamedAny(emit func(Event)) (*bool, func(Event)) {
+	var streamed bool
+	return &streamed, func(e Event) {
+		switch e.Kind {
+		case EvText, EvThinking:
+			streamed = streamed || e.Text != ""
+		case EvToolStart, EvToolInput:
+			streamed = true
+		}
+		emit(e)
+	}
 }
 
 // isTokenDelta reports whether a stream event is the provider actually
