@@ -35,6 +35,9 @@ func Push(ctx context.Context, repoDir, remote string) (warning string, err erro
 	if strings.TrimSpace(remote) == "" {
 		remote = DefaultRemote
 	}
+	if err := notAnOption("remote", remote); err != nil {
+		return "", err
+	}
 	warning = notPushedWarning(ctx, repoDir, remote)
 	if _, err := gitx.Run(ctx, repoDir, nil, "push", remote, NotesRef); err != nil {
 		return "", err
@@ -118,8 +121,22 @@ func Fetch(ctx context.Context, repoDir, remote string) error {
 	if strings.TrimSpace(remote) == "" {
 		remote = DefaultRemote
 	}
+	if err := notAnOption("remote", remote); err != nil {
+		return err
+	}
 	_, err := gitx.Run(ctx, repoDir, nil, "fetch", remote, NotesRef+":"+NotesRef)
 	return err
+}
+
+// notAnOption refuses a user-typed name that git would read as an option:
+// "/proof push --receive-pack=<cmd>" names a program for git to run.
+// --end-of-options would say the same to git, but only to git 2.24 and
+// later, and no remote or commit name starts with '-'.
+func notAnOption(what, name string) error {
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("%s %q starts with '-'; git would read it as an option", what, name)
+	}
+	return nil
 }
 
 // noteFetchRefspec is what ConfigureFetch adds to remote.<remote>.fetch,
@@ -132,6 +149,9 @@ func noteFetchRefspec() string { return "+" + NotesRef + ":" + NotesRef }
 func ConfigureFetch(ctx context.Context, repoDir, remote string) error {
 	if strings.TrimSpace(remote) == "" {
 		remote = DefaultRemote
+	}
+	if err := notAnOption("remote", remote); err != nil {
+		return err
 	}
 	// /proof fetch is, along with Attach, one of the two places a
 	// repository first becomes proof-aware; make it survive amend/rebase

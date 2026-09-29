@@ -394,6 +394,9 @@ func Root(ctx context.Context, dir string) (string, error) {
 // Resolve returns the full commit sha that ref names (a short sha, "HEAD",
 // a branch, ...), or an error naming what could not be resolved.
 func Resolve(ctx context.Context, repoDir, ref string) (string, error) {
+	if err := notAnOption("commit", ref); err != nil {
+		return "", err
+	}
 	return gitx.Run(ctx, repoDir, nil, "rev-parse", "--verify", "-q", ref+"^{commit}")
 }
 

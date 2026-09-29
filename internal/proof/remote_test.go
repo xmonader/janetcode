@@ -23,6 +23,29 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// A remote or commit is typed by the user (/proof push <remote>, /proof
+// <commit>) and handed to git as an argument, where a leading '-' is read
+// as an option: "--receive-pack=<cmd>" names a program git runs. Such a
+// name is refused before git sees it.
+func TestDashLeadingNamesAreRefused(t *testing.T) {
+	ctx := context.Background()
+	root := initRepo(t)
+	write(t, root, "a.txt", "a\n")
+	commit(t, root, "init")
+	if _, err := Push(ctx, root, "--receive-pack=touch pwned"); err == nil || !strings.Contains(err.Error(), "starts with '-'") {
+		t.Fatalf("Push = %v", err)
+	}
+	if err := Fetch(ctx, root, "--upload-pack=touch pwned"); err == nil || !strings.Contains(err.Error(), "starts with '-'") {
+		t.Fatalf("Fetch = %v", err)
+	}
+	if err := ConfigureFetch(ctx, root, "-x"); err == nil || !strings.Contains(err.Error(), "starts with '-'") {
+		t.Fatalf("ConfigureFetch = %v", err)
+	}
+	if _, err := Resolve(ctx, root, "--all"); err == nil || !strings.Contains(err.Error(), "starts with '-'") {
+		t.Fatalf("Resolve = %v", err)
+	}
+}
+
 // TestPushFetchRoundTripThroughBareRemote checks that a note attached in
 // one clone is invisible in another until Push and Fetch move it across a
 // bare remote -- the whole point of notes being local only until pushed.
