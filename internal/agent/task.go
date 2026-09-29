@@ -743,6 +743,7 @@ func usageSince(before, now llm.Usage) llm.Usage {
 		OutputTokens:     now.OutputTokens - before.OutputTokens,
 		CacheReadTokens:  now.CacheReadTokens - before.CacheReadTokens,
 		CacheWriteTokens: now.CacheWriteTokens - before.CacheWriteTokens,
+		ReasoningTokens:  now.ReasoningTokens - before.ReasoningTokens,
 		CostUSD:          now.CostUSD - before.CostUSD,
 	}
 }
