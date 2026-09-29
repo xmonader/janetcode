@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 // Queries a language server answers about the code itself, rather than
@@ -121,7 +122,10 @@ type Point struct {
 	Symbol string
 }
 
-// resolve turns a Point into 0-based LSP coordinates against lines.
+// resolve turns a Point into 0-based LSP coordinates against lines. A
+// column it finds itself is converted to UTF-16 units; one the caller
+// gave is passed through, since the columns shown to it came from the
+// server in those units.
 func resolve(p Point, lines []string) (int, int, error) {
 	if p.Line > 0 {
 		if p.Line > len(lines) {
@@ -136,6 +140,7 @@ func resolve(p Point, lines []string) (int, int, error) {
 			if loc := identRe.FindStringIndex(text); loc != nil {
 				col = loc[0]
 			}
+			col = utf16Col(text, col)
 		}
 		return p.Line - 1, col, nil
 	}
@@ -173,7 +178,7 @@ func resolve(p Point, lines []string) (int, int, error) {
 	if bestRank < 0 {
 		return 0, 0, fmt.Errorf("%q does not appear in the file", p.Symbol)
 	}
-	return best[0], best[1], nil
+	return best[0], utf16Col(lines[best[0]], best[1]), nil
 }
 
 // declRe matches the part of a line before a name when that name is being
@@ -197,6 +202,20 @@ func inComment(line string, col int) bool {
 }
 
 var identRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+
+// utf16Col converts a byte offset into line to the column the protocol
+// counts in: UTF-16 code units, since no other position encoding is
+// negotiated. The two agree only while the line is ASCII.
+func utf16Col(line string, byteCol int) int {
+	if byteCol > len(line) {
+		byteCol = len(line)
+	}
+	n := 0
+	for _, r := range line[:byteCol] {
+		n += utf16.RuneLen(r)
+	}
+	return n
+}
 
 // Definition is where the symbol at pos is declared.
 func (m *Manager) Definition(ctx context.Context, path string, pos Point) ([]Location, error) {

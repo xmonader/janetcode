@@ -31,6 +31,46 @@ func TestURIEscapesAndRoundTrips(t *testing.T) {
 	}
 }
 
+// A symbol found after non-ASCII text on its line is sent at its UTF-16
+// column, which is what the protocol counts in; the byte offset pointed
+// past it, at nothing.
+func TestGoplsSymbolAfterNonASCII(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls not installed")
+	}
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/m\n\ngo 1.22\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "m.go"), []byte("package m\n\nimport \"strconv\"\n\nfunc G() (string, int) { return \"日本語日本語日本語\", strconv.IntSize }\n"), 0o644)
+	m := New(root, Config{Timeout: 20})
+	defer m.Close()
+	hov, err := m.Hover(context.Background(), "m.go", Point{Symbol: "IntSize"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hov, "IntSize") {
+		t.Fatalf("hover = %q", hov)
+	}
+}
+
+func TestUTF16Col(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		b    int
+		want int
+	}{
+		{"abc", 2, 2},
+		{"é x", 3, 2},    // é is two bytes, one unit
+		{"日本 x", 7, 3},   // three bytes each, one unit each
+		{"😀 x", 5, 3},    // four bytes, a surrogate pair
+		{"ab", 5, 2},     // past the end clamps
+		{"a\xffb", 2, 2}, // an invalid byte counts as one unit
+	} {
+		if got := utf16Col(tc.line, tc.b); got != tc.want {
+			t.Errorf("utf16Col(%q, %d) = %d, want %d", tc.line, tc.b, got, tc.want)
+		}
+	}
+}
+
 // A real gopls publishes its diagnostics under the escaped URI; with the
 // unescaped one we sent, the wait never matched them and timed out.
 func TestGoplsPathWithSpace(t *testing.T) {
