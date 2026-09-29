@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -52,6 +53,9 @@ type Index struct {
 	definers    map[string][]int // symbol name → files defining it
 	out         [][]edge         // file → files it depends on
 	in          [][]edge         // file → files depending on it
+	// Total is how many source files the tree has; more than len(Files)
+	// when it was over MaxFiles and a selection was indexed.
+	Total int
 }
 
 type edge struct {
@@ -61,7 +65,7 @@ type edge struct {
 
 // Limits keep large repositories cheap to index.
 const (
-	MaxFiles     = 5000
+	MaxFiles     = 10000
 	MaxFileBytes = 256 * 1024
 	// maxDefiners: a symbol defined in more files than this is too
 	// generic to carry an edge (Error, String, New).
@@ -77,37 +81,130 @@ func Build(ctx context.Context, root string, sym Parser) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), sym: sym, byPath: map[string]int{}, definers: map[string][]int{}}
-	for _, p := range paths {
-		if err := ctx.Err(); err != nil {
-			return nil, err
+	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), sym: sym, byPath: map[string]int{}, definers: map[string][]int{}, Total: len(paths)}
+	if len(paths) > MaxFiles {
+		paths = selectFiles(paths, ChangedFiles(ctx, root), MaxFiles)
+	}
+	// Reading and parsing is the whole cost of a build (go/parser on
+	// kubernetes: 2.5 ms a file), and each file is independent of the
+	// rest, so it is spread over the machine's cores. The results keep
+	// the paths' order, so the index is the same whichever finished first.
+	files := make([]*File, len(paths))
+	workers := runtime.GOMAXPROCS(0)
+	if workers > len(paths) {
+		workers = len(paths)
+	}
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range next {
+				files[i] = readAndParse(root, paths[i], sym)
+			}
+		}()
+	}
+	for i := range paths {
+		if ctx.Err() != nil {
+			break
 		}
-		abs := filepath.Join(root, filepath.FromSlash(p))
-		// Only regular files: a directory, FIFO or device that happens to
-		// carry a source extension is not source, and reading a FIFO
-		// blocks Build forever. A file that cannot be read is skipped like
-		// one that is too big — one unreadable file used to fail the map
-		// for the whole repository.
-		st, err := os.Stat(abs)
-		if err != nil || !st.Mode().IsRegular() || st.Size() > MaxFileBytes {
+		next <- i
+	}
+	close(next)
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if f == nil {
 			continue
 		}
-		data, err := os.ReadFile(abs)
-		if err != nil {
-			continue
-		}
-		f := parse(p, data, sym)
-		ix.byPath[p] = len(ix.Files)
+		ix.byPath[f.Path] = len(ix.Files)
 		ix.Files = append(ix.Files, f)
 		for _, d := range f.Defs {
 			ix.definers[d.Name] = append(ix.definers[d.Name], len(ix.Files)-1)
 		}
-		if len(ix.Files) >= MaxFiles {
-			break
-		}
 	}
 	ix.link()
 	return ix, nil
+}
+
+// readAndParse indexes one file, nil when it is not one to index.
+func readAndParse(root, p string, sym Parser) *File {
+	abs := filepath.Join(root, filepath.FromSlash(p))
+	// Only regular files: a directory, FIFO or device that happens to
+	// carry a source extension is not source, and reading a FIFO
+	// blocks Build forever. A file that cannot be read is skipped like
+	// one that is too big — one unreadable file used to fail the map
+	// for the whole repository.
+	st, err := os.Stat(abs)
+	if err != nil || !st.Mode().IsRegular() || st.Size() > MaxFileBytes {
+		return nil
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return nil
+	}
+	return parse(p, data, sym)
+}
+
+// selectFiles picks at most max of a tree's source files for the index.
+// It used to take the first max in sorted order, which on kubernetes
+// (13,500 source files) indexed api/, cluster/, cmd/ and part of pkg/
+// and never reached pkg/scheduler or staging/: a request about the
+// scheduler got a map that could not name one scheduler file. Now the
+// files that changed come first, then code, then tests, then generated
+// code; and a tier that does not fit whole is sampled at an even stride
+// over its sorted paths, so every part of the tree is represented in
+// proportion to its size.
+func selectFiles(paths, changed []string, max int) []string {
+	isChanged := map[string]bool{}
+	for _, c := range changed {
+		isChanged[c] = true
+	}
+	var tiers [4][]string
+	for _, p := range paths {
+		switch {
+		case isChanged[p]:
+			tiers[0] = append(tiers[0], p)
+		case isGenerated(p):
+			tiers[3] = append(tiers[3], p)
+		case isTestPath(p):
+			tiers[2] = append(tiers[2], p)
+		default:
+			tiers[1] = append(tiers[1], p)
+		}
+	}
+	var out []string
+	for _, tier := range tiers {
+		room := max - len(out)
+		if room <= 0 {
+			break
+		}
+		if len(tier) <= room {
+			out = append(out, tier...)
+			continue
+		}
+		for i := 0; i < room; i++ {
+			out = append(out, tier[i*len(tier)/room])
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// isGenerated recognises the generated-code file names that make up a
+// large share of big Go and protobuf trees and say least about how the
+// code is organised.
+func isGenerated(p string) bool {
+	base := filepath.Base(p)
+	for _, s := range []string{".pb.go", ".pb.gw.go", "_generated.go", ".generated.go", "_gen.go", "bindata.go", "_pb2.py", ".pb.ts"} {
+		if strings.HasSuffix(base, s) {
+			return true
+		}
+	}
+	return strings.HasPrefix(base, "zz_generated") || strings.HasPrefix(base, "generated_")
 }
 
 // listFiles asks git for tracked and untracked (not ignored) files, and
@@ -449,23 +546,37 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 		// directory named "report" and a symbol named Report1 are the same
 		// word arriving twice, not two independent pieces of evidence.
 		add := func(word string, weight float64, label string) {
-			if weight > hits[i][word] {
+			prev, seen := hits[i][word]
+			if weight > prev {
 				hits[i][word] = weight
 			}
-			why[i] = append(why[i], label)
+			// A word already counted by a route as strong adds nothing,
+			// so it adds no reason either.
+			if !seen || weight > prev {
+				why[i] = append(why[i], label)
+			}
 		}
 		if strings.Contains(lower, lp) || (len(base) >= 3 && containsWord(lower, base)) {
 			add(base, weightPath, "path")
 		} else {
+			// Every segment the request names pulls, once per word: the
+			// first match used to end the loop, so for "kubelet eviction
+			// manager" pkg/kubelet/eviction/eviction_manager.go was pulled
+			// by kubelet (like 700 other files) and never by eviction. A
+			// file name counts by its words too, since eviction_manager is
+			// how "eviction manager" is spelled in a path.
 			parts := strings.Split(strings.TrimSuffix(lp, filepath.Ext(lp)), "/")
 			for k, part := range parts {
-				if len(part) >= 3 && words[part] {
-					label := "dir "
-					if k == len(parts)-1 {
-						label = "name "
+				label := "dir "
+				segs := []string{part}
+				if k == len(parts)-1 {
+					label = "name "
+					segs = append(segs, strings.FieldsFunc(part, func(r rune) bool { return r == '_' || r == '-' || r == '.' })...)
+				}
+				for _, s := range segs {
+					if len(s) >= 3 && words[s] {
+						add(s, weightPart, label+s)
 					}
-					add(part, weightPart, label+part)
-					break
 				}
 			}
 		}
@@ -502,7 +613,7 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 		}
 		sort.Strings(ws) // a map's order must not reach the arithmetic
 		for _, word := range ws {
-			p += hits[i][word] / float64(spread[word])
+			p += hits[i][word] / spreadDivisor(spread[word], n)
 		}
 		pers[i] = p
 		total += p
@@ -542,9 +653,20 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 		// Structure decides among unmentioned files; a mention multiplies,
 		// so what the request names comes first without drowning the graph.
 		// Tests trail the code they test unless the request names them.
-		sc := score[i] * pull[i]
+		sc := structural(score[i], n) * pull[i]
 		if isTestPath(f.Path) && len(why[i]) == 0 {
 			sc *= 0.5
+		}
+		// In a large tree the graph's scores span three orders of
+		// magnitude, and no multiplier a request can earn moves a file
+		// named by it past the hubs: on kubernetes the one file called
+		// preemption.go ranked 1,253rd for a preemption bug. So there a
+		// file the request pulls clearly — a narrow word, or several
+		// broad ones — ranks ahead of every file it does not, and the
+		// graph orders each group. A word that names hundreds of files
+		// does not clear the bar alone.
+		if n > largeTree && pull[i]-flat[i] >= 1+requestTier {
+			sc += tierLift
 		}
 		out[i] = Ranked{File: f, Score: sc, Why: why[i]}
 	}
@@ -555,6 +677,45 @@ func (ix *Index) Rank(query string, changed []string) []Ranked {
 		return out[a].File.Path < out[b].File.Path
 	})
 	return out
+}
+
+// largeTree is the index size past which ranking is scaled for a large
+// tree. Below it the arithmetic is exactly what it always was.
+const largeTree = 1000
+
+// requestTier is the request pull (past the baseline 1) that lifts a file
+// in a large tree above every file the request does not name, and
+// tierLift the amount added to do it: more than any score the graph and a
+// pull can produce together.
+const (
+	requestTier = 0.25
+	tierLift    = 100.0
+)
+
+// spreadDivisor is how a request word's pull is shared among the files it
+// matches. In a small tree it is shared out evenly. In a large one that
+// erased the request: "scheduler" names some 800 kubernetes files, and a
+// pull of 2/800 left each of them where the graph alone put it, so the
+// map for a scheduler bug led with apimachinery's sets package. Past
+// largeTree the share falls with the square root instead: a broad word
+// still pulls less than a narrow one, but it still pulls.
+func spreadDivisor(spread, n int) float64 {
+	if n <= largeTree || spread <= 1 {
+		return float64(spread)
+	}
+	return math.Sqrt(float64(spread))
+}
+
+// structural is the graph's part of a file's score. In a large tree a
+// few hub files (the API types, a sets package) are referenced by
+// thousands and score orders of magnitude above the rest, which no
+// request mention can overcome; the square root keeps them high without
+// letting them fill the map on their own.
+func structural(score float64, n int) float64 {
+	if n <= largeTree {
+		return score
+	}
+	return math.Sqrt(score)
 }
 
 // symbolMention matches a symbol against the request's words: exactly
@@ -653,7 +814,13 @@ func (ix *Index) Render(ranked []Ranked, budget int) string {
 		return ""
 	}
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "[repository map: %d source files, ranked for this request; symbols ordered by how often other files use them]\n", len(ix.Files))
+	if ix.Total > len(ix.Files) {
+		// Said, so the model does not read a file's absence from the map
+		// as its absence from the tree.
+		fmt.Fprintf(&sb, "[repository map: %d of %d source files (a large tree: changed files and code first, the rest sampled evenly; grep or glob for what is not here), ranked for this request; symbols ordered by how often other files use them]\n", len(ix.Files), ix.Total)
+	} else {
+		fmt.Fprintf(&sb, "[repository map: %d source files, ranked for this request; symbols ordered by how often other files use them]\n", len(ix.Files))
+	}
 	shown := 0
 	for _, r := range ranked {
 		line := r.File.Path
