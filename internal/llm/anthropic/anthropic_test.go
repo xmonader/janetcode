@@ -348,3 +348,27 @@ func TestToolCallWithoutNameOrIDIsRejected(t *testing.T) {
 		})
 	}
 }
+
+// Some Anthropic-compatible endpoints answer with tool calls and
+// stop_reason "end_turn". The agent ends a turn on end_turn and answers any
+// tool calls in it as not run, so those calls were dropped; the OpenAI path
+// already treats a reply that called tools as stopping for them.
+func TestToolCallsUnderEndTurnStopForTools(t *testing.T) {
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+		io.WriteString(w, event("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"read_file","input":{}}}`))
+		io.WriteString(w, event("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"a\"}"}}`))
+		io.WriteString(w, event("content_block_stop", `{"type":"content_block_stop","index":0}`))
+		io.WriteString(w, event("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}`))
+		io.WriteString(w, event("message_stop", `{"type":"message_stop"}`))
+	})
+	req := llm.Request{Model: "m", MaxTokens: 10, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	resp, err := p.Stream(context.Background(), req, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StopReason != llm.StopToolUse {
+		t.Fatalf("stop = %v, want tool use", resp.StopReason)
+	}
+}

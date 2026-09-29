@@ -669,10 +669,19 @@ func toResponse(msg sdk.Message) (*llm.Response, error) {
 		}
 		out.Blocks = []llm.Block{{Type: llm.BlockText, Text: ""}}
 	}
+	calledTools := false
+	for _, b := range out.Blocks {
+		calledTools = calledTools || b.Type == llm.BlockToolUse
+	}
 	var stop llm.StopReason
 	switch msg.StopReason {
 	case sdk.StopReasonEndTurn, sdk.StopReasonStopSequence:
+		// Some compatible endpoints say end_turn after tool calls; the
+		// calls are the answer, as the OpenAI path already takes them.
 		stop = llm.StopEndTurn
+		if calledTools {
+			stop = llm.StopToolUse
+		}
 	case sdk.StopReasonToolUse:
 		stop = llm.StopToolUse
 	case sdk.StopReasonMaxTokens:
