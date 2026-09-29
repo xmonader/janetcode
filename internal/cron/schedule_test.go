@@ -179,3 +179,43 @@ func TestLoopIndex(t *testing.T) {
 		}
 	}
 }
+
+// Replace moves the scheduler to another session: the old jobs stop, the
+// new session's are armed, later changes go to the new callback, and
+// neither callback is told about the swap itself.
+func TestReplaceSwapsJobsAndCallbackWithoutPersisting(t *testing.T) {
+	c := New()
+	defer c.Close()
+	var oldSaves, newSaves [][]session.LoopSpec
+	c.SetOnChange(func(s []session.LoopSpec) { oldSaves = append(oldSaves, s) })
+	if _, err := c.Add(time.Hour, "old prompt"); err != nil {
+		t.Fatal(err)
+	}
+	oldSaves = nil
+	c.mu.Lock()
+	stale := c.jobs["loop-1"]
+	c.mu.Unlock()
+	if err := c.Replace([]session.LoopSpec{{ID: "loop-1", Every: "1h", Prompt: "new prompt"}}, func(s []session.LoopSpec) { newSaves = append(newSaves, s) }); err != nil {
+		t.Fatal(err)
+	}
+	if len(oldSaves) != 0 || len(newSaves) != 0 {
+		t.Fatalf("the swap was persisted: old=%v new=%v", oldSaves, newSaves)
+	}
+	if got := c.List(); len(got) != 1 || got[0].Prompt != "new prompt" {
+		t.Fatalf("after Replace: %+v", got)
+	}
+	// A timer of the replaced job that had already fired when it was
+	// stopped must not fire the new job armed under the same id.
+	var fired []string
+	c.SetOnFire(func(id, prompt string) { fired = append(fired, prompt) })
+	c.tick("loop-1", stale)
+	if len(fired) != 0 {
+		t.Fatalf("a stale timer fired the new session's job: %v", fired)
+	}
+	if _, err := c.Add(time.Hour, "later"); err != nil {
+		t.Fatal(err)
+	}
+	if len(oldSaves) != 0 || len(newSaves) != 1 || len(newSaves[0]) != 2 {
+		t.Fatalf("a change after Replace: old=%v new=%v", oldSaves, newSaves)
+	}
+}

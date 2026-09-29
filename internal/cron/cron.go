@@ -153,7 +153,7 @@ func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 func (c *Cron) armLocked(id string, every time.Duration, prompt string) {
 	c.nextSeq++
 	e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every), seq: c.nextSeq}
-	e.timer = time.AfterFunc(every, func() { c.tick(id) })
+	e.timer = time.AfterFunc(every, func() { c.tick(id, e) })
 	c.jobs[id] = e
 }
 
@@ -233,6 +233,11 @@ func (c *Cron) Restore(specs []session.LoopSpec) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.restoreLocked(specs)
+}
+
+// restoreLocked is Restore with c.mu held.
+func (c *Cron) restoreLocked(specs []session.LoopSpec) error {
 	if c.closed {
 		return fmt.Errorf("scheduler has stopped")
 	}
@@ -270,6 +275,28 @@ func (c *Cron) Restore(specs []session.LoopSpec) error {
 	}
 	c.version++
 	return nil
+}
+
+// Replace stops every armed job and arms specs in their place, with f as
+// the persistence callback from now on: the scheduler moving to another
+// session (/clear, /resume). Neither the old callback nor the new one
+// fires — the session left behind keeps the loops it had saved, to be
+// restored when it is resumed, and specs are already the new session's.
+func (c *Cron) Replace(specs []session.LoopSpec, f func([]session.LoopSpec)) error {
+	if c == nil {
+		return fmt.Errorf("no scheduler in this session")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, e := range c.jobs {
+		if e.timer != nil {
+			e.timer.Stop()
+		}
+	}
+	c.jobs = map[string]*cronJob{}
+	c.nextID = 0
+	c.OnChange = f
+	return c.restoreLocked(specs)
 }
 
 func loopIndex(id string) (int, bool) {
@@ -342,20 +369,24 @@ func (c *Cron) Close() {
 	c.jobs = nil
 }
 
-func (c *Cron) tick(id string) {
+// tick fires job e, if it is still the job armed under id. A timer that
+// had already fired when Cancel or Replace stopped it still runs, and
+// Replace can arm another session's job under the same id: that job is
+// not this one, and firing it would run it early and leave it with a
+// second timer nothing can stop.
+func (c *Cron) tick(id string, e *cronJob) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return
 	}
-	e := c.jobs[id]
-	if e == nil {
+	if c.jobs[id] != e {
 		c.mu.Unlock()
 		return
 	}
 	prompt := e.Prompt
 	e.Next = time.Now().Add(e.Every)
-	e.timer = time.AfterFunc(e.Every, func() { c.tick(id) })
+	e.timer = time.AfterFunc(e.Every, func() { c.tick(id, e) })
 	fire := c.OnFire
 	c.mu.Unlock()
 	if fire != nil {

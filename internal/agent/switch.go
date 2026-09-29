@@ -10,11 +10,25 @@ import (
 // so nothing of the session being left behind — its checkpoints above
 // all — is carried into the new one. /clear, /resume and their web
 // equivalents all switch through here.
+//
+// The /accept state and the armed /loop jobs follow the session as well,
+// the way startup restores them: the incoming session's own are loaded
+// and saved to it from here on. Left alone, the old session's accept lock
+// went on refusing edits in the new one, its loops fired their prompts
+// into a conversation that never asked for them, and every later change
+// to either was written to the session left behind. That session keeps
+// what it had saved, and gets it back when it is resumed.
 func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error {
 	a.switchSessionHooks(history)
 	a.setMessages(history)
 	a.SetPins(sess.Meta.Pins)
 	a.SetLog(sess)
+	a.acceptMode().Replace(sess.Meta.Accept, func(am *session.AcceptMeta) { _ = sess.SetAccept(am) })
+	if a.Cron != nil {
+		// Restore skips what it cannot use and fails only on a stopped
+		// scheduler, which has nothing to stop either.
+		_ = a.Cron.Replace(sess.Meta.Loops, func(specs []session.LoopSpec) { _ = sess.SetLoops(specs) })
+	}
 	a.UndoPath = sess.UndoPath()
 	a.checkpoints.reset()
 	return a.LoadUndo()

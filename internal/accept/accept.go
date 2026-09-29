@@ -68,6 +68,19 @@ func (m *Mode) SetOnChange(f func(*session.AcceptMeta)) {
 	m.OnChange = f
 }
 
+// Replace swaps in another session's state and the callback that keeps
+// it, for when the live mode moves to a different session (/clear,
+// /resume). It does not fire: the state came from that session's record
+// and is already there, and the session left behind keeps its own.
+func (m *Mode) Replace(meta *session.AcceptMeta, f func(*session.AcceptMeta)) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.meta, m.OnChange = meta.Clone(), f
+}
+
 // Meta is a copy of the current state, or nil when the mode is off.
 func (m *Mode) Meta() *session.AcceptMeta {
 	if m == nil {
