@@ -224,6 +224,24 @@ func (t WebSearch) brave(ctx context.Context, client *http.Client, query string,
 	if base == "" {
 		base = braveURL
 	}
+	// The key rides in X-Subscription-Token, which Go's redirect policy
+	// forwards to any host (it strips only Authorization and cookies), so
+	// a hop off the endpoint's host is refused rather than followed.
+	guarded := *client
+	inner := client.CheckRedirect
+	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		if first := via[0].URL; !strings.EqualFold(first.Host, req.URL.Host) || (first.Scheme == "https" && req.URL.Scheme != "https") {
+			return fmt.Errorf("brave search: refusing a redirect from %s to %s: the request carries the API key", first.Scheme+"://"+first.Host, req.URL.Scheme+"://"+req.URL.Host)
+		}
+		if inner != nil {
+			return inner(req, via)
+		}
+		return nil
+	}
+	client = &guarded
 	q := url.Values{"q": {query}, "count": {fmt.Sprint(n)}, "text_decorations": {"0"}}
 	body, err := t.get(ctx, client, base+"?"+q.Encode(), map[string]string{"Accept": "application/json", "X-Subscription-Token": key})
 	if err != nil {

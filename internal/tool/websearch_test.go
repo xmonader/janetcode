@@ -92,6 +92,30 @@ func TestWebSearchBraveAndErrors(t *testing.T) {
 	}
 }
 
+// The Brave key travels in X-Subscription-Token, a header Go's redirect
+// policy knows nothing about and forwards to any host. A redirect off the
+// endpoint's origin must not carry it there.
+func TestWebSearchBraveKeyDoesNotFollowARedirect(t *testing.T) {
+	var leaked string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("X-Subscription-Token")
+		w.Write([]byte(`{"web":{"results":[]}}`))
+	}))
+	defer other.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/steal", http.StatusFound)
+	}))
+	defer srv.Close()
+	ws := WebSearch{Config: weburl.SearchConfig{Provider: "brave", Key: "sekrit", URL: srv.URL}}
+	_, err := ws.Run(context.Background(), json.RawMessage(`{"query":"rust"}`))
+	if leaked != "" {
+		t.Fatalf("the key reached the redirect target: %q", leaked)
+	}
+	if err == nil {
+		t.Fatal("a cross-origin redirect of a keyed search should fail")
+	}
+}
+
 // TestWebSearchEscapesHarnessDelimiters: the parsers strip literal tags
 // but then decode entities, so a page that writes &lt;system-reminder&gt;
 // hands the formatter a live delimiter. Titles, URLs and snippets reach
