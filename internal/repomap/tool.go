@@ -38,7 +38,7 @@ func TurnPrep(c *Cache, budget int) func(context.Context, []llm.Block) ([]llm.Bl
 		}
 		ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
-		ix, err := c.Get(ctx)
+		ix, err := c.getBounded(ctx)
 		if err != nil || len(ix.Files) < 2 {
 			return blocks, ""
 		}

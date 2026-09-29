@@ -8,6 +8,7 @@ package repomap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -818,20 +819,41 @@ type Cache struct {
 	Parser Parser
 	mu     sync.Mutex
 	ix     *Index
+	// outOfTime is the fingerprint of a tree whose build a deadline cut
+	// short (see getBounded); a bounded caller does not start it again.
+	outOfTime string
 }
 
 // Get returns the current index, rebuilding it when files changed.
-func (c *Cache) Get(ctx context.Context) (*Index, error) {
+func (c *Cache) Get(ctx context.Context) (*Index, error) { return c.get(ctx, false) }
+
+// errOutOfTime is getBounded's answer for a tree it has given up on.
+var errOutOfTime = errors.New("repomap: this tree took too long to index")
+
+// getBounded is Get for a caller whose ctx has a deadline (TurnPrep). A
+// build the deadline cut short caches nothing, so without this every
+// turn waited the whole deadline again and still had no map; it is
+// tried again once the tree changes, and Get still builds it.
+func (c *Cache) getBounded(ctx context.Context) (*Index, error) { return c.get(ctx, true) }
+
+func (c *Cache) get(ctx context.Context, bounded bool) (*Index, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.ix != nil && c.ix.Fingerprint == gitx.TreeFingerprint(c.Root) {
+	fp := gitx.TreeFingerprint(c.Root)
+	if c.ix != nil && c.ix.Fingerprint == fp {
 		return c.ix, nil
+	}
+	if bounded && c.outOfTime != "" && c.outOfTime == fp {
+		return nil, errOutOfTime
 	}
 	ix, err := Build(ctx, c.Root, c.Parser)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			c.outOfTime = fp
+		}
 		return nil, err
 	}
-	c.ix = ix
+	c.ix, c.outOfTime = ix, ""
 	return ix, nil
 }
 
