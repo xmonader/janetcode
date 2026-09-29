@@ -65,6 +65,11 @@ func TestDryRunChangesNothingAndPreviewsEverything(t *testing.T) {
 	if !strings.Contains(results["t5"], "a.txt") {
 		t.Fatalf("a read-only command should run in a dry run: %q", results["t5"])
 	}
+	// It read the disk, not the preview, and the model is told so rather
+	// than left to conclude its edits never happened.
+	if !strings.Contains(results["t5"], "read the disk, not the preview — 1 file has pending changes") {
+		t.Fatalf("a read-only command in a dry run did not say it missed the preview: %q", results["t5"])
+	}
 	report := a.DryRunReport(true)
 	for _, want := range []string{"a.txt", "+1 -1", "touch made-by-bash", "-alpha", "+newer", "commands not run (2)"} {
 		if !strings.Contains(report, want) {

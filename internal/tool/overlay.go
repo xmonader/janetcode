@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -87,6 +88,28 @@ func (o *Overlay) children(dir string) map[string]overlayFile {
 	return out
 }
 
+// Len is how many paths the overlay holds, deletions included.
+func (o *Overlay) Len() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.files)
+}
+
+// under is every overlay path inside root, at any depth, sorted.
+func (o *Overlay) under(root string) []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	root = filepath.Clean(root)
+	var out []string
+	for p := range o.files {
+		if p == root || strings.HasPrefix(p, root+string(filepath.Separator)) {
+			out = append(out, p)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // overlayHost is a Host whose file half goes through an Overlay first.
 type overlayHost struct {
 	Host
@@ -147,6 +170,66 @@ func (h overlayHost) ReadDir(ctx context.Context, path string) ([]os.DirEntry, e
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name() < out[j].Name() })
 	return out, nil
+}
+
+// WalkDir walks the tree as the dry run sees it, so glob and grep find
+// what the model has written in it: a file the overlay changed is visited
+// with its pending size (and grep then opens the pending content), a file
+// it deleted is not visited, and a file only the overlay holds is visited
+// after the walk of the disk, unless it sits under a directory fn skipped.
+func (h overlayHost) WalkDir(ctx context.Context, root string, fn fs.WalkDirFunc) error {
+	root = filepath.Clean(root)
+	pending := h.o.under(root)
+	visited := map[string]bool{}
+	var skipped []string
+	wrap := func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d != nil && !d.IsDir() {
+			if f, ok := h.o.get(p); ok {
+				visited[p] = true
+				if f.gone {
+					return nil
+				}
+				d = fs.FileInfoToDirEntry(overlayInfo{name: d.Name(), size: int64(len(f.data))})
+			}
+		}
+		r := fn(p, d, err)
+		if r == fs.SkipDir && d != nil && d.IsDir() {
+			skipped = append(skipped, filepath.Clean(p))
+		}
+		return r
+	}
+	if _, err := h.Host.Stat(ctx, root); err == nil || len(pending) == 0 {
+		if err := h.Host.WalkDir(ctx, root, wrap); err != nil {
+			if err == fs.SkipAll {
+				return nil
+			}
+			return err
+		}
+	}
+	for _, p := range pending {
+		f, _ := h.o.get(p)
+		if visited[p] || f.gone || underAny(p, skipped) {
+			continue
+		}
+		switch err := fn(p, fs.FileInfoToDirEntry(overlayInfo{name: filepath.Base(p), size: int64(len(f.data))}), nil); err {
+		case nil, fs.SkipDir:
+		case fs.SkipAll:
+			return nil
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+// underAny reports whether p is inside one of dirs.
+func underAny(p string, dirs []string) bool {
+	for _, d := range dirs {
+		if strings.HasPrefix(p, d+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // MkdirAll is a no-op: the overlay's files imply their directories.
