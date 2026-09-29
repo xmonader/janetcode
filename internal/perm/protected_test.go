@@ -10,7 +10,7 @@ import (
 
 func TestProtectedDefaults(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	p := NewProtected(nil)
 	root := t.TempDir()
 	for _, abs := range []string{
@@ -50,7 +50,7 @@ func TestProtectedDefaults(t *testing.T) {
 // Configuration adds to the defaults; it can never take one out.
 func TestProtectedConfigExtends(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	p := NewProtected([]string{"~/work/deploy/**", "  ", "/srv/secrets.env"})
 	for _, abs := range []string{
 		filepath.Join(home, "work", "deploy", "prod.yaml"),
@@ -71,7 +71,7 @@ func TestProtectedConfigExtends(t *testing.T) {
 
 func TestProtectedWrites(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	p := NewProtected(nil)
 	root := t.TempDir()
 	bash := func(cmd string) Call {
@@ -102,7 +102,7 @@ func TestProtectedWrites(t *testing.T) {
 		switch {
 		case tc.want == "" && got != "":
 			t.Errorf("%s: %q, want no reason", tc.c.Input, got)
-		case tc.want != "" && !strings.Contains(got, tc.want):
+		case tc.want != "" && !strings.Contains(filepath.ToSlash(got), tc.want):
 			t.Errorf("%s: %q, want a reason naming %s", tc.c.Input, got, tc.want)
 		case tc.want != "" && !strings.HasPrefix(got, "protected path: "):
 			t.Errorf("%s: %q, want the protected-path wording", tc.c.Input, got)
@@ -117,7 +117,7 @@ func TestProtectedWrites(t *testing.T) {
 // runtime, so NewProtected adds them itself.
 func TestProtectedRuntimePaths(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "cfg"))
 	p := NewProtected(nil)
 	if _, ok := p.MatchPath(filepath.Join(home, "cfg", "janetcode", "mcp-trust.json")); !ok {
@@ -192,7 +192,7 @@ func TestHardDenyNotOverridable(t *testing.T) {
 // there.
 func TestProtectedFoldsCaseWhereTheFilesystemDoes(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	p := NewProtected(nil)
 	root := t.TempDir()
 	for _, abs := range []string{
@@ -222,7 +222,7 @@ func TestProtectedFoldsCaseWhereTheFilesystemDoes(t *testing.T) {
 // resolved target.
 func TestProtectedFollowsSymlinks(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	p := NewProtected(nil)
 	root := t.TempDir()
 	gitDir := filepath.Join(root, ".git")

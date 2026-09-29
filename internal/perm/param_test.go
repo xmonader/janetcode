@@ -2,6 +2,7 @@ package perm
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -181,7 +182,9 @@ func TestLedgerKeysParamRules(t *testing.T) {
 // path has to hold for both spellings — above all a deny rule, which an
 // absolute path otherwise walked straight past.
 func TestFileRulesHoldForEitherSpelling(t *testing.T) {
-	root := filepath.Join(string(filepath.Separator), "work", "proj")
+	// A real absolute path on every OS: on Windows one needs a drive.
+	top := filepath.VolumeName(os.TempDir()) + string(filepath.Separator)
+	root := filepath.Join(top, "work", "proj")
 	rules, err := File{
 		Deny:  []string{"edit_file(secrets/*)", "write_file(path:secrets/*)"},
 		Allow: []string{"read_file(" + filepath.Join(root, "docs") + "/*)"},
@@ -207,7 +210,7 @@ func TestFileRulesHoldForEitherSpelling(t *testing.T) {
 		t.Errorf("an absolute allow rule did not cover the relative spelling: %v", v)
 	}
 	// Outside the workspace there is no second spelling.
-	other := filepath.Join(string(filepath.Separator), "other", "secrets", "key")
+	other := filepath.Join(top, "other", "secrets", "key")
 	if v, _, _ := rules.DecideCall(call("edit_file", other)); v != Ask {
 		t.Errorf("a path outside the workspace = %v, want ask", v)
 	}
