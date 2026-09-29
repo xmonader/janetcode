@@ -163,7 +163,11 @@ func Changed(ctx context.Context, root string) (map[string][]int, error) {
 	_, err := gitx.Run(ctx, root, nil, "rev-parse", "--verify", "-q", "HEAD^{commit}")
 	switch {
 	case err == nil:
-		diff, err := gitx.Run(ctx, root, nil, "diff", "-U0", "--no-color", "--relative", "HEAD", "--", ".")
+		// PatchFormat, because the user's diff.noprefix, mnemonicPrefix
+		// or diff.external would otherwise change the "+++ b/" lines
+		// parseDiff reads, or replace the patch altogether.
+		args := append([]string{"diff", "-U0", "--relative"}, gitx.PatchFormat...)
+		diff, err := gitx.Run(ctx, root, nil, append(args, "HEAD", "--", ".")...)
 		if err != nil {
 			return nil, err
 		}

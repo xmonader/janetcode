@@ -375,3 +375,44 @@ func TestRunnerSkipsAMutantPastTheEndOfItsFile(t *testing.T) {
 		t.Fatalf("a mutant past the end of its file must not be scored: %+v", got)
 	}
 }
+
+// git diff is porcelain and follows the user's configuration. With
+// diff.noprefix the "+++ " line carries no b/, and with diff.external the
+// output is not a patch at all; either way Changed found no changed lines
+// and the mutation gate had nothing to test.
+func TestChangedIgnoresTheUsersDiffConfiguration(t *testing.T) {
+	root := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	git("init", "-q")
+	if err := os.MkdirAll(filepath.Join(root, "b"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A directory named b makes a dropped prefix visible: "b/m.go" read
+	// with the b/ taken off is "m.go", a file that is not there.
+	file := filepath.Join(root, "b", "m.go")
+	if err := os.WriteFile(file, []byte("package m\n\nvar X = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", ".")
+	git("commit", "-q", "-m", "init")
+	if err := os.WriteFile(file, []byte("package m\n\nvar X = 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, cfg := range [][]string{{"diff.noprefix", "true"}, {"diff.external", "true"}} {
+		git("config", cfg[0], cfg[1])
+		changed, err := Changed(context.Background(), root)
+		if err != nil {
+			t.Fatalf("%s: %v", cfg[0], err)
+		}
+		if got := changed["b/m.go"]; len(got) != 1 || got[0] != 3 {
+			t.Fatalf("%s: changed = %v, want b/m.go line 3", cfg[0], changed)
+		}
+		git("config", "--unset", cfg[0])
+	}
+}
