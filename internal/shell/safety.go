@@ -1567,9 +1567,5 @@ func TrimWorkspaceCd(command, root string) string {
 // Redirects returns the targets of the output redirections (> and >>) in
 // one command segment, as written.
 func Redirects(seg string) []string {
-	var out []string
-	for _, raw := range redirectTargets(seg) {
-		out = append(out, raw)
-	}
-	return out
+	return redirectTargets(seg)
 }
