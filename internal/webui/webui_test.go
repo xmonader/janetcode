@@ -976,6 +976,63 @@ func TestWebSessionListCarriesForkLineage(t *testing.T) {
 	}
 }
 
+// TestWebSessionListSearchesConversations: ?q= finds a session by what
+// was said in it, not only by its title, and says where.
+func TestWebSessionListSearchesConversations(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	root := t.TempDir()
+	dir, err := session.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for turn, text := range []string{"set up the project", "why does the flux capacitor leak"} {
+		m := llm.TextMessage(llm.RoleUser, text)
+		if _, err := old.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Turn: turn + 1, Message: &m}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ag := &agent.Agent{Provider: &scripted{}, Model: "m", Log: cur}
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: cur, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	res, err := http.Get(ts.URL + "/api/sessions?q=capacitor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var rows []struct {
+		ID   string `json:"id"`
+		Hit  string `json:"hit"`
+		Turn int    `json:"turn"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rows {
+		if r.ID == old.Meta.ID {
+			found = true
+			if !strings.Contains(r.Hit, "flux capacitor") || r.Turn != 2 {
+				t.Errorf("row = %+v, want the matching line from turn 2", r)
+			}
+		} else if r.Hit != "" {
+			t.Errorf("row %s has a hit it does not contain: %q", r.ID, r.Hit)
+		}
+	}
+	if !found {
+		t.Fatalf("rows = %+v, want %s", rows, old.Meta.ID)
+	}
+}
+
 // --web on a port that is already taken should not refuse to start: it
 // serves on a random port and reports the real URL, which is what the
 // user then opens.

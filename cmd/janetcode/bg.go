@@ -59,15 +59,22 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 	cmd.Stderr = log
 	cmd.Stdin = nil
 	cmd.SysProcAttr = bgProcAttr()
+	// The child runs the turns, so it takes the lease: this process
+	// gives it up before starting it.
+	sess.Release()
+	// Written here as well as by the child, so --sessions shows the run
+	// from the moment this returns -- and written before the child
+	// starts, so it cannot land on top of what the child has already
+	// said (a request it is waiting on, above all).
+	started := time.Now()
+	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, Started: started})
 	if err := cmd.Start(); err != nil {
 		log.Close()
+		_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgFailed, Started: started, Ended: time.Now(), Detail: err.Error()})
 		return fmt.Errorf("background: %w", err)
 	}
 	pid := cmd.Process.Pid
 	_ = sess.WritePID(pid)
-	// Written here as well as by the child, so --sessions shows the run
-	// from the moment this returns.
-	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, PID: pid, Started: time.Now()})
 	_ = cmd.Process.Release()
 	_ = log.Close()
 	fmt.Println(sess.Meta.ID)

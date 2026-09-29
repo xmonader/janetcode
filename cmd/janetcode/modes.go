@@ -189,12 +189,20 @@ func (r *root) acpMode() error {
 				if s, hist, err = session.Open(sessDir, resume); err != nil {
 					return nil, nil, err
 				}
+				// The editor gets the same refusal a terminal does
+				// for a session another janetcode is running.
+				if err := s.Acquire(); err != nil {
+					return nil, nil, err
+				}
 				if s.Meta.Cwd != "" {
 					root = s.Meta.Cwd
 				}
 			} else if used || root != cwd {
 				var err error
 				if s, err = session.New(sessDir, root, cfg.Provider, cfg.Model); err != nil {
+					return nil, nil, err
+				}
+				if err := s.Acquire(); err != nil {
 					return nil, nil, err
 				}
 				hist = nil

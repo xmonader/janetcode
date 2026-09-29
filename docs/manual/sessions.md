@@ -22,8 +22,39 @@ as it was, and `/resume` lists both so you can try two approaches from the
 same point. `/fork stay [title]` makes the same copy but stays on the original
 session; later messages land only on the live one, and the copy is listed
 with a parent link (`fork_of`). `/history <words>` searches every saved session in every
-directory for the words and shows the best matching line with the session
-id to `/resume`.
+directory for the words and shows the best matching line, and the turn it
+is in, with the session id to `/resume`. The same search runs from the
+shell as `janetcode --search "<words>"`, and in the web interface the
+filter above the conversation list searches what was said once it has
+three letters, showing the matching line under each conversation.
+`janetcode --show <id>` prints a saved conversation as Markdown without
+opening it.
+
+## One process per session
+
+A session is run by one janetcode process at a time. The process that
+opens it — the terminal interface, `--web`, a `-p` run, a `--bg` child, an
+editor over `--acp` — takes its lease, a lock on the `<id>.lock` file beside
+the session that the operating system drops when the process ends, however
+it ends: a crash or a `kill -9` never leaves a session locked. A second
+process that tries to run turns in the same session is refused before
+anything is written, and told who has it:
+
+```
+session 20260929-101500-a1b2 is open in another janetcode (the terminal interface, pid 4121, since Sep 29 10:15); only one process can run turns in a session at a time
+  janetcode --resume 20260929-101500-a1b2 --fork   continue in a copy of it
+  janetcode --show 20260929-101500-a1b2           read it without opening it
+```
+
+Inside a session, `/resume <id> fork` is the same way on, and the web
+interface's conversation list reports the conflict instead of switching.
+Without the lease, two processes appending to one file interleaved their
+turns into a history neither of them wrote, and each saved its undo stack,
+`/accept` lock and loops over the other's. `--bg` hands the lease to the
+child it starts, so `--resume` of a background run that is still going is
+refused the same way; `--answer` and `--sessions` read its sidecars and need
+no lease. Within one process the lease is shared, so nothing refuses a
+session the same process already has open.
 
 `janetcode --bg "prompt"` starts that prompt in a detached child, prints
 the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`

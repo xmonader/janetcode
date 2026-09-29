@@ -1516,7 +1516,8 @@
       !q ||
       (r.label || "").toLowerCase().includes(q) ||
       (r.id || "").toLowerCase().includes(q) ||
-      (r.note || "").toLowerCase().includes(q);
+      (r.note || "").toLowerCase().includes(q) ||
+      !!r.hit;
     const kept = rows.filter((r) => !r.current).filter(match).slice(0, 40);
     if (!kept.length) {
       ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : "Earlier conversations in this project will appear here."}</li>`;
@@ -1532,21 +1533,30 @@
         parts.push(`<li class="sess-group">${esc(b)}</li>`);
       }
       parts.push(
-        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span></li>`
+        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span>${r.hit ? `<span class="sess-hit">${r.turn ? "turn " + r.turn + ": " : ""}${esc(r.hit)}</span>` : ""}</li>`
       );
     }
     ul.innerHTML = parts.join("");
   }
 
+  // The filter searches what the conversations said as well as their
+  // titles: with three letters or more the server reads the sessions for
+  // them, so that request waits for a pause in the typing.
   async function loadSessions() {
     try {
-      const rows = await (await fetch("/api/sessions")).json();
+      const q = sessionFilter.value.trim();
+      const url = q.length >= 3 ? "/api/sessions?q=" + encodeURIComponent(q) : "/api/sessions";
+      const rows = await (await fetch(url)).json();
       renderSessions(rows, sessionFilter.value);
     } catch (_) {}
   }
 
   const sessionFilter = document.getElementById("session-filter");
-  sessionFilter.addEventListener("input", loadSessions);
+  let sessionFilterTimer = 0;
+  sessionFilter.addEventListener("input", () => {
+    clearTimeout(sessionFilterTimer);
+    sessionFilterTimer = setTimeout(loadSessions, 250);
+  });
 
   document.getElementById("sessions").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-id]");

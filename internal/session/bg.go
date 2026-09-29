@@ -92,9 +92,16 @@ func ReadBgStatus(sessionPath string) (st BgStatus, ok bool, err error) {
 	if err := json.Unmarshal(b, &st); err != nil {
 		return st, false, fmt.Errorf("%s: %w", BgStatusPath(sessionPath), err)
 	}
-	if (st.State == BgRunning || st.State == BgWaiting) && st.PID > 0 && !processAlive(st.PID) {
+	pid := st.PID
+	if pid <= 0 {
+		// The launcher's own record, from before the child started:
+		// the child's pid is in the pid sidecar.
+		pid = readPID(sidecar(sessionPath, ".pid"))
+	}
+	if (st.State == BgRunning || st.State == BgWaiting) && pid > 0 && !processAlive(pid) {
+		st.PID = pid
 		st.State, st.Ask = BgFailed, nil
-		st.Detail = fmt.Sprintf("the process (pid %d) stopped without finishing", st.PID)
+		st.Detail = fmt.Sprintf("the process (pid %d) stopped without finishing", pid)
 	}
 	return st, true, nil
 }
@@ -174,4 +181,17 @@ func BgSessionPath(dir, id string) (string, error) {
 		return "", fmt.Errorf("invalid session id %q", id)
 	}
 	return filepath.Join(dir, id+".jsonl"), nil
+}
+
+// readPID reads a pid sidecar, 0 when there is none.
+func readPID(path string) int {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var pid int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(b)), "%d", &pid); err != nil || pid <= 0 {
+		return 0
+	}
+	return pid
 }

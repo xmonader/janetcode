@@ -69,6 +69,14 @@ type options struct {
 	plain        bool
 	selfUpdate   bool
 	listSess     bool
+	// fork continues --resume/--continue in a copy of the session.
+	fork bool
+	// showSess prints a session's transcript read-only.
+	showSess string
+	// searchSess searches recorded sessions' transcripts.
+	searchSess string
+	// auditSess verifies a session's audit log.
+	auditSess    string
 	initProject  bool
 	initCfg      bool
 	mcpAuth      string
@@ -111,7 +119,7 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
@@ -272,6 +280,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
+	fs.BoolVar(&o.fork, "fork", false, "with --resume or --continue: continue in a copy of the session, leaving the original as it was -- the way on when another janetcode has it open")
+	fs.StringVar(&o.showSess, "show", "", "print a saved session's conversation as Markdown and exit, without opening it: safe while another janetcode has it open")
+	fs.StringVar(&o.searchSess, "search", "", "search every saved session's conversation for these words (all of them, any case) and exit: the matching sessions, newest first, with the turn and the line that matched")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
 	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")
 	fs.StringVar(&o.mcpAuth, "mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")

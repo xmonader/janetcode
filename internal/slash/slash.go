@@ -21,7 +21,7 @@ var Commands = withIdle([]Command{
 	{Name: "/compact", Args: "", Help: "summarise the conversation to free context"},
 	{Name: "/compact-fast", Args: "", Help: "prune old tool results and thinking without a summary call"},
 	{Name: "/clear", Args: "", Help: "start a new session"},
-	{Name: "/resume", Args: "[n|id]", Help: "reopen an earlier session here: alone opens a searchable list, or name one"},
+	{Name: "/resume", Args: "[n|id] [fork]", Help: "reopen an earlier session here: alone opens a searchable list, or name one; fork continues in a copy, the way on when another janetcode has it open"},
 	{Name: "/open", Args: "<path[:line]>", Help: "show a file inline, centred on a line"},
 	{Name: "/diff", Args: "[path|revert path:n]", Help: "changes against HEAD; a file's hunks; revert one hunk"},
 	{Name: "/fork", Args: "[stay] [title]", Help: "copy this conversation into a new session; stay keeps this one live"},

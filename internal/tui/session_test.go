@@ -591,7 +591,7 @@ func TestForkTitleAndSearchCommands(t *testing.T) {
 	h.keys("/history token bucket")
 	h.enter()
 	v := plain(h.m.View())
-	if !strings.Contains(v, "redis for real") || !strings.Contains(v, "Rate limiting for the API") || !strings.Contains(v, "assistant: I added a token bucket.") {
+	if !strings.Contains(v, "redis for real") || !strings.Contains(v, "Rate limiting for the API") || !strings.Contains(v, "assistant turn 1: I added a token bucket.") {
 		t.Fatalf("search view:\n%s", v)
 	}
 	h.keys("/history nothing-like-this")

@@ -28,6 +28,9 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--readonly` | read, search and answer, but change nothing |
 | `--append-system-prompt "<text>"` | add text (or `@file`) to the system prompt for this run (TUI sessions too); `JANETCODE_SYSTEM_MD=<file>` replaces the base prompt instead. Both are recorded in eval results, so a prompt A/B stays traceable |
 | `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one (including one started with `--bg`) |
+| `--fork` | with `--resume` or `--continue`: carry on in a copy of the session, leaving the original as it was. The way on when another janetcode has that session open (see [One process per session](sessions.md#one-process-per-session)) |
+| `--show <id>` | print a saved session's conversation as Markdown and exit. It takes no lease, so it reads a session another janetcode is running |
+| `--search "<words>"` | search every saved session's conversation for all the words, any case, and exit: the matching sessions newest first, each with the turn and the line that matched |
 | `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume`. What its permission mode asks about waits for `--answer`; it runs `--yolo` only when given (see [sessions](sessions.md)) |
 | `--answer <id> [allow\|session\|deny]` | show, or settle, the permission request a `--bg` run is waiting on. `JANETCODE_NOTIFY=<command>` runs a command each time one starts waiting |
 | `--add-dir <path>` | extra local directory file tools may read and edit this session (repeatable) |

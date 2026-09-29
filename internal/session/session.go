@@ -116,6 +116,8 @@ type Session struct {
 	// lastSync is when the log was last forced to durable storage; see
 	// syncInterval.
 	lastSync time.Time
+	// leased is set while this Session holds the lease; see lease.go.
+	leased bool
 }
 
 // Dir returns the sessions directory, honouring XDG_DATA_HOME.
@@ -549,15 +551,8 @@ func (s *Session) ClearPID() error {
 
 // PID returns the recorded background pid, if the sidecar exists.
 func (s *Session) PID() (int, bool) {
-	b, err := os.ReadFile(s.PIDPath())
-	if err != nil {
-		return 0, false
-	}
-	var pid int
-	if _, err := fmt.Sscanf(strings.TrimSpace(string(b)), "%d", &pid); err != nil || pid <= 0 {
-		return 0, false
-	}
-	return pid, true
+	pid := readPID(s.PIDPath())
+	return pid, pid > 0
 }
 
 // UpdateMeta applies fn to the session's metadata and rewrites the file,

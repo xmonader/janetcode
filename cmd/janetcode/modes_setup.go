@@ -192,8 +192,11 @@ func evalMode(o *options, cfg *config.Config, prov llm.Provider) (bool, error) {
 }
 
 // openSession resumes the session --resume or --continue names, or starts
-// a new one for this directory.
+// a new one for this directory, and takes its lease: one process runs
+// turns in a session at a time. A session another process holds is
+// refused with who holds it; --fork continues in a copy instead.
 func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.Session, []llm.Message, error) {
+	session.SetHolder(holderFor(o))
 	resumeID := o.resume
 	if o.cont && resumeID == "" {
 		var err error
@@ -209,13 +212,53 @@ func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.
 		if err != nil {
 			return nil, nil, fmt.Errorf("resume: %w", err)
 		}
+		if o.fork {
+			ns, err := session.Fork(sessDir, sess, "")
+			if err != nil {
+				return nil, nil, fmt.Errorf("fork: %w", err)
+			}
+			if err := ns.EnsureWritten(); err != nil {
+				return nil, nil, fmt.Errorf("fork: %w", err)
+			}
+			sess = ns
+		}
+		if err := sess.Acquire(); err != nil {
+			return nil, nil, leaseRefusal(err)
+		}
 		return sess, history, nil
 	}
 	sess, err := session.New(sessDir, cwd, cfg.Provider, cfg.Model)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create session: %w", err)
 	}
+	if err := sess.Acquire(); err != nil {
+		return nil, nil, leaseRefusal(err)
+	}
 	return sess, nil, nil
+}
+
+// leaseRefusal adds the ways on to a session another process holds.
+func leaseRefusal(err error) error {
+	var le *session.LeasedError
+	if !errors.As(err, &le) {
+		return err
+	}
+	return fmt.Errorf("%w\n  janetcode --resume %s --fork   continue in a copy of it\n  janetcode --show %s           read it without opening it", err, le.ID, le.ID)
+}
+
+// holderFor names this process for a lease refusal another one shows.
+func holderFor(o *options) string {
+	switch {
+	case o.acpMode:
+		return "an editor (ACP)"
+	case o.web:
+		return "the web interface"
+	case os.Getenv(headless.BgEnv) != "":
+		return "a background run"
+	case o.promptText != "" || o.watchCmd != "" || o.recipeName != "":
+		return "a headless run"
+	}
+	return "the terminal interface"
 }
 
 // maxBackgroundStdin is the most piped input --bg will fold into the
