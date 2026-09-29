@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -232,6 +233,39 @@ func TestWrappersAreReadAsTheyRun(t *testing.T) {
 		"env -C sub rm locked_test.go":       "/work/repo/sub/locked_test.go",
 	} {
 		if got := WriteTargets(cmd, root); !slices.Contains(got, want) {
+			t.Errorf("WriteTargets(%q) = %v, missing %s", cmd, got, want)
+		}
+	}
+}
+
+// find is not a mutator, so nothing looked at what its actions change:
+// `find / -delete` and `find . -exec rm -rf / \;` both graded ordinary.
+func TestFindActionsAreJudged(t *testing.T) {
+	root := t.TempDir()
+	for cmd, want := range map[string]Risk{
+		`find . -exec rm -rf / \;`:               RiskCatastrophic,
+		"find . -exec sh -c 'rm -rf ~' \\;":      RiskCatastrophic,
+		"find / -delete":                         RiskEscapes,
+		"find ~ -name '*.orig' -delete":          RiskEscapes,
+		"find -L /etc -name x -delete":           RiskEscapes,
+		"find ~/proj -name x -exec rm {} +":      RiskEscapes,
+		"find /etc -exec sudo rm -f {} \\;":      RiskEscapes,
+		"find . -name x -fprint ~/.bashrc":       RiskEscapes,
+		"find . -name '*.orig' -delete":          RiskOrdinary,
+		"find . -name x -exec rm {} +":           RiskOrdinary,
+		"find /usr/include -exec grep -l x {} +": RiskOrdinary,
+		"find /etc -name '*.conf'":               RiskOrdinary,
+	} {
+		if got, why := Classify(cmd, root); got != want {
+			t.Errorf("Classify(%q) = %v %q, want %v", cmd, got, why, want)
+		}
+	}
+	for cmd, want := range map[string]string{
+		"find . -name x -fprint out.txt":              "out.txt",
+		"find . -exec sed -i s/a/b/ locked_test.go ;": "locked_test.go",
+		"find sub -delete":                            "sub",
+	} {
+		if got := WriteTargets(cmd, root); !slices.Contains(got, filepath.Join(root, want)) {
 			t.Errorf("WriteTargets(%q) = %v, missing %s", cmd, got, want)
 		}
 	}

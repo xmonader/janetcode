@@ -392,6 +392,11 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 			return RiskCatastrophic, c.reason
 		}
 	}
+	if toks[0] == "find" {
+		if r, why := findRisk(toks, seg, root, cwd, cwdKnown, depth); r != RiskOrdinary {
+			return r, why
+		}
+	}
 	if mutators[toks[0]] {
 		for _, tk := range toks[1:] {
 			if strings.HasPrefix(tk, "-") {
@@ -449,6 +454,119 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 		}
 	}
 	return redirectRisk(seg, root, cwd, cwdKnown)
+}
+
+// findCommand splits a find invocation into its starting points and the
+// actions that change things: whether it -deletes, the files its
+// -fprint family writes, and the commands its -exec family runs (with {}
+// standing for the files found, left in place).
+func findCommand(toks []string) (starts []string, deletes bool, writes []string, execs [][]string) {
+	i := 1
+	for i < len(toks) && (toks[i] == "-H" || toks[i] == "-L" || toks[i] == "-P" || strings.HasPrefix(toks[i], "-O") || toks[i] == "-D") {
+		if toks[i] == "-D" {
+			i++
+		}
+		i++
+	}
+	for ; i < len(toks); i++ {
+		tk := toks[i]
+		if strings.HasPrefix(tk, "-") || tk == "(" || tk == "!" || tk == ")" {
+			break
+		}
+		starts = append(starts, tk)
+	}
+	if len(starts) == 0 {
+		starts = []string{"."}
+	}
+	for ; i < len(toks); i++ {
+		switch toks[i] {
+		case "-delete":
+			deletes = true
+		case "-fprint", "-fprint0", "-fprintf", "-fls":
+			if i+1 < len(toks) {
+				writes = append(writes, toks[i+1])
+				i++
+			}
+		case "-exec", "-execdir", "-ok", "-okdir":
+			j := i + 1
+			for j < len(toks) && toks[j] != ";" && toks[j] != "+" {
+				j++
+			}
+			if j > i+1 {
+				execs = append(execs, toks[i+1:j])
+			}
+			i = j
+		}
+	}
+	return starts, deletes, writes, execs
+}
+
+// findRisk grades what a find changes. `find / -delete`, `find ~ -exec rm
+// {} +` and `find . -exec rm -rf / \;` were all ordinary: find is not a
+// mutator, so nothing looked at its actions. The command an -exec runs is
+// judged like any other, with {} as a file of the current directory; and
+// a find that deletes, or hands its files to a mutator, changes what lies
+// under its starting points, so those are judged as write targets.
+// Outside the workspace that asks rather than refuses: the filters decide
+// what is touched, and `find ~/x -name '*.orig' -delete` is not rm -rf.
+func findRisk(toks []string, seg, root, cwd string, cwdKnown bool, depth int) (Risk, string) {
+	starts, deletes, writes, execs := findCommand(toks)
+	worst, reason := RiskOrdinary, ""
+	for _, w := range writes {
+		r, why := judgeWrite("find writes", w, root, cwd, cwdKnown)
+		worst, reason = worse(worst, reason, r, why)
+	}
+	for _, ex := range execs {
+		sub := make([]string, len(ex))
+		for k, w := range ex {
+			sub[k] = strings.ReplaceAll(w, "{}", ".")
+		}
+		r, why := classifyWords(sub, strings.Join(sub, " "), root, cwd, cwdKnown, depth+1)
+		worst, reason = worse(worst, reason, r, why)
+		inner := commandWords(ex)
+		for n := 0; n <= MaxWrapperDepth && len(inner) > 0; n++ {
+			if inner[0] == "env" {
+				inner, _, _ = envWrapped(inner)
+			} else if _, ok := wrapperArgFlags[inner[0]]; ok || inner[0] == "nohup" || inner[0] == "command" || inner[0] == "builtin" || inner[0] == "unbuffer" {
+				inner = wrapped(inner)
+			} else {
+				break
+			}
+			inner = commandWords(inner)
+		}
+		if len(inner) > 0 && mutators[inner[0]] && slices.ContainsFunc(ex, func(w string) bool { return strings.Contains(w, "{}") }) {
+			deletes = true
+		}
+	}
+	if deletes {
+		for _, s := range starts {
+			r, why := judgeWrite("find changes files under", s, root, cwd, cwdKnown)
+			if r == RiskCatastrophic {
+				r = RiskEscapes
+			}
+			worst, reason = worse(worst, reason, r, why)
+		}
+	}
+	return worst, reason
+}
+
+// judgeWrite grades one path a command writes, the way the redirect and
+// output-flag checks do.
+func judgeWrite(verb, tk, root, cwd string, cwdKnown bool) (Risk, string) {
+	if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
+		return RiskUnknown, "the working directory is unclear after cd, so " + verb + " " + tk + " cannot be judged"
+	}
+	abs, ok := resolvePathArg(tk, cwd)
+	if !ok {
+		return fuzzyTarget(verb, tk, cwd, cwdKnown, root)
+	}
+	if catastrophicTarget(abs) {
+		return RiskCatastrophic, verb + " " + abs
+	}
+	if p, out := escapesResolved(abs, tk, root); out {
+		return RiskEscapes, verb + " " + p + ", outside the workspace"
+	}
+	return RiskOrdinary, ""
 }
 
 // redirectRisk grades a segment's redirections: they write wherever they
@@ -895,6 +1013,25 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 		writeTargetsAt(strings.Join(toks[1:], " "), root, cwd, cwdKnown, depth+1, add)
 		addRedirects(seg, cwd, add)
 		return
+	case "find":
+		starts, deletes, writes, execs := findCommand(toks)
+		for _, ex := range execs {
+			var sub []string
+			for _, w := range ex {
+				if w != "{}" {
+					sub = append(sub, w)
+				}
+			}
+			collectWriteTargets(strings.Join(sub, " "), sub, root, cwd, cwdKnown, depth+1, add)
+		}
+		if deletes {
+			writes = append(writes, starts...)
+		}
+		for _, w := range writes {
+			if abs, ok := resolvePathArg(w, cwd); ok {
+				add(abs)
+			}
+		}
 	}
 	if mutators[toks[0]] {
 		for _, tk := range toks[1:] {
