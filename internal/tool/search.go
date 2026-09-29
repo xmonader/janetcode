@@ -204,6 +204,10 @@ func (Grep) Schema() json.RawMessage {
 const (
 	maxGrepResults = 500
 	maxGrepLine    = 500
+	// maxScanLine is how much of one line is searched; maxLongNotes how
+	// many lines past it the result names one by one.
+	maxScanLine  = 1 << 20
+	maxLongNotes = 5
 )
 
 func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
@@ -249,8 +253,8 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var sb strings.Builder
-	count := 0
+	var sb, long strings.Builder
+	count, longLines := 0, 0
 	grepFile := func(display, full string) error {
 		f, err := openOf(ctx, t.WS, full)
 		if err != nil {
@@ -268,23 +272,35 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if isBinary(head[:n]) {
 			return nil
 		}
-		sc := bufio.NewScanner(io.MultiReader(bytes.NewReader(head[:n]), f))
-		sc.Buffer(make([]byte, 1024*1024), 1024*1024)
+		// Not a bufio.Scanner: on a line longer than its buffer (a
+		// minified bundle, a data blob) it stops, and every match after
+		// that line went unreported. A long line is searched up to
+		// maxScanLine and the rest of it skipped, which the result says.
+		br := bufio.NewReader(io.MultiReader(bytes.NewReader(head[:n]), f))
 		ln := 0
-		for sc.Scan() {
-			ln++
-			line := sc.Text()
-			if !re.MatchString(line) {
-				continue
+		for {
+			raw, clipped, rerr := readLineCapped(br, maxScanLine)
+			if rerr != nil && len(raw) == 0 && !clipped {
+				return nil // end of file, or a read error: stop this file
 			}
-			line = textfmt.ClipBytes(line, maxGrepLine)
-			fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, line)
-			count++
-			if count >= maxGrepResults {
-				return errLimit
+			ln++
+			if clipped {
+				if longLines < maxLongNotes {
+					fmt.Fprintf(&long, "(%s:%d is longer than %d MiB; only its first %d MiB was searched)\n", display, ln, maxScanLine>>20, maxScanLine>>20)
+				}
+				longLines++
+			}
+			if line := string(raw); re.MatchString(line) {
+				fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, textfmt.ClipBytes(line, maxGrepLine))
+				count++
+				if count >= maxGrepResults {
+					return errLimit
+				}
+			}
+			if rerr != nil {
+				return nil
 			}
 		}
-		return nil
 	}
 	if !st.IsDir() {
 		err = grepFile(in.Path, target)
@@ -299,13 +315,44 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if err != nil && err != errLimit {
 		return "", err
 	}
+	if longLines > maxLongNotes {
+		fmt.Fprintf(&long, "(%d more lines longer than %d MiB were searched only in part)\n", longLines-maxLongNotes, maxScanLine>>20)
+	}
 	if count == 0 {
+		if long.Len() > 0 {
+			return "No matches.\n" + long.String(), nil
+		}
 		return "No matches.", nil
 	}
 	if err == errLimit {
 		fmt.Fprintf(&sb, "(stopped at %d matches; narrow the pattern)\n", maxGrepResults)
 	}
+	sb.WriteString(long.String())
 	return textfmt.Truncate(sb.String()), nil
 }
 
 var errLimit = fmt.Errorf("limit reached")
+
+// readLineCapped reads one line from r without its "\n" or "\r\n", the
+// way bufio.ScanLines splits, keeping at most max bytes of it and
+// discarding the rest; clipped says whether any was discarded. err is
+// the read error that ended the line (io.EOF for a last line with no
+// newline), with whatever of the line was read before it.
+func readLineCapped(r *bufio.Reader, max int) (line []byte, clipped bool, err error) {
+	for {
+		frag, e := r.ReadSlice('\n')
+		if e == nil {
+			frag = frag[:len(frag)-1] // the newline ends the line; it is not content
+		}
+		if room := max - len(line); len(frag) > room {
+			line = append(line, frag[:room]...)
+			clipped = true
+		} else {
+			line = append(line, frag...)
+		}
+		if e == bufio.ErrBufferFull {
+			continue
+		}
+		return bytes.TrimSuffix(line, []byte("\r")), clipped, e
+	}
+}

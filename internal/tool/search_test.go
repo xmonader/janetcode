@@ -1,9 +1,12 @@
 package tool
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -82,6 +85,46 @@ func TestGlob(t *testing.T) {
 	out, _ = g.Run(context.Background(), raw(`{"pattern":"*.go","path":"pkg"}`))
 	if strings.Contains(out, "main.go") || !strings.Contains(out, "hello.go") {
 		t.Fatalf("path scoping wrong: %q", out)
+	}
+}
+
+// A line longer than the scanner's buffer (a minified bundle, a data
+// blob) stopped the scan of its file without a word, so every match after
+// it was reported as not there.
+func TestGrepSearchesPastAnOverlongLine(t *testing.T) {
+	root := t.TempDir()
+	body := "needle one\n" + strings.Repeat("x", 3<<20) + "\nneedle two\n"
+	os.WriteFile(filepath.Join(root, "big.txt"), []byte(body), 0o644)
+	out, err := Grep{Root: root}.Run(context.Background(), raw(`{"pattern":"needle"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "big.txt:1:needle one") || !strings.Contains(out, "big.txt:3:needle two") {
+		t.Fatalf("out = %q", out)
+	}
+	if !strings.Contains(out, "big.txt:2") || !strings.Contains(out, "only its first") {
+		t.Fatalf("the clipped line is not noted: %q", out)
+	}
+}
+
+// readLineCapped splits the way bufio.ScanLines did (CRLF, a last line
+// with no newline, empty lines) and clips only past max.
+func TestReadLineCapped(t *testing.T) {
+	r := bufio.NewReaderSize(strings.NewReader("a\r\n\nbc\n"+strings.Repeat("y", 40)+"\nlast"), 16)
+	var got []string
+	for {
+		line, clipped, err := readLineCapped(r, 20)
+		if err != nil && len(line) == 0 && !clipped {
+			break
+		}
+		got = append(got, fmt.Sprintf("%s/%v", line, clipped))
+		if err != nil {
+			break
+		}
+	}
+	want := []string{"a/false", "/false", "bc/false", strings.Repeat("y", 20) + "/true", "last/false"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
