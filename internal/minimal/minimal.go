@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
+	"os"
 )
 
 // New returns a minimal agent rooted at root. Model, token, iteration,
@@ -78,6 +79,11 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 		ag.Tools.Add(script)
 	} else {
 		ag.Tools.Add(&agent.RunCode{Parent: ag})
+	}
+	// The explore-then-compile experiment (docs/benchmarks/jit): the eval
+	// agent offers run_plan under the same switch as a real session.
+	if os.Getenv("JANETCODE_JIT") != "" {
+		ag.Tools.Add(&agent.RunPlan{Parent: ag})
 	}
 	// Intent follows the product default, so a measurement is of what
 	// users actually run; off["intent"] forces it off.
