@@ -505,6 +505,12 @@ func (b *agentBuilder) stepAgentTools() error {
 		ag.Tools.Add(&agent.RunCode{Parent: ag})
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
+	// run_plan is the compiled half of the explore-then-compile loop, an
+	// experiment on development_jit (docs/benchmarks/jit): offered only
+	// when JANETCODE_JIT is set, so the A/B arms differ in this alone.
+	if os.Getenv("JANETCODE_JIT") != "" {
+		ag.Tools.Add(&agent.RunPlan{Parent: ag})
+	}
 	ag.Tools.Add(&agent.CronTool{Cron: b.cron})
 	ag.Tools.Add(&memory.Tool{Store: b.d.mem})
 	return nil
