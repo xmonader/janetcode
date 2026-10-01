@@ -6,11 +6,29 @@ hands the rest of the work over as one program that the harness runs
 without model calls in between (`run_plan`), falling back to the model
 only where a check fails.
 
-**Verdict: most of the value is a prompt, not a compiler.** A 110-word
-instruction to batch work cut qwen3.8-27b's cost per solved multistep task
-by 73% and its wall-clock by 55% at the same pass rate. `run_plan` added
-nothing over that prompt for qwen, and for deepseek-v4.1-flash it helped
-only on fan-out tasks, with low adoption (19–37% of runs).
+**Verdict, corrected the same evening: inconclusive, and the headline
+result in the first version of this report was wrong.** The ai02 broker
+began serving Kimi (Moonshot AI) for *every* model name at about
+21:52 CEST on 2026-10-01, in the middle of these runs: responses carry
+`x_aibroker.provider: "kimi"`, tool-call ids switch from the providers'
+own formats (`call_…`, `toolu_…`) to Kimi's `tool_…`, and every model
+answers "I'm Kimi". Classifying each run by its tool-call ids:
+
+| arms | served by |
+|---|---|
+| deepseek multistep A, B, C | deepseek (all 36 runs each) |
+| deepseek fanout A, B | deepseek |
+| deepseek fanout C | **mixed**: 12 deepseek, 15 Kimi |
+| qwen3.8-27b multistep A | qwen (33), Kimi (3) |
+| qwen3.8-27b multistep B, C; fanout A, B, C | **Kimi** (all runs) |
+
+So the "73% cheaper with a batching prompt" result compared qwen (A)
+against Kimi (B): it measured the model swap, not the prompt, and is
+withdrawn. So is the deepseek fan-out `run_plan` result. What survives is
+one clean comparison — deepseek-v4.1-flash on multistep — where neither
+the prompt nor `run_plan` changed anything (table below). The qwen and
+fan-out-C rows are kept for the record, marked, and must not be read as
+evidence.
 
 ## 1. The opportunity, measured on recorded sessions
 
@@ -48,46 +66,37 @@ and `fanout` (9 tasks applying one change across many files).
 | model | set | arm | pass | model calls | context in | out | $/solved | wall |
 |---|---|---|---|---|---|---|---|---|
 | qwen3.8-27b | multistep | A | 35/36 | 10.6 | 117k | 10.6k | 0.0489 | 148s |
-| | | B | 36/36 | **6.3** | **43k** | **2.7k** | **0.0133** | **66s** |
-| | | C | 36/36 | 6.8 | 52k | 2.7k | 0.0141 | 68s |
-| | fanout | A | 27/27 | 4.0 | 19k | 0.6k | 0.0038 | 18s |
-| | | B | 27/27 | 4.5 | 23k | 0.7k | 0.0048 | 23s |
-| | | C | 27/27 | 3.7 | 20k | 0.6k | 0.0042 | 17s |
+| | | B ⚠ Kimi | 36/36 | 6.3 | 43k | 2.7k | 0.0133 | 66s |
+| | | C ⚠ Kimi | 36/36 | 6.8 | 52k | 2.7k | 0.0141 | 68s |
+| | fanout | A ⚠ Kimi | 27/27 | 4.0 | 19k | 0.6k | 0.0038 | 18s |
+| | | B ⚠ Kimi | 27/27 | 4.5 | 23k | 0.7k | 0.0048 | 23s |
+| | | C ⚠ Kimi | 27/27 | 3.7 | 20k | 0.6k | 0.0042 | 17s |
 | deepseek-v4.1-flash | multistep | A | 35/36 | 6.1 | 39k | 3.4k | 0.0051 | 19s |
 | | | B | 35/36 | 5.8 | 38k | 3.9k | 0.0054 | 22s |
 | | | C | 36/36 | 5.9 | 43k | 3.9k | 0.0057 | 24s |
 | | fanout | A | 27/27 | 4.9 | 27k | 0.8k | 0.0020 | 11s |
 | | | B | 27/27 | 5.0 | 28k | 1.0k | 0.0021 | 13s |
-| | | C | 27/27 | **3.7** | **21k** | 0.7k | **0.0009** | 14s |
-
-Per task, qwen's B gain is broad, not one outlier: model calls per run went
-from e.g. 6/8/6 → 4/4/4 (51), 11/6/8 → 4/4/4 (54), 27/48/28 → 14/4/4 (61).
-One B run of 62 took 36 calls. No pass-rate difference is significant at
-the corrected 0.0125.
+| | | C ⚠ mixed | 27/27 | 3.7 | 21k | 0.7k | 0.0009 | 14s |
 
 ## What it means
 
-- **The waste is a model habit, and a prompt fixes it where it exists.**
-  qwen3.8-27b interprets one step at a time unless told otherwise; told,
-  it batches, and the savings are large. deepseek-v4.1-flash already
-  batches, so neither the prompt nor the tool moves it on multistep work.
-- **`run_plan` is not worth shipping on this evidence.** Over the batching
-  prompt it changed nothing for qwen (C vs B: +$0.0008/solved, context
-  ×1.19). Its one win — deepseek fan-out, $0.0020 → $0.0009 — rests on 27
-  runs with the tool used in 10 of them, and wall-clock got worse, not
-  better. The model reaches for `execute_code` instead, which already is a
-  program that calls tools.
-- **The safety half of the idea is untested.** A whole-plan check needs a
-  plan the model actually writes; at 19–37% adoption there is not one to
-  check most of the time.
+- On the one clean comparison (deepseek-v4.1-flash, multistep) the
+  compiled loop and the batching prompt both did nothing: 6.1 → 5.8 → 5.9
+  model calls, cost flat. deepseek already batches on its own.
+- Whether a prompt or `run_plan` helps a model that does *not* batch —
+  the qwen3.7-plus habit the session analysis found — is untested. That
+  was the whole point of the qwen arms.
+- `run_plan` adoption was low (about a third of deepseek runs), and the
+  safety half of the idea (checking a whole plan) is untested.
 
 ## Next
 
-1. Make the batching guidance part of the default prompt, gated by
-   measurement: rerun A vs B on qwen3.7-plus (the model most of the recorded
-   sessions use), mimo-v2.6-flash and the `hard` set, and ship only if no
-   pass rate drops.
-2. Leave `run_plan` on this branch, off by default.
+1. Before any further live run, check the provider fingerprint (response
+   `x_aibroker.provider`, the tool-call id prefix) and abort when it is
+   not the model asked for. An eval should record the serving provider
+   per call so this cannot pass unnoticed again.
+2. Rerun qwen A/B/C, and deepseek fan-out C, once the broker serves the
+   named models again — or against the providers directly.
 
 ## Reproduce
 
