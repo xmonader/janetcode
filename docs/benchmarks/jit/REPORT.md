@@ -78,7 +78,37 @@ and `fanout` (9 tasks applying one change across many files).
 | | | B | 27/27 | 5.0 | 28k | 1.0k | 0.0021 | 13s |
 | | | C ⚠ mixed | 27/27 | 3.7 | 21k | 0.7k | 0.0009 | 14s |
 
-## What it means
+## 3. Rerun on routes that serve the named models (2026-10-02)
+
+The broker's self-hosted routes `XiaomiMiMo/MiMo-V2.6-Flash-RL` (gpu_octo)
+and `Qwen/Qwen3.8-27B-FP8` (gpu_vast) answer as MiMo and Qwen and issue
+their own tool-call ids; every run below was checked and none was served
+by Kimi. Multistep set, 2 runs per task, one task at a time. Both routes
+dropped many requests (HTTP 429, 504 "no reply over mycelium"); those runs
+are excluded, and every run that reached the model passed.
+
+| model | arm | usable / 24 | pass | model calls | input | wall |
+|---|---|---|---|---|---|---|
+| MiMo-V2.6-Flash | A | 15 | 15/15 | 5.9 | 35k | 55s |
+| | B | 15 | 15/15 | 5.1 | 29k | 48s |
+| | C | 13 | 13/13 | 5.9 | 37k | 52s |
+| Qwen3.8-27B | A | 10 | 10/10 | 7.0 | — | — |
+| | B | 8 | 8/8 | 6.9 | — | — |
+| | C | — | stopped at the 2-hour limit | | | |
+
+Paired by task over the tasks both arms completed, MiMo: B/A model calls
+0.89 [0.78, 1.02], input tokens 0.88 [0.76, 1.05] (8 tasks); C/A model
+calls 1.15 [0.85, 1.35], input tokens 1.31 [0.92, 1.58] (6 tasks).
+`run_plan` was used in 1 of 24 MiMo runs.
+
+**Conclusion across the clean data (deepseek, MiMo, Qwen):** `run_plan`
+does not pay — the models barely use it and it reduces nothing. The
+batching prompt is at most a modest saving (about 10%, interval includes
+none) on models that already batch. The case the idea was for — a model
+with the one-step-at-a-time habit seen in the recorded qwen3.7-plus
+sessions — was never tested on a model that has it.
+
+## What it meant before the rerun
 
 - On the one clean comparison (deepseek-v4.1-flash, multistep) the
   compiled loop and the batching prompt both did nothing: 6.1 → 5.8 → 5.9
