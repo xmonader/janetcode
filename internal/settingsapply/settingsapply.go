@@ -94,7 +94,7 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 	case "advisor_turn_start_style":
 		a.SetTurnStartStyle(cfg.AdvisorTurnStartStyle)
 	case "verify_baseline":
-		a.SetVerifyBaseline(cfg.VerifyBaseline)
+		a.SetVerifyBaseline(cfg.VerifyBaselineEnabled())
 	case "sandbox":
 		// The key is the project's default profile, so setting it
 		// changes what a running sandbox enforces but does not turn one

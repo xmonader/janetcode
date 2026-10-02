@@ -75,7 +75,11 @@ func TestEvalVerifyRunnerPrefersTheTaskFile(t *testing.T) {
 func evalGateTestConfig(t *testing.T, key string) *config.Config {
 	t.Helper()
 	t.Setenv("JEV_EVAL_TEST_KEY", key)
-	return &config.Config{Model: "m", Decisions: &config.DecisionsConfig{
+	// Triage is what these tests measure: with the pre-edit baseline on
+	// (the default) a failure that was already there is reported rather
+	// than sent back, and never reaches triage.
+	off := false
+	return &config.Config{Model: "m", VerifyBaseline: &off, Decisions: &config.DecisionsConfig{
 		Model: "jev-1.13.0", Triage: true, Intake: true, APIKeyEnv: "JEV_EVAL_TEST_KEY",
 	}}
 }

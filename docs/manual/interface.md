@@ -3019,10 +3019,16 @@ one-off equivalent.
 
 #### Failures that were there before the turn: `verify_baseline`
 
+On by default since the 2026-10-02 A/B
+([orient-baseline](../benchmarks/orient-baseline/REPORT.md)): on the
+held-out controls whose checks fail for a reason outside the repository
+the gate alone passed 0 of 4 runs and the gate with a baseline 5 of 5,
+with no task lost elsewhere. `"verify_baseline": false` (or `/config
+verify_baseline=false`) turns it off.
+
 In a repository whose tests were already red, the gate sends every turn
-back to "fix" failures it did not cause, at a model call per round.
-`"verify_baseline": true` (or `/config verify_baseline=true`) runs the
-commands once more at the start of each turn, in the background, on the
+back to "fix" failures it did not cause, at a model call per round. So
+janetcode runs the commands once more at the start of each turn, in the background, on the
 tree as it was. The turn's first change waits for that run to finish (at
 most three minutes; past that the turn carries on without a baseline), so
 the baseline really is the state before the turn. At the end, every

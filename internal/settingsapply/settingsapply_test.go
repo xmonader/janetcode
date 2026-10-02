@@ -105,7 +105,7 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		{"verify_baseline", "true",
 			func(a *agent.Agent) { a.VerifyBaseline = false },
 			func(a *agent.Agent) any { return a.VerifyBaseline },
-			func(cfg *config.Config) any { return cfg.VerifyBaseline }},
+			func(cfg *config.Config) any { return cfg.VerifyBaselineEnabled() }},
 		{"language", "Spanish",
 			func(a *agent.Agent) { a.SetLanguage("") },
 			func(a *agent.Agent) any { return a.Language() },

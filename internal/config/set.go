@@ -107,7 +107,7 @@ var setters = map[string]setter{
 		}
 		return nil, fmt.Errorf("advisor_turn_start_style wants plan or orient")
 	},
-	"verify_baseline": boolKey(func(c *Config) *bool { return &c.VerifyBaseline }),
+	"verify_baseline": boolPtr(func(c *Config) **bool { return &c.VerifyBaseline }),
 
 	// The decisions block. Setting any of these on a config that has no
 	// block writes one, pinned to the default slug, because a block

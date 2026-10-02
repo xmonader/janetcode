@@ -446,7 +446,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.AdvisorMode = d.cfg.AdvisorMode
 	ag.AdvisorMaxConsults = d.cfg.AdvisorMaxConsults
 	ag.TurnStartStyle = d.cfg.AdvisorTurnStartStyle
-	ag.VerifyBaseline = d.cfg.VerifyBaseline
+	ag.VerifyBaseline = d.cfg.VerifyBaselineEnabled()
 	ag.StrongModel = d.cfg.StrongModel
 	ag.SetVisionModel(d.cfg.VisionModel)
 	ag.SetLanguage(d.cfg.Language)

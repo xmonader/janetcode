@@ -66,7 +66,7 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 	ag.AdvisorMode = cfg.AdvisorMode
 	ag.AdvisorMaxConsults = cfg.AdvisorMaxConsults
 	ag.TurnStartStyle = cfg.AdvisorTurnStartStyle
-	ag.VerifyBaseline = cfg.VerifyBaseline
+	ag.VerifyBaseline = cfg.VerifyBaselineEnabled()
 	ag.LikelyFiles = func(ctx context.Context, request string) (string, []string) {
 		return repomap.Likely(ctx, repo, request, 4)
 	}

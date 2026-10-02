@@ -253,10 +253,11 @@ type Config struct {
 	AdvisorTurnStartStyle string `json:"advisor_turn_start_style,omitempty"`
 	// VerifyBaseline runs the verify commands at the start of each turn,
 	// before the first change, so the gate sends a turn back only for the
-	// failures it caused, not for ones that were already there. Off by
-	// default until measured; it costs one extra run of the checks per
-	// turn, in the background.
-	VerifyBaseline bool `json:"verify_baseline,omitempty"`
+	// failures it caused, not for ones that were already there. On by
+	// default since the 2026-10-02 A/B (docs/benchmarks/orient-baseline):
+	// nil is on, false turns it off. It costs one extra run of the checks
+	// per turn, in the background.
+	VerifyBaseline *bool `json:"verify_baseline,omitempty"`
 	// StrongModel is the strong slot of the cheap/default/strong trio:
 	// route_cheap names the cheap one, model the default, this one the
 	// model a failing turn escalates to. Empty means there is no tier
@@ -436,6 +437,11 @@ func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }
 // ProofNotesEnabled reports whether commits made this session get proof
 // notes attached automatically.
 func (c *Config) ProofNotesEnabled() bool { return c.ProofNotes == nil || *c.ProofNotes }
+
+// VerifyBaselineEnabled reports whether the gate compares with a baseline
+// run of the checks taken before the turn's first change; on unless the
+// config says false.
+func (c *Config) VerifyBaselineEnabled() bool { return c.VerifyBaseline == nil || *c.VerifyBaseline }
 
 // ModelMeta is what a provider's model list said about one model.
 type ModelMeta struct {
