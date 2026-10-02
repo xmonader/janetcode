@@ -368,6 +368,9 @@ type Response struct {
 	// is a measurement error, not a saving -- so the served name is
 	// carried back rather than assumed to equal the requested one.
 	Model string
+	// Served is what the response said about who served it (see
+	// Provenance). Model above is Served.Model, kept for its callers.
+	Served Provenance
 }
 
 // EventType identifies a streaming event.

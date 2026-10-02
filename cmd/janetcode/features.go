@@ -64,6 +64,7 @@ var flagWhen = map[string]string{
 	"eval-timeout":           "giving every harness in a benchmark the same wall budget",
 	"eval-max-turns":         "bounding what one task may spend in model calls",
 	"eval-no-tool-limit":     "comparing against harnesses that enforce no tool budget",
+	"eval-strict-provenance": "a gateway might answer one model name with another model, and a run it swapped should fail the eval rather than be left out",
 	"eval-gate":              "measuring the verification gate itself, or what failure triage does to a run",
 	"inspect":                "you want one part of the state printed and nothing else to happen",
 	"worktree":               "two sessions on one repository, or a change you want as a branch to review",

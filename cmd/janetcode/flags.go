@@ -57,6 +57,7 @@ type options struct {
 	evalTimeout  time.Duration
 	evalTurns    int
 	evalNoLimit  bool
+	evalStrict   bool
 	evalGate     bool
 	inspectWhat  string
 	wtBranch     string
@@ -280,6 +281,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.evalTurns, "eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 	fs.BoolVar(&o.evalGate, "eval-gate", false, "run eval tasks under a verification gate: the work directory's .janetcode/verify.json, or the checks for its project type, run after a turn that changed something, and the configured decision provider (config \"decisions\", off with --eval-off decisions) may triage a failure. Off by default: a gate changes tool counts, pass rates and cost, so every baseline in this repository was recorded without one")
 	fs.BoolVar(&o.evalNoLimit, "eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+	fs.BoolVar(&o.evalStrict, "eval-strict-provenance", false, "fail the whole eval when any run was answered by another vendor's model than the one requested, instead of leaving those runs out of the scores")
 	fs.StringVar(&o.inspectWhat, "inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; --inspect list names them all")
 	fs.StringVar(&o.wtBranch, "worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
 	fs.StringVar(&o.pluginCmd, "plugin", "", "manage plugins from the shell, then exit: the arguments /plugin takes, e.g. --plugin \"install https://github.com/someone/kit\", --plugin list, --plugin \"trust kit\"")

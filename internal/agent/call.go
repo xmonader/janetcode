@@ -162,6 +162,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		if prov != nil {
 			a.lastCallProvider = prov.Name()
 		}
+		a.checkServed(model, resp, emit)
 	}
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()

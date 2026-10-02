@@ -3,6 +3,7 @@ package headless
 import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // The result object is defined here, by the package that writes it; the
@@ -60,6 +61,14 @@ type CLIResult struct {
 	// a later attempt. The wait is already in duration_ms; this says how
 	// much of it was the provider refusing rather than thinking.
 	Retries int `json:"retries"`
+	// Served is what the last model call's response said about who served
+	// it (llm.Provenance); Mismatches counts the calls whose response named
+	// another vendor than the requested model's, and Mismatch is the first
+	// verdict. A benchmark reading this result can tell the model it asked
+	// for from the one a gateway substituted.
+	Served     *llm.Provenance `json:"served,omitempty"`
+	Mismatches int             `json:"provenance_mismatches,omitempty"`
+	Mismatch   string          `json:"provenance_mismatch,omitempty"`
 	// Decisions is the optional decision provider's footprint (internal/
 	// jev): null until its first call, so a session that never consulted
 	// it is indistinguishable from one without the feature configured.

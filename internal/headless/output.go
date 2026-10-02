@@ -409,6 +409,11 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		if calls, _ := st.ToolCalls(); calls > 0 {
 			res.ToolCalls = calls
 		}
+		if !st.Served.Empty() {
+			served := st.Served
+			res.Served = &served
+		}
+		res.Mismatches, res.Mismatch = st.Mismatches, st.Mismatch
 		res.Recoveries = CLIRecoveries{
 			ProseToolCalls: st.Recoveries,
 			WatchdogKills:  st.WatchdogKills,

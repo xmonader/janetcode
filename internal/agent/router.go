@@ -74,6 +74,13 @@ type modelRouter struct {
 	lastCallProvider string
 	lastCallRoute    string
 	lastCallWhy      string
+	// lastServed and lastMismatch are the most recent call's provenance
+	// and its verdict (see internal/provenance); loggedServed is the last
+	// provenance written to the log, so an unchanged one is not repeated
+	// on every assistant event.
+	lastServed   llm.Provenance
+	lastMismatch string
+	loggedServed llm.Provenance
 	// lastTTFT and lastDecode split the most recent call into waiting
 	// for the provider to start and the provider generating. A single
 	// duration cannot tell a queued call from a long answer, and they

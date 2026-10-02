@@ -118,9 +118,18 @@ type Event struct {
 	Shadowed  []int        `json:"shadowed,omitempty"`
 	Message   *llm.Message `json:"message,omitempty"`
 	Usage     *llm.Usage   `json:"usage,omitempty"`
-	CallID    string       `json:"call_id,omitempty"`
-	Name      string       `json:"name,omitempty"`
-	Arguments string       `json:"arguments,omitempty"`
+	// Served is what an assistant message's response said about who
+	// served it (llm.Provenance). It is written when it changes from the
+	// session's previous call and always when it disagrees with the
+	// requested model, so a long session carries it a handful of times.
+	Served *llm.Provenance `json:"served,omitempty"`
+	// Mismatch is the provenance verdict when the response named another
+	// vendor than the requested model's ("served by moonshot, not
+	// xiaomi (tool ids tool_24)"). Empty for a call that matched.
+	Mismatch  string `json:"mismatch,omitempty"`
+	CallID    string `json:"call_id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
 	// Intent is the model's own one-line reason for a tool call.
 	Intent  string `json:"intent,omitempty"`
 	Output  string `json:"output,omitempty"`
