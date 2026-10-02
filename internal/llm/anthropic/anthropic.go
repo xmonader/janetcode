@@ -704,7 +704,14 @@ func toResponse(msg sdk.Message) (*llm.Response, error) {
 	default:
 		stop = llm.StopOther
 	}
+	// What the response said about who built it: a Messages endpoint in
+	// front of another vendor still answers in Anthropic's shape, but its
+	// message and tool-call ids are its own (a broker serving Kimi under
+	// a Claude name returns chatcmpl- ids and tool_ ones).
+	served := llm.Provenance{Model: string(msg.Model), IDPrefix: llm.IDPrefix(msg.ID), ToolIDs: llm.ToolIDsOf(out)}
 	return &llm.Response{
+		Model:      string(msg.Model),
+		Served:     served,
 		Message:    out,
 		StopReason: stop,
 		Usage: llm.Usage{

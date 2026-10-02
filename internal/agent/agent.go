@@ -642,8 +642,9 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.addUsage(a.lastCallModel, resp.Usage)
 	msg := resp.Message
 	u := resp.Usage
+	served, mismatch := a.servedForLog()
 	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true,
-		Message: &msg, Usage: &u, Model: a.lastCallModel,
+		Message: &msg, Usage: &u, Model: a.lastCallModel, Served: served, Mismatch: mismatch,
 		Slot: a.lastCallSlot, Provider: a.lastCallProvider, Route: a.lastCallRoute, RouteWhy: a.lastCallWhy,
 		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds()})
 	emit(Event{Kind: EvTextBlockDone})

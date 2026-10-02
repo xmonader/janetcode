@@ -103,7 +103,17 @@ type wireJSONSchema struct {
 }
 
 type wireChunk struct {
-	Model   string `json:"model"`
+	ID    string `json:"id"`
+	Model string `json:"model"`
+	// Provider is the upstream a gateway says served the call: OpenRouter
+	// and the ai02 broker put it on chunks. XAIBroker is the broker's
+	// fuller record, on non-streamed replies and sometimes the last chunk.
+	// Both feed llm.Provenance.
+	Provider  string `json:"provider"`
+	XAIBroker *struct {
+		Provider      string `json:"provider"`
+		ProviderModel string `json:"provider_model"`
+	} `json:"x_aibroker"`
 	Choices []struct {
 		Delta struct {
 			Content          wireContent         `json:"content"`

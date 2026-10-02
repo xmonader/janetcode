@@ -136,6 +136,14 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   transiently — a rate limit, a server error — and succeeded on a later
   attempt; the backoff is already inside `duration_ms`, and this says how
   much of the wall time was the provider refusing rather than thinking.
+  `served` is what the last model call's response said about who served
+  it — its `model` field, a gateway's `provider` and `provider_model`,
+  the response `id` prefix and the shape of its `tool_ids` — and
+  `provenance_mismatches` counts the calls whose response named another
+  vendor than the requested model's, with the first verdict in
+  `provenance_mismatch` (both omitted when there were none). A gateway
+  that answers one model name with another model leaves no other trace;
+  see [Which model answered](evals.md#which-model-answered-and-runs-that-never-reached-it).
 
 - `stream-json` prints one JSON object per line as things happen —
   `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,

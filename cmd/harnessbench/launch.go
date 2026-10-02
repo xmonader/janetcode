@@ -178,6 +178,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 		}
 		u := fillUsage(eval.ParseUsageJSON([]byte(stdout)), eval.ParseUsageText(stdout+"\n"+stderr))
 		total = total.Add(u)
+		res.NoteProvenance([]byte(stdout))
 		if len(prompts) > 1 {
 			res.Steps = append(res.Steps, eval.BenchStep{Input: u.Input, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, Output: u.Output, Turns: u.Turns, WallTimeMS: stepWall.Milliseconds()})
 		}

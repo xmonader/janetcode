@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -132,6 +133,33 @@ type BenchTaskResult struct {
 	// Steps is the per-prompt usage of a session task, as the harness
 	// reported it for each invocation.
 	Steps []BenchStep `json:"steps,omitempty"`
+	// Served is what the harness reported about who served its last
+	// model call, and Mismatches how many of its calls another vendor's
+	// model answered, Mismatch the first verdict (janetcode reports all
+	// three in its result envelope; the other harnesses report none). A
+	// row with Mismatches is left out of the totals like an unavailable
+	// one: it measured another model.
+	Served     *llm.Provenance `json:"served,omitempty"`
+	Mismatches int             `json:"provenance_mismatches,omitempty"`
+	Mismatch   string          `json:"provenance_mismatch,omitempty"`
+}
+
+// NoteProvenance folds one invocation's reported provenance into the row:
+// the latest served record, the mismatches summed, the first verdict
+// kept. Output without janetcode's envelope changes nothing.
+func (r *BenchTaskResult) NoteProvenance(stdout []byte) {
+	v, ok := parseJanetResult(stdout)
+	if !ok {
+		return
+	}
+	if v.Served != nil {
+		s := *v.Served
+		r.Served = &s
+	}
+	r.Mismatches += v.Mismatches
+	if r.Mismatch == "" {
+		r.Mismatch = v.Mismatch
+	}
 }
 
 // BenchStep is one prompt of a session on one harness.
@@ -171,14 +199,17 @@ type BenchTotals struct {
 	Passed      int
 	Failed      int
 	Unavailable int
-	WallTime    time.Duration
-	Input       OptInt
-	Output      OptInt
-	CacheRead   OptInt
-	CacheWrite  OptInt
-	ToolCalls   OptInt
-	Turns       OptInt
-	CostUSD     OptFloat
+	// Mismatched counts rows another vendor's model answered: neither
+	// passed nor failed, since the harness was not measured on its model.
+	Mismatched int
+	WallTime   time.Duration
+	Input      OptInt
+	Output     OptInt
+	CacheRead  OptInt
+	CacheWrite OptInt
+	ToolCalls  OptInt
+	Turns      OptInt
+	CostUSD    OptFloat
 }
 
 // ReportMeta is the header of the comparative markdown report.
@@ -294,6 +325,8 @@ func AggregateHarness(results []BenchTaskResult) BenchTotals {
 		t.Tasks++
 		if r.Unavailable {
 			t.Unavailable++
+		} else if r.Mismatches > 0 {
+			t.Mismatched++
 		} else if r.Passed {
 			t.Passed++
 		} else {
@@ -342,7 +375,7 @@ func RenderComparativeReport(byHarness map[string][]BenchTaskResult, meta Report
 	for _, h := range names {
 		tot := AggregateHarness(byHarness[h])
 		fmt.Fprintf(&b, "| %s | %d/%d | %d | %s | %s | %s | %s | %s | %s | %s | %s |\n",
-			h, tot.Passed, tot.Tasks-tot.Unavailable, tot.Unavailable,
+			h, tot.Passed, tot.Tasks-tot.Unavailable-tot.Mismatched, tot.Unavailable+tot.Mismatched,
 			fmtDuration(tot.WallTime),
 			tot.Input, tot.CacheRead, tot.CacheWrite, tot.Output,
 			tot.ToolCalls, tot.Turns, tot.CostUSD)
