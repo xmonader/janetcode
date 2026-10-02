@@ -134,6 +134,15 @@ type Config struct {
 	// VimMode starts the composer in vim mode (normal/insert); /vim
 	// toggles it for the session.
 	VimMode bool `json:"vim_mode,omitempty"`
+	// AskTimeout is how long a question from the ask tool waits for an
+	// answer in an interactive turn before the turn goes on with the
+	// model's recommended choice: a duration ("90s", "5m"), "0" to not
+	// wait, or "forever" (the default, "" too). AskTimeoutUnattended is
+	// the same for a turn nobody is necessarily watching — a --bg run, a
+	// goal round, a /loop firing — default 2m. A question with no
+	// recommendation always waits; see ParseAskWait.
+	AskTimeout           string `json:"ask_timeout,omitempty"`
+	AskTimeoutUnattended string `json:"ask_timeout_unattended,omitempty"`
 	// StatusLine is a command whose output the terminal interface shows
 	// under the input; it gets the session as JSON on stdin.
 	StatusLine *statusline.Config `json:"status_line,omitempty"`
@@ -922,6 +931,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, badf("%s: %v", path, err)
 	}
 	if _, err := cfg.EgressPolicy(); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	if _, _, err := cfg.AskWaits(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
 	if err := ValidateLanguage(cfg.Language); err != nil {

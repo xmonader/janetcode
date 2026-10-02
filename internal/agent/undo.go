@@ -391,6 +391,7 @@ func (a *Agent) endTurn(ctx context.Context) {
 	// accepted against a checkpoint that had no manifest yet, and so
 	// restored the whole tree.
 	defer a.running.Store(false)
+	defer a.endAskTurn()
 	// The turn's event sink goes with the turn: emitter() promises a sink
 	// that drops events when no turn is running, and without this it kept
 	// handing out the finished turn's one.

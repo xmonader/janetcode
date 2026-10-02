@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -33,6 +34,22 @@ type askState struct {
 	// "Other" answer is typed in the composer and finishing clears it,
 	// so the message the user was writing is put back afterwards.
 	draft string
+	// proceeded is set when the turn stopped waiting and went on with the
+	// model's recommendation (agent.AskTimeoutNotifier): the question is
+	// still open, and an answer now reaches the model as a late one.
+	proceeded bool
+}
+
+// askTimedOutMsg is the agent saying the open question no longer holds
+// the turn: the wait ran out and it went on with the recommendation.
+type askTimedOutMsg struct{}
+
+// AskTimedOut is agent.AskTimeoutNotifier: it reaches the UI loop as a
+// message, since the agent calls it from the turn goroutine.
+func (a *tuiAsker) AskTimedOut([]agent.Question, []agent.Answer) {
+	if a != nil && a.send != nil {
+		a.send(askTimedOutMsg{})
+	}
 }
 
 type tuiAsker struct{ send func(tea.Msg) }
@@ -87,16 +104,42 @@ func (m *model) openAsk(msg askMsg) {
 		reply:     msg.reply,
 		draft:     m.input.Value(),
 	}
+	// The cursor starts on the model's recommendation, so enter takes it.
+	m.asking.opt = recommendedIndex(qs[0])
 	m.setInput("")
 	m.input.Blur()
 	m.turn.setPhase("waiting for your answer")
 	m.refresh(false)
 }
 
+// recommendedIndex is the option the cursor starts on: the model's
+// recommendation, else the first.
+func recommendedIndex(q agent.Question) int {
+	for i, o := range q.Options {
+		if o.Label == q.Recommended {
+			return i
+		}
+	}
+	return 0
+}
+
+// askTimedOut is the turn going on without the answer. The question stays
+// on screen, and says what happened.
+func (m *model) askTimedOut() {
+	if s := m.asking; s != nil {
+		s.proceeded = true
+		m.turn.setPhase("")
+		m.refresh(false)
+	}
+}
+
 func (m *model) finishAsk() {
 	s := m.asking
 	if s == nil {
 		return
+	}
+	if s.proceeded && answeredAny(s.answers) {
+		m.note("late answer sent to the model: it reads it before its next step, or with your next message")
 	}
 	m.asking = nil
 	m.input.Reset()
@@ -160,11 +203,11 @@ func (m *model) handleAskKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.finishAsk()
 	case "left", "shift+tab":
 		s.tab = (s.tab - 1 + len(s.questions)) % len(s.questions)
-		s.opt = 0
+		s.opt = recommendedIndex(s.questions[s.tab])
 		m.refresh(false)
 	case "right", "tab":
 		s.tab = (s.tab + 1) % len(s.questions)
-		s.opt = 0
+		s.opt = recommendedIndex(s.questions[s.tab])
 		m.refresh(false)
 	case "up", "ctrl+p":
 		if len(opts) > 0 {
@@ -218,7 +261,7 @@ func (m *model) nextUnansweredTab() {
 	for i := 1; i <= len(s.questions); i++ {
 		j := (s.tab + i) % len(s.questions)
 		if s.answers[j].Label == "" {
-			s.tab, s.opt = j, 0
+			s.tab, s.opt = j, recommendedIndex(s.questions[j])
 			return
 		}
 	}
@@ -256,6 +299,9 @@ func (m *model) askView(height int) string {
 		if s.answers[s.tab].Label == o.Label {
 			picked = m.styles.ok.Render(" ✓")
 		}
+		if o.Label == q.Recommended {
+			picked += m.styles.faint.Render(" (recommended)")
+		}
 		desc := ""
 		if o.Description != "" {
 			desc = "  " + m.styles.faint.Render(sanitize(o.Description))
@@ -268,6 +314,9 @@ func (m *model) askView(height int) string {
 		add(m.styles.dim.Render("type your answer · enter sends · esc back to the list"))
 	} else {
 		add("")
+		if line := askWaitLine(s, time.Now()); line != "" {
+			add(m.styles.dim.Render(line))
+		}
 		add(m.styles.faint.Render("tab / ←→ switch questions · ↑↓ choose · 1-9 or enter picks · esc skip remaining"))
 	}
 	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
@@ -316,4 +365,35 @@ func (m *model) askTabStrip(width int) string {
 		parts = append(parts, st.Render(label))
 	}
 	return truncateLine(strings.Join(parts, "  ·  "), width)
+}
+
+// askWaitLine says how long the question still holds the turn, or that it
+// no longer does. Empty while the question waits as long as it takes.
+func askWaitLine(s *askState, now time.Time) string {
+	q := s.questions[s.tab]
+	if q.Recommended == "" {
+		return ""
+	}
+	if s.proceeded {
+		return fmt.Sprintf("went on with %s (recommended); answer now and the model gets it as a late answer · esc dismisses", sanitize(q.Recommended))
+	}
+	if q.Deadline.IsZero() {
+		return ""
+	}
+	left := q.Deadline.Sub(now).Round(time.Second)
+	if left < 0 {
+		left = 0
+	}
+	return fmt.Sprintf("no answer in %s and it proceeds with %s (recommended)", left, sanitize(q.Recommended))
+}
+
+// answeredAny reports whether the user chose something rather than
+// dismissing the question.
+func answeredAny(ans []agent.Answer) bool {
+	for _, a := range ans {
+		if l := strings.TrimSpace(a.Label); l != "" && l != "skipped" {
+			return true
+		}
+	}
+	return false
 }

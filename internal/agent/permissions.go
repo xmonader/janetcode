@@ -40,6 +40,11 @@ type permissions struct {
 	Approver Approver
 	// Asker, when set, answers labeled questions from the ask tool.
 	Asker Asker
+	// Unattended marks a session nobody is watching as it runs (a --bg
+	// run): a question waits only the unattended time before the turn
+	// goes on with the recommendation (see askwait.go).
+	Unattended bool
+	askWait    askWait
 	// Rules are persistent permission rules consulted before the Approver:
 	// a deny refuses the call outright, an allow skips the prompt.
 	// Guarded by Agent.settingsMu, with the live settings.

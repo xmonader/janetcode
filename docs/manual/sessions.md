@@ -87,6 +87,35 @@ export JANETCODE_NOTIFY='curl -s -d "$JANETCODE_ASK — $JANETCODE_ANSWER" ntfy.
 
 The child's own log is the `.bg.log` beside its session file.
 
+### When the model asks a question
+
+A question from the model (the `ask` tool) waits in the same sidecar.
+The model is asked to give each question a recommended option, and a
+background run waits for an answer only `ask_timeout_unattended` (default
+2m), then goes on with the recommendation and says in its reply which
+choice it assumed. The question stays open after that: answer it late and
+the model gets the answer before its next step, with a note that it went
+on without it, so it can change course.
+
+```sh
+janetcode --answer <id>                       # Which port?  1. 8080  2. 9000 (recommended)
+janetcode --answer <id> 1                     # an option's number, its label, or your own words
+janetcode --answer <id> "8080; alpha"         # several questions: one answer each, separated by ;
+```
+
+A question without a recommendation is never answered for you: it waits
+for `--answer` however long that takes.
+
+The same waiting applies everywhere a turn may have nobody watching it:
+a goal round or a `/loop` firing in the terminal or the browser waits
+`ask_timeout_unattended`, and a turn you typed waits `ask_timeout`
+(default: as long as it takes). The terminal and the page show the
+recommendation, preselected, and the countdown; once the turn has gone
+on, the question stays up and an answer still reaches the model (esc, or
+Dismiss, closes it). A headless `-p` run, an editor over ACP and the SDK
+have nobody to ask: a question with a recommendation goes on with it at
+once, and one without is refused, as before.
+
 ```sh
 janetcode --sessions        # list sessions for this directory
 janetcode --continue        # resume the newest one

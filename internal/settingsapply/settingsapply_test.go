@@ -3,6 +3,7 @@ package settingsapply
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -81,6 +82,14 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.StaleCheckNudge = false },
 			func(a *agent.Agent) any { return a.StaleNudgeOn() },
 			func(cfg *config.Config) any { return cfg.StaleCheckNudge }},
+		{"ask_timeout", "90s",
+			func(a *agent.Agent) { a.SetAskWait(agent.AskWaitForever, time.Minute) },
+			func(a *agent.Agent) any { d, _ := a.AskWaitFor(); return d },
+			func(cfg *config.Config) any { d, _, _ := cfg.AskWaits(); return d }},
+		{"ask_timeout_unattended", "0",
+			func(a *agent.Agent) { a.Unattended = true; a.SetAskWait(agent.AskWaitForever, time.Minute) },
+			func(a *agent.Agent) any { d, _ := a.AskWaitFor(); return d },
+			func(cfg *config.Config) any { _, d, _ := cfg.AskWaits(); return d }},
 		{"escalate_after", "3",
 			func(a *agent.Agent) { a.EscalateAfter = 1 },
 			func(a *agent.Agent) any { return a.EscalateRounds() },

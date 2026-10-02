@@ -177,19 +177,30 @@ func startBgRun(ag *agent.Agent, sess *session.Session, cwd string) func(error) 
 	if err := session.WriteBgStatus(path, *st); err != nil {
 		fmt.Fprintf(os.Stderr, "[warn] background status: %v\n", err)
 	}
-	if ag.Approver == nil {
-		ag.Approver = &headless.InboxApprover{
-			SessionPath: path, SessionID: sess.Meta.ID, Cwd: cwd, Status: st,
-			Notify: os.Getenv(headless.NotifyEnv), Log: os.Stderr,
-		}
+	inbox := &headless.InboxApprover{
+		SessionPath: path, SessionID: sess.Meta.ID, Cwd: cwd, Status: st,
+		Notify: os.Getenv(headless.NotifyEnv), Log: os.Stderr,
 	}
+	if ag.Approver == nil {
+		ag.Approver = inbox
+	}
+	// Nobody watches a background run, but --answer can reach it: the
+	// model's questions wait in the same sidecar as permission requests,
+	// for the unattended time, then go on with the recommendation and
+	// still take a late answer.
+	if ag.Asker == nil {
+		ag.Asker = &headless.BgAsker{Inbox: inbox}
+	}
+	ag.Unattended = true
 	return func(err error) {
-		st.State, st.Ask, st.Ended = session.BgDone, nil, time.Now()
-		st.Detail = firstLine(lastAnswer(ag.Messages))
-		if err != nil {
-			st.State, st.Detail = session.BgFailed, firstLine(err.Error())
-		}
-		if werr := session.WriteBgStatus(path, *st); werr != nil {
+		werr := inbox.Update(func(st *session.BgStatus) {
+			st.State, st.Ask, st.Question, st.Ended = session.BgDone, nil, nil, time.Now()
+			st.Detail = firstLine(lastAnswer(ag.Messages))
+			if err != nil {
+				st.State, st.Detail = session.BgFailed, firstLine(err.Error())
+			}
+		})
+		if werr != nil {
 			fmt.Fprintf(os.Stderr, "[warn] background status: %v\n", werr)
 		}
 		_ = sess.ClearPID()
@@ -226,7 +237,15 @@ func answerMode(w io.Writer, dir, id, decision string) error {
 	if !ok {
 		return headless.BadInput("session %s has no background run (janetcode --sessions lists them)", id)
 	}
-	if st.State != session.BgWaiting || st.Ask == nil {
+	permission := st.State == session.BgWaiting && st.Ask != nil
+	// The model's open question — waiting, or gone on with its
+	// recommendation and still taking a late answer — is answered here
+	// too, unless a permission request is pending and this is its answer.
+	if q := st.Question; q != nil && (st.State == session.BgWaiting || st.State == session.BgRunning) &&
+		(!permission || (decision != "" && !slices.Contains(session.BgDecisions, decision))) {
+		return answerQuestion(w, path, id, q, decision)
+	}
+	if !permission {
 		return headless.BadInput("session %s is not waiting for an answer: %s", id, st.Line(time.Now()))
 	}
 	ask := st.Ask

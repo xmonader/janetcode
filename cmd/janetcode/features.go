@@ -93,7 +93,7 @@ var flagWhen = map[string]string{
 	"mcp-auth":               "a remote MCP server needs an OAuth login once",
 	"append-system-prompt":   "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":                 "something is not working and you want to know which part",
-	"answer":                 "a --bg run is waiting for your permission and you want to settle it from another terminal or a phone",
+	"answer":                 "a --bg run is waiting for your permission, or asked a question, and you want to settle it from another terminal or a phone",
 	"backup":                 "you are moving to another machine, or want a copy of your settings and sessions before changing them",
 	"restore":                "you are setting up a new machine from a backup, or undoing a change to your settings",
 	"decisions-replay":       "measuring whether the optional verify-triage decisions model is calibrated before trusting it live",
@@ -181,6 +181,8 @@ var configWhen = map[string][2]string{
 	"screen_reader":            {"start every session in the screen-reader line interface (--screen-reader)", "you always use a screen reader, so the full-screen interface is never the one you want"},
 	"voice":                    {"where /voice records with and sends recordings to: model, endpoint, api_key_env, recorder", "your provider has no transcription endpoint, or its speech model is not called whisper-1"},
 	"decisions":                {"optional TypeSafe Jev decision client for advisory triage of verification failures; states are sent to its API, scrubbed of credential-shaped text", "a failing verify gate sends the model back for environmental or flaky failures it cannot fix; off unless configured"},
+	"ask_timeout":              {"how long a question from the model waits for your answer in an interactive turn before the turn goes on with the model's recommended choice: 90s, 5m, 0, or forever (the default); a late answer still reaches the model", "you sometimes walk away mid-turn and would rather it carry on with a sensible default than wait for you"},
+	"ask_timeout_unattended":   {"the same wait for a turn nobody is necessarily watching (a --bg run, a goal round, a /loop firing); default 2m, 0 goes on at once", "an unattended run should not stall on a question, or should give you longer to answer it from your phone"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.

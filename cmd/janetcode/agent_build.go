@@ -450,6 +450,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.StrongModel = d.cfg.StrongModel
 	ag.SetVisionModel(d.cfg.VisionModel)
 	ag.SetLanguage(d.cfg.Language)
+	settingsapply.ApplyAskWait(d.cfg, ag)
 	ag.EscalateAfter = d.cfg.EscalateAfter
 	// Every model the session pays for, not only the one it is set to: a
 	// fallback, a routed cheap call, an advisor and a subagent each have
