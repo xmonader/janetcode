@@ -351,6 +351,33 @@ path is open: a spent budget, a provider error, a timeout and an empty
 reply all leave the turn exactly as it would have been with the feature
 off. `--eval-off advisor` switches it off for one run.
 
+A turn-start reply that hit the token limit, or that exists only as the
+model's thinking, is dropped rather than injected: half a plan anchors
+the executor on its first half.
+
+#### Orient instead of plan: `advisor_turn_start_style`
+
+`"advisor_turn_start_style": "orient"` changes what the consult at the
+start of a turn asks for. Instead of "give it the plan", a model reads the
+request, the project's check commands, the current contents of the files
+the repository map ranks highest for the request (up to four, 16 KB) and
+what sits beside them, and answers in three sections: where to LOOK, what
+to WATCH FOR, how to CHECK. It is told not to say what to change. Its
+answer goes into the context as evidence about where to look, not as
+instructions.
+
+Orient runs on every turn whether or not `advisor_mode` is `always`, on
+`advisor_model`, else `strong_model`, else the session's own model, so a
+cheap model can orient itself. With `advisor_mode` `always` it is that
+turn-start consult and counts against `advisor_max_consults`. `plan` (the
+default) keeps the original consult. `--eval-off orient` switches orient
+off for one run.
+
+Why it exists: hero_agent measured the two shapes against each other and
+found that prescribing an edit before anyone read the code can turn a
+pass into a fail, while pointing at evidence helped. It is off until
+janetcode's own A/B says so (`docs/benchmarks/orient-baseline/PLAN.md`).
+
 ### The strong slot and the cascade
 
 `route_cheap`, `model` and `strong_model` are three of the model slots a

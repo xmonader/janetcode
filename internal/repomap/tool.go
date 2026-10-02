@@ -148,3 +148,37 @@ func (t Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	return ix.Render(ranked, 1<<20), nil
 }
+
+// Likely names the files a request most probably concerns, for a
+// consulting model that has to look at the code before it advises on it:
+// the top of the ranking among the files the request itself pulled up
+// (a path, a word or a symbol it mentions, or an uncommitted change),
+// else the top n by structure alone. root is the tree the paths are
+// relative to. Bounded like TurnPrep; an index that cannot be built in
+// time gives nothing rather than a late answer.
+func Likely(ctx context.Context, c *Cache, query string, n int) (root string, paths []string) {
+	if c == nil || n <= 0 || strings.TrimSpace(query) == "" {
+		return "", nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	ix, err := c.getBounded(ctx)
+	if err != nil || len(ix.Files) == 0 {
+		return "", nil
+	}
+	ranked := ix.Rank(query, ChangedFiles(ctx, ix.Root))
+	for _, r := range ranked {
+		if len(r.Why) > 0 && len(paths) < n {
+			paths = append(paths, r.File.Path)
+		}
+	}
+	if len(paths) == 0 {
+		for _, r := range ranked {
+			if len(paths) == n {
+				break
+			}
+			paths = append(paths, r.File.Path)
+		}
+	}
+	return ix.Root, paths
+}

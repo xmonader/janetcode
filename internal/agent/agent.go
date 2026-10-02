@@ -174,6 +174,20 @@ type Agent struct {
 	// AdvisorMaxConsults caps forced consults per turn; 0 uses
 	// advisorForcedCap.
 	AdvisorMaxConsults int
+	// TurnStartStyle is what the turn-start consult asks for:
+	// TurnStartPlan (empty, the default) or TurnStartOrient. See
+	// orient.go; orient runs even with AdvisorMode off.
+	TurnStartStyle string
+	// LikelyFiles, when set, names the files a request most probably
+	// concerns, relative to the returned root, for the orient consult to
+	// read. The composition root wires it to the repository map.
+	LikelyFiles func(ctx context.Context, request string) (root string, paths []string)
+	// VerifyBaseline runs the verify commands at turn start, before the
+	// first change, so the gate can tell a failure the turn caused from
+	// one that was already there. See baseline.go.
+	VerifyBaseline bool
+	// baseline is this turn's pre-edit verification run.
+	baseline *baselineRun
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.
@@ -444,6 +458,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	turnBegan := time.Now()
 	defer func() { a.stats.turnTook(time.Since(turnBegan)) }()
 	defer a.endTurn(ctx)
+	defer a.endBaseline()
 	// Collected here, after the turn's work and before the turn closes:
 	// by now the first model call has long outlived the decision call's
 	// deadline, and an answer that still has not arrived is dropped
@@ -530,6 +545,9 @@ type turnGates struct {
 func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Event)) int {
 	a.stats.turn()
 	a.startTurn()
+	// First, so the checks run beside everything else that prepares the
+	// turn; nothing has changed the tree yet.
+	a.startBaseline(ctx)
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {

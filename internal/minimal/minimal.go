@@ -12,6 +12,8 @@
 package minimal
 
 import (
+	"context"
+
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -63,6 +65,11 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 	ag.AdvisorModel = cfg.AdvisorModel
 	ag.AdvisorMode = cfg.AdvisorMode
 	ag.AdvisorMaxConsults = cfg.AdvisorMaxConsults
+	ag.TurnStartStyle = cfg.AdvisorTurnStartStyle
+	ag.VerifyBaseline = cfg.VerifyBaseline
+	ag.LikelyFiles = func(ctx context.Context, request string) (string, []string) {
+		return repomap.Likely(ctx, repo, request, 4)
+	}
 	ag.Off = off
 	ag.Archive = archive
 	ag.System = prompt.SystemWith(root, override)

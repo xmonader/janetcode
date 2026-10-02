@@ -254,6 +254,9 @@ func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, blobs fun
 // user learns that /undo cannot put it back before the call changes it,
 // not after.
 func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte, emit func(Event)) {
+	// The turn's first change waits for the pre-edit check run, so the
+	// baseline saw the tree this call is about to change.
+	a.awaitBaseline(ctx, emit)
 	owner := a
 	if a.UndoOwner != nil {
 		owner = a.UndoOwner
