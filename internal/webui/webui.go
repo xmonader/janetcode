@@ -458,6 +458,7 @@ func newServer(life context.Context, opts Options) *server {
 			s.replayHistory(msgs)
 		}
 	}
+	s.noteInterrupted()
 	if opts.Agent != nil {
 		opts.Agent.Approver = s
 		opts.Agent.Asker = s

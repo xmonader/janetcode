@@ -235,6 +235,7 @@ func newModel(opts Options) *model {
 	if opts.Resumed > 0 {
 		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
 		m.transcript.loadHistory(opts.Agent.Messages)
+		m.noteInterrupted()
 	} else {
 		m.transcript.banner(m.welcome(""))
 		// The first session in a directory janetcode has not seen gets

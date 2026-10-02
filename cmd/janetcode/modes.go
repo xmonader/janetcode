@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/xmonader/janetcode/internal/acp"
@@ -54,7 +55,7 @@ var sessionModes = []sessionMode{
 		func(r *root) error { return inspectOnce(r.subjects, r.opts.inspectWhat, os.Stdout, false) }},
 	{"recipe", func(o *options) bool { return o.recipeName != "" }, false, (*root).recipeMode},
 	{"acp", func(o *options) bool { return o.acpMode }, true, (*root).acpMode},
-	{"headless", func(o *options) bool { return o.promptText != "" || o.watchCmd != "" }, true, (*root).headlessMode},
+	{"headless", func(o *options) bool { return o.promptText != "" || o.watchCmd != "" || o.recoverTurn }, true, (*root).headlessMode},
 	{"web", func(o *options) bool { return o.web }, true, (*root).webMode},
 	{"screen-reader", func(o *options) bool { return o.screenReader }, true, (*root).screenReaderMode},
 	{"tui", func(*options) bool { return true }, true, (*root).tuiMode},
@@ -254,6 +255,16 @@ func (r *root) headlessMode() error {
 	if extra := pipedStdin(); extra != "" {
 		text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 	}
+	if o.recoverTurn {
+		if strings.TrimSpace(o.promptText) != "" {
+			return headless.BadInput("--recover carries on the interrupted turn and takes no prompt; resume without --recover to send one")
+		}
+		if ag.Interrupted() == nil {
+			return headless.BadInput("--recover: this session's last turn ended, so there is nothing to carry on")
+		}
+	} else if n := ag.InterruptedNotice("--recover"); n != "" {
+		fmt.Fprintln(os.Stderr, "[session] "+n)
+	}
 	r.startMCP(ctx, true)
 	if line := trustNotice(r.gate, cwd); line != "" {
 		fmt.Fprintln(os.Stderr, line)
@@ -264,7 +275,7 @@ func (r *root) headlessMode() error {
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
-		Format: format, MaxCostUSD: o.maxCost,
+		Format: format, MaxCostUSD: o.maxCost, Recover: o.recoverTurn,
 	})
 	finish(err)
 	return err

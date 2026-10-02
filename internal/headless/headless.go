@@ -63,6 +63,9 @@ type Options struct {
 	// between-turns backstop for the rounds --until and --watch drive.
 	// Zero means no ceiling.
 	MaxCostUSD float64
+	// Recover carries on the turn the resumed session died in, instead of
+	// sending Prompt (--recover; see agent.ContinueInterrupted).
+	Recover bool
 
 	// printer, when set, renders each event in text mode instead of
 	// printEvent: the screen-reader conversation's labelled lines.
@@ -113,6 +116,9 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 		return watch(ctx, opts, rec)
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: opts.Prompt}}, opts.Images...)
+	if opts.Recover {
+		blocks = nil
+	}
 	rounds := opts.UntilRounds
 	if rounds <= 0 {
 		rounds = DefaultUntilRounds
@@ -312,7 +318,7 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 	if ag.Log == nil && opts.Session != nil {
 		ag.Log = opts.Session
 	}
-	err := ag.RunBlocks(ctx, blocks, func(e agent.Event) {
+	sink := func(e agent.Event) {
 		sep := rec.event(e)
 		if !rec.text() {
 			// json collects and prints once at the end; stream-json has
@@ -327,7 +333,15 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			fmt.Fprint(opts.Stdout, sep)
 		}
 		printEvent(opts, e)
-	})
+	}
+	var err error
+	if blocks == nil && opts.Recover {
+		// --recover: the first round carries on the turn the session died
+		// in instead of sending a prompt (docs/notes/durable-turns.md).
+		err = ag.ContinueInterrupted(ctx, sink)
+	} else {
+		err = ag.RunBlocks(ctx, blocks, sink)
+	}
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
 	}

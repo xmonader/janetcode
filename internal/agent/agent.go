@@ -12,6 +12,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -342,6 +343,17 @@ type Agent struct {
 	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
 	Log          session.Log
 	turnN, stepN int
+	// turnEnded is whether the running turn has logged its turn/end; a
+	// turn that returns without one gets it on the way out, so only a
+	// crash leaves a turn open on the log (see durable.go).
+	turnEnded atomic.Bool
+	// resume, when set, is the turn this one continues: the next turn
+	// opens with no new user message (see ContinueInterrupted).
+	resume *resumeState
+	// resumeCalls and resumeOf are the continued turn's unanswered calls
+	// and its number, between beginTurn and openTurn's recoverCalls.
+	resumeCalls []session.PendingCall
+	resumeOf    int
 	// sessHooks tracks session_start and session_end for this session.
 	sessHooks sessionHooks
 	// vision is the vision_model slot and the image descriptions it made
@@ -394,18 +406,31 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	// turn's prompt, so an undo can take the whole turn out, prompt
 	// included; a prompt left behind reads as a request to do it again.
 	before := len(a.Messages)
-	merged := a.appendUserBlocks(blocks...)
+	resume := a.resume
+	a.resume = nil
+	merged := false
+	if resume == nil {
+		merged = a.appendUserBlocks(blocks...)
+	}
 	a.turnN++
 	a.stepN = 0
+	a.turnEnded.Store(false)
 	if a.turnN == 1 {
 		a.recordStart(ctx)
 	}
-	start := session.Event{Type: session.TypeTurnStart, Turn: a.turnN}
+	start := session.Event{Type: session.TypeTurnStart, Turn: a.turnN, Extra: session.TurnLogsEnd}
 	if phase, on := a.acceptPhase(); on {
 		start.Reason = session.TurnStartAccept + string(phase)
 	}
+	if resume != nil {
+		start.Reason = fmt.Sprintf("resume:%d", resume.turn)
+	}
 	a.logEvent(start)
-	a.logUserMessage(merged)
+	if resume == nil {
+		a.logUserMessage(merged)
+	} else {
+		a.logResumedResults(resume)
+	}
 	a.cp.beginTurn(a.turnN, before)
 	a.turnState.begin()
 }
@@ -435,15 +460,36 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	ctx, endEgress := a.egressTurn(ctx, blocks)
 	defer endEgress()
-	blocks, err = a.promptHooks(ctx, blocks, emit)
-	if err != nil {
-		return err
+	// A continuation has no prompt of its own: the prompt hooks saw the
+	// dead turn's, and nothing new is submitted.
+	if a.resume == nil {
+		blocks, err = a.promptHooks(ctx, blocks, emit)
+		if err != nil {
+			return err
+		}
 	}
 	defer func() { a.turnEndHooks(ctx, err) }()
 	maxIter := a.openTurn(ctx, blocks, emit)
 	turnBegan := time.Now()
 	defer func() { a.stats.turnTook(time.Since(turnBegan)) }()
 	defer a.endTurn(ctx)
+	// Every way out of a turn but a crash leaves a turn/end on the log,
+	// so a turn left open there is one the session died in (durable.go).
+	defer func() {
+		if a.turnEnded.Load() {
+			return
+		}
+		reason := "error"
+		switch {
+		case errors.Is(err, context.Canceled):
+			reason = "cancelled"
+		case errors.Is(err, ErrMaxIterations):
+			reason = "max-iterations"
+		case err != nil:
+			reason = "error: " + textfmt.TruncateTo(err.Error(), 200)
+		}
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: reason})
+	}()
 	// Collected here, after the turn's work and before the turn closes:
 	// by now the first model call has long outlived the decision call's
 	// deadline, and an answer that still has not arrived is dropped
@@ -545,8 +591,11 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	if a.turnN == 0 {
 		a.startIntake(ctx, firstText(blocks))
 	}
-	blocks = a.prepareBlocks(ctx, blocks, emit)
+	if a.resume == nil {
+		blocks = a.prepareBlocks(ctx, blocks, emit)
+	}
 	a.beginTurn(ctx, blocks...)
+	a.recoverCalls(ctx, emit)
 	// The first forced consult, after the request is in the history so
 	// the advisor sees the same transcript the executor will.
 	a.adviseAtTurnStart(ctx, firstText(blocks), emit)

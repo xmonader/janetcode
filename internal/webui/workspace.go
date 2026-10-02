@@ -392,6 +392,7 @@ func (s *server) openSession(id string, fork bool) (string, int, error) {
 	}
 	s.resetView()
 	s.replayHistory(msgs)
+	s.noteInterrupted()
 	s.emitStatus()
 	return sess.Meta.ID, http.StatusOK, nil
 }

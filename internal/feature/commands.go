@@ -95,6 +95,7 @@ var commandWhen = map[string]string{
 	"/trust":           "a repository ships skills, hooks or MCP servers and you want to see what it would let in, or let it in",
 	"/voice":           "typing is slow or painful for you, or a request is easier said than written",
 	"/plugin":          "a set of commands, skills, agents, hooks or MCP servers someone packaged to install together",
+	"/recover":         "janetcode was killed, crashed or lost its machine in the middle of a turn and you want that turn carried on rather than asked again",
 }
 
 // commandInvoke overrides what the catalogue says to type, for the few
@@ -160,6 +161,7 @@ var commandTopics = map[string][]string{
 	"/proof":           {"evidence", "commit", "notes", "attribution", "audit", "provenance"},
 	"/recipe":          {"replay", "script", "automation", "macro", "save", "run", "no model", "tokens"},
 	"/voice":           {"voice", "speech", "microphone", "dictate", "dictation", "speak", "talk", "accessibility"},
+	"/recover":         {"crash", "crashed", "killed", "interrupted", "resume", "recover", "died", "power", "durable"},
 }
 
 // Commands renders the slash command table as catalogue entries. It reads the

@@ -23,7 +23,7 @@ import (
 // webArgs only narrows the argument shape where the web version accepts
 // less than the terminal's.
 var webCommands = []string{
-	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
+	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
@@ -161,6 +161,7 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/verbose":      (*server).cmdVerbose,
+	"/recover":      (*server).cmdRecover,
 	"/compact":      (*server).cmdCompact,
 	"/compact-fast": (*server).cmdCompactFast, "/compress-fast": (*server).cmdCompactFast,
 	"/undo":        (*server).cmdUndo,
@@ -469,6 +470,39 @@ func (s *server) cmdVerbose(arg string) (bool, error) {
 	s.mu.Unlock()
 	s.noteOnOff("verbose tool output", v, "every tool result is shown whole")
 	return false, nil
+}
+
+// cmdRecover carries on the turn the session died in, as a turn the user
+// started: same Stop, same verdict (docs/notes/durable-turns.md).
+func (s *server) cmdRecover(arg string) (bool, error) {
+	ag := s.opts.Agent
+	if ag.Interrupted() == nil {
+		s.notice("nothing to recover: the last turn ended")
+		return true, nil
+	}
+	ctx, ok := s.begin("thinking")
+	if !ok {
+		s.errf("/recover waits for the turn to finish (esc cancels it)")
+		return true, nil
+	}
+	s.statusSet("")
+	s.add(entry{Kind: "thinking"})
+	s.emitStatus()
+	go func() {
+		s.finish(ag.ContinueInterrupted(ctx, s.apply))
+	}()
+	return false, nil
+}
+
+// noteInterrupted tells the page, when a session is opened, that its last
+// turn died and how to carry it on.
+func (s *server) noteInterrupted() {
+	if s.opts.Agent == nil {
+		return
+	}
+	if n := s.opts.Agent.InterruptedNotice("/recover"); n != "" {
+		s.notice(n)
+	}
 }
 
 func (s *server) cmdCompact(arg string) (bool, error) {

@@ -293,6 +293,7 @@ func (m *model) resume(arg string) {
 	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
+	m.noteInterrupted()
 	m.lastTurn, m.lastTurnTokens = "", ""
 	m.lastVerdict = ""
 	m.repin()

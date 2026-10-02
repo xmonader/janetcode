@@ -84,6 +84,11 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 
 func backgroundChildArgs(id, prompt string, extra, perms []string) []string {
 	args := append([]string{"--resume", id, "-p", prompt}, perms...)
+	if prompt == "" {
+		// No prompt is --recover: the child carries on the turn the
+		// session died in.
+		args = append([]string{"--resume", id, "--recover"}, perms...)
+	}
 	for _, d := range extra {
 		args = append(args, "--add-dir", d)
 	}

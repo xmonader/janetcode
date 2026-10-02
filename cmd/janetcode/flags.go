@@ -31,8 +31,11 @@ type options struct {
 	readonly   bool
 	dryRun     bool
 	// trustLevel is --trust: the project trust level for this run only.
-	trustLevel   string
-	continueC    bool
+	trustLevel string
+	continueC  bool
+	// recoverTurn is --recover: carry on the turn a resumed session
+	// died in (docs/notes/durable-turns.md).
+	recoverTurn  bool
 	resumeR      string
 	autoEdits    bool
 	evalPath     string
@@ -128,7 +131,7 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "web", "web-addr", "worktree", "add-dir", "theme", "plain", "screen-reader"}},
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "add-dir", "theme", "plain", "screen-reader"}},
 	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version"}},
@@ -292,6 +295,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.deny, "deny", "", "comma-separated permission rules to refuse for this run")
 	fs.StringVar(&o.ask, "ask", "", "comma-separated sensitive-call rules for this run: what they match always asks, in every mode, e.g. '*(touches:**/.env)'")
 	fs.BoolVar(&o.cont, "continue", false, "resume the latest session for this directory")
+	fs.BoolVar(&o.recoverTurn, "recover", false, "with -c or --resume: carry on the turn the session died in (crash, kill, power loss) instead of sending a prompt; works with --bg")
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")

@@ -84,6 +84,7 @@ var flagWhen = map[string]string{
 	"purge":                  "an uninstall that should also take your settings, keys and sessions with it; --backup them first if there is any doubt",
 	"sessions":               "you want the ids before choosing one to resume",
 	"fork":                   "the session you want is open in another janetcode, or you want to branch it and keep the original",
+	"recover":                "a background run or a scripted one died mid-turn and you want that turn carried on, not re-asked",
 	"show":                   "reading a past conversation, or one another janetcode is running, without opening it",
 	"search":                 "you remember what was said but not which session it was in",
 	"audit":                  "you need to show what a session did, what allowed each change, and that its record has not been altered since",
