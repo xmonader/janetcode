@@ -83,6 +83,8 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 	case "language":
 		a.SetLanguage(cfg.Language)
 		i18n.SetLanguage(i18n.Resolve(cfg.Language, os.Getenv))
+	case "ask_timeout", "ask_timeout_unattended":
+		ApplyAskWait(cfg, a)
 	case "stale_check_nudge":
 		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
 	case "escalate_after":
@@ -142,4 +144,13 @@ func Allowed(cfg *config.Config, provider, typ, model string) error {
 		return cfg.Managed.Refusal(fmt.Sprintf("model %q", model))
 	}
 	return nil
+}
+
+// ApplyAskWait gives the agent the config's two question waits. The
+// config was validated at load and by the setter, so an error here can
+// only be a value that was valid then; it leaves the agent as it was.
+func ApplyAskWait(cfg *config.Config, a *agent.Agent) {
+	if in, un, err := cfg.AskWaits(); err == nil {
+		a.SetAskWait(in, un)
+	}
 }

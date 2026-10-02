@@ -84,6 +84,8 @@ var setters = map[string]setter{
 	// file and nowhere else, which made "is the cascade on?" a question
 	// only a restart could answer.
 	"vim_mode":          boolKey(func(c *Config) *bool { return &c.VimMode }),
+	"ask_timeout":            askWaitKey("ask_timeout", func(c *Config) *string { return &c.AskTimeout }),
+	"ask_timeout_unattended": askWaitKey("ask_timeout_unattended", func(c *Config) *string { return &c.AskTimeoutUnattended }),
 	"stale_check_nudge": boolKey(func(c *Config) *bool { return &c.StaleCheckNudge }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
@@ -287,6 +289,18 @@ func intKey(name string, positive bool, field func(*Config) *int) setter {
 
 // stringKey builds a setter for a string field that takes any value,
 // empty included.
+// askWaitKey refuses a value ParseAskWait cannot read here as well as at
+// load, so a typo is not written to the file to stop the next start.
+func askWaitKey(name string, field func(*Config) *string) setter {
+	return func(c *Config, val string) (any, error) {
+		if _, err := ParseAskWait(name, val, 0); err != nil {
+			return nil, err
+		}
+		*field(c) = val
+		return val, nil
+	}
+}
+
 func stringKey(field func(*Config) *string) setter {
 	return func(c *Config, val string) (any, error) {
 		*field(c) = val
