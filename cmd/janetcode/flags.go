@@ -312,7 +312,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.sessionProfile, "session-profile", "", "classify the calls of recorded runs offline (an --eval-json result file, a session .jsonl, or a directory of either) as explore/edit/verify/other, report input-token growth and the share of context that is stale tool output, and exit")
 	fs.IntVar(&o.sessionProfileStale, "session-profile-stale", profileStaleAfter, "with --session-profile: how many model calls old an unreferenced tool result has to be before it counts as stale")
 	fs.StringVar(&o.decisionsReplay, "decisions-replay", "", "calibrate the optional verify-triage decisions model against a labeled state corpus (one JSON per line: name, truth, state) and exit")
-	fs.StringVar(&o.answerID, "answer", "", "answer a --bg run waiting for permission: --answer <id> shows the request, --answer <id> allow|session|deny settles it, then exit")
+	fs.StringVar(&o.answerID, "answer", "", "answer a --bg run waiting for permission or with an open question: --answer <id> shows it, --answer <id> allow|session|deny settles a permission request, --answer <id> <choice> answers a question (an option number, its label, or your own words), then exit")
 	fs.StringVar(&o.backupTo, "backup", "", "write the config and data directories (config, permission rules, MCP logins, sessions, memory) to one tar.gz readable only by you, then exit")
 	fs.StringVar(&o.restoreFrom, "restore", "", "put a --backup archive back, then exit. The files it replaces are saved to a tar.gz beside it first, so a restore can be undone")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")

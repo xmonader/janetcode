@@ -92,6 +92,15 @@ a key, a list of keys or `""` to unbind (`{"effort": "f2"}`), and
 `/help keys` shows the table a session is using. A bad binding is a
 config error that names the action and the key.
 
+`ask_timeout` is how long a question from the model waits for your
+answer in a turn you typed before the turn goes on with the model's
+recommended choice: a duration (`90s`, `5m`), `0` to go on at once, or
+`forever` (the default). `ask_timeout_unattended` is the same for a turn
+nobody need be watching — a `--bg` run, a goal round, a `/loop` firing —
+default `2m`. A question the model gave no recommendation for always
+waits, and an answer given after the turn went on still reaches the
+model. See [sessions](sessions.md#when-the-model-asks-a-question).
+
 `lean_tools` (default on) defers the search tools behind `tool_search` —
 19% less context on fan-out work, one extra call when the model needs a
 search. `"lean_tools": false` exposes them all in every request.
