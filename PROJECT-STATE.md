@@ -55,6 +55,13 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - A project's skills/agents/commands/rules/recipes need project trust
   (`instructions`); hooks/MCP/verify/allow rules/recipes need `full`.
   JANETCODE.md/AGENTS.md/CLAUDE.md are always read (2026-09-30).
+- 2026-10-02 orient/baseline A/B (docs/benchmarks/orient-baseline):
+  `verify_baseline` on by default (held-out controls 0/4 → 5/5); orient
+  advice stays off — no headroom on hidden/gated/hard for DeepSeek
+  V4.1 Flash, retest on a set the executor fails. Live evals: use the
+  broker's self-hosted routes (`deepseek-ai/DeepSeek-V4.1-Flash`,
+  `XiaomiMiMo/MiMo-V2.6-Flash-RL`, `Qwen/Qwen3.8-27B-FP8`), one task at
+  a time; ~45% of runs drop as INFRA (504 over mycelium).
 - A compiled agent loop (`run_plan`, explore-then-compile) was measured and
   rejected 2026-10-02 (docs/benchmarks/jit): models barely use it and it
   saves nothing; the code stays on branch development_jit. Before any live

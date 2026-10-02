@@ -53,15 +53,36 @@ task).
 
 ## Experiment 1 — orient vs plan vs nothing
 
-Pending: arms C (orient by `Qwen/Qwen3.8-27B-FP8`) and D (plan by the same
-model) are running. So far, self-orientation (B) against nothing (A):
+Arms: **A** nothing (`advisor_mode=off`), **B** self-orientation (the
+executor orients itself), **C** orientation by `Qwen/Qwen3.8-27B-FP8`,
+**D** a plan by the same Qwen model (`advisor_mode=always`). No run in any
+arm was served by another vendor.
 
-| set | A | B self-orient |
-|---|---|---|
-| hidden | 7/11 | 5/9 |
-| gated | 5/5 | 2/2 |
-| hard | 12/12 | 12/12 |
+| set | A nothing | B self-orient | C orient (Qwen) | D plan (Qwen) |
+|---|---|---|---|---|
+| hidden | 7/11 | 5/9 | 7/11 | 9/12 |
+| — of which controls 97/98 | 0/4 | 0/4 | 0/4 | 1/3 |
+| gated | 5/5 | 2/2 | 4/4 | 5/5 |
+| hard | 12/12 | 12/12 | 13/13 | 12/12 |
+| INFRA (left out) | 20 | 25 | 20 | 19 |
 
-B fails the same two controls A fails (orientation does not tell the
-model the failure is not its own) and moves nothing else. No evidence for
-self-orientation on this executor.
+Every arm passed every scored run outside the two controls. On these sets
+`DeepSeek-V4.1-Flash` already solves the ordinary tasks, so there is no
+headroom for advice of any kind to show; the only failures are the
+controls, which no advice fixes (they need the baseline, experiment 2).
+Turns and context per solved task are within noise of each other (hard:
+4.1–4.5 turns, 22–26k context).
+
+**Decision** (the plan's rule: orient becomes the default only if C beats
+D, self-orient is offered only if B beats A): neither holds. The default
+turn-start style stays `plan` (consulted only under `advisor_mode
+always`), and orient stays available behind `advisor_turn_start_style`.
+This does not refute hero_agent's result — their +25 points came from
+tasks their executor was failing; here there were none to win back. A
+fair retest needs a set the executor fails on its own merits (a weaker
+executor on `hard`, or harder held-out tasks).
+
+What did come out of experiment 1's code is kept regardless: a turn-start
+consult cut off at its token limit, or present only as thinking, is no
+longer injected, and the budget is 4096 tokens so reasoning models are not
+cut off by their own thinking.
