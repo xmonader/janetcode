@@ -3264,6 +3264,46 @@ refresh and retry. Servers without dynamic registration take
 `"client_id"`, `"client_secret"` (env references expand) and `"scope"` in
 their config. `/mcp logout <server>` forgets the token.
 
+A login belongs to the server's name and URL together, so two entries
+for the same URL (a work and a personal account on one service) keep
+separate logins. Logins stored before that, under the URL alone, move
+to the first server that uses them.
+
+When a call needs more access than the login grants, the server answers
+403 `insufficient_scope` and the error says to run `/mcp auth <server>`
+again; janetcode notes the scope the server named. The new login asks for
+that scope together with everything already granted, so the new token
+keeps the old one's access. Nothing signs in again by itself.
+
+Checks the login makes, and what each refuses:
+
+- the authorization response must come from the authorization server the
+  login started with: an `iss` naming another server, or no `iss` when
+  the server promised one, is refused before the code is exchanged
+  (RFC 9207, against mix-up attacks);
+- the authorization server's metadata must name the issuer it was
+  fetched for (RFC 8414), and protected-resource metadata must describe
+  this server (RFC 9728);
+- PKCE with S256 is always used, and a server that lists its PKCE methods
+  without S256 is refused;
+- the authorization, token and registration endpoints must be https,
+  except on this machine; a refresh to a stored plain-http endpoint is
+  refused too;
+- the redirect is only received on a loopback address.
+
+A server that advertises a wrong authorization server, or none, takes
+`"auth_server_metadata_url"`: the authorization server's metadata
+document, used instead of discovery. pi's spelling is read as well:
+
+```json
+{"mcpServers": {"tools": {"url": "https://tools.example/mcp",
+  "oauth": {"authServerMetadataUrl": "https://login.example/.well-known/oauth-authorization-server"}}}}
+```
+
+Token replies are read leniently: `"scope": ""` and `null` fields count as
+absent, and `expires_in` may be a number or a string. A reply that names
+no scope granted the scope asked for.
+
 #### When a server goes away
 
 A stdio server whose process exits, or a remote one that stops

@@ -96,23 +96,38 @@ func (t *httpTransport) bearer(ctx context.Context, force bool) (string, error) 
 			return "", nil
 		}
 	}
-	tok, ok, err := t.tokens.Bearer(ctx, t.client, t.url, force)
+	tok, ok, err := t.tokens.Bearer(ctx, t.client, t.c.Name, t.url, force)
 	if !ok {
 		return "", nil
 	}
 	return tok, err
 }
 
-// unauthorized turns a 401 into ErrAuthRequired with a hint for the user,
-// remembering where the server said its metadata lives.
-func (t *httpTransport) unauthorized(resp *http.Response) error {
-	hint := resourceMetadataHint(resp.Header.Get("WWW-Authenticate"))
+// unauthorized turns a 401, or a 403 insufficient_scope (stepUp), into
+// ErrAuthRequired with a hint for the user, remembering where the server
+// said its metadata lives and, on the stored login, the scope it asked
+// for, so /mcp auth asks for that scope on top of what is granted.
+func (t *httpTransport) unauthorized(resp *http.Response, stepUp bool) error {
+	h := resp.Header.Get("WWW-Authenticate")
+	hint := resourceMetadataHint(h)
+	scope := authParam(h, "scope")
 	t.mu.Lock()
 	if hint != "" {
 		t.authMeta = hint
 	}
 	t.mu.Unlock()
-	return &AuthError{Server: t.c.Name, ResourceMetadata: hint}
+	if scope != "" && t.tokens != nil {
+		_ = t.tokens.NoteRequiredScope(t.c.Name, t.url, scope)
+	}
+	return &AuthError{Server: t.c.Name, ResourceMetadata: hint, Scope: scope, StepUp: stepUp}
+}
+
+// insufficientScope reports a 403 whose challenge says the token is
+// valid but lacks scope (RFC 6750 §3.1). A refresh cannot widen a token,
+// so this is not retried: it asks for a login with more scope.
+func insufficientScope(resp *http.Response) bool {
+	return resp.StatusCode == http.StatusForbidden &&
+		strings.EqualFold(authParam(resp.Header.Get("WWW-Authenticate"), "error"), "insufficient_scope")
 }
 
 func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
@@ -183,6 +198,11 @@ func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() 
 	if err != nil {
 		return nil, err
 	}
+	if insufficientScope(resp) {
+		err = t.unauthorized(resp, true)
+		resp.Body.Close()
+		return nil, err
+	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		return resp, nil
 	}
@@ -195,6 +215,11 @@ func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() 
 			if resp, err = t.client.Do(req); err != nil {
 				return nil, err
 			}
+			if insufficientScope(resp) {
+				err = t.unauthorized(resp, true)
+				resp.Body.Close()
+				return nil, err
+			}
 			if resp.StatusCode != http.StatusUnauthorized {
 				return resp, nil
 			}
@@ -202,7 +227,7 @@ func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() 
 			return nil, rerr
 		}
 	}
-	err = t.unauthorized(resp)
+	err = t.unauthorized(resp, false)
 	resp.Body.Close()
 	return nil, err
 }

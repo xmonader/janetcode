@@ -51,7 +51,7 @@ func TestConcurrentRefreshSpendsTheRefreshTokenOnce(t *testing.T) {
 
 	store := &TokenStore{Path: filepath.Join(t.TempDir(), "mcp-auth.json")}
 	serverURL := "https://example.test/mcp"
-	if err := store.Put(serverURL, Token{
+	if err := store.Put("srv", serverURL, Token{
 		ClientID: "cid", AccessToken: "stale", RefreshToken: "refresh-0",
 		TokenEndpoint: endpoint, Expiry: time.Now().Add(-time.Minute),
 	}); err != nil {
@@ -66,7 +66,7 @@ func TestConcurrentRefreshSpendsTheRefreshTokenOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			tokens[i], _, errs[i] = store.Bearer(context.Background(), srv.Client(), serverURL, false)
+			tokens[i], _, errs[i] = store.Bearer(context.Background(), srv.Client(), "srv", serverURL, false)
 		}()
 	}
 	wg.Wait()
@@ -85,7 +85,7 @@ func TestConcurrentRefreshSpendsTheRefreshTokenOnce(t *testing.T) {
 			t.Fatalf("caller %d got %q, want the refreshed token", i, tokens[i])
 		}
 	}
-	if got, _ := store.Get(serverURL); got.AccessToken != "access-1" || got.RefreshToken != "refresh-1" {
+	if got, _ := store.Get("srv", serverURL); got.AccessToken != "access-1" || got.RefreshToken != "refresh-1" {
 		t.Fatalf("stored %+v, want the refreshed pair", got)
 	}
 }

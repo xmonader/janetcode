@@ -206,7 +206,7 @@ func TestDoctorFixFailsWhenARepairFails(t *testing.T) {
 	// An expired login with no refresh token is a repair; the read-only
 	// directory makes it fail.
 	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
-	if err := tokens.Put("https://mcp.example.com", mcp.Token{AccessToken: "a", Expiry: time.Now().Add(-time.Hour)}); err != nil {
+	if err := tokens.Put("", "https://mcp.example.com", mcp.Token{AccessToken: "a", Expiry: time.Now().Add(-time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 	os.Chmod(cfgDir, 0o500)

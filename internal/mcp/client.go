@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -41,6 +42,46 @@ type ServerConfig struct {
 	ClientID     string `json:"client_id,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"`
 	Scope        string `json:"scope,omitempty"`
+	// AuthServerMetadataURL names the authorization server's metadata
+	// document (RFC 8414) for a server that advertises a wrong
+	// authorization server, or none: /mcp auth uses it instead of
+	// discovery.
+	AuthServerMetadataURL string `json:"auth_server_metadata_url,omitempty"`
+	// OAuth is the same settings in the shape pi and other agents write
+	// in .mcp.json ({"oauth": {"authServerMetadataUrl": ...}}); the
+	// fields above win when both are set.
+	OAuth *OAuthConfig `json:"oauth,omitempty"`
+}
+
+// OAuthConfig is the "oauth" block of a server entry as other agents
+// write it.
+type OAuthConfig struct {
+	AuthServerMetadataURL string `json:"authServerMetadataUrl,omitempty"`
+	ClientID              string `json:"clientId,omitempty"`
+	ClientSecret          string `json:"clientSecret,omitempty"`
+	Scope                 string `json:"scope,omitempty"`
+}
+
+// OAuthSettings returns the client id, client secret (${ENV} expanded),
+// scope and metadata URL /mcp auth uses for this server, from the
+// janetcode fields or else the "oauth" block.
+func (c ServerConfig) OAuthSettings() (clientID, clientSecret, scope, metadataURL string) {
+	clientID, clientSecret, scope, metadataURL = c.ClientID, c.ClientSecret, c.Scope, c.AuthServerMetadataURL
+	if o := c.OAuth; o != nil {
+		if clientID == "" {
+			clientID = o.ClientID
+		}
+		if clientSecret == "" {
+			clientSecret = o.ClientSecret
+		}
+		if scope == "" {
+			scope = o.Scope
+		}
+		if metadataURL == "" {
+			metadataURL = o.AuthServerMetadataURL
+		}
+	}
+	return clientID, os.ExpandEnv(clientSecret), scope, metadataURL
 }
 
 // ToolInfo is one tool the server offers.

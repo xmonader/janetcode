@@ -34,7 +34,7 @@ func TestOAuthAuthorizeAndBearer(t *testing.T) {
 	// The flow: "open the browser" by following the authorize redirect.
 	var notes []string
 	tok, err := Authorize(context.Background(), AuthOptions{
-		ServerURL: serverURL, Store: store, ResourceMetadata: ae.ResourceMetadata,
+		ServerName: "secure", ServerURL: serverURL, Store: store, ResourceMetadata: ae.ResourceMetadata,
 		Notify: func(s string) { notes = append(notes, s) },
 		OpenURL: func(u string) error {
 			go func() {
@@ -52,7 +52,7 @@ func TestOAuthAuthorizeAndBearer(t *testing.T) {
 	if tok.AccessToken != "at-1" || tok.RefreshToken != "rt-1" || tok.ClientID != a.ClientID || tok.Expiry.IsZero() {
 		t.Fatalf("token = %+v", tok)
 	}
-	if got, ok := store.Get(serverURL + "/"); !ok || got.AccessToken != "at-1" {
+	if got, ok := store.Get("secure", serverURL+"/"); !ok || got.AccessToken != "at-1" {
 		t.Fatalf("store lookup = %+v %v", got, ok)
 	}
 	if joined := strings.Join(notes, "\n"); !strings.Contains(joined, "registered client dyn-1") || !strings.Contains(joined, "/auth/authorize?") {
@@ -76,7 +76,7 @@ func TestOAuthAuthorizeAndBearer(t *testing.T) {
 		t.Fatalf("after revocation: %v", err)
 	}
 	c.Close()
-	if got, _ := store.Get(serverURL); got.AccessToken != "at-2" || got.RefreshToken != "rt-1" {
+	if got, _ := store.Get("secure", serverURL); got.AccessToken != "at-2" || got.RefreshToken != "rt-1" {
 		t.Fatalf("refreshed token = %+v", got)
 	}
 	seen := strings.Join(a.Seen(), ",")
@@ -85,9 +85,9 @@ func TestOAuthAuthorizeAndBearer(t *testing.T) {
 	}
 
 	// An expired token is refreshed before the request, not after a 401.
-	exp, _ := store.Get(serverURL)
+	exp, _ := store.Get("secure", serverURL)
 	exp.Expiry = time.Now().Add(-time.Minute)
-	store.Put(serverURL, exp)
+	store.Put("secure", serverURL, exp)
 	n := len(a.Seen())
 	c, err = Start(context.Background(), "secure", ServerConfig{URL: serverURL}, opts)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestOAuthAuthorizeAndBearer(t *testing.T) {
 	}
 
 	// Rejected consent surfaces the server's error.
-	_, err = Authorize(context.Background(), AuthOptions{ServerURL: serverURL, Store: store, OpenURL: func(u string) error {
+	_, err = Authorize(context.Background(), AuthOptions{ServerName: "secure", ServerURL: serverURL, Store: store, OpenURL: func(u string) error {
 		go func() {
 			// Pretend the user declined: hit the callback with an error.
 			cb := u[strings.Index(u, "redirect_uri=")+len("redirect_uri="):]
@@ -169,7 +169,7 @@ func TestOAuthWrongStateDoesNotAbortTheFlow(t *testing.T) {
 func TestOAuthDiscoveryFallsBackToDefaults(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) }))
 	defer srv.Close()
-	m, err := discover(context.Background(), srv.Client(), srv.URL+"/mcp", "")
+	m, err := discover(context.Background(), srv.Client(), srv.URL+"/mcp", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

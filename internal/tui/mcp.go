@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -250,25 +249,27 @@ func (m *model) mcpAuth(args []string) {
 		return
 	}
 	if args[0] == "logout" {
-		if _, had := o.Tokens.Get(cfg.URL); !had {
+		if _, had := o.Tokens.Get(name, cfg.URL); !had {
 			m.note("mcp " + name + ": no token stored")
 			return
 		}
-		if err := o.Tokens.Delete(cfg.URL); err != nil {
+		if err := o.Tokens.Delete(name, cfg.URL); err != nil {
 			m.transcript.errorf("forget token: %v", err)
 			return
 		}
 		m.note("mcp " + name + ": token forgotten · the server will need /mcp auth again")
 		return
 	}
-	// A failed start may have told us where the server's metadata lives.
-	var meta string
+	// A failed start may have told us where the server's metadata lives,
+	// and what scope it wants.
+	var meta, need string
 	for _, st := range o.Manager.Status() {
 		var ae *mcp.AuthError
 		if st.Name == name && errors.As(st.Err, &ae) {
-			meta = ae.ResourceMetadata
+			meta, need = ae.ResourceMetadata, ae.Scope
 		}
 	}
+	clientID, clientSecret, scope, metadataURL := cfg.OAuthSettings()
 	openURL := o.OpenURL
 	if openURL == nil {
 		openURL = mcp.OpenBrowser
@@ -279,8 +280,9 @@ func (m *model) mcpAuth(args []string) {
 		ctx, cancel := context.WithTimeout(life, 5*time.Minute)
 		defer cancel()
 		_, err := mcp.Authorize(ctx, mcp.AuthOptions{
-			ServerURL: cfg.URL, Store: o.Tokens, ResourceMetadata: meta,
-			ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
+			ServerName: name, ServerURL: cfg.URL, Store: o.Tokens,
+			ResourceMetadata: meta, RequiredScope: need, MetadataURL: metadataURL,
+			ClientID: clientID, ClientSecret: clientSecret, Scope: scope,
 			OpenURL: openURL,
 			Notify:  func(s string) { send(mcpAuthMsg{name: name, text: s}) },
 		})

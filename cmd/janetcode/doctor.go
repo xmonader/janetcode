@@ -243,7 +243,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 	if cfg != nil {
 		for _, name := range sortedNames(cfg.MCPServers) {
 			sc := cfg.MCPServers[name]
-			row(true, "mcp "+name, "global · "+describeServer(sc)+authNote(tokens, sc)+probeServer(ctx, name, sc, cwd, tokens))
+			row(true, "mcp "+name, "global · "+describeServer(sc)+authNote(tokens, name, sc)+probeServer(ctx, name, sc, cwd, tokens))
 		}
 	}
 	if servers, hash, perr := mcp.LoadProject(cwd); perr != nil {
@@ -252,7 +252,7 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 		trusted := gate.Exec(cwd, ts.Trusted(cwd, hash))
 		for _, name := range sortedNames(servers) {
 			sc := servers[name]
-			detail := "project " + mcp.ProjectFile + " · " + describeServer(sc) + authNote(tokens, sc)
+			detail := "project " + mcp.ProjectFile + " · " + describeServer(sc) + authNote(tokens, name, sc)
 			if trusted {
 				// Probed only once trusted: starting a project's server
 				// runs the project's command.
@@ -372,11 +372,11 @@ func sortedNames(m map[string]mcp.ServerConfig) []string {
 
 // authNote says whether a remote server has a stored OAuth login; the
 // token itself is never printed.
-func authNote(tokens *mcp.TokenStore, sc mcp.ServerConfig) string {
+func authNote(tokens *mcp.TokenStore, name string, sc mcp.ServerConfig) string {
 	if sc.URL == "" {
 		return ""
 	}
-	if _, ok := tokens.Get(sc.URL); ok {
+	if _, ok := tokens.Get(name, sc.URL); ok {
 		return " · OAuth login stored"
 	}
 	if len(sc.Headers) > 0 {
