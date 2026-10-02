@@ -27,6 +27,9 @@ func (a *Agent) logEvent(e session.Event) int {
 	if e.Step == 0 && a.stepN > 0 {
 		e.Step = a.stepN
 	}
+	if e.Type == session.TypeTurnEnd && e.Turn == a.turnN {
+		a.turnEnded.Store(true)
+	}
 	seq, err := a.Log.Append(e)
 	if err != nil {
 		return 0

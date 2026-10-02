@@ -300,6 +300,13 @@ func bgMode(o *options, sess *session.Session, initial string) (bool, error) {
 	if text == "" {
 		text = initial
 	}
+	if o.recoverTurn {
+		// The child carries on the dead turn: --resume <id> --recover.
+		if text != "" {
+			return true, fmt.Errorf("%w: --recover takes no prompt", headless.ErrBadInput)
+		}
+		return true, launchBackground(sess, "", o.addDir, append(bgPermissionArgs(o), bgRunArgs(o)...))
+	}
 	if text == "" {
 		return true, fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)
 	}

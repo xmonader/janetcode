@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -298,6 +299,7 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/find": (*model).cmdFind, "/search": (*model).cmdFind,
 	"/resume": (*model).cmdResume, "/sessions": (*model).cmdResume,
+	"/recover":      (*model).cmdRecover,
 	"/compact":      (*model).cmdCompact,
 	"/compact-fast": (*model).cmdCompactFast, "/compress-fast": (*model).cmdCompactFast,
 	"/export": (*model).cmdExport,
@@ -746,6 +748,41 @@ func (m *model) cmdResume(text string, fields []string) (tea.Cmd, bool) {
 	}
 	m.resume(strings.Join(fields[1:], " "))
 	return nil, false
+}
+
+// cmdRecover carries on the turn the session died in (see
+// docs/notes/durable-turns.md). It runs like a turn the user started:
+// same spinner, same esc, same verdict.
+func (m *model) cmdRecover(text string, fields []string) (tea.Cmd, bool) {
+	if m.turn.running {
+		m.transcript.errorf("a turn is already running")
+		return nil, false
+	}
+	if m.opts.Agent.Interrupted() == nil {
+		m.transcript.info("nothing to recover: the last turn ended")
+		return nil, false
+	}
+	if m.opts.Agent.Settings().Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect")
+		return nil, false
+	}
+	m.startTurn("thinking")
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
+	ag, send, queue := m.opts.Agent, m.send, m.queue
+	m.refresh(false)
+	go func() {
+		send(agentDoneMsg{err: ag.ContinueInterrupted(ctx, queue.push)})
+	}()
+	return m.spinner.Tick, true
+}
+
+// noteInterrupted tells the user, on opening a session, that its last
+// turn died and how to carry it on.
+func (m *model) noteInterrupted() {
+	if n := m.opts.Agent.InterruptedNotice("/recover"); n != "" {
+		m.transcript.info(n)
+	}
 }
 
 func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {

@@ -26,6 +26,40 @@ func Nearest(typed string, names []string) string {
 	return best
 }
 
+// NearestName is Nearest for identifiers a model types from memory: a tool
+// name, a keyword argument. Case and the separators "_", "-" and "." are
+// ignored first, so "Bash", "readfile" and "read-file" land on "bash" and
+// "read_file" however their spellings differ; only then does a typo count.
+func NearestName(typed string, names []string) string {
+	t := foldName(typed)
+	if t == "" {
+		return ""
+	}
+	byFold := make(map[string]string, len(names))
+	folded := make([]string, 0, len(names))
+	for _, n := range names {
+		k := foldName(n)
+		if k == t {
+			return n
+		}
+		if _, dup := byFold[k]; !dup && k != "" {
+			byFold[k] = n
+			folded = append(folded, k)
+		}
+	}
+	return byFold[Nearest(t, folded)]
+}
+
+func foldName(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '_', '-', '.':
+			return -1
+		}
+		return r
+	}, strings.ToLower(s))
+}
+
 // Distance is the Levenshtein distance between two short words.
 func Distance(a, b string) int {
 	if a == b {

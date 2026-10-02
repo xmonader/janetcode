@@ -97,6 +97,35 @@ janetcode --bg "fix the tests"
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
 
+## A turn the session died in
+
+A janetcode that is killed, crashes or loses its machine in the middle
+of a turn leaves that turn open on the log. Reopening the session says
+so — `turn 4 was interrupted during its tool calls (2 finished, 1
+running, 0 not started); /recover carries it on` — and `/recover` (in
+the terminal and the browser) or `--recover` (with `-c` or `--resume`,
+headless or `--bg`) carries it on as the next turn, with no new message
+from you. What the model gets for the step it was in:
+
+- a call that **finished** keeps its real result (also when you resume
+  without recovering: the result is on the log even though the step's
+  answers never reached the history);
+- a **read** that was running runs again;
+- a **change** that was running (an edit, a write, a command) is never
+  run again: the model is told it may or may not have happened, with
+  the evidence — whether the file now holds what the write would have
+  written, whether the edit's new text is there and its old text gone,
+  or the repository's short status for anything else;
+- a call that **never started** (it was waiting for your approval) most
+  likely did not run, and the model is told to check before issuing it
+  again.
+
+A model call that was streaming is simply made again. A turn you
+stopped yourself, or one that ended on an error, is not "interrupted":
+every way out of a turn but a crash records its end. Sessions written
+before this existed are never offered a recovery. What is not covered,
+and why, is in `docs/notes/durable-turns.md`.
+
 ## The audit log
 
 Every event a session records — each model call with the model, provider,

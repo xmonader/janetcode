@@ -21,6 +21,7 @@ var Commands = withIdle([]Command{
 	{Name: "/compact", Args: "", Help: "summarise the conversation to free context"},
 	{Name: "/compact-fast", Args: "", Help: "prune old tool results and thinking without a summary call"},
 	{Name: "/clear", Args: "", Help: "start a new session"},
+	{Name: "/recover", Args: "", Help: "carry on the turn this session died in: finished tool results kept, running reads rerun, running changes described, not repeated"},
 	{Name: "/resume", Args: "[n|id] [fork]", Help: "reopen an earlier session here: alone opens a searchable list, or name one; fork continues in a copy, the way on when another janetcode has it open"},
 	{Name: "/open", Args: "<path[:line]>", Help: "show a file inline, centred on a line"},
 	{Name: "/diff", Args: "[path|revert path:n]", Help: "changes against HEAD; a file's hunks; revert one hunk"},
@@ -116,7 +117,7 @@ var Commands = withIdle([]Command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe", "/commit", "/pr", "/pr-comments", "/issue"}
+var idleOnly = []string{"/recover", "/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe", "/commit", "/pr", "/pr-comments", "/issue"}
 
 // withIdle sets Idle on every command idleOnly names. It runs as part of
 // initialising Commands, so no reader ever sees the table without it.
