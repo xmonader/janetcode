@@ -146,7 +146,7 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 			// (or in the session's worktree) from outside; follow it.
 			m.followBranch()
 		}
-		if m.turn.running || m.ov.kind != "" {
+		if m.turn.running || m.ov.kind != "" || m.asking != nil {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
@@ -231,6 +231,10 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		m.drainEvents()
 		m.openAsk(msg)
 		m.term.announce("janetcode", "a question for you")
+		return nil, true
+
+	case askTimedOutMsg:
+		m.askTimedOut()
 		return nil, true
 
 	case agentDoneMsg:

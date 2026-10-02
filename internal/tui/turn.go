@@ -155,6 +155,10 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 	}
 	if note != "" {
 		m.transcript.info(note)
+		// A prompt the harness sent on its own — a goal round, a /loop
+		// firing — is a turn nobody need be watching: a question in it
+		// waits only the unattended time.
+		m.opts.Agent.MarkUnattendedTurn()
 	} else {
 		m.transcript.user(text)
 		m.observePrompt(text)
