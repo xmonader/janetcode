@@ -445,6 +445,8 @@ func (b *agentBuilder) stepCore() error {
 	ag.AdvisorModel = d.cfg.AdvisorModel
 	ag.AdvisorMode = d.cfg.AdvisorMode
 	ag.AdvisorMaxConsults = d.cfg.AdvisorMaxConsults
+	ag.TurnStartStyle = d.cfg.AdvisorTurnStartStyle
+	ag.VerifyBaseline = d.cfg.VerifyBaseline
 	ag.StrongModel = d.cfg.StrongModel
 	ag.SetVisionModel(d.cfg.VisionModel)
 	ag.SetLanguage(d.cfg.Language)
@@ -564,6 +566,10 @@ func (b *agentBuilder) stepDiagnostics() error {
 func (b *agentBuilder) stepSearchTools() error {
 	ag, d := b.ag, b.d
 	b.repo = &repomap.Cache{Root: d.cwd, Parser: d.symbols}
+	// What the orient consult reads (advisor_turn_start_style orient).
+	ag.LikelyFiles = func(ctx context.Context, request string) (string, []string) {
+		return repomap.Likely(ctx, b.repo, request, 4)
+	}
 	for _, t := range []tool.Tool{
 		tool.ListDir{Root: d.cwd, WS: b.ws},
 		tool.Glob{Root: d.cwd, WS: b.ws},

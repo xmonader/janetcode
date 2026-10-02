@@ -90,14 +90,42 @@ func (a *Agent) forceAdvice(ctx context.Context, why, question string, emit func
 	return true
 }
 
-// adviseAtTurnStart is the first of the two forced triggers.
+// adviseAtTurnStart is the first of the two forced triggers. In the
+// orient style it is the orient consult instead (orient.go), which runs
+// whether or not the advisor is forced.
 func (a *Agent) adviseAtTurnStart(ctx context.Context, request string, emit func(Event)) {
 	if strings.TrimSpace(request) == "" {
 		return
 	}
-	a.forceAdvice(ctx, "turn start",
-		"The executor is about to start on this request:\n\n"+request+
-			"\n\nGive it the plan: the concrete next steps, the pitfalls this particular task has, and how to verify it is right.", emit)
+	if a.turnStartStyle() == TurnStartOrient {
+		a.orientAtTurnStart(ctx, request, emit)
+		return
+	}
+	a.planAtTurnStart(ctx, request, emit)
+}
+
+// planAtTurnStart is the original turn-start consult. Unlike the other
+// forced consult, a reply the token limit cut off, or one that is only
+// thinking, is dropped rather than injected (see turnStartReply).
+func (a *Agent) planAtTurnStart(ctx context.Context, request string, emit func(Event)) bool {
+	if !a.advisorForcedEnabled() || ctx.Err() != nil || a.advisorForcedBudget() <= 0 {
+		return false
+	}
+	atomic.AddInt32(&a.advisorForced, 1)
+	cctx, cancel := context.WithTimeout(ctx, advisorForcedTimeout)
+	defer cancel()
+	r, err := a.sideQueryReply(cctx, advisorSystem, "The executor is about to start on this request:\n\n"+request+
+		"\n\nGive it the plan: the concrete next steps, the pitfalls this particular task has, and how to verify it is right.", a.AdvisorModelName(), turnStartMaxTokens)
+	text, ok := turnStartReply(ctx, r, err, "advisor consult (turn start)", emit)
+	if !ok {
+		return false
+	}
+	a.stats.advisorConsult()
+	if emit != nil {
+		emit(Event{Kind: EvNotice, Text: "advisor consulted (turn start)"})
+	}
+	a.appendHarnessText(fmt.Sprintf("Guidance from a consulting model (it has no tools and did not act; treat it as advice, not as fact):\n[advisor %s]\n%s", r.Model, text))
+	return true
 }
 
 // adviseOnGateFailure is the second, and the one with a real signal

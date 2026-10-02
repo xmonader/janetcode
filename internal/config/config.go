@@ -235,6 +235,19 @@ type Config struct {
 	AdvisorMode string `json:"advisor_mode,omitempty"`
 	// AdvisorMaxConsults caps forced consults per turn. 0 is two.
 	AdvisorMaxConsults int `json:"advisor_max_consults,omitempty"`
+	// AdvisorTurnStartStyle is what the consult at the start of a turn
+	// asks for: "plan" (the default; only with advisor_mode always) or
+	// "orient": a model reads the request, the project's checks and the
+	// likeliest files and says where to LOOK, what to WATCH FOR and how
+	// to CHECK, never what to change. Orient runs on every turn, on the
+	// advisor slot, else the strong slot, else the session's own model.
+	AdvisorTurnStartStyle string `json:"advisor_turn_start_style,omitempty"`
+	// VerifyBaseline runs the verify commands at the start of each turn,
+	// before the first change, so the gate sends a turn back only for the
+	// failures it caused, not for ones that were already there. Off by
+	// default until measured; it costs one extra run of the checks per
+	// turn, in the background.
+	VerifyBaseline bool `json:"verify_baseline,omitempty"`
 	// StrongModel is the strong slot of the cheap/default/strong trio:
 	// route_cheap names the cheap one, model the default, this one the
 	// model a failing turn escalates to. Empty means there is no tier

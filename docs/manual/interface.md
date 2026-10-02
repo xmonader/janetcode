@@ -3017,6 +3017,38 @@ it executes commands on your machine; files you write through `/verify
 set` or `/verify add` are trusted as you write them. In headless mode `--until` remains the
 one-off equivalent.
 
+#### Failures that were there before the turn: `verify_baseline`
+
+In a repository whose tests were already red, the gate sends every turn
+back to "fix" failures it did not cause, at a model call per round.
+`"verify_baseline": true` (or `/config verify_baseline=true`) runs the
+commands once more at the start of each turn, in the background, on the
+tree as it was. The turn's first change waits for that run to finish (at
+most three minutes; past that the turn carries on without a baseline), so
+the baseline really is the state before the turn. At the end, every
+command runs (not only up to the first failure) and the result is
+compared:
+
+- a command that passed before and fails now, or a failure that was not
+  there before, goes back to the model as usual, with the failures that
+  were already there listed separately so the round is not spent on them;
+- failures that were all there before go back once, as a reminder rather
+  than a repair order and without spending a round (`… reminding the
+  model once`): the request may be "make these pass", so a half-fixed
+  turn is told they still fail, and a turn that has nothing to do with
+  them is told it did not cause them and may finish. They are not sent
+  back again.
+
+Failures are told apart by name where the output says them: `go test`
+(`--- FAIL: TestX`, and a package that failed to build), `pytest`
+(`FAILED`/`ERROR path::test`), `jest` (`● Suite › test`) and `cargo
+test`. For any other command a failure that still fails counts as new only
+if it prints more failure lines than before. A turn that never changes
+anything never waits; its baseline is stopped when it ends. A verify file
+with `mutate` gets no baseline, since the full run does not do mutation
+testing. Off by default until measured (`docs/benchmarks/orient-baseline`);
+`--eval-off baseline` turns it off for one run.
+
 ### Diagnostics from language servers
 
 When a language server for the file is on PATH, every `write_file` or

@@ -426,6 +426,7 @@ var switches = map[string]bool{
 	"protected": true, "ladder": true, "undoabout": true, "mermaid": true,
 	"keeprevert": true, "memoryrank": true, "sleep": true, "decisions": true,
 	"escalate": true, "advisor": true, "scrub": true, "opentodos": true,
+	"orient": true, "baseline": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

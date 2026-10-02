@@ -66,9 +66,24 @@ func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
 // It is the shared path for advisor and goal roles so we do not grow a
 // second prompt stack. model empty uses the session model.
 func (a *Agent) sideQuery(ctx context.Context, system, question, model string, maxTok int) (string, string, error) {
+	r, err := a.sideQueryReply(ctx, system, question, model, maxTok)
+	return r.Text, r.Model, err
+}
+
+// sideReply is a side query's answer with what a caller needs to judge
+// it: whether the provider stopped it at the token limit, and whether the
+// text came only from thinking because the reply itself was empty.
+type sideReply struct {
+	Text, Model  string
+	Truncated    bool
+	ThinkingOnly bool
+}
+
+// sideQueryReply is sideQuery reporting how the reply ended.
+func (a *Agent) sideQueryReply(ctx context.Context, system, question, model string, maxTok int) (sideReply, error) {
 	s := a.Settings()
 	if s.Provider == nil {
-		return "", "", fmt.Errorf("no provider")
+		return sideReply{}, fmt.Errorf("no provider")
 	}
 	msgs := sideTranscript(a.MessagesSnapshot(), 8, 2000, 600)
 	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
@@ -79,7 +94,7 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 	if a.Route != nil && model != s.Model {
 		p, resolved, err := a.Route(model)
 		if err != nil {
-			return "", "", err
+			return sideReply{}, err
 		}
 		if p != nil {
 			prov = p
@@ -100,10 +115,10 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 		Effort:    "low",
 	}, nil)
 	if err != nil {
-		return "", model, err
+		return sideReply{Model: model}, err
 	}
 	if resp == nil {
-		return "", model, fmt.Errorf("empty reply")
+		return sideReply{Model: model}, fmt.Errorf("empty reply")
 	}
 	a.addUsage(model, resp.Usage)
 	// lastCallModel is which model answered the *turn's* call, for the
@@ -113,9 +128,14 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 	// goroutine that reads it.
 	text := advisorReplyText(resp.Message)
 	if text == "" {
-		return "", model, fmt.Errorf("empty reply")
+		return sideReply{Model: model}, fmt.Errorf("empty reply")
 	}
-	return text, model, nil
+	return sideReply{
+		Text:         text,
+		Model:        model,
+		Truncated:    resp.StopReason == llm.StopMaxTokens,
+		ThinkingOnly: strings.TrimSpace(resp.Message.Text()) == "",
+	}, nil
 }
 
 func advisorReplyText(msg llm.Message) string {

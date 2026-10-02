@@ -89,6 +89,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":
 		a.SetAdvisorMode(cfg.AdvisorMode, cfg.AdvisorMaxConsults)
+	case "advisor_turn_start_style":
+		a.SetTurnStartStyle(cfg.AdvisorTurnStartStyle)
+	case "verify_baseline":
+		a.SetVerifyBaseline(cfg.VerifyBaseline)
 	case "sandbox":
 		// The key is the project's default profile, so setting it
 		// changes what a running sandbox enforces but does not turn one
