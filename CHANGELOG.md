@@ -29,6 +29,50 @@ and measurements behind each round are in `docs/notes/history.md`.
   are only warned about. Tested against 400 real-world skills: none were
   blocked.
 
+### Borrowed and measured (2026-10-02)
+Ideas taken from pi 1.0, deepseek-harness 0.2, hero_agent and a failed
+experiment of our own, each checked against janetcode first.
+- **MCP OAuth hardening.** RFC 9207: an authorization response naming
+  another issuer, or none from a server that promises one, is refused
+  before the code is exchanged. Logins are kept per server name and URL;
+  `insufficient_scope` asks for the new scope plus what was granted, so
+  a step-up keeps old access; empty and null token fields are accepted;
+  `auth_server_metadata_url` overrides a wrong advertisement. The audit
+  also added issuer/resource metadata checks, https-only endpoints off
+  loopback, refusing servers without PKCE S256, a loopback-only redirect
+  and a `WWW-Authenticate` parser that no longer cuts quoted scopes.
+- **Timed questions.** `ask` takes a recommended option. A question in a
+  `--bg` run, goal round or `/loop` waits `ask_timeout_unattended`
+  (default 2m), in headless/ACP/SDK not at all, then goes on with the
+  recommendation and says so; a late answer still reaches the model, as
+  steering or with the next message. `--answer <id> <choice>` answers a
+  `--bg` run's question. A question without a recommendation is never
+  answered for you.
+- **Provenance guard.** Each model call records what served it (model
+  field, gateway provider, response-id and tool-call-id formats); a
+  different vendor gets a one-time notice. In evals such runs are
+  MISMATCH and runs that never reached the model are INFRA; both are left
+  out of pass rates and comparisons, and `--eval-strict-provenance` fails
+  the eval instead. It catches the 2026-10-01 broker swap to Kimi.
+- **Durable turns.** Every way out of a turn but a crash logs its end, so
+  a crash is recognisable; `/recover` (TUI, web) and `--recover` (with
+  `-c`/`--resume`, headless and `--bg`) carry the dead turn on: finished
+  results kept, reads re-run, changes never repeated but described from
+  disk. Verified with a live `kill -9` mid-command.
+- **Turn-start advice that orients.** `advisor_turn_start_style: orient`
+  has a model read the likeliest files and answer LOOK / WATCH FOR /
+  CHECK without naming the edit; `verify_baseline` runs the checks before
+  the first change so the gate sends a turn back only for failures it
+  caused. Both off until the A/B in `docs/benchmarks/orient-baseline`
+  says otherwise. Fixed for every user: a turn-start consult cut off at
+  its token limit, or present only as thinking, is no longer injected.
+- **Errors that say how to recover.** A misspelt tool (`Bash`,
+  `readfile`), an unknown argument or a wrong type names the right one;
+  a script that prints nothing is told why it got nothing back.
+- **The compiled agent loop was measured and rejected**
+  (`docs/benchmarks/jit`): `run_plan` saved nothing on the models that
+  could be measured cleanly. Its code stays on branch `development_jit`.
+
 ### User-expectation gaps (2026-09-30)
 Closed from a checklist of what users expect of a coding agent
 (`docs/notes/user-expectations.md`). Live-verified against the broker
