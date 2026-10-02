@@ -19,6 +19,8 @@
   const questionsEl = document.getElementById("questions");
   const qPrompt = document.getElementById("q-prompt");
   const qDetail = document.getElementById("q-detail");
+  const qWait = document.getElementById("q-wait");
+  let qWaitTimer = null;
   const qOpts = document.getElementById("q-opts");
   const qOther = document.getElementById("q-other");
   const qOtherText = document.getElementById("q-other-text");
@@ -646,6 +648,7 @@
     if (!pendingQs.length) {
       qOpts.innerHTML = "";
       qOther.hidden = true;
+      showWait(null);
       return;
     }
     renderQuestion();
@@ -658,14 +661,47 @@
     qDetail.hidden = !q.detail;
     qDetail.textContent = q.detail || "";
     const opts = (q.options || []).concat([{ label: "Other", description: "type your own answer" }]);
-    qOpts.innerHTML = opts.map((o) =>
-      `<button type="button" data-label="${esc(o.label)}">${esc(o.label)}</button>`
-    ).join("");
+    // The model's recommendation is marked and focused, so Enter takes
+    // it: it is what the turn goes on with if nobody answers in time.
+    qOpts.innerHTML = opts.map((o) => {
+      const rec = q.recommended && o.label === q.recommended;
+      return `<button type="button" data-label="${esc(o.label)}"${rec ? ' class="recommended"' : ""}>${esc(o.label)}${rec ? " (recommended)" : ""}</button>`;
+    }).join("") + (q.proceeded ? `<button type="button" data-dismiss="1" class="secondary">Dismiss</button>` : "");
     qOther.hidden = true;
     qOtherText.value = "";
+    showWait(q);
+    const rec = qOpts.querySelector("button.recommended");
+    if (rec && !(document.activeElement === input && input.value.trim() !== "")) rec.focus();
+  }
+
+  // showWait says how long the question still holds the turn ("no answer
+  // in 1m12s and it proceeds with 9000"), or that the turn went on and an
+  // answer now reaches the model as a late one. Nothing for a question
+  // that waits as long as it takes.
+  function showWait(q) {
+    if (qWaitTimer) { clearInterval(qWaitTimer); qWaitTimer = null; }
+    const line = () => {
+      if (!q || !q.recommended) return "";
+      if (q.proceeded) return "Went on with " + q.recommended + " (recommended). Answer now and the model gets it as a late answer.";
+      if (!q.deadline) return "";
+      const left = Math.max(0, Math.round((Date.parse(q.deadline) - Date.now()) / 1000));
+      const t = left >= 60 ? Math.floor(left / 60) + "m" + String(left % 60).padStart(2, "0") + "s" : left + "s";
+      return "No answer in " + t + " and it proceeds with " + q.recommended + " (recommended).";
+    };
+    const text = line();
+    qWait.hidden = !text;
+    qWait.textContent = text;
+    if (text && q && !q.proceeded && q.deadline) {
+      qWaitTimer = setInterval(() => { qWait.textContent = line(); }, 1000);
+    }
   }
 
   qOpts.addEventListener("click", async (ev) => {
+    if (ev.target.closest("button[data-dismiss]")) {
+      await post("/api/question", { answers: pendingQs.map(() => ({ label: "skipped" })) });
+      showQuestions([]);
+      return;
+    }
     const b = ev.target.closest("button[data-label]");
     if (!b) return;
     if (b.dataset.label === "Other") {

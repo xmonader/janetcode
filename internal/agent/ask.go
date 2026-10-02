@@ -39,6 +39,10 @@ type Question struct {
 	// Recommended; zero while it waits as long as it takes. A front-end
 	// shows the countdown from it.
 	Deadline time.Time `json:"deadline,omitzero"`
+	// Proceeded is set by a front-end once the turn went on with
+	// Recommended, so a page that reconnects shows the question as one
+	// that now takes a late answer, not one that holds the turn.
+	Proceeded bool `json:"proceeded,omitempty"`
 }
 
 // Answer is the chosen option label and optional free-text (Other, or a reason).

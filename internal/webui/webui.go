@@ -479,7 +479,7 @@ func (s *server) cronFire(id, prompt string) {
 		return
 	}
 	s.notice("loop " + id)
-	s.startTurn(prompt)
+	s.startHarnessTurn(prompt)
 }
 
 func (s *server) handler() http.Handler {
@@ -815,6 +815,16 @@ func (s *server) idleLocked() time.Duration {
 	return time.Since(s.started)
 }
 
+// startHarnessTurn starts a turn the harness sent on its own — a goal
+// round, a /loop firing — which nobody need be watching: a question in it
+// waits only the unattended time (agent.MarkUnattendedTurn).
+func (s *server) startHarnessTurn(text string) {
+	if s.opts.Agent != nil {
+		s.opts.Agent.MarkUnattendedTurn()
+	}
+	s.startTurn(text)
+}
+
 func (s *server) startTurn(text string) {
 	ctx, ok := s.begin("thinking")
 	if !ok {
@@ -902,7 +912,7 @@ func (s *server) finish(err error) {
 	if err == nil && s.opts.Agent != nil {
 		if cont := s.opts.Agent.GoalContinuation(s.life); cont != "" {
 			s.notice("◉ goal round: " + cont)
-			s.startTurn(cont)
+			s.startHarnessTurn(cont)
 		}
 	}
 }

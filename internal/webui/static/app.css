@@ -1286,6 +1286,9 @@ pre.sheetbody {
   transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 .ask-actions button:hover { border-color: var(--line-strong); }
+/* The model's recommended answer: what the turn goes on with if nobody
+   answers in time. */
+.ask-actions button.recommended { border-color: var(--accent-soft-border); font-weight: 600; }
 .ask-actions button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft-border); }
 .ask-actions [data-d="deny"] { color: var(--bad); }
 .ask-actions .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }

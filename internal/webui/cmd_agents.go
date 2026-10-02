@@ -102,7 +102,7 @@ func (s *server) goalRound() {
 		}
 		return
 	}
-	s.startTurn(cont)
+	s.startHarnessTurn(cont)
 }
 
 // startTask runs a subagent in the background and reports when it ends.

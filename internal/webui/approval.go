@@ -164,6 +164,25 @@ func (s *server) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, 
 	}
 }
 
+// AskTimedOut is agent.AskTimeoutNotifier: the turn went on with the
+// recommendation, so the open question stops saying it holds the turn and
+// the page shows it as one that takes a late answer.
+func (s *server) AskTimedOut(qs []agent.Question, _ []agent.Answer) {
+	s.mu.Lock()
+	if s.asking == nil {
+		s.mu.Unlock()
+		return
+	}
+	for i := range s.asking.questions {
+		s.asking.questions[i].Proceeded = true
+	}
+	open := append([]agent.Question(nil), s.asking.questions...)
+	s.setPhaseLocked("")
+	s.mu.Unlock()
+	s.emit(envelope{Type: "question", Questions: open})
+	s.emitStatus()
+}
+
 func (s *server) questionAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
