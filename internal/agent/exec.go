@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -552,7 +553,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		if why, withheld := a.Tools.Withheld(u.Name); withheld {
 			return refuse(fmt.Sprintf("tool %q is withheld by policy (%s). It is not available in this session; do not search for a workaround.", u.Name, why), false)
 		}
-		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()), false)
+		return refuse(a.unknownTool(u.Name), false)
 	}
 	if reason, denied := a.toolGate(t, u.Input); denied {
 		return refuse(reason, true)
@@ -753,6 +754,24 @@ func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out str
 	return out, nil, err
 }
 
+// unknownTool is the answer to a call naming no tool of this session. A
+// name typed from memory is usually a near miss — "Bash", "readfile",
+// "read-file" — so the closest real name comes first, on one line, ahead
+// of the whole list a model would otherwise have to search.
+func (a *Agent) unknownTool(name string) string {
+	if near := textfmt.NearestName(name, a.Tools.Names()); near != "" {
+		return fmt.Sprintf("Unknown tool %q; did you mean %q? Available: %s", name, near, a.toolNames())
+	}
+	var deferred []string
+	for _, d := range a.Tools.Deferred() {
+		deferred = append(deferred, d.Name)
+	}
+	if near := textfmt.NearestName(name, deferred); near != "" {
+		return fmt.Sprintf("Unknown tool %q; did you mean %q? It is deferred: load it with tool_search first. Available: %s", name, near, a.toolNames())
+	}
+	return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames())
+}
+
 func (a *Agent) toolNames() string {
 	defs := a.Tools.Defs()
 	s := ""
@@ -820,7 +839,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
 	t, ok := a.Tools.Get(name)
 	if !ok {
-		return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames()), true, false
+		return a.unknownTool(name), true, false
 	}
 	// The same mode gate as executeTool: a script is a way to save round
 	// trips, not a way around read-only, plan or accept mode.

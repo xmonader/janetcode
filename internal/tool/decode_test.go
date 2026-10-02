@@ -36,7 +36,7 @@ func TestDecodeKeepsTheFirstError(t *testing.T) {
 		Paths []string `json:"paths"`
 	}
 	err := decode(json.RawMessage(`{"paths":"a.go"}`), &in)
-	if err == nil || !strings.Contains(err.Error(), "cannot unmarshal string") {
+	if err == nil || !strings.Contains(err.Error(), "paths must be a list of strings, not a string") {
 		t.Fatalf("err = %v", err)
 	}
 	err = decode(json.RawMessage(`{"paths":"[\"a\"]","nope":1}`), &in)
