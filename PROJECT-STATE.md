@@ -55,6 +55,11 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - A project's skills/agents/commands/rules/recipes need project trust
   (`instructions`); hooks/MCP/verify/allow rules/recipes need `full`.
   JANETCODE.md/AGENTS.md/CLAUDE.md are always read (2026-09-30).
+- A compiled agent loop (`run_plan`, explore-then-compile) was measured and
+  rejected 2026-10-02 (docs/benchmarks/jit): models barely use it and it
+  saves nothing; the code stays on branch development_jit. Before any live
+  eval, check the serving provider: the ai02 broker silently served Kimi
+  for every model name on 2026-10-01.
 - The Go SDK drives the binary over ACP rather than importing the builder
   (2026-09-30).
 - Go + bubbletea; product name is janetcode, not the Janet language (2026-09-07).
