@@ -62,6 +62,7 @@ const (
 	ExitTurnLimit = 53  // the turn hit its model-call cap
 	ExitSchema    = 54  // no answer matching --json-schema
 	ExitBudget    = 55  // the run reached --max-cost
+	ExitWallTime  = 56  // the run reached --max-wall-time
 	ExitToolLimit = 57  // the run reached --max-tool-calls
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
@@ -149,6 +150,9 @@ var exitRules = []struct {
 	is   func(error) bool
 	code int
 }{
+	// The wall clock before cancellation: running out of time cancels
+	// the run's context, and that is not the person pressing ^C.
+	{"wall time", func(err error) bool { return errors.Is(err, ErrWallTime) }, ExitWallTime},
 	// Cancellation first: an interrupted run reports the interruption,
 	// whatever it happened to be doing when the signal arrived.
 	{"cancelled", func(err error) bool {

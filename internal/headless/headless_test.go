@@ -428,3 +428,22 @@ func TestUntilInterruptedDuringTheCheckExitsAsCancelled(t *testing.T) {
 		t.Fatalf("an interrupted check was reported as a failed round:\n%s", errOut.String())
 	}
 }
+
+// A run that outlives --max-wall-time is stopped and reports the limit
+// (exit 56), not an interrupt: nobody pressed ^C.
+func TestMaxWallTimeStopsTheRun(t *testing.T) {
+	p := &blocking{started: make(chan struct{})}
+	ag := &agent.Agent{Provider: p, Tools: tool.NewRegistry(), Model: "m"}
+	var out, errOut syncBuffer
+	start := time.Now()
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "slow", Stdout: &out, Stderr: &errOut, Format: FormatJSON, MaxWallTime: 100 * time.Millisecond})
+	if !errors.Is(err, ErrWallTime) || ExitCode(err) != ExitWallTime {
+		t.Fatalf("err = %v (exit %d)", err, ExitCode(err))
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("took %s", time.Since(start))
+	}
+	if !strings.Contains(out.String(), "wall-time limit") {
+		t.Fatalf("result = %s", out.String())
+	}
+}

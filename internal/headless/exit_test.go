@@ -22,6 +22,7 @@ func TestExitRulesAllReachable(t *testing.T) {
 		"cancelled":  context.Canceled,
 		"budget":     fmt.Errorf("%w: spent it", ErrBudget),
 		"tool limit": fmt.Errorf("%w: 3 made", ErrToolLimit),
+		"wall time":  fmt.Errorf("%w (1m0s)", ErrWallTime),
 		"turn limit": fmt.Errorf("turn: %w", agent.ErrMaxIterations),
 		"bad input":  fmt.Errorf("%w: two prompts", ErrBadInput),
 		"auth":       fmt.Errorf("x: %w", llm.ErrNoAPIKey),
@@ -124,11 +125,11 @@ func TestExitCodeUnclassified(t *testing.T) {
 func TestExitCodesAreStableAndDistinct(t *testing.T) {
 	want := map[string]int{
 		"ok": 0, "other": 1, "auth": 41, "bad input": 42,
-		"config": 52, "turn limit": 53, "budget": 55, "tool limit": 57, "cancelled": 130,
+		"config": 52, "turn limit": 53, "budget": 55, "wall time": 56, "tool limit": 57, "cancelled": 130,
 	}
 	got := map[string]int{
 		"ok": ExitOK, "other": ExitOther, "auth": ExitAuth, "bad input": ExitBadInput,
-		"config": ExitConfig, "turn limit": ExitTurnLimit, "budget": ExitBudget, "tool limit": ExitToolLimit, "cancelled": ExitCancelled,
+		"config": ExitConfig, "turn limit": ExitTurnLimit, "budget": ExitBudget, "wall time": ExitWallTime, "tool limit": ExitToolLimit, "cancelled": ExitCancelled,
 	}
 	seen := map[int]string{}
 	for name, code := range got {

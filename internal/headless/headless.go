@@ -65,6 +65,9 @@ type Options struct {
 	MaxCostUSD float64
 	// MaxToolCalls ends the run before the tool call that would pass it.
 	MaxToolCalls int
+	// MaxWallTime ends the run once it has taken this long, whatever it
+	// is doing; zero means no limit.
+	MaxWallTime time.Duration
 	// JSONSchema, when set, makes the answer a JSON value matching this
 	// schema, delivered through the structured_output tool: printed alone
 	// on stdout in text format, and as structured_output in the result
@@ -91,6 +94,23 @@ func Run(ctx context.Context, opts Options) error {
 		format = FormatText
 	}
 	rec := newRecorder(opts, format)
+	if opts.MaxWallTime > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, opts.MaxWallTime, ErrWallTime)
+		defer cancel()
+	}
+	err := runFormat(ctx, opts, format, rec)
+	if err != nil && errors.Is(context.Cause(ctx), ErrWallTime) && !errors.Is(err, ErrWallTime) {
+		err = fmt.Errorf("%w (%s)", ErrWallTime, opts.MaxWallTime)
+	}
+	rec.finish(opts.Agent, err)
+	return err
+}
+
+// ErrWallTime is returned when a run reaches --max-wall-time.
+var ErrWallTime = errors.New("the run reached its wall-time limit")
+
+func runFormat(ctx context.Context, opts Options, format Format, rec *recorder) error {
 	var err error
 	switch {
 	case opts.Input != nil && format != FormatStreamJSON:
@@ -104,7 +124,6 @@ func Run(ctx context.Context, opts Options) error {
 	default:
 		err = run(ctx, opts, rec)
 	}
-	rec.finish(opts.Agent, err)
 	return err
 }
 
