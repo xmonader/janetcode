@@ -23,7 +23,6 @@ func (listerProv) Stream(context.Context, llm.Request, func(llm.Event)) (*llm.Re
 }
 func (p listerProv) ListModels(context.Context) ([]llm.ModelInfo, error) { return p.models, p.err }
 
-
 func TestListModels(t *testing.T) {
 	p := listerProv{models: []llm.ModelInfo{{ID: "a-1", ContextWindow: 200000, MaxOutput: 64000}, {ID: "b-2", Name: "B", ContextWindow: 131072}}}
 	var out bytes.Buffer
