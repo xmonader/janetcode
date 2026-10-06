@@ -643,6 +643,9 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	if spent, over := a.overBudget(); over {
 		return "", a.stopForBudget(spent, resp.Message.ToolUses(), emit)
 	}
+	if used, over := a.overToolLimit(resp.Message.ToolUses()); over {
+		return "", a.stopForToolLimit(used, resp.Message.ToolUses(), emit)
+	}
 	// A model that keeps writing the same message has stopped reading
 	// its own results; the ladder is the same as for a repeated call.
 	if a.Off["loops"] {

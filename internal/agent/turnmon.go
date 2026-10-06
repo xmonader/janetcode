@@ -48,6 +48,9 @@ type turnMonitor struct {
 	// ceiling, and a model with no price cannot be held to one. Read
 	// through MaxCost, written through SetMaxCost.
 	MaxCostUSD float64
+	// MaxToolCalls, when set, ends a run before a batch of tool calls
+	// that would take its total past this many (see toollimit.go).
+	MaxToolCalls int
 
 	// Predictor, when set, scores the running turn from its trajectory
 	// features (see Trajectory) and warns the model once per turn when
