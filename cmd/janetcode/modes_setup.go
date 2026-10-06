@@ -36,7 +36,7 @@ import (
 func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 	cfg, err = config.Load(config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag, AutoApprove: o.yolo})
 	// --web asks in the browser, so it needs no terminal to ask in.
-	needsConnect = err != nil && errors.Is(err, config.ErrNoCredentials) && o.promptText == "" && (o.web || term.IsTerminal(int(os.Stdin.Fd())))
+	needsConnect = err != nil && errors.Is(err, config.ErrNoCredentials) && !o.headless() && (o.web || term.IsTerminal(int(os.Stdin.Fd())))
 	// A recipe replays tool calls with no model call; with no key it runs
 	// and, on a failed step, exits instead of handing over (recipe.go).
 	// It used to refuse to start for want of a key it never needed.

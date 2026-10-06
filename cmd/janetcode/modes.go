@@ -54,7 +54,7 @@ var sessionModes = []sessionMode{
 		func(r *root) error { return inspectOnce(r.subjects, r.opts.inspectWhat, os.Stdout, false) }},
 	{"recipe", func(o *options) bool { return o.recipeName != "" }, false, (*root).recipeMode},
 	{"acp", func(o *options) bool { return o.acpMode }, true, (*root).acpMode},
-	{"headless", func(o *options) bool { return o.promptText != "" || o.watchCmd != "" }, true, (*root).headlessMode},
+	{"headless", func(o *options) bool { return o.headless() || o.watchCmd != "" }, true, (*root).headlessMode},
 	{"web", func(o *options) bool { return o.web }, true, (*root).webMode},
 	{"tui", func(*options) bool { return true }, true, (*root).tuiMode},
 }
@@ -229,7 +229,13 @@ func (r *root) headlessMode() error {
 	for _, a := range atts {
 		fmt.Fprintf(os.Stderr, "[attached] %s\n", a.Path)
 	}
-	if extra := pipedStdin(); extra != "" {
+	// A stream-json conversation is stdin; it is read a line at a time
+	// as the run goes, never slurped into the first prompt.
+	var input io.Reader
+	stdin := os.Stdin
+	if o.inFormat == string(headless.InputStreamJSON) {
+		input, stdin = os.Stdin, nil
+	} else if extra := pipedStdin(); extra != "" {
 		text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 	}
 	var schema json.RawMessage
@@ -244,7 +250,7 @@ func (r *root) headlessMode() error {
 	finish := startBgRun(ag, sess, cwd)
 	err := headless.Run(ctx, headless.Options{
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
-		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
+		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
 		Format: format, MaxCostUSD: o.maxCost, JSONSchema: schema,
 	})

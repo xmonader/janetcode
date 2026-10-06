@@ -31,6 +31,7 @@ import (
 var flagWhen = map[string]string{
 	"p":                      "scripting janetcode, or one question you do not want a terminal session for",
 	"output-format":          "a script or a CI job that has to read the result rather than a human",
+	"input-format":           "a program that holds one session open and sends it message after message, interrupting when it needs to",
 	"json-schema":            "a script that needs fields it can read, not prose it has to parse",
 	"max-cost":               "an unattended run you do not want to discover afterwards was expensive",
 	"max-turns":              "capping the model calls a session may make, the same cap for the TUI, headless and ACP",

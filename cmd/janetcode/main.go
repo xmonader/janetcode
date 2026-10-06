@@ -361,7 +361,7 @@ func (s *startup) stageConfig() (bool, error) {
 	}
 	if s.cfgErr == nil {
 		s.onClose(startRates(s.cfg))
-		if s.opts.promptText != "" {
+		if s.opts.headless() {
 			for _, n := range s.cfg.Notes {
 				fmt.Fprintln(os.Stderr, "janetcode:", n)
 			}

@@ -182,7 +182,7 @@ func (r *root) wireProject() error {
 		for _, n := range hookNotes {
 			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
 		}
-	} else if hooksCfg.Len() > 0 && o.promptText != "" {
+	} else if hooksCfg.Len() > 0 && o.headless() {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
 	// session_end runs before the servers and jobs the hooks might look
@@ -198,7 +198,7 @@ func (r *root) wireProject() error {
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Mutate: mutate.ForVerify, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
 	} else if verifyDefined {
 		ag.VerifyUntrusted = true
-		if o.promptText != "" {
+		if o.headless() {
 			fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
 		}
 	}
@@ -206,7 +206,7 @@ func (r *root) wireProject() error {
 	if err != nil {
 		return err
 	}
-	if !permTrusted && len(projRules.Allow) > 0 && o.promptText != "" {
+	if !permTrusted && len(projRules.Allow) > 0 && o.headless() {
 		fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
 	}
 	ag.Rules = rules

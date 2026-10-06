@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/headless"
 	"io"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ type options struct {
 	promptText   string
 	outFormat    string
 	jsonSchema   string
+	inFormat     string
 	maxCost      float64
 	maxTurns     int
 	compactAt    int
@@ -113,7 +115,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
-	{"Headless (-p)", []string{"p", "output-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
@@ -222,6 +224,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	o := &options{}
 	fs.StringVar(&o.promptText, "p", "", "run this prompt headless and exit")
 	fs.StringVar(&o.outFormat, "output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result. --doctor takes json too")
+	fs.StringVar(&o.inFormat, "input-format", "text", "headless input. text: one prompt from -p. stream-json: a conversation on stdin, one JSON object per line ({\"type\":\"user\",\"text\":...} or {\"type\":\"control\",\"subtype\":\"interrupt\"}), a turn per message and a result line after each, until EOF; needs --output-format stream-json, and -p becomes optional")
 	fs.StringVar(&o.jsonSchema, "json-schema", "", "with -p: answer with JSON matching this schema (inline, or @file). The model delivers it through a structured_output tool the harness validates; text format prints only the value on stdout, json and stream-json put it in structured_output. Exits 54 when no valid answer comes")
 	fs.Float64Var(&o.maxCost, "max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
 	fs.IntVar(&o.maxTurns, "max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")
@@ -298,4 +301,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.Var(&o.addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
 	fs.Var(&o.sets, "set", "set a config key for this run, e.g. --set escalate_after=1 --set decisions.triage=true (repeatable). The keys are the ones /config takes, including the model slots and the decisions block; nothing is written to the config file. --inspect config lists them")
 	return fs, o
+}
+
+// headless reports a run with no terminal UI: a -p prompt, or a
+// stream-json conversation on stdin, which needs no -p at all.
+func (o *options) headless() bool {
+	return o.promptText != "" || o.inFormat == string(headless.InputStreamJSON)
 }

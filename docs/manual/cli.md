@@ -14,6 +14,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 |---|---|
 | `-p "<prompt>"` | run one prompt headless; assistant text on stdout, tool activity on stderr |
 | `--output-format text\|json\|stream-json` | with `-p`: how the run reports itself (see below) |
+| `--input-format text\|stream-json` | `stream-json`: a conversation on stdin, a turn per line (see [Streaming input](#streaming-input)); needs `--output-format stream-json`, and `-p` becomes optional |
 | `--json-schema <json\|@file>` | with `-p`: answer with JSON matching this schema (see [Structured output](#structured-output)); exits 54 when no valid answer comes |
 | `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it |
 | `--max-turns <n>` | cap the model calls one turn may make; the eval runner's `--eval-max-turns` with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget |
@@ -142,6 +143,34 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   exist — so a consumer can pair the two without special cases.
   `permission_denials` counts every refusal, whoever made it: a `--deny`
   rule, a hook, read-only mode, or the person at the terminal.
+
+## Streaming input
+
+`--input-format stream-json` keeps one process for a whole conversation.
+A program writes one JSON object per line on stdin; each user message is
+a turn in the same session, and each turn ends with its own `result`
+line, so a driver knows when to send the next. The process exits at EOF
+with the last turn's exit code. It needs `--output-format stream-json`;
+a `-p` prompt, if given, runs first.
+
+```text
+{"type":"user","text":"read go.mod and say which Go version"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"now bump it"}]}}
+{"type":"control","subtype":"interrupt"}
+{"type":"control_request","request_id":"r1","request":{"subtype":"interrupt"}}
+```
+
+The `message` and `control_request` shapes are Claude Code's, so a driver
+written for it works unchanged. An interrupt cancels the running turn —
+its result line has `is_error` true and exit code 130 — and the session
+carries on with the next message; it is answered by a `control_response`
+line carrying the `request_id`. Messages sent while a turn runs queue
+behind it. A line that does not parse, or that carries a non-text block,
+is reported as an `input_error` line and skipped. The counters in each
+result (usage, cost, tool calls) are the session's so far, not the
+turn's. Nothing can be asked on stdin, so a call the rules and approval
+mode do not allow is denied: pick the mode with `--auto`, `--yolo` or
+`--allow`.
 
 ## Structured output
 
