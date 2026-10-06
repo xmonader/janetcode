@@ -33,6 +33,7 @@ var flagWhen = map[string]string{
 	"output-format":          "a script or a CI job that has to read the result rather than a human",
 	"input-format":           "a program that holds one session open and sends it message after message, interrupting when it needs to",
 	"json-schema":            "a script that needs fields it can read, not prose it has to parse",
+	"max-wall-time":          "a run in CI or a cron job that must finish, one way or the other, before the job's own timeout kills it without a result",
 	"max-tool-calls":         "an unattended run that should give up rather than keep poking at the repository",
 	"max-cost":               "an unattended run you do not want to discover afterwards was expensive",
 	"max-turns":              "capping the model calls a session may make, the same cap for the TUI, headless and ACP",

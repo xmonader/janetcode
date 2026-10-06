@@ -22,6 +22,7 @@ type options struct {
 	inFormat     string
 	maxCost      float64
 	maxToolCalls int
+	maxWallTime  time.Duration
 	maxTurns     int
 	compactAt    int
 	until        string
@@ -116,7 +117,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
-	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
@@ -227,6 +228,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.outFormat, "output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result. --doctor takes json too")
 	fs.StringVar(&o.inFormat, "input-format", "text", "headless input. text: one prompt from -p. stream-json: a conversation on stdin, one JSON object per line ({\"type\":\"user\",\"text\":...} or {\"type\":\"control\",\"subtype\":\"interrupt\"}), a turn per message and a result line after each, until EOF; needs --output-format stream-json, and -p becomes optional")
 	fs.StringVar(&o.jsonSchema, "json-schema", "", "with -p: answer with JSON matching this schema (inline, or @file). The model delivers it through a structured_output tool the harness validates; text format prints only the value on stdout, json and stream-json put it in structured_output. Exits 54 when no valid answer comes")
+	fs.DurationVar(&o.maxWallTime, "max-wall-time", 0, "with -p: stop the run once it has taken this long (e.g. 10m), whatever it is doing (exit 56)")
 	fs.IntVar(&o.maxToolCalls, "max-tool-calls", 0, "with -p: stop before the tool call that would take the run past this many (exit 57); the calls of the batch that would cross it are answered, not run")
 	fs.Float64Var(&o.maxCost, "max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
 	fs.IntVar(&o.maxTurns, "max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")

@@ -16,6 +16,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--output-format text\|json\|stream-json` | with `-p`: how the run reports itself (see below) |
 | `--input-format text\|stream-json` | `stream-json`: a conversation on stdin, a turn per line (see [Streaming input](#streaming-input)); needs `--output-format stream-json`, and `-p` becomes optional |
 | `--json-schema <json\|@file>` | with `-p`: answer with JSON matching this schema (see [Structured output](#structured-output)); exits 54 when no valid answer comes |
+| `--max-wall-time <dur>` | with `-p`: stop the run once it has taken this long (`90s`, `10m`, `1h`), whatever it is doing, and exit 56. The result still says what was done; unlike a job runner's timeout, you get a result object instead of a killed process. With `--input-format stream-json` it bounds the whole session |
 | `--max-tool-calls <n>` | with `-p`: stop before the tool call that would take the run past `n`, and exit 57. A batch of parallel calls that would cross the line is answered unrun as a whole; subagents' own calls are not counted |
 | `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it |
 | `--max-turns <n>` | cap the model calls one turn may make; the eval runner's `--eval-max-turns` with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget |
@@ -211,6 +212,7 @@ comes out unwrapped. Supported keywords: `type`, `properties`,
 | 53 | the turn hit its model-call cap |
 | 54 | no answer matched `--json-schema` |
 | 55 | the run reached `--max-cost` |
+| 56 | the run reached `--max-wall-time` |
 | 57 | the run reached `--max-tool-calls` |
 | 130 | interrupted, as a shell reports a SIGINT |
 

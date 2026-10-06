@@ -127,6 +127,9 @@ func bgRunArgs(o *options) []string {
 	str("provider", o.provider)
 	str("model", o.model)
 	str("effort", o.effort)
+	if o.maxWallTime > 0 {
+		args = append(args, "--max-wall-time="+o.maxWallTime.String())
+	}
 	if o.maxToolCalls > 0 {
 		args = append(args, "--max-tool-calls="+strconv.Itoa(o.maxToolCalls))
 	}
