@@ -138,7 +138,7 @@ func runStructured(ctx context.Context, opts Options, rec *recorder) error {
 		return err
 	}
 	ag := opts.Agent
-	ag.Tools.Add(st)
+	ag.Tools.AddRequired(st)
 	defer ag.Tools.Remove(StructuredToolName)
 	stdout := opts.Stdout
 	if rec.text() {

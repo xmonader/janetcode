@@ -50,6 +50,10 @@ type Registry struct {
 	// withheld names a tool that policy removed, and why. Distinct from
 	// a typo: "unknown" invites a hunt, "withheld" ends one.
 	withheld map[string]string
+	// gate, when set, names why a tool may not be registered ("" lets
+	// it in). It is consulted on every Add, so tools that arrive late
+	// (MCP servers, plugins) are held to the same rule as built-ins.
+	gate func(name string) string
 	// Intent adds a short "why this call" field to every tool's schema.
 	// It is set on the registry rather than per tool so that MCP tools and
 	// anything registered at runtime carry it too. Set it before the
@@ -120,6 +124,9 @@ func (r *Registry) Get(name string) (Tool, bool) {
 func (r *Registry) Add(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.gatedLocked(t.Name()) {
+		return
+	}
 	r.tools[t.Name()] = t
 	r.version++
 }
@@ -130,6 +137,9 @@ func (r *Registry) Add(t Tool) {
 func (r *Registry) AddDeferred(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.gatedLocked(t.Name()) {
+		return
+	}
 	r.tools[t.Name()] = t
 	if r.deferred == nil {
 		r.deferred = map[string]bool{}
@@ -176,6 +186,49 @@ func (r *Registry) Remove(name string) {
 	delete(r.tools, name)
 	delete(r.deferred, name)
 	r.version++
+}
+
+// AddRequired registers a tool the gate does not apply to: one the
+// harness itself needs for the run to mean anything (the headless
+// structured_output tool), not one the model merely could use.
+func (r *Registry) AddRequired(t Tool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tools[t.Name()] = t
+	delete(r.withheld, t.Name())
+	r.version++
+}
+
+// Gate removes every registered tool gate refuses, and refuses each one
+// added later, recording why (see Withheld). gate returns "" to admit a
+// name.
+func (r *Registry) Gate(gate func(name string) string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.gate = gate
+	for n := range r.tools {
+		if r.gatedLocked(n) {
+			delete(r.tools, n)
+			delete(r.deferred, n)
+		}
+	}
+	r.version++
+}
+
+// gatedLocked reports, and records, that the gate refuses name.
+func (r *Registry) gatedLocked(name string) bool {
+	if r.gate == nil {
+		return false
+	}
+	why := r.gate(name)
+	if why == "" {
+		return false
+	}
+	if r.withheld == nil {
+		r.withheld = map[string]string{}
+	}
+	r.withheld[name] = why
+	return true
 }
 
 // Withhold records that name is absent because of policy, not a typo.
