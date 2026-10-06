@@ -36,6 +36,9 @@ type Options struct {
 	// Notes are decisions the configuration made on the user's behalf
 	// (a provider switched for one that has a key); shown once at start.
 	Notes []string
+	// UpdateNotice, when set, is asked once at start, off the UI
+	// goroutine, for a line saying a newer release is out ("" for none).
+	UpdateNotice func(context.Context) string
 	// ConfigDir holds global custom commands under commands/*.md.
 	ConfigDir string
 	// MCP, when set, describes the servers to start.

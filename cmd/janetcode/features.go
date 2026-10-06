@@ -153,6 +153,7 @@ var configWhen = map[string][2]string{
 	"stream_max_duration":  {"longest one streamed call may take", "a call that streams steadily for ever"},
 	"memory":               {"extract project memory automatically after turns that changed something", "you would rather decide yourself what is remembered (/remember always works)"},
 	"hints":                {"one-time hints about features you have not used", "you know the harness and want the transcript quiet"},
+	"update_check":         {"say in the TUI when a newer release is out, asking GitHub at most once a day", "you would rather the TUI made no network call of its own, or you update through a package manager"},
 	"proof_notes":          {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
 	"sandbox":              {"the sandbox profile a session in this project starts under: off, workspace, read-only or strict", "this project's commands should always be confined, not only when you remember to type /sandbox"},
 	"stale_check_nudge":    {"send a turn back once when its checks passed, it edited again afterwards and it then said it was done", "a model that tests in the middle of a turn and edits at the end of it; off by default because it changes what a turn does"},

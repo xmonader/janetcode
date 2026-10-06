@@ -1,11 +1,14 @@
 package main
 
 import (
+	"time"
+
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/update"
 	"io"
 	"os"
 	"os/signal"
@@ -313,6 +316,12 @@ func (r *root) tuiMode() error {
 	return tui.Run(tui.Options{
 		Plain: r.opts.plain || tui.PlainWanted(os.Getenv),
 		Notes: cfg.Notes,
+		UpdateNotice: func(ctx context.Context) string {
+			if !cfg.UpdateCheckEnabled() {
+				return ""
+			}
+			return update.Notice(ctx, nil, update.Base(), version, filepath.Join(cfgDir, "update-check.json"), time.Now())
+		},
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
 		StatusLine: cfg.StatusLine,
 		Workspace:  built.ws,

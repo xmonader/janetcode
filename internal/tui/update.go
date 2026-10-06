@@ -359,6 +359,13 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return cmd, true
 
+	case updateNoticeMsg:
+		if msg != "" {
+			m.transcript.info(string(msg))
+			m.refresh(false)
+		}
+		return nil, true
+
 	case evalKeepMsg:
 		cmd := m.finishEvalKeep(msg)
 		m.refresh(false)

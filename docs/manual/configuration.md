@@ -20,6 +20,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "memory": true,
   "hints": true,
   "proof_notes": true,
+  "update_check": true,
   "sandbox": "off",
   "theme": "auto",
   "providers": {
@@ -321,6 +322,15 @@ been said is a small JSON file under the config directory, keyed by
 project — never in the project itself. `/hints off` silences them for one
 session, `/hints on` brings them back, and `/hints` alone says how many
 have been given.
+
+### Release notice
+
+`"update_check": false` stops the TUI saying when a newer release is out.
+On by default, it asks GitHub for the latest release tag at most once a
+day (the answer is cached in `update-check.json` in the config
+directory), in the background with a five-second limit, and a failed ask
+waits for the next day too. Headless runs and builds that are not a
+release never ask. `janetcode --update` installs the new release.
 
 ### Proof notes
 

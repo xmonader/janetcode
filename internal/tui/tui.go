@@ -316,7 +316,7 @@ func (m *model) Init() tea.Cmd {
 		m.transcript.info(n)
 	}
 	m.startMCP()
-	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()))
+	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()), m.checkUpdate())
 }
 
 func tick() tea.Cmd {

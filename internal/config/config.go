@@ -167,6 +167,10 @@ type Config struct {
 	// nothing when a turn made no commit, so unlike Intent there is no
 	// per-request budget to weigh it against.
 	ProofNotes *bool `json:"proof_notes,omitempty"`
+	// UpdateCheck shows a line in the TUI when a newer release is out,
+	// asking at most once a day. Nil means on; a build that is not a
+	// release never asks.
+	UpdateCheck *bool `json:"update_check,omitempty"`
 	// Sandbox names the sandbox profile a session in this project starts
 	// under: "workspace", "read-only" or "strict" (see internal/shell's
 	// profile catalogue). Empty, or "off", is the default: no sandbox,
@@ -344,6 +348,9 @@ func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }
 // ProofNotesEnabled reports whether commits made this session get proof
 // notes attached automatically.
 func (c *Config) ProofNotesEnabled() bool { return c.ProofNotes == nil || *c.ProofNotes }
+
+// UpdateCheckEnabled reports whether the TUI says when a release is out.
+func (c *Config) UpdateCheckEnabled() bool { return c.UpdateCheck == nil || *c.UpdateCheck }
 
 // ModelMeta is what a provider's model list said about one model.
 type ModelMeta struct {
