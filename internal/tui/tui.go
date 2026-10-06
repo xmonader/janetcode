@@ -46,8 +46,10 @@ type model struct {
 	transcript *transcript
 	queue      *eventQueue
 	viewport   scroller
-	input      textarea.Model
-	spinner    spinner.Model
+	// drag is a mouse selection in progress (see selection.go).
+	drag    drag
+	input   textarea.Model
+	spinner spinner.Model
 
 	width, height int
 	ready         bool

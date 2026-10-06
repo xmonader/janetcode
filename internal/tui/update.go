@@ -125,10 +125,8 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 
 	case tea.MouseMsg:
-		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			if m.clickTranscript(msg.Y) {
-				return nil, true
-			}
+		if m.mouseSelect(msg) {
+			return nil, true
 		}
 		return m.scroll(msg), true
 

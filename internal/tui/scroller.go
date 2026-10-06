@@ -23,6 +23,8 @@ type scroller struct {
 	MouseWheelDelta   int
 
 	lines []string
+	// sel is the mouse selection, drawn highlighted (see selection.go).
+	sel selection
 }
 
 func newScroller(width, height int) scroller {
@@ -35,7 +37,9 @@ func newScroller(width, height int) scroller {
 // grown taller left a view of a few lines over a blank screen until the
 // next scroll.
 func (s *scroller) SetContent(content string) {
+	old := s.lines
 	s.lines = strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	s.keepSelection(old)
 	if s.YOffset > s.maxYOffset() {
 		s.GotoBottom()
 	}
@@ -116,10 +120,17 @@ func (s scroller) Update(msg tea.Msg) (scroller, tea.Cmd) {
 func (s scroller) View() string {
 	top := min(max(s.YOffset, 0), len(s.lines))
 	bottom := min(max(top+s.Height, top), len(s.lines))
+	shown := s.lines[top:bottom]
+	if s.sel.on {
+		shown = append([]string(nil), shown...)
+		for i := range shown {
+			shown[i] = s.highlight(top+i, shown[i])
+		}
+	}
 	return lipgloss.NewStyle().
 		Width(s.Width).
 		Height(s.Height).
 		MaxHeight(s.Height).
 		MaxWidth(s.Width).
-		Render(strings.Join(s.lines[top:bottom], "\n"))
+		Render(strings.Join(shown, "\n"))
 }

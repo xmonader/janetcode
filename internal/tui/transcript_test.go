@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	tea "github.com/charmbracelet/bubbletea"
 	"regexp"
 	"strings"
 	"testing"
@@ -656,6 +657,16 @@ func TestClickFindsTheEntryUnderTheStickyPlan(t *testing.T) {
 	}
 	if !h.m.clickTranscript(row) || !e.expanded {
 		t.Fatalf("a click on row %d did not open the tool line drawn there", row)
+	}
+	// The same through the mouse: press and release with no move between
+	// is a click (a drag would select), and folds the line again.
+	h.m.Update(tea.MouseMsg{X: 5, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if !e.expanded {
+		t.Fatal("the press alone toggled the line; it should wait for the release")
+	}
+	h.m.Update(tea.MouseMsg{X: 5, Y: row, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	if e.expanded || h.m.viewport.sel.on {
+		t.Fatalf("press+release: expanded=%v selection=%v", e.expanded, h.m.viewport.sel.on)
 	}
 }
 

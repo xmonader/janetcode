@@ -64,6 +64,9 @@ ctrl+o           expand the last turn's output   ctrl+l   redraw
                  line or thought to fold one;
                  /verbose does every turn)
 pgup / pgdn      scroll (mouse wheel works)
+drag             select transcript text and copy it on release (the system
+                 clipboard helper, else OSC 52, which works over ssh in
+                 terminals that allow it); a click clears the selection
 ctrl+c           cancel the turn; when idle, press twice to quit
 shift+tab        cycle ask → plan → auto → yolo (approvals, plan-first, safe-auto, auto-approve)
 ctrl+r           cycle the reasoning tier up the ladder and round again (/effort)
