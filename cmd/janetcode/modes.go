@@ -252,7 +252,7 @@ func (r *root) headlessMode() error {
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
-		Format: format, MaxCostUSD: o.maxCost, JSONSchema: schema,
+		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, JSONSchema: schema,
 	})
 	finish(err)
 	return err

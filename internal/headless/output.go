@@ -62,6 +62,7 @@ const (
 	ExitTurnLimit = 53  // the turn hit its model-call cap
 	ExitSchema    = 54  // no answer matching --json-schema
 	ExitBudget    = 55  // the run reached --max-cost
+	ExitToolLimit = 57  // the run reached --max-tool-calls
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
 
@@ -69,6 +70,9 @@ const (
 // agent loop raises the same error from inside a turn, so there is one
 // error for the one condition.
 var ErrBudget = agent.ErrBudget
+
+// ErrToolLimit is returned when a run reaches --max-tool-calls.
+var ErrToolLimit = agent.ErrToolLimit
 
 // ErrBadInput marks a usage error, so main can exit 42 for it.
 var ErrBadInput = errors.New("bad input")
@@ -151,6 +155,7 @@ var exitRules = []struct {
 		return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	}, ExitCancelled},
 	{"budget", func(err error) bool { return errors.Is(err, ErrBudget) }, ExitBudget},
+	{"tool limit", func(err error) bool { return errors.Is(err, ErrToolLimit) }, ExitToolLimit},
 	{"turn limit", func(err error) bool { return errors.Is(err, agent.ErrMaxIterations) }, ExitTurnLimit},
 	{"schema", func(err error) bool { return errors.Is(err, ErrNoStructuredOutput) }, ExitSchema},
 	{"bad input", func(err error) bool {

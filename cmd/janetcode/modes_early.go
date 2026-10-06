@@ -121,6 +121,8 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{o.inFormat == string(headless.InputStreamJSON) && format != headless.FormatStreamJSON, "--input-format stream-json needs --output-format stream-json"},
 		{o.inFormat == string(headless.InputStreamJSON) && (o.jsonSchema != "" || o.until != "" || o.watchCmd != "" || o.bg), "--input-format stream-json does not combine with --json-schema, --until, --watch or --bg"},
 		{o.inFormat == string(headless.InputStreamJSON) && (o.web || o.acpMode), "--input-format stream-json is headless; drop --web/--acp"},
+		{o.maxToolCalls < 0, "--max-tool-calls must be 0 (no limit) or more"},
+		{o.maxToolCalls > 0 && !o.headless(), "--max-tool-calls needs a headless run (-p or --input-format stream-json)"},
 		{o.jsonSchema != "" && o.promptText == "", "--json-schema needs a headless prompt (-p)"},
 		{o.jsonSchema != "" && o.watchCmd != "", "--json-schema and --watch do not combine: a watch has no single answer"},
 		{o.watchCmd != "" && o.until != "", "--watch and --until cannot be combined"},

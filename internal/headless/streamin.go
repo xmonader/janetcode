@@ -213,6 +213,7 @@ func runStream(ctx context.Context, opts Options, rec *recorder) error {
 		}()
 		ag.Approver = sa
 	}
+	ag.MaxToolCalls = opts.MaxToolCalls
 	if opts.MaxCostUSD > 0 {
 		ag.MaxCostUSD = opts.MaxCostUSD
 	}
@@ -285,7 +286,7 @@ func runStream(ctx context.Context, opts Options, rec *recorder) error {
 		}
 		last = err
 		rec.writeResult(ag, err)
-		if errors.Is(err, ErrBudget) {
+		if errors.Is(err, ErrBudget) || errors.Is(err, ErrToolLimit) {
 			// Every later message would be refused on its first call.
 			rec.perTurn = true
 			return err

@@ -127,6 +127,9 @@ func bgRunArgs(o *options) []string {
 	str("provider", o.provider)
 	str("model", o.model)
 	str("effort", o.effort)
+	if o.maxToolCalls > 0 {
+		args = append(args, "--max-tool-calls="+strconv.Itoa(o.maxToolCalls))
+	}
 	if o.maxCost > 0 {
 		args = append(args, "--max-cost="+strconv.FormatFloat(o.maxCost, 'g', -1, 64))
 	}

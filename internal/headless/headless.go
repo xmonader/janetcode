@@ -63,6 +63,8 @@ type Options struct {
 	// between-turns backstop for the rounds --until and --watch drive.
 	// Zero means no ceiling.
 	MaxCostUSD float64
+	// MaxToolCalls ends the run before the tool call that would pass it.
+	MaxToolCalls int
 	// JSONSchema, when set, makes the answer a JSON value matching this
 	// schema, delivered through the structured_output tool: printed alone
 	// on stdout in text format, and as structured_output in the result
@@ -161,6 +163,7 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 		}()
 		ag.Approver = sa
 	}
+	ag.MaxToolCalls = opts.MaxToolCalls
 	if opts.MaxCostUSD > 0 {
 		ag.MaxCostUSD = opts.MaxCostUSD
 	}
@@ -637,7 +640,7 @@ func (e explainedError) Unwrap() error { return e.err }
 // it does not recognise, and the run's own stops (cancelled, budget,
 // turn limit), pass through unchanged.
 func explainFailure(err error, opts Options) error {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrBudget) || errors.Is(err, agent.ErrMaxIterations) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrBudget) || errors.Is(err, ErrToolLimit) || errors.Is(err, agent.ErrMaxIterations) {
 		return err
 	}
 	provider := "the provider"

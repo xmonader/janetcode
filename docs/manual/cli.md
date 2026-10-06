@@ -16,6 +16,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--output-format text\|json\|stream-json` | with `-p`: how the run reports itself (see below) |
 | `--input-format text\|stream-json` | `stream-json`: a conversation on stdin, a turn per line (see [Streaming input](#streaming-input)); needs `--output-format stream-json`, and `-p` becomes optional |
 | `--json-schema <json\|@file>` | with `-p`: answer with JSON matching this schema (see [Structured output](#structured-output)); exits 54 when no valid answer comes |
+| `--max-tool-calls <n>` | with `-p`: stop before the tool call that would take the run past `n`, and exit 57. A batch of parallel calls that would cross the line is answered unrun as a whole; subagents' own calls are not counted |
 | `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it |
 | `--max-turns <n>` | cap the model calls one turn may make; the eval runner's `--eval-max-turns` with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget |
 | `--compact-at <tokens>` | compact the history at this size instead of the configured one; `--eval-compact-at` with the everyday spelling |
@@ -210,6 +211,7 @@ comes out unwrapped. Supported keywords: `type`, `properties`,
 | 53 | the turn hit its model-call cap |
 | 54 | no answer matched `--json-schema` |
 | 55 | the run reached `--max-cost` |
+| 57 | the run reached `--max-tool-calls` |
 | 130 | interrupted, as a shell reports a SIGINT |
 
 The code is also in the `exit_code` field of the result object, so a
