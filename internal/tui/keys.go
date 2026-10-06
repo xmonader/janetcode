@@ -205,6 +205,7 @@ var promptKeys = map[string]keyAction{
 	"ctrl+o":    (*model).keyFold,
 	"backspace": (*model).keyBackspace,
 	"ctrl+g":    (*model).keyBackground,
+	"ctrl+x":    (*model).keyEditor,
 	"ctrl+s":    (*model).keySteer,
 	"ctrl+l":    (*model).keyClearScreen,
 	"shift+tab": (*model).keyCycleMode,

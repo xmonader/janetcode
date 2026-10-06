@@ -303,6 +303,7 @@ again; it does not become a line in the transcript.
 ```
 @path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes
 ctrl+g           move the command running in the foreground to the background, as a job
+ctrl+x           write the prompt in $VISUAL or $EDITOR (vi if neither is set); what you save becomes the prompt, a non-zero exit (vim's :cq) keeps it as it was
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /auto (edits and known-safe reads)   /edits (edits go through, commands ask)
