@@ -2130,7 +2130,7 @@ tools, `/ssh` and `/docker` are untouched, so only the shell is confined.
 `/sandbox on` means `workspace`. `/sandbox off` turns it off again.
 `/sandbox` alone reports the active profile, the backend, and whatever
 that backend cannot enforce. `/sandbox <image>` names the docker image
-(default `alpine:3.20`) and `/sandbox docker|seatbelt|landlock|auto`
+(default `alpine:3.20`) and `/sandbox bwrap|docker|seatbelt|landlock|auto`
 forces a backend instead of the one picked for the machine. A project
 can start every session sandboxed with the `sandbox` config key (see
 *Configuration*).
@@ -2139,13 +2139,25 @@ can start every session sandboxed with the `sandbox` config key (see
 inside it. That is the point of the profile; use `workspace` when the
 model is expected to commit.
 
-**Backends.** macOS uses `sandbox-exec` (seatbelt). Linux uses docker
+**Backends.** macOS uses `sandbox-exec` (seatbelt). Linux uses
+**bubblewrap** (`bwrap`) when it is installed and can run, then docker
 when it is installed, and **Landlock** otherwise — the kernel LSM, no
-container and no image. `/sandbox landlock` chooses it even where docker
-exists.
+container and no image. `/sandbox landlock` (or `docker`) chooses one even
+where a preferred backend exists.
 
 What each backend can and cannot do:
 
+- **bubblewrap** binds the whole filesystem read-only, the write roots
+  read-write on top, and a protected directory that exists (`.git`,
+  `.janetcode`) read-only again on top of that. A profile with no network
+  gets its own network namespace with only loopback, so UDP and DNS go
+  too. The command runs on your machine's toolchain, in its own PID
+  namespace: killing it (a timeout, ^C) kills everything it started. It
+  cannot mount a *wildcard* deny glob such as `**/id_rsa`, nor protect a
+  directory that does not exist yet, and unix sockets on the filesystem
+  stay reachable without a network. It needs unprivileged user
+  namespaces; where they are off, janetcode checks once and moves on to
+  the next backend.
 - **docker** mounts every write root read-write and everything else the
   command can see read-only, gives a profile with no network
   `--network=none`, and re-mounts a deny glob that names a directory

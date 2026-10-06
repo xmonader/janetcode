@@ -19,10 +19,11 @@ const (
 	BackendDocker   = "docker"
 	BackendSeatbelt = "seatbelt"
 	BackendLandlock = "landlock"
+	BackendBwrap    = "bwrap"
 )
 
 // Backends are the names /sandbox accepts to force one.
-var Backends = []string{BackendAuto, BackendDocker, BackendSeatbelt, BackendLandlock}
+var Backends = []string{BackendAuto, BackendBwrap, BackendDocker, BackendSeatbelt, BackendLandlock}
 
 // Sandbox, when enabled, wraps local bash in one of three backends —
 // docker, macOS seatbelt, or Linux Landlock — applying a named Profile
@@ -40,6 +41,8 @@ type Sandbox struct {
 	look func(string) (string, error)
 	// abi, when non-nil, replaces the Landlock ABI probe (tests).
 	abi func() int
+	// probe, when non-nil, replaces the check that bwrap can run (tests).
+	probe func() bool
 }
 
 // Enabled reports whether wrapping is on.
@@ -182,6 +185,17 @@ func (s *Sandbox) backendFor() (string, error) {
 		s.mu.Unlock()
 	}
 	switch forced {
+	case BackendBwrap:
+		if runtime.GOOS != "linux" {
+			return "", fmt.Errorf("bubblewrap is Linux only")
+		}
+		if _, err := s.lookPath("bwrap"); err != nil {
+			return "", fmt.Errorf("bwrap not found (install bubblewrap)")
+		}
+		if !s.bwrapUsable() {
+			return "", fmt.Errorf("bwrap is installed but cannot run here: unprivileged user namespaces are off, or an AppArmor policy refuses them")
+		}
+		return BackendBwrap, nil
 	case BackendDocker:
 		if _, err := s.lookPath("docker"); err != nil {
 			return "", fmt.Errorf("docker not found")
@@ -213,13 +227,19 @@ func (s *Sandbox) backendFor() (string, error) {
 		}
 		return BackendSeatbelt, nil
 	case "linux":
+		// bubblewrap first: it confines the command on this machine's
+		// own toolchain, which is what the model was asked to work with,
+		// and enforces more of a profile than Landlock can.
+		if s.bwrapUsable() {
+			return BackendBwrap, nil
+		}
 		if _, err := s.lookPath("docker"); err == nil {
 			return BackendDocker, nil
 		}
 		if s.landlockABI() >= 1 {
 			return BackendLandlock, nil
 		}
-		return "", fmt.Errorf("no sandbox backend: docker is not installed and this kernel has no Landlock")
+		return "", fmt.Errorf("no sandbox backend: bubblewrap and docker are not installed and this kernel has no Landlock")
 	default:
 		if _, err := s.lookPath("docker"); err != nil {
 			return "", fmt.Errorf("docker not found (needed to sandbox bash)")
@@ -260,6 +280,13 @@ func (s *Sandbox) Notes() []string {
 			out = append(out, "docker cannot mount a wildcard deny glob ("+strings.Join(wild, ", ")+"); those writes are refused by command analysis instead")
 		}
 		out = append(out, "the command runs in the "+s.Image()+" image, not on your machine's toolchain")
+	case BackendBwrap:
+		if wild := wildcardGlobs(p.DenyGlobs); len(wild) > 0 {
+			out = append(out, "bubblewrap cannot mount a wildcard deny glob ("+strings.Join(wild, ", ")+"), nor a protected directory that does not exist yet; those writes are refused by command analysis instead")
+		}
+		if !p.Network {
+			out = append(out, "unix sockets on the filesystem stay reachable without a network")
+		}
 	case BackendSeatbelt:
 		out = append(out, "seatbelt allows a command to read anything outside the write roots")
 	case BackendLandlock:
@@ -405,6 +432,8 @@ func (s *Sandbox) CommandIn(ctx context.Context, root string, extra []string, co
 		return s.seatbelt(ctx, p, root, extra, command)
 	case BackendLandlock:
 		return s.landlock(ctx, p, root, extra, command)
+	case BackendBwrap:
+		return s.bwrap(ctx, p, root, extra, command)
 	default:
 		return s.docker(ctx, p, root, extra, command)
 	}
