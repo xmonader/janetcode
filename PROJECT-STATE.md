@@ -31,6 +31,14 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   on Dashscope. Not done: Qwen's full-turn switch to an agent-capable
   vision model; `tool_name`/`tool_input` stay janetcode's own.
 
+- qwengo parity 2026-10-06: `--json-schema`, `--input-format stream-json`,
+  native Gemini + OpenAI Responses providers (shared loop in
+  `internal/llm/httpstream`), `/commit` + `/pr` (`internal/gitship`).
+  Live-verified: json-schema, stream input, Responses (encrypted
+  reasoning replay) and /commit drafting via OpenRouter. Native Gemini is
+  verified only against a fake server (no Gemini key here). Not taken from
+  qwengo: extensions manager, teams/arena tools, ~40 themes, vim input.
+
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does

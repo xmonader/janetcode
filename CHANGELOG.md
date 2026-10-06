@@ -5,6 +5,29 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Parity with qwengo (2026-10-06)
+- `--json-schema <json|@file>`: a headless answer as validated JSON. The
+  model delivers it through a `structured_output` tool that janetcode
+  checks against the schema itself (no reliance on the server's
+  constrained decoding); stdout holds only the value in text mode, the
+  result object carries `structured_output`, and no valid answer exits 54.
+- `--input-format stream-json`: one process for a whole conversation, a
+  turn per stdin line and a result line after each, with interrupts that
+  cancel the turn and not the session. Claude Code's message and
+  `control_request` shapes are accepted.
+- Native Gemini provider (`type: gemini`, the `gemini` preset,
+  `GEMINI_API_KEY`): keeps Gemini 3's thought signatures on the calls they
+  came with, which the OpenAI-compatible endpoint (now the `gemini-openai`
+  preset) drops and Gemini 3 then refuses with a 400.
+- OpenAI Responses provider (`type: responses`, the `openai-responses`
+  preset): reasoning comes back encrypted and is replayed before the call
+  it led to, so a reasoning model keeps its thread across tool calls.
+  Nothing is stored on OpenAI's side.
+- `/commit [message]` commits only the files this session changed, never a
+  credential-looking one, with a message drafted from the diff and the
+  changes' intents. `/pr [base]` pushes the branch and opens a pull request
+  with gh, title and description drafted.
+
 ### Security
 - `--web` refuses cross-site and DNS-rebound requests. Before this, any open
   web page could run shell commands through `/api/prompt`. Upgrade if you use
