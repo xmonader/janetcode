@@ -588,6 +588,7 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 	}
 	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")
 	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "OPENAI_BASE_URL")
+	fold("gemini", TypeGemini, ProviderConfig{}, "GEMINI_API_KEY", "GEMINI_BASE_URL")
 	for n, e := range cfg.Providers {
 		if pre, ok := FindPreset(n); ok {
 			if e.Type == "" {
@@ -598,6 +599,12 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 			}
 		}
 		e.Type = strings.ToLower(strings.TrimSpace(e.Type))
+		// The gemini preset used to be the OpenAI-compatible endpoint. An
+		// entry saved then, with its type left to the preset, still points
+		// there; it keeps the protocol that URL speaks.
+		if e.Type == TypeGemini && strings.HasSuffix(strings.TrimRight(e.BaseURL, "/"), "/openai") {
+			e.Type = TypeOpenAI
+		}
 		cfg.Providers[n] = e
 	}
 }
@@ -718,7 +725,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 				credErr = fmt.Errorf("%w for provider %q: run janetcode and /connect to paste one, or set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 			}
 		}
-	case "openai":
+	case TypeOpenAI, TypeGemini, TypeResponses:
 		if cfg.Model == "" {
 			return nil, badf("provider %q needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)", cfg.Provider)
 		}
@@ -730,7 +737,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 			}
 		}
 	default:
-		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
+		return nil, badf("provider %q has type %q (want %s)", cfg.Provider, active.Type, strings.Join(Types, ", "))
 	}
 	if !llm.ValidEffort(cfg.Effort) {
 		return nil, badValue(ov.Effort != "", "effort", "invalid effort %q (want %s)", cfg.Effort, llm.EffortList())

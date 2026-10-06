@@ -15,9 +15,32 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 )
 
-// Provider is one configured backend. Type picks the wire protocol
-// ("anthropic" or "openai" for any OpenAI-compatible server); the name in
-// Config.Providers is how the user refers to it.
+// The wire protocols a provider entry can speak.
+const (
+	TypeAnthropic = "anthropic"
+	// TypeOpenAI is any OpenAI-compatible chat-completions server.
+	TypeOpenAI = "openai"
+	// TypeGemini is Google's Gemini API, spoken natively.
+	TypeGemini = "gemini"
+	// TypeResponses is OpenAI's Responses API.
+	TypeResponses = "responses"
+)
+
+// Types lists the protocols, in the order a user is offered them.
+var Types = []string{TypeAnthropic, TypeOpenAI, TypeGemini, TypeResponses}
+
+// KnownType reports whether t is one of Types.
+func KnownType(t string) bool {
+	for _, k := range Types {
+		if k == t {
+			return true
+		}
+	}
+	return false
+}
+
+// Provider is one configured backend. Type picks the wire protocol (see
+// Types); the name in Config.Providers is how the user refers to it.
 type Provider struct {
 	Type    string `json:"type"`
 	BaseURL string `json:"base_url,omitempty"`
@@ -128,6 +151,7 @@ var SuggestedModels = map[string]string{
 var Presets = []Preset{
 	{"anthropic", "Anthropic", "anthropic", ""},
 	{"openai", "OpenAI", "openai", "https://api.openai.com/v1"},
+	{"openai-responses", "OpenAI (Responses API, keeps reasoning between calls)", "responses", "https://api.openai.com/v1"},
 	{"openrouter", "OpenRouter", "openai", "https://openrouter.ai/api/v1"},
 	{"dashscope-coding", "Alibaba Qwen coding plan", "openai", "https://coding-intl.dashscope.aliyuncs.com/v1"},
 	{"dashscope", "Alibaba Model Studio (Qwen)", "openai", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
@@ -135,7 +159,8 @@ var Presets = []Preset{
 	{"moonshot", "Moonshot (Kimi)", "openai", "https://api.moonshot.ai/v1"},
 	{"zhipu", "Zhipu (GLM)", "openai", "https://open.bigmodel.cn/api/paas/v4"},
 	{"minimax", "MiniMax", "openai", "https://api.minimax.io/v1"},
-	{"gemini", "Google Gemini", "openai", "https://generativelanguage.googleapis.com/v1beta/openai"},
+	{"gemini", "Google Gemini", "gemini", "https://generativelanguage.googleapis.com/v1beta"},
+	{"gemini-openai", "Google Gemini (OpenAI-compatible endpoint)", "openai", "https://generativelanguage.googleapis.com/v1beta/openai"},
 	{"xai", "xAI (Grok)", "openai", "https://api.x.ai/v1"},
 	{"mistral", "Mistral", "openai", "https://api.mistral.ai/v1"},
 	{"groq", "Groq", "openai", "https://api.groq.com/openai/v1"},
