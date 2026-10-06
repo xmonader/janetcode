@@ -31,6 +31,9 @@ type Override struct {
 	BaseFile string
 	// Append is added after everything else.
 	Append string
+	// NoProject leaves the project's instruction files (JANETCODE.md,
+	// AGENTS.md, CLAUDE.md) out: --safe-mode.
+	NoProject bool
 }
 
 // SystemMDEnv names a file whose contents replace the base prompt.
@@ -174,8 +177,10 @@ func Sections(cwd string, o Override) []Section {
 	}
 	secs = append(secs,
 		Section{Name: SectionEnvironment, Text: EnvironmentHeading + environment(cwd)},
-		Section{Name: SectionProject, Text: projectInstructions(cwd)},
 	)
+	if !o.NoProject {
+		secs = append(secs, Section{Name: SectionProject, Text: projectInstructions(cwd)})
+	}
 	if o.Append != "" {
 		secs = append(secs, Section{Name: SectionAppend, Text: "\n\n" + o.Append + "\n"})
 	}

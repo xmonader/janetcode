@@ -137,3 +137,17 @@ func TestGitBranchInWorktree(t *testing.T) {
 		t.Fatalf("worktree: GitBranch = %q, %v, want feature/x", b, ok)
 	}
 }
+
+// --safe-mode: the project's instruction files are not read into the
+// prompt; everything else is.
+func TestNoProjectLeavesInstructionsOut(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("MARKER-FROM-AGENTS-MD"), 0o644)
+	if !strings.Contains(SystemWith(dir, Override{}), "MARKER-FROM-AGENTS-MD") {
+		t.Fatal("instructions missing without NoProject")
+	}
+	got := SystemWith(dir, Override{NoProject: true})
+	if strings.Contains(got, "MARKER-FROM-AGENTS-MD") || !strings.Contains(got, EnvironmentHeading) {
+		t.Fatalf("NoProject prompt wrong:\n%s", got)
+	}
+}
