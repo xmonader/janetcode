@@ -26,6 +26,7 @@ type options struct {
 	coreTools    string
 	excludeTools string
 	safeMode     bool
+	debugFile    string
 	maxTurns     int
 	compactAt    int
 	until        string
@@ -122,7 +123,7 @@ var helpGroups = []struct {
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "core-tools", "exclude-tools", "safe-mode", "sandbox"}},
-	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
+	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version", "debug"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
 }
@@ -285,6 +286,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.cont, "continue", false, "resume the latest session for this directory")
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
+	fs.StringVar(&o.debugFile, "debug", "", "append a timestamped timeline of model calls (duration, stop reason, usage), stream and tool events and MCP traffic to this file (the same as JANETCODE_DEBUG=<file>)")
 	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")

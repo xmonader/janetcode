@@ -231,10 +231,14 @@ func (r *root) wireProject() error {
 	ag.Protected = perm.NewProtected(cfg.ProtectedPaths)
 	projectTrusted := len(projectServers) > 0 && ts.Trusted(cwd, projectHash)
 
-	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
+	debugPath, debugFrom := o.debugFile, "--debug"
+	if debugPath == "" {
+		debugPath, debugFrom = os.Getenv("JANETCODE_DEBUG"), "JANETCODE_DEBUG"
+	}
+	if path := debugPath; path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {
-			return fmt.Errorf("JANETCODE_DEBUG: %w", err)
+			return fmt.Errorf("%s: %w", debugFrom, err)
 		}
 		r.onClose(func() { _ = f.Close() })
 		ag.Debug = f
