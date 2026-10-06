@@ -136,13 +136,21 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	typed := &weburl.Set{}
 	typed.Note(initial)
 	typed.Note(o.promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
+	filter, err := parseToolFilter(o.coreTools, o.excludeTools)
+	if err != nil {
+		return r, err
+	}
+	deps := agentDeps{tools: filter, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err
 	}
 	r.onClose(built.close)
 	ag := built.agent
+	if err := filter.check(ag.Tools); err != nil {
+		return r, err
+	}
+	filter.activate(ag.Tools)
 
 	r.servers = mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
 	r.onClose(r.servers.Close)

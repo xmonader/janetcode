@@ -33,6 +33,8 @@ var flagWhen = map[string]string{
 	"output-format":          "a script or a CI job that has to read the result rather than a human",
 	"input-format":           "a program that holds one session open and sends it message after message, interrupting when it needs to",
 	"json-schema":            "a script that needs fields it can read, not prose it has to parse",
+	"core-tools":             "a narrow job (review, triage, docs) where a short tool list keeps the model on task and the prompt small",
+	"exclude-tools":          "a tool you never want offered in this run, e.g. bash in a review job, without even a refused attempt",
 	"max-wall-time":          "a run in CI or a cron job that must finish, one way or the other, before the job's own timeout kills it without a result",
 	"max-tool-calls":         "an unattended run that should give up rather than keep poking at the repository",
 	"max-cost":               "an unattended run you do not want to discover afterwards was expensive",

@@ -30,7 +30,7 @@ the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`
 jobs are stored on the session and restored when that session is resumed.
 
 The child runs in the permission mode you give it (the default, or
-`--auto-edits`, `--auto`, `--readonly`, plus any `--allow` and `--deny`
+`--auto-edits`, `--auto`, `--readonly`, plus any `--allow`, `--deny`, `--core-tools` and `--exclude-tools`
 rules). A call that mode asks about waits until you answer it; nothing
 runs unasked unless you add `--yolo`:
 

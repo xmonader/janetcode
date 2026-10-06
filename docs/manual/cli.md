@@ -62,6 +62,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--init` | write a starter config file |
 | `--init-project` | write a starter `JANETCODE.md` for this repository, from its languages, declared commands and layout, and exit. An existing one is never overwritten; `/init force` in a session replaces it. See [Project instructions](configuration.md#project-instructions) |
 | `--allow`, `--deny` | add a permission rule for this run |
+| `--core-tools <list>`, `--exclude-tools <list>` | which tools the model is shown: only the `--core-tools` ones, none of the `--exclude-tools` ones. Comma-separated, globs allowed (`mcp__github__*`), MCP tools that connect later included. Unlike `--deny`, a filtered tool is not in the request at all, so it costs no tokens and the model never tries it. A plain name that is no tool of the session is an error (exit 42), so a typo cannot leave in place the tool it meant to remove |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |
 | `--update` | replace this binary with the latest release: the download is checked against the release's `SHA256SUMS` and written beside the old binary before it is renamed over it. A build from source says it is not a release; `JANETCODE_RELEASES` points at a mirror |
 | `--version` | print the version |

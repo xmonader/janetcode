@@ -119,6 +119,8 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 // gets its own history, log and undo state over the same wiring rather
 // than a second copy of the wiring.
 type agentDeps struct {
+	// tools hides tools from the model (--core-tools, --exclude-tools).
+	tools   toolFilter
 	prov    llm.Provider
 	cfg     *config.Config
 	cwd     string
@@ -400,6 +402,9 @@ func (b *agentBuilder) stepCore() error {
 		return err
 	}
 	b.ag = ag
+	if d.tools.active() {
+		ag.Tools.Gate(d.tools.gate)
+	}
 	ag.Archive = b.archive
 	ag.Root = d.cwd
 	ag.Files = b.files

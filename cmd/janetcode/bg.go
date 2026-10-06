@@ -105,6 +105,12 @@ func bgPermissionArgs(o *options) []string {
 	if o.deny != "" {
 		rules = append(rules, "--deny", o.deny)
 	}
+	if o.coreTools != "" {
+		rules = append(rules, "--core-tools="+o.coreTools)
+	}
+	if o.excludeTools != "" {
+		rules = append(rules, "--exclude-tools="+o.excludeTools)
+	}
 	if o.sandboxOn {
 		rules = append(rules, "--sandbox")
 	}
