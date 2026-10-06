@@ -146,6 +146,36 @@ including `/` — a leading `~` is your home directory, and a pattern
 ending in `/*` or `/**` covers the directory itself as well as what is
 in it.
 
+### Ignore files: `.aiignore`
+
+A project can tell the agent which files to stay out of with an
+`.aiignore` (also read: `.agentignore`, `.janetcodeignore`), in
+`.gitignore` syntax. Files in subdirectories apply to their own subtree,
+`!` re-includes, a trailing `/` means a directory, and an excluded
+directory excludes everything under it:
+
+```gitignore
+# customer data and credentials
+/fixtures/customers/
+*.pem
+.env*
+!.env.example
+```
+
+`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep` and
+`read_many_files` honour it. A listing or search leaves excluded paths
+out, and naming one is refused with the file and line that excluded it
+(`secrets/token.txt is excluded ... by .aiignore:2`). Edits to the file
+apply within a second, without restarting.
+
+This is a statement of intent, not a sandbox. `bash` can still `cat` an
+excluded file, the same way `.gitignore` does not stop anyone reading
+one. To keep a file from a session for certain, use `--sandbox` or keep
+the file outside the project. `.gitignore` itself is not consulted:
+build output and vendored code are often exactly what a question is
+about. Over `--ssh` and `--docker`, the remote side's ignore files are
+not read.
+
 ### What janetcode records about you
 
 Two small files in the config directory, and nothing else:

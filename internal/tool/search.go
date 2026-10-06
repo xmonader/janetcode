@@ -66,7 +66,7 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		mod  int64
 	}
 	var hits []hit
-	err = walkOn(t.WS, ctx, dir, func(rel string, d fs.DirEntry) error {
+	err = walkOn(t.WS, ctx, t.Root, dir, func(rel string, d fs.DirEntry) error {
 		if d.IsDir() || !re.MatchString(rel) {
 			return nil
 		}
@@ -101,9 +101,11 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	return textfmt.Truncate(sb.String()), nil
 }
 
-// walkOn visits every entry under dir, skipping skipDirs, calling fn with
+// walkOn visits every entry under dir, skipping skipDirs and what the
+// project's AI ignore files exclude (local workspaces), calling fn with
 // the slash-separated path relative to dir.
-func walkOn(ws *Workspace, ctx context.Context, dir string, fn func(rel string, d fs.DirEntry) error) error {
+func walkOn(ws *Workspace, ctx context.Context, root, dir string, fn func(rel string, d fs.DirEntry) error) error {
+	root = ignoreRoot(ws, root, dir)
 	return walkDirOf(ctx, ws, dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
@@ -119,6 +121,12 @@ func walkOn(ws *Workspace, ctx context.Context, dir string, fn func(rel string, 
 		}
 		if d.IsDir() && skipDirs[d.Name()] {
 			return fs.SkipDir
+		}
+		if walkIgnored(root, p, d.IsDir()) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		rel, rerr := filepath.Rel(dir, p)
 		if rerr != nil {
@@ -305,7 +313,7 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if !st.IsDir() {
 		err = grepFile(in.Path, target)
 	} else {
-		err = walkOn(t.WS, ctx, target, func(rel string, d fs.DirEntry) error {
+		err = walkOn(t.WS, ctx, t.Root, target, func(rel string, d fs.DirEntry) error {
 			if d.IsDir() || (fileRe != nil && !fileRe.MatchString(rel)) {
 				return nil
 			}

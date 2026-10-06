@@ -308,7 +308,14 @@ func resolveOn(ws *Workspace, root, p string) (string, error) {
 			roots = append([]string{r}, extra...)
 		}
 	}
-	return confineIn(roots, p, eval)
+	abs, err := confineIn(roots, p, eval)
+	if err != nil || !eval {
+		return abs, err
+	}
+	if err := ignoredErr(roots, abs, p); err != nil {
+		return "", err
+	}
+	return abs, nil
 }
 
 func readFileOf(ctx context.Context, ws *Workspace, path string) ([]byte, error) {

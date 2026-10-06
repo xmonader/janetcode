@@ -142,7 +142,7 @@ func (t ReadManyFiles) globPaths(ctx context.Context, pattern string) ([]string,
 		return nil, err
 	}
 	var out []string
-	err = walkOn(t.WS, ctx, dir, func(rel string, d fs.DirEntry) error {
+	err = walkOn(t.WS, ctx, t.Root, dir, func(rel string, d fs.DirEntry) error {
 		if d.IsDir() || !re.MatchString(rel) {
 			return nil
 		}

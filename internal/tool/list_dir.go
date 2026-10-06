@@ -76,7 +76,11 @@ func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error)
 		return "", err
 	}
 	names := make([]string, 0, len(entries))
+	root := ignoreRoot(t.WS, t.Root, p)
 	for _, e := range entries {
+		if walkIgnored(root, p+string(os.PathSeparator)+e.Name(), e.IsDir()) {
+			continue
+		}
 		n := e.Name()
 		if e.IsDir() {
 			n += "/"

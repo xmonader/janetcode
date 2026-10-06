@@ -217,7 +217,7 @@ func TestRemoteWalkDirSkipsWhatIsUnderASkippedDirectory(t *testing.T) {
 	ws := NewLocal(t.TempDir())
 	ws.Set(h)
 	var got []string
-	err = walkOn(ws, context.Background(), fs, func(rel string, d os.DirEntry) error {
+	err = walkOn(ws, context.Background(), fs, fs, func(rel string, d os.DirEntry) error {
 		if d.IsDir() {
 			rel += "/"
 		}

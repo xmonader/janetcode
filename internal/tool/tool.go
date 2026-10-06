@@ -342,7 +342,14 @@ func displayPath(root, p string) string {
 }
 
 func resolvePath(root, p string) (string, error) {
-	return confinePath(root, p, true)
+	abs, err := confinePath(root, p, true)
+	if err != nil {
+		return "", err
+	}
+	if err := ignoredErr([]string{root}, abs, p); err != nil {
+		return "", err
+	}
+	return abs, nil
 }
 
 // confineIn tries each root in order. Relative paths are first joined to
