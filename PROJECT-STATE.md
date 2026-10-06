@@ -15,21 +15,9 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   and others. Anthropic path verified only against a fake server.
 - Windows: compile-checked (`make cross`), never run.
 - Last release tag: v0.2.0; ~1040 commits since.
-- Polish/look passes 2026-09-24/25: CHANGELOG "Polish", "Robustness", "Web,
-  background runs and operations", "First week", "Look and feel". Brand:
-  iris accent + iris→aqua gradient (agent's pick; alternatives offered).
-  Checks: `make ui-test ui-turn ui-a11y ui-visual` (shot.mjs pins
-  `/api/suggest`). TUI review: pty frames rendered to PNG. Not taken from
-  diwan: native Gemini client, schema-enum drift test. Release pipeline
-  rehearsed locally; install.sh/--update need the GitHub repo public.
-- deer-flow/trae-agent reviewed 2026-09-25: took skill scan + open-plan gate.
-  Already had: loops, truncation refusal, searchable compaction archive.
-- Qwen/Claude parity 2026-09-25 (vs qwen-code ffea2d0 on herobox): 14 hook
-  events + Claude/Qwen hook configs read as-is; `status_line` command
-  (TUI only; Qwen's preset mode refused); `vision_model` bridge (images
-  described for a text-only model, cached per image). All live-verified
-  on Dashscope. Not done: Qwen's full-turn switch to an agent-capable
-  vision model; `tool_name`/`tool_input` stay janetcode's own.
+- Earlier rounds (polish, deer-flow/trae, Qwen/Claude parity): see
+  CHANGELOG and docs/notes/history.md. UI checks: `make ui-test ui-turn
+  ui-a11y ui-visual`. install.sh/--update need the GitHub repo public.
 
 - qwengo parity 2026-10-06: `--json-schema`, `--input-format stream-json`,
   native Gemini + OpenAI Responses providers (shared loop in
@@ -38,6 +26,13 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   reasoning replay) and /commit drafting via OpenRouter. Native Gemini is
   verified only against a fake server (no Gemini key here). Not taken from
   qwengo: extensions manager, teams/arena tools, ~40 themes, vim input.
+- qwengo parity round 2 (2026-10-06): --max-tool-calls (57),
+  --max-wall-time (56), --core-tools/--exclude-tools (registry gate),
+  .aiignore (internal/ignore), --safe-mode, Tavily/Serper/Exa/SearXNG
+  search, bwrap sandbox (preferred on Linux), --debug, --list-models,
+  update_check notice, ctrl+x $EDITOR, drag-select + copy (OSC 52
+  fallback). Live: Serper, Exa, list-models; bwrap/editor/drag via pty.
+  Not live: Tavily, SearXNG (no key/instance).
 
 ## Next
 - Live-verify the Anthropic path (held by user 2026-09-24).

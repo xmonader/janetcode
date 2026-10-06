@@ -27,6 +27,30 @@ and measurements behind each round are in `docs/notes/history.md`.
   credential-looking one, with a message drafted from the diff and the
   changes' intents. `/pr [base]` pushes the branch and opens a pull request
   with gh, title and description drafted.
+- Run limits: `--max-tool-calls <n>` (exit 57) and `--max-wall-time <dur>`
+  (exit 56), each ending a headless run with a result instead of a kill.
+- `--core-tools` and `--exclude-tools` decide which tools the model is
+  shown at all, MCP tools that connect later included; a misspelt name is
+  an error, so a typo cannot leave the tool it meant to remove in place.
+- `.aiignore` (also `.agentignore`, `.janetcodeignore`), in `.gitignore`
+  syntax, keeps paths away from the file tools. It is a statement of
+  intent, not a sandbox: `bash` is not bound by it.
+- `--safe-mode`: no hooks, MCP servers, verify gates, project permission
+  rules, project instructions, project skills/rules/profiles or
+  auto-approval, for a repository you have not vetted.
+- Web search: Tavily, Serper, Exa and SearXNG next to DuckDuckGo and
+  Brave; keys come from each provider's environment variable.
+- Sandbox: bubblewrap backend, preferred on Linux where it can run. Over
+  Landlock it adds a full network cut (UDP and DNS too) and mount-level
+  protection of `.git`/`.janetcode`; over docker, your own toolchain.
+  **Linux machines with bwrap and docker now get bwrap by default**;
+  `/sandbox docker` keeps the old behaviour.
+- `--debug <file>`, `--list-models` (text or json), and a once-a-day
+  notice in the TUI when a newer release is out (`update_check: false`
+  turns it off).
+- TUI: `ctrl+x` writes the prompt in `$EDITOR`; dragging over the
+  transcript selects text and copies it (OSC 52 where no clipboard helper
+  exists, so it works over ssh); a click still folds.
 
 ### Security
 - `--web` refuses cross-site and DNS-rebound requests. Before this, any open
