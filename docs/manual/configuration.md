@@ -32,9 +32,24 @@ janetcode --init     # writes ~/.config/janetcode/config.json
 ```
 
 `web_search` scrapes DuckDuckGo's HTML endpoint by default, which needs no
-key but can rate-limit heavy use. For the Brave Search API set
-`"search": {"provider": "brave", "key": "${BRAVE_API_KEY}"}`; `url`
-overrides either endpoint (a proxy or a mock).
+key but can rate-limit heavy use. A search API is steadier:
+
+| `provider` | key (when `key` is not set) | notes |
+|---|---|---|
+| `brave` | `BRAVE_API_KEY` | Brave Search API |
+| `tavily` | `TAVILY_API_KEY` | snippets are page text, clipped |
+| `serper` | `SERPER_API_KEY` | Google results |
+| `exa` | `EXA_API_KEY` | snippets are page text, clipped |
+| `searxng` | none | your own instance: set `url`, and enable the `json` format in its `settings.yml` |
+
+```json
+{ "search": { "provider": "serper" } }
+{ "search": { "provider": "searxng", "url": "http://localhost:8888" } }
+```
+
+`key` may be set directly or as a `${VAR}` reference; `url` overrides
+any endpoint (a proxy or a mock). A keyed request never follows a
+redirect to another host, so the key goes only where you configured it.
 
 `providers` holds any number of backends by name; `provider` selects one.
 `type` is `anthropic`, `openai` (any OpenAI-compatible server), `gemini`

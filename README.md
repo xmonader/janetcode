@@ -153,7 +153,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |
 | `repo_map` | Rank files for a query, or a symbol's blast radius (definers and users) | no |
-| `web_search` | Search the web (DuckDuckGo, or Brave Search with a key) for titles, URLs and snippets | yes |
+| `web_search` | Search the web (DuckDuckGo; or Brave, Tavily, Serper, Exa with a key; or your SearXNG) for titles, URLs and snippets | yes |
 | `task` | Delegate a job to a subagent with its own context, optionally on another model; `agent: explore` is a built-in read-only explorer; several run in parallel | no |
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |

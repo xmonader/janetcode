@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -50,6 +51,9 @@ func (WebSearch) Schema() json.RawMessage {
 }
 
 func (t WebSearch) providerName() string {
+	if b, ok := apiBackends[strings.ToLower(t.Config.Provider)]; ok {
+		return b.label
+	}
 	if strings.ToLower(t.Config.Provider) == "brave" {
 		return "Brave Search"
 	}
@@ -104,13 +108,28 @@ func (t WebSearch) Search(ctx context.Context, query string, n int) ([]SearchRes
 	if strings.ToLower(t.Config.Provider) == "brave" {
 		return t.brave(ctx, client, query, n)
 	}
+	if b, ok := apiBackends[strings.ToLower(t.Config.Provider)]; ok {
+		return t.api(ctx, client, b, query, n)
+	}
 	return t.duckduckgo(ctx, client, query, n)
 }
 
 func (t WebSearch) get(ctx context.Context, client *http.Client, target string, headers map[string]string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	return t.do(ctx, client, http.MethodGet, target, headers, nil)
+}
+
+// do sends one request; a non-nil body is sent as JSON.
+func (t WebSearch) do(ctx context.Context, client *http.Client, method, target string, headers map[string]string, body []byte) ([]byte, error) {
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, rd)
 	if err != nil {
 		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; janetcode/1; +https://github.com/xmonader/janetcode)")
 	for k, v := range headers {
@@ -121,18 +140,18 @@ func (t WebSearch) get(ctx context.Context, client *http.Client, target string, 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxFetchBytes))
+	out, err := io.ReadAll(io.LimitReader(resp.Body, MaxFetchBytes))
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		msg := textfmt.ClipBytes(strings.TrimSpace(string(body)), 200)
+		msg := textfmt.ClipBytes(strings.TrimSpace(string(out)), 200)
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusForbidden {
 			return nil, fmt.Errorf("%s refused the search (HTTP %d); wait a while or configure another provider under \"search\" in the config: %s", t.providerName(), resp.StatusCode, msg)
 		}
 		return nil, fmt.Errorf("%s: HTTP %d: %s", t.providerName(), resp.StatusCode, msg)
 	}
-	return body, nil
+	return out, nil
 }
 
 // DuckDuckGo's HTML endpoint needs no key. Results are anchors with class
@@ -218,30 +237,16 @@ const braveURL = "https://api.search.brave.com/res/v1/web/search"
 func (t WebSearch) brave(ctx context.Context, client *http.Client, query string, n int) ([]SearchResult, error) {
 	key := os.ExpandEnv(t.Config.Key)
 	if key == "" {
+		key = os.Getenv("BRAVE_API_KEY")
+	}
+	if key == "" {
 		return nil, errors.New("brave search needs a key: set \"search\": {\"provider\": \"brave\", \"key\": \"${BRAVE_API_KEY}\"} in the config")
 	}
 	base := t.Config.URL
 	if base == "" {
 		base = braveURL
 	}
-	// The key rides in X-Subscription-Token, which Go's redirect policy
-	// forwards to any host (it strips only Authorization and cookies), so
-	// a hop off the endpoint's host is refused rather than followed.
-	guarded := *client
-	inner := client.CheckRedirect
-	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
-			return errors.New("stopped after 10 redirects")
-		}
-		if first := via[0].URL; !strings.EqualFold(first.Host, req.URL.Host) || (first.Scheme == "https" && req.URL.Scheme != "https") {
-			return fmt.Errorf("brave search: refusing a redirect from %s to %s: the request carries the API key", first.Scheme+"://"+first.Host, req.URL.Scheme+"://"+req.URL.Host)
-		}
-		if inner != nil {
-			return inner(req, via)
-		}
-		return nil
-	}
-	client = &guarded
+	client = keyGuard(client, "brave search")
 	q := url.Values{"q": {query}, "count": {fmt.Sprint(n)}, "text_decorations": {"0"}}
 	body, err := t.get(ctx, client, base+"?"+q.Encode(), map[string]string{"Accept": "application/json", "X-Subscription-Token": key})
 	if err != nil {
