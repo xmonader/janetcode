@@ -7,7 +7,9 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
+	"github.com/xmonader/janetcode/internal/llm/gemini"
 	"github.com/xmonader/janetcode/internal/llm/openai"
+	"github.com/xmonader/janetcode/internal/llm/responses"
 )
 
 // buildProvider constructs the backend selected by cfg.Provider.
@@ -66,12 +68,28 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 			Effort:       cfg.Effort,
 			Limits:       cfg.StreamLimits(),
 		})
-	case "openai":
+	case config.TypeOpenAI:
 		return openai.New(openai.Config{
 			APIKeys: p.Keys(),
 			BaseURL: p.BaseURL,
 			Name:    cfg.Provider,
 			Limits:  cfg.StreamLimits(),
+		})
+	case config.TypeGemini:
+		return gemini.New(gemini.Config{
+			APIKeys:  p.Keys(),
+			BaseURL:  p.BaseURL,
+			Name:     cfg.Provider,
+			Thoughts: cfg.ThinkingShown(),
+			Limits:   cfg.StreamLimits(),
+		})
+	case config.TypeResponses:
+		return responses.New(responses.Config{
+			APIKeys:  p.Keys(),
+			BaseURL:  p.BaseURL,
+			Name:     cfg.Provider,
+			Thoughts: cfg.ThinkingShown(),
+			Limits:   cfg.StreamLimits(),
 		})
 	}
 	return nil, fmt.Errorf("%w: provider %q has unknown type %q", config.ErrBadConfig, cfg.Provider, p.Type)

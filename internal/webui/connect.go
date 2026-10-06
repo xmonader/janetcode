@@ -157,7 +157,7 @@ func (s *server) connectConfig(req connectRequest) (*config.Config, config.Provi
 	if t := strings.TrimSpace(req.Type); t != "" {
 		p.Type = t
 	}
-	if p.Type != "openai" && p.Type != "anthropic" {
+	if !config.KnownType(p.Type) {
 		return nil, p, errors.New("pick a provider, or say whether a custom server is OpenAI- or Anthropic-compatible")
 	}
 	u := strings.TrimRight(strings.TrimSpace(req.URL), "/")

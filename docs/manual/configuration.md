@@ -37,22 +37,38 @@ key but can rate-limit heavy use. For the Brave Search API set
 overrides either endpoint (a proxy or a mock).
 
 `providers` holds any number of backends by name; `provider` selects one.
-`type` is `anthropic` or `openai` (any OpenAI-compatible server). A preset
-name needs no `base_url`. `api_keys` lists extra keys to rotate through on
+`type` is `anthropic`, `openai` (any OpenAI-compatible server), `gemini`
+(Google's Gemini API, spoken natively) or `responses` (OpenAI's Responses
+API). A preset name needs no `base_url`.
+
+`gemini` keeps the `thoughtSignature` Gemini 3 puts on its function calls
+and sends it back with them; its OpenAI-compatible endpoint (the
+`gemini-openai` preset) drops it, which Gemini 3 answers with a 400 once a
+tool has run. A call that never had a signature — one another model made
+earlier in the session — carries Google's documented stand-in instead.
+`responses` asks for reasoning back encrypted (`store: false`, nothing kept
+on OpenAI's side) and replays it before the call it led to, so a reasoning
+model keeps its line of thought across tool calls instead of starting over
+after each one. Both learn from a 400 which parameters a model does not
+take (a thinking level on Gemini 2.x, `reasoning` on a non-reasoning model)
+and stop sending them. `api_keys` lists extra keys to rotate through on
 429/401/403 responses, and each entry remembers its last `model`, so
 `--provider openrouter` comes back with the model last used there. The older
 `anthropic`/`openai` sections are still read.
 
 Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
-`OPENAI_BASE_URL` (a key may be a comma-separated list), `JANETCODE_PROVIDER`,
+`OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_URL` (a key may be a
+comma-separated list), `JANETCODE_PROVIDER`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
 
 `effort` is how hard the model thinks: `low`, `medium`, `high`, `xhigh` or
 `max`, in that order, or absent for whatever the provider does on its own.
 Anything else is a config error, both in the file and through `/config`.
-Only Anthropic models take a reasoning tier today; with another provider
-the setting is remembered and not sent, and `/effort` says so.
+Anthropic, `gemini` (as the thinking level; `xhigh` and `max` ask for
+`HIGH`) and `responses` (as `reasoning.effort`; `max` asks for `xhigh`)
+providers send the tier; an OpenAI-compatible one remembers it without
+sending it, and `/effort` says so.
 
 It is a live setting. `/effort <tier>` changes the running session from
 the next model call onward and writes nothing; `/config effort=<tier>`

@@ -48,7 +48,7 @@ func (a *Agent) setEffort(tier string) cmdresult.Result {
 	note := "effort " + effortName(tier) + " · from the next model call"
 	res := cmdresult.Result{Notes: []string{note}}
 	if !a.effortHonoured() {
-		res.Tips = []string{"this provider does not take a reasoning tier, so the setting is remembered but not sent; it applies to Anthropic models"}
+		res.Tips = []string{"this provider does not take a reasoning tier, so the setting is remembered but not sent; it applies to Anthropic, native Gemini and OpenAI Responses providers"}
 	}
 	return res
 }
@@ -88,7 +88,7 @@ func (a *Agent) effortSheet(cur Settings) string {
 	case a.effortHonoured():
 		fmt.Fprintf(&sb, "%s asks for the tier on every call; a model that will not take this one is served the tier below it instead\n", cur.Provider.Name())
 	default:
-		fmt.Fprintf(&sb, "%s does not take a reasoning tier, so this setting is remembered but not sent; it applies to Anthropic models\n", cur.Provider.Name())
+		fmt.Fprintf(&sb, "%s does not take a reasoning tier, so this setting is remembered but not sent; it applies to Anthropic, native Gemini and OpenAI Responses providers\n", cur.Provider.Name())
 	}
 	sb.WriteString("/effort <tier> changes this session · /effort up and /effort down step the ladder · /config effort=<tier> also writes it to the config file")
 	return sb.String()

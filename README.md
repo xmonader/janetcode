@@ -79,7 +79,8 @@ janetcode --model qwen3-coder
 
 Or skip the environment and run `/connect` inside the TUI: pick a preset
 (Anthropic, OpenAI, OpenRouter, Alibaba Qwen, DeepSeek, Moonshot, Zhipu,
-MiniMax, Gemini, xAI, Mistral, Groq, Cerebras, Together, Fireworks, Ollama,
+MiniMax, Gemini (native, or its OpenAI-compatible endpoint), OpenAI's
+Responses API, xAI, Mistral, Groq, Cerebras, Together, Fireworks, Ollama,
 LM Studio) or a custom OpenAI- or Anthropic-compatible URL, paste one or
 more API keys, choose a model from the server's list, and the choice is
 saved to the config file. Several keys for one provider are rotated
