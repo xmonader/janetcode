@@ -108,8 +108,14 @@ func parentOnlyTool(tl tool.Tool) bool {
 	case *GoalStatus, *AskTool, *Workflow:
 		return true
 	}
-	return false
+	po, ok := tl.(ParentOnly)
+	return ok && po.ParentOnly()
 }
+
+// ParentOnly is a tool defined outside this package that must not reach
+// a subagent: headless's structured_output, whose call is the session's
+// answer, and which a child's call would deliver in the parent's place.
+type ParentOnly interface{ ParentOnly() bool }
 
 // child builds the subagent: same provider and model, read-only tools only
 // (or the named subset of them), no approver (a mutating tool would be
