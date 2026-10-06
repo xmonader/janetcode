@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -409,6 +410,9 @@ func (s *startup) stageWorktree() (bool, error) {
 // stageReplayModes runs the two modes that drive a provider but build no
 // session: the counterfactual replay and the eval runner.
 func (s *startup) stageReplayModes() (bool, error) {
+	if s.opts.listModels {
+		return true, listModels(context.Background(), os.Stdout, s.prov, s.format)
+	}
 	if done, err := whatIfMode(s.opts, s.cfg, s.prov); done {
 		return true, err
 	}

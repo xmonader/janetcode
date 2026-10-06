@@ -33,6 +33,7 @@ var flagWhen = map[string]string{
 	"output-format":          "a script or a CI job that has to read the result rather than a human",
 	"input-format":           "a program that holds one session open and sends it message after message, interrupting when it needs to",
 	"json-schema":            "a script that needs fields it can read, not prose it has to parse",
+	"list-models":            "choosing a --model, or checking a name before a script depends on it",
 	"debug":                  "a run that misbehaves and you want the timeline of requests, tool calls and MCP traffic behind it",
 	"safe-mode":              "a repository you have not vetted yet, or telling whether a problem is janetcode's or a hook, MCP server or skill you added",
 	"core-tools":             "a narrow job (review, triage, docs) where a short tool list keeps the model on task and the prompt small",
