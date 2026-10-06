@@ -21,6 +21,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/httpstream"
+	"github.com/xmonader/janetcode/internal/llm/openai"
 )
 
 // reasoningPrefix is how OpenAI's reasoning item ids begin. A thinking
@@ -46,6 +47,9 @@ type Config struct {
 type Provider struct {
 	cfg Config
 	c   *httpstream.Client
+	// models lists what the endpoint serves: the same GET /models the
+	// chat-completions client already speaks.
+	models *openai.Provider
 }
 
 // New validates cfg and builds a provider.
@@ -62,11 +66,19 @@ func New(cfg Config) (*Provider, error) {
 		cfg.Name = "openai-responses"
 	}
 	w := &wire{url: cfg.BaseURL + "/responses", http: httpstream.HTTPClient(cfg.HTTPClient), thoughts: cfg.Thoughts}
-	return &Provider{cfg: cfg, c: httpstream.New(w, ring, cfg.MaxRetries, cfg.Limits)}, nil
+	models, err := openai.New(openai.Config{BaseURL: cfg.BaseURL, APIKeys: cfg.APIKeys, Name: cfg.Name, HTTPClient: cfg.HTTPClient})
+	if err != nil {
+		return nil, err
+	}
+	return &Provider{cfg: cfg, c: httpstream.New(w, ring, cfg.MaxRetries, cfg.Limits), models: models}, nil
 }
 
 // Name implements llm.Provider.
 func (p *Provider) Name() string { return p.cfg.Name }
+
+// SupportsEffort implements llm.EffortAware: the tier is sent as
+// reasoning.effort (until a model refuses it; see wire.Learn).
+func (p *Provider) SupportsEffort() bool { return true }
 
 // Stream implements llm.Provider.
 func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
@@ -74,7 +86,14 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 }
 
 // ForTask implements llm.PerTask.
-func (p *Provider) ForTask() llm.Provider { return &Provider{cfg: p.cfg, c: p.c.ForTask()} }
+func (p *Provider) ForTask() llm.Provider {
+	return &Provider{cfg: p.cfg, c: p.c.ForTask(), models: p.models}
+}
+
+// ListModels implements llm.ModelLister.
+func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
+	return p.models.ListModels(ctx)
+}
 
 type wire struct {
 	url      string

@@ -77,6 +77,10 @@ func New(cfg Config) (*Provider, error) {
 // Name implements llm.Provider.
 func (p *Provider) Name() string { return p.cfg.Name }
 
+// SupportsEffort implements llm.EffortAware: the tier is sent as the
+// thinking level (until a model refuses one; see wire.Learn).
+func (p *Provider) SupportsEffort() bool { return true }
+
 // Stream implements llm.Provider.
 func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	return p.c.Stream(ctx, req, emit)
