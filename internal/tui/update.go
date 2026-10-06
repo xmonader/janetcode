@@ -353,6 +353,12 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return cmd, true
 
+	case shipMsg:
+		m.showResult(msg.res, msg.err)
+		cmd := m.endSideWork(msg.err == nil && msg.res.Error == "")
+		m.refresh(false)
+		return cmd, true
+
 	case evalKeepMsg:
 		cmd := m.finishEvalKeep(msg)
 		m.refresh(false)

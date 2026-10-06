@@ -81,6 +81,8 @@ var commandWhen = map[string]string{
 	"/why":          "the harness did something you did not ask for and you want it explained without spending a model call",
 	"/hints":        "the one-time hints are in your way, or you want them back",
 	"/eval":         "a session found or fixed something and you want it to stay caught: a regression test that replays it against this project",
+	"/commit":       "the session's work is done and should be committed on its own, without your unrelated edits or a stray .env riding along",
+	"/pr":           "the branch is ready for review and you would rather not write the description or switch to the browser",
 	"/proof":        "months later, or in code review now: which session and turn wrote a committed line, what actually showed it worked (mutation score included), and push/fetch to share notes since they are local until moved",
 	"/recipe":       "a turn's tool calls worked and you would rather replay them for free next time than pay a model to redo the same steps",
 }
@@ -140,6 +142,8 @@ var commandTopics = map[string][]string{
 	"/config":       {"setting", "key"},
 	"/doctor":       {"checkup", "health", "diagnose"},
 	"/eval":         {"regression", "test", "keep", "replay", "task"},
+	"/commit":       {"git", "commit", "message", "save", "stage"},
+	"/pr":           {"pull request", "github", "gh", "push", "review", "merge request"},
 	"/proof":        {"evidence", "commit", "notes", "attribution", "audit", "provenance"},
 	"/recipe":       {"replay", "script", "automation", "macro", "save", "run", "no model", "tokens"},
 }

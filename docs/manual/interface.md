@@ -1231,6 +1231,32 @@ naming each file and either what the language server found or that the
 file could not be checked; with no language server either, it says
 plainly that nothing verified the result.
 
+### Commit and pull request
+
+`/commit [message]` commits the files this session's file tools changed,
+and only those: an edit of your own, or a file a shell command wrote, is
+left as it was and listed, and whatever you had already staged stays
+staged and out of the commit. A changed file that looks like a credential
+— a `.env`, a key or certificate file, or one whose content holds a token
+— is left out and named. Without a message, one is drafted from the diff
+and the intent each change was made with, in `type(scope): subject` form.
+When proof notes are on, the commit gets one (see below).
+
+`/pr [base]` pushes the current branch and opens a GitHub pull request
+onto `base` (default: the remote's default branch) with a drafted title
+and description, using the GitHub CLI (`gh`, logged in). It refuses on the
+base branch itself and on a branch with no commits the base lacks, and if
+a pull request for the branch is already open it shows that one instead
+of opening a second. The push never prompts for credentials: set up a
+credential helper or SSH first.
+
+```text
+/commit                            # drafted message
+/commit fix(parser): accept tabs   # your message
+/pr                                # onto the default branch
+/pr release-2.1                    # onto another base
+```
+
 ### Proof in the commit
 
 Change provenance lives in the session log, which is why `/blame` only

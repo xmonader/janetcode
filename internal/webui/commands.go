@@ -25,7 +25,7 @@ var webCommands = []string{
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua", "/commit", "/pr",
 }
 
 var webArgs = map[string]string{
@@ -273,6 +273,18 @@ var webDispatch = map[string]webHandler{
 	},
 	"/eval": func(s *server, arg string) (bool, error) {
 		s.evalKeep(arg)
+		return false, nil
+	},
+	"/commit": func(s *server, arg string) (bool, error) {
+		s.runBusy("committing", func(ctx context.Context) {
+			s.showResult(s.opts.Agent.CommitCommand(ctx, s.cwd(), arg))
+		})
+		return false, nil
+	},
+	"/pr": func(s *server, arg string) (bool, error) {
+		s.runBusy("opening the pull request", func(ctx context.Context) {
+			s.showResult(s.opts.Agent.PRCommand(ctx, s.cwd(), arg))
+		})
 		return false, nil
 	},
 	"/proof": func(s *server, arg string) (bool, error) {

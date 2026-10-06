@@ -279,6 +279,12 @@ var dispatch = map[string]cmdHandler{
 	"/eval": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.evalCommand(cmdArg(text, fields)), true
 	},
+	"/commit": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		return m.shipCommand("committing", m.opts.Agent.CommitCommand, cmdArg(text, fields)), true
+	},
+	"/pr": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		return m.shipCommand("opening the pull request", m.opts.Agent.PRCommand, cmdArg(text, fields)), true
+	},
 	"/proof": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.proofCommand(cmdArg(text, fields))
 		return nil, false
