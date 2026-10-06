@@ -17,6 +17,7 @@ import (
 type options struct {
 	promptText   string
 	outFormat    string
+	jsonSchema   string
 	maxCost      float64
 	maxTurns     int
 	compactAt    int
@@ -112,7 +113,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
-	{"Headless (-p)", []string{"p", "output-format", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
@@ -221,6 +222,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	o := &options{}
 	fs.StringVar(&o.promptText, "p", "", "run this prompt headless and exit")
 	fs.StringVar(&o.outFormat, "output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result. --doctor takes json too")
+	fs.StringVar(&o.jsonSchema, "json-schema", "", "with -p: answer with JSON matching this schema (inline, or @file). The model delivers it through a structured_output tool the harness validates; text format prints only the value on stdout, json and stream-json put it in structured_output. Exits 54 when no valid answer comes")
 	fs.Float64Var(&o.maxCost, "max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
 	fs.IntVar(&o.maxTurns, "max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")
 	fs.IntVar(&o.compactAt, "compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")

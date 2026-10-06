@@ -4,6 +4,7 @@ package headless
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -62,6 +63,11 @@ type Options struct {
 	// between-turns backstop for the rounds --until and --watch drive.
 	// Zero means no ceiling.
 	MaxCostUSD float64
+	// JSONSchema, when set, makes the answer a JSON value matching this
+	// schema, delivered through the structured_output tool: printed alone
+	// on stdout in text format, and as structured_output in the result
+	// object. LoadSchema reads and checks the flag's value.
+	JSONSchema json.RawMessage
 }
 
 // DefaultUntilRounds bounds the re-loops when --until keeps failing.
@@ -78,9 +84,55 @@ func Run(ctx context.Context, opts Options) error {
 		format = FormatText
 	}
 	rec := newRecorder(opts, format)
-	err := run(ctx, opts, rec)
+	var err error
+	if len(opts.JSONSchema) > 0 {
+		err = runStructured(ctx, opts, rec)
+	} else {
+		err = run(ctx, opts, rec)
+	}
 	rec.finish(opts.Agent, err)
 	return err
+}
+
+// runStructured is run with the structured_output tool on the agent, and
+// nudges the model when a turn ends without a valid answer.
+func runStructured(ctx context.Context, opts Options, rec *recorder) error {
+	if opts.Watch != "" {
+		return BadInput("--json-schema and --watch do not combine: a watch has no single answer")
+	}
+	st, err := newStructuredTool(opts.JSONSchema)
+	if err != nil {
+		return err
+	}
+	ag := opts.Agent
+	ag.Tools.Add(st)
+	defer ag.Tools.Remove(StructuredToolName)
+	stdout := opts.Stdout
+	if rec.text() {
+		// Stdout is the value and nothing else, so a script can pipe it
+		// straight into jq; the model's prose goes beside the tool
+		// activity on stderr.
+		opts.Stdout = opts.Stderr
+	}
+	opts.Images = append(opts.Images, structuredInstruction())
+	if err := run(ctx, opts, rec); err != nil {
+		return err
+	}
+	for i := 0; st.Value() == nil && i < structuredNudges; i++ {
+		fmt.Fprintf(opts.Stderr, "[json-schema] no valid %s call yet; asking again (%d/%d)\n", StructuredToolName, i+1, structuredNudges)
+		if err := turn(ctx, opts, rec, []llm.Block{structuredNudge()}); err != nil {
+			return err
+		}
+	}
+	v := st.Value()
+	if v == nil {
+		return ErrNoStructuredOutput
+	}
+	rec.setStructured(v)
+	if rec.text() {
+		fmt.Fprintf(stdout, "%s\n", v)
+	}
+	return nil
 }
 
 func run(ctx context.Context, opts Options, rec *recorder) error {

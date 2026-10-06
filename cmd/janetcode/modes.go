@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -231,6 +232,13 @@ func (r *root) headlessMode() error {
 	if extra := pipedStdin(); extra != "" {
 		text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 	}
+	var schema json.RawMessage
+	if o.jsonSchema != "" {
+		var err error
+		if schema, err = headless.LoadSchema(o.jsonSchema); err != nil {
+			return err
+		}
+	}
 	r.startMCP(ctx, true)
 	defer r.syncSession()
 	finish := startBgRun(ag, sess, cwd)
@@ -238,7 +246,7 @@ func (r *root) headlessMode() error {
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
-		Format: format, MaxCostUSD: o.maxCost,
+		Format: format, MaxCostUSD: o.maxCost, JSONSchema: schema,
 	})
 	finish(err)
 	return err

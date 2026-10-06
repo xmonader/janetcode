@@ -25,6 +25,7 @@ func TestExitRulesAllReachable(t *testing.T) {
 		"bad input":  fmt.Errorf("%w: two prompts", ErrBadInput),
 		"auth":       fmt.Errorf("x: %w", llm.ErrNoAPIKey),
 		"config":     fmt.Errorf("%w: bad json", ErrConfig),
+		"schema":     fmt.Errorf("run: %w", ErrNoStructuredOutput),
 	}
 	if len(samples) != len(exitRules) {
 		t.Fatalf("exitRules has %d rows, the test knows %d: add a sample for the new row", len(exitRules), len(samples))

@@ -60,6 +60,7 @@ const (
 	ExitBadInput  = 42  // the flags or the prompt do not make sense
 	ExitConfig    = 52  // the configuration file is wrong
 	ExitTurnLimit = 53  // the turn hit its model-call cap
+	ExitSchema    = 54  // no answer matching --json-schema
 	ExitBudget    = 55  // the run reached --max-cost
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
@@ -151,6 +152,7 @@ var exitRules = []struct {
 	}, ExitCancelled},
 	{"budget", func(err error) bool { return errors.Is(err, ErrBudget) }, ExitBudget},
 	{"turn limit", func(err error) bool { return errors.Is(err, agent.ErrMaxIterations) }, ExitTurnLimit},
+	{"schema", func(err error) bool { return errors.Is(err, ErrNoStructuredOutput) }, ExitSchema},
 	{"bad input", func(err error) bool {
 		return errors.Is(err, ErrBadInput) || errors.Is(err, config.ErrBadOverride)
 	}, ExitBadInput},
@@ -202,6 +204,14 @@ type recorder struct {
 	model     string
 	provider  string
 	price     *llm.Price
+	// structured is the --json-schema answer, once there is one.
+	structured json.RawMessage
+}
+
+func (r *recorder) setStructured(v json.RawMessage) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.structured = v
 }
 
 func newRecorder(opts Options, format Format) *recorder {
@@ -364,6 +374,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		Verdict:           r.verdict,
 		DurationMS:        time.Since(r.start).Milliseconds(),
 		Retries:           r.retries,
+		StructuredOutput:  r.structured,
 	}
 	if ag != nil {
 		// The recorder tallies usage from EvTurnDone, which a turn that

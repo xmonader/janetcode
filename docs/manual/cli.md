@@ -14,6 +14,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 |---|---|
 | `-p "<prompt>"` | run one prompt headless; assistant text on stdout, tool activity on stderr |
 | `--output-format text\|json\|stream-json` | with `-p`: how the run reports itself (see below) |
+| `--json-schema <json\|@file>` | with `-p`: answer with JSON matching this schema (see [Structured output](#structured-output)); exits 54 when no valid answer comes |
 | `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it |
 | `--max-turns <n>` | cap the model calls one turn may make; the eval runner's `--eval-max-turns` with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget |
 | `--compact-at <tokens>` | compact the history at this size instead of the configured one; `--eval-compact-at` with the everyday spelling |
@@ -142,6 +143,32 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   `permission_denials` counts every refusal, whoever made it: a `--deny`
   rule, a hook, read-only mode, or the person at the terminal.
 
+## Structured output
+
+`--json-schema` turns the answer into data. The schema is inline JSON or
+`@path` to a file, and is checked before any model call. The model gets
+one more tool, `structured_output`, whose input schema is yours; calling
+it is how the answer is delivered. The harness validates each call
+itself — many OpenAI-compatible servers ignore constrained decoding — and
+a call that does not match goes back to the model with every violation
+listed. A turn that ends without a valid call is nudged twice more, then
+the run exits 54.
+
+```sh
+janetcode -p "how many Go files are under internal/?" \
+  --json-schema '{"type":"object","properties":{"count":{"type":"integer"}},"required":["count"]}' | jq .count
+```
+
+With `text` output, stdout holds the value alone and the model's prose
+goes to stderr. With `json` and `stream-json` the value is the result
+object's `structured_output` field. A schema whose top level is not an
+object is accepted: the tool wraps it as `{"result": ...}` and the value
+comes out unwrapped. Supported keywords: `type`, `properties`,
+`required`, `additionalProperties`, `items`, `prefixItems`, `enum`,
+`const`, the numeric and length bounds, `pattern`, `uniqueItems`,
+`anyOf`/`oneOf`/`allOf`/`not`, and local `$ref` into `$defs` or
+`definitions`. Unknown keywords are ignored; a remote `$ref` is refused.
+
 ## Exit codes
 
 | code | meaning |
@@ -152,6 +179,7 @@ the run reports itself; it applies only to `-p` (and `--watch`).
 | 42 | the flags or the prompt do not make sense |
 | 52 | the configuration file cannot be used |
 | 53 | the turn hit its model-call cap |
+| 54 | no answer matched `--json-schema` |
 | 55 | the run reached `--max-cost` |
 | 130 | interrupted, as a shell reports a SIGINT |
 

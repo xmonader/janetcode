@@ -1,5 +1,7 @@
 package headless
 
+import "encoding/json"
+
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
 // cliresult.go) by importing this package.
@@ -65,6 +67,9 @@ type CLIResult struct {
 	// detour, nothing to report — and an empty list (omitted) means the
 	// run never left its own model.
 	Routes []CLIRoute `json:"routes,omitempty"`
+	// StructuredOutput is the answer as data, validated against
+	// --json-schema; absent without the flag or when no valid answer came.
+	StructuredOutput json.RawMessage `json:"structured_output,omitempty"`
 }
 
 // CLIRoute is one model call served away from the session's own model.
