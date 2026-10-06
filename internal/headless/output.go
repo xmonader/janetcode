@@ -206,6 +206,40 @@ type recorder struct {
 	price     *llm.Price
 	// structured is the --json-schema answer, once there is one.
 	structured json.RawMessage
+	// perTurn is set by a stream-json input run that wrote a result
+	// after every message, so finish does not write the last one twice.
+	perTurn bool
+}
+
+// emitLocked is emit for a caller not already holding the lock: the
+// stdin reader, reporting a bad line or an interrupt while a turn may be
+// streaming events of its own.
+func (r *recorder) emitLocked(e streamEvent) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.emit(e)
+}
+
+// beginTurn forgets the previous message's answer and verdict, so a turn
+// that is interrupted before it says anything does not report the one
+// before it as its answer.
+func (r *recorder) beginTurn() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.answer, r.verdict = "", ""
+	r.turnText.Reset()
+}
+
+// writeResult writes a result line now, for one message of a stream-json
+// input run. The counters in it are the session's so far.
+func (r *recorder) writeResult(ag *agent.Agent, err error) {
+	res := r.result(ag, err)
+	resultWritten.Store(true)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.enc != nil {
+		_ = r.enc.Encode(res)
+	}
 }
 
 func (r *recorder) setStructured(v json.RawMessage) {
@@ -451,7 +485,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 // finish writes the result object for json and stream-json. Text mode has
 // already said everything it is going to say.
 func (r *recorder) finish(ag *agent.Agent, err error) {
-	if r.format == FormatText {
+	if r.format == FormatText || r.perTurn {
 		return
 	}
 	res := r.result(ag, err)

@@ -68,6 +68,11 @@ type Options struct {
 	// on stdout in text format, and as structured_output in the result
 	// object. LoadSchema reads and checks the flag's value.
 	JSONSchema json.RawMessage
+	// Input, when set, is a stream-json conversation (--input-format
+	// stream-json): one user message or control per line, a turn per
+	// message, a result line after each. Prompt, if any, goes first.
+	// Format must be stream-json.
+	Input io.Reader
 }
 
 // DefaultUntilRounds bounds the re-loops when --until keeps failing.
@@ -85,9 +90,16 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	rec := newRecorder(opts, format)
 	var err error
-	if len(opts.JSONSchema) > 0 {
+	switch {
+	case opts.Input != nil && format != FormatStreamJSON:
+		err = BadInput("--input-format stream-json needs --output-format stream-json")
+	case opts.Input != nil && (len(opts.JSONSchema) > 0 || opts.Until != "" || opts.Watch != ""):
+		err = BadInput("--input-format stream-json does not combine with --json-schema, --until or --watch")
+	case opts.Input != nil:
+		err = runStream(ctx, opts, rec)
+	case len(opts.JSONSchema) > 0:
 		err = runStructured(ctx, opts, rec)
-	} else {
+	default:
 		err = run(ctx, opts, rec)
 	}
 	rec.finish(opts.Agent, err)
