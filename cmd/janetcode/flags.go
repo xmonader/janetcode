@@ -25,6 +25,7 @@ type options struct {
 	maxWallTime  time.Duration
 	coreTools    string
 	excludeTools string
+	safeMode     bool
 	maxTurns     int
 	compactAt    int
 	until        string
@@ -120,7 +121,7 @@ var helpGroups = []struct {
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
 	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
-	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "core-tools", "exclude-tools", "sandbox"}},
+	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "core-tools", "exclude-tools", "safe-mode", "sandbox"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
@@ -277,6 +278,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.evalBlind, "eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
 	fs.IntVar(&o.evalCompact, "eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
 	fs.StringVar(&o.allow, "allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
+	fs.BoolVar(&o.safeMode, "safe-mode", false, "start with nothing from the project or your extensions: no hooks, MCP servers, verify gates, project permission rules, project instructions, skills, rules or agent profiles, and no auto-approval")
 	fs.StringVar(&o.coreTools, "core-tools", "", "comma-separated tools the model is shown, and no others (globs allowed, e.g. 'read_file,grep,mcp__github__*')")
 	fs.StringVar(&o.excludeTools, "exclude-tools", "", "comma-separated tools the model is never shown (globs allowed); unlike --deny, they are not in the request at all")
 	fs.StringVar(&o.deny, "deny", "", "comma-separated permission rules to refuse for this run")

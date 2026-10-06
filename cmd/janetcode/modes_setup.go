@@ -49,6 +49,9 @@ func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 	// every path downstream -- headless, TUI and ACP -- reads one value.
 	// config.Load returns no configuration at all for a file it cannot
 	// use; only the missing-credentials case has one to adjust.
+	if cfg != nil && o.safeMode {
+		applySafeMode(cfg)
+	}
 	if cfg != nil {
 		if o.maxTurns > 0 {
 			cfg.MaxIterations = o.maxTurns

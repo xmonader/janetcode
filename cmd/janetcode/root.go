@@ -140,7 +140,8 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	if err != nil {
 		return r, err
 	}
-	deps := agentDeps{tools: filter, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
+	promptOv.NoProject = o.safeMode
+	deps := agentDeps{safe: o.safeMode, tools: filter, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err
@@ -159,6 +160,9 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		return r, err
 	}
 	ts := trust.Store{Path: filepath.Join(cfgDir, "mcp-trust.json")}
+	if o.safeMode {
+		ts.Path = "" // nothing of the project's is trusted, whatever was approved before
+	}
 	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
 	r.servers.Options.Tokens = tokens
 	r.jobs, r.mem, r.pool, r.typed = jobs, mem, pool, typed
@@ -190,7 +194,7 @@ func (r *root) wireProject() error {
 		for _, n := range hookNotes {
 			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
 		}
-	} else if hooksCfg.Len() > 0 && o.headless() {
+	} else if hooksCfg.Len() > 0 && o.headless() && !o.safeMode {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
 	// session_end runs before the servers and jobs the hooks might look
@@ -206,7 +210,7 @@ func (r *root) wireProject() error {
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Mutate: mutate.ForVerify, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
 	} else if verifyDefined {
 		ag.VerifyUntrusted = true
-		if o.headless() {
+		if o.headless() && !o.safeMode {
 			fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
 		}
 	}
@@ -214,7 +218,7 @@ func (r *root) wireProject() error {
 	if err != nil {
 		return err
 	}
-	if !permTrusted && len(projRules.Allow) > 0 && o.headless() {
+	if !permTrusted && len(projRules.Allow) > 0 && o.headless() && !o.safeMode {
 		fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
 	}
 	ag.Rules = rules

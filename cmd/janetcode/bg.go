@@ -105,6 +105,9 @@ func bgPermissionArgs(o *options) []string {
 	if o.deny != "" {
 		rules = append(rules, "--deny", o.deny)
 	}
+	if o.safeMode {
+		rules = append(rules, "--safe-mode")
+	}
 	if o.coreTools != "" {
 		rules = append(rules, "--core-tools="+o.coreTools)
 	}

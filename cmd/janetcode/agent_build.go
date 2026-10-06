@@ -120,7 +120,10 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 // than a second copy of the wiring.
 type agentDeps struct {
 	// tools hides tools from the model (--core-tools, --exclude-tools).
-	tools   toolFilter
+	tools toolFilter
+	// safe is --safe-mode: skills, rules and agent profiles come from the
+	// user's configuration directory only, never the project.
+	safe    bool
 	prov    llm.Provider
 	cfg     *config.Config
 	cwd     string
@@ -482,13 +485,17 @@ func (b *agentBuilder) stepAgentTools() error {
 // session.
 func (b *agentBuilder) stepKnowledge() error {
 	ag, cd, cfgDir, mem := b.ag, b.cd, b.d.cfgDir, b.d.mem
-	b.skills = func() []skill.Skill { return skill.WithBuiltins(skill.Load(cd.Dir(), cfgDir)) }
+	project := cd.Dir
+	if b.d.safe {
+		project = func() string { return "" }
+	}
+	b.skills = func() []skill.Skill { return skill.WithBuiltins(skill.Load(project(), cfgDir)) }
 	b.skillIn = &skill.Injector{Skills: b.skills}
-	b.rules = func() []rules.Rule { return rules.Load(cd.Dir(), cfgDir) }
+	b.rules = func() []rules.Rule { return rules.Load(project(), cfgDir) }
 	b.ruleIn = &rules.Injector{Rules: b.rules}
 	ag.PathRules = b.ruleIn.For
 	ag.PathSkills = b.skillIn.ForPaths
-	b.task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cd.Dir(), cfgDir) }
+	b.task.Profiles = func() []skill.Profile { return skill.LoadProfiles(project(), cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: b.skills, Used: b.skillIn.MarkUsed})
 	// The indexes are the part of the system prompt that grows with use
 	// rather than with the code, so their share of the window is what is
