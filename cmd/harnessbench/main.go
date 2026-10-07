@@ -43,6 +43,7 @@ func run(args []string) error {
 	only := fs.String("only", "", "comma-separated task names to run (still grouped in batches of five)")
 	filter := fs.String("filter", "01-20", "task set: 01-20, large, session, or all")
 	reportOnly := fs.Bool("report-only", false, "rebuild REPORT.md from existing JSON files; do not call the API")
+	meterLog := fs.String("meter-log", "", "modelproxy -meter JSONL log to cross-check harness-reported usage against (optional)")
 	janetDriver := fs.String("janetcode-driver", "eval", "how to run janetcode: eval (its own eval harness, a batch per process) or headless (one `-p --output-format json` per task, driven exactly like the other CLIs)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -101,6 +102,7 @@ func run(args []string) error {
 		MaxTurns:    *maxTurns,
 		RepoRoot:    mustAbs("."),
 		JanetDriver: *janetDriver,
+		MeterLog:    *meterLog,
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -205,6 +207,10 @@ type runConfig struct {
 	// "headless" drives it like every other CLI, one `-p` per task, and
 	// reads the result object it now prints.
 	JanetDriver string
+	// MeterLog is a modelproxy -meter JSONL log used to cross-check each
+	// task's harness-reported usage against what the provider billed;
+	// empty disables the check.
+	MeterLog string
 }
 
 func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval.Task, batches [][]eval.Task) ([]eval.BenchTaskResult, string) {

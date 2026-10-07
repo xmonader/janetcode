@@ -163,6 +163,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 	var runErr error
 	var total eval.UsageMetrics
 	var wall time.Duration
+	taskStart := time.Now()
 	prompts := t.Steps()
 	for i, prompt := range prompts {
 		sctx, scancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -219,6 +220,24 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 		res.Reason = why
 		if res.StderrExcerpt == "" {
 			res.StderrExcerpt = trimCap(cout, 1500)
+		}
+	}
+
+	// Cross-check the harness's self-reported usage against the proxy's
+	// independent accounting. The log is re-read per task because the
+	// proxy appends while the bench runs. One caveat: a batch runs five
+	// tasks at once, so when they share one proxy the window sum includes
+	// siblings' tokens and the check over-counts — it is exact when one
+	// task uses the proxy at a time, advisory otherwise. Either way a
+	// divergence only flags the row (Mismatches excludes it from pass-rate
+	// scoring); a missing or unreadable log degrades to no check.
+	if cfg.MeterLog != "" {
+		proxy := eval.SumMeterWindow(eval.LoadMeterLog(cfg.MeterLog), taskStart, time.Now())
+		if v := eval.MeterDivergence(proxy, res.InputTokens); v != "" {
+			res.Mismatches++
+			if res.Mismatch == "" {
+				res.Mismatch = v
+			}
 		}
 	}
 

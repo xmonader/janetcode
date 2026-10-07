@@ -16,6 +16,14 @@
 //
 // This is a benchmarking aid, not a gateway: no retries, no rate limiting,
 // no auth of its own. Bind it to localhost.
+//
+// With -meter <path> it also appends one JSON object per line (JSONL) for
+// every proxied request: when, the path, the model asked for and the model
+// swapped in, the upstream status, elapsed milliseconds, and the token
+// usage the provider reported (read out of the stream as it passes, never
+// buffered whole). That log is the independent accounting a harness's own
+// telemetry can be checked against. Metering observes only: a failure to
+// parse or write never fails or delays a request.
 package main
 
 import (
@@ -34,12 +42,21 @@ func main() {
 	model := flag.String("model", "", "model to substitute into every request (required)")
 	upstream := flag.String("upstream", "https://openrouter.ai/api/v1", "Anthropic-compatible API root")
 	key := flag.String("key", "", "bearer token for the upstream (required)")
+	meterPath := flag.String("meter", "", "append per-request usage records (JSONL) to this file (optional)")
 	quiet := flag.Bool("quiet", false, "do not log requests")
 	flag.Parse()
 	if *model == "" || *key == "" {
 		log.Fatal("modelproxy: -model and -key are required")
 	}
 	p := &proxy{model: *model, upstream: strings.TrimSuffix(*upstream, "/"), key: *key, quiet: *quiet}
+	if *meterPath != "" {
+		m, err := openMeter(*meterPath)
+		if err != nil {
+			log.Fatal("modelproxy: meter: ", err)
+		}
+		defer m.close()
+		p.meter = m
+	}
 	log.Printf("modelproxy: %s -> %s serving %s", *addr, p.upstream, p.model)
 	srv := &http.Server{Addr: *addr, Handler: p, ReadHeaderTimeout: 30 * time.Second}
 	log.Fatal(srv.ListenAndServe())
@@ -48,6 +65,7 @@ func main() {
 type proxy struct {
 	model, upstream, key string
 	quiet                bool
+	meter                *meter
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +73,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "only POST is proxied", http.StatusMethodNotAllowed)
 		return
 	}
+	start := time.Now()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -63,6 +82,17 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, was := swapModel(body, p.model)
 	if !p.quiet {
 		log.Printf("%s  %s -> %s", r.URL.Path, was, p.model)
+	}
+	// The record is filled in as the answer comes back and written however
+	// the request ends: an upstream that never responded is still a proxied
+	// request, with status 0 and no usage.
+	var rec *meterRecord
+	if p.meter != nil {
+		rec = &meterRecord{Time: start, Path: r.URL.Path, Model: was, Swapped: p.model}
+		defer func() {
+			rec.ElapsedMS = time.Since(start).Milliseconds()
+			p.meter.record(*rec)
+		}()
 	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, p.upstream+joinPath(p.upstream, r.URL.RequestURI()), bytes.NewReader(body))
 	if err != nil {
@@ -81,15 +111,37 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
+	if rec != nil {
+		rec.Status = resp.StatusCode
+	}
 	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
 	w.WriteHeader(resp.StatusCode)
+	if rec != nil && !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		// A plain JSON answer is small enough to hold: read it, take its
+		// usage, pass it on.
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
+		rec.Usage = parseBodyUsage(body)
+		_, _ = w.Write(body)
+		return
+	}
 	// Stream, so a server-sent event reaches the client when it is sent
-	// rather than when the response ends.
+	// rather than when the response ends. The scanner reads the same bytes
+	// as they go past; it never touches what is forwarded.
+	var scan *sseUsage
+	if rec != nil {
+		scan = &sseUsage{}
+	}
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 8192)
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
+			if scan != nil {
+				scan.feed(buf[:n])
+			}
 			if _, werr := w.Write(buf[:n]); werr != nil {
 				return
 			}
@@ -98,8 +150,12 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err != nil {
-			return
+			break
 		}
+	}
+	if scan != nil {
+		scan.finish()
+		rec.Usage = scan.usage
 	}
 }
 
