@@ -853,7 +853,7 @@ func TestPermissionLadderPayloadAndChoice(t *testing.T) {
 	if p.Name != "write_file" {
 		t.Fatal("no permission prompt")
 	}
-	if len(p.Rungs) != 2 || p.Rungs[0].Rule != "write_file(docs/n.txt)" || p.Rungs[1].Rule != "write_file(docs/*)" || p.RuleIndex != 1 {
+	if len(p.Rungs) != 3 || p.Rungs[0].Rule != "write_file(docs/n.txt)" || p.Rungs[1].Rule != "write_file(docs/*)" || p.Rungs[2].Rule != "write_file(write:docs/*)" || p.RuleIndex != 1 {
 		t.Fatalf("rungs = %+v index = %d", p.Rungs, p.RuleIndex)
 	}
 	if p.Rule != p.Rungs[p.RuleIndex].Rule {
@@ -973,6 +973,63 @@ func TestWebSessionListCarriesForkLineage(t *testing.T) {
 	}
 	if rows[si].Depth != 0 || !strings.Contains(rows[si].Note, "not listed here") {
 		t.Fatalf("stray row = %+v", rows[si])
+	}
+}
+
+// TestWebSessionListSearchesConversations: ?q= finds a session by what
+// was said in it, not only by its title, and says where.
+func TestWebSessionListSearchesConversations(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	root := t.TempDir()
+	dir, err := session.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for turn, text := range []string{"set up the project", "why does the flux capacitor leak"} {
+		m := llm.TextMessage(llm.RoleUser, text)
+		if _, err := old.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Turn: turn + 1, Message: &m}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ag := &agent.Agent{Provider: &scripted{}, Model: "m", Log: cur}
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: cur, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	res, err := http.Get(ts.URL + "/api/sessions?q=capacitor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var rows []struct {
+		ID   string `json:"id"`
+		Hit  string `json:"hit"`
+		Turn int    `json:"turn"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rows {
+		if r.ID == old.Meta.ID {
+			found = true
+			if !strings.Contains(r.Hit, "flux capacitor") || r.Turn != 2 {
+				t.Errorf("row = %+v, want the matching line from turn 2", r)
+			}
+		} else if r.Hit != "" {
+			t.Errorf("row %s has a hit it does not contain: %q", r.ID, r.Hit)
+		}
+	}
+	if !found {
+		t.Fatalf("rows = %+v, want %s", rows, old.Meta.ID)
 	}
 }
 
@@ -1700,5 +1757,38 @@ func TestReplayedMissingReadIsNotAFailure(t *testing.T) {
 		if e.Kind == "tool" && (e.Error || e.Output != "x_test.go does not exist") {
 			t.Fatalf("replayed row = %+v", e)
 		}
+	}
+}
+
+// /jobs stdin types a line into a running job from the browser, spaces
+// and all, as the terminal's /jobs stdin does.
+func TestJobsStdinFromTheBrowser(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	ag := &agent.Agent{Model: "m", Log: sess, Tools: tool.NewRegistry()}
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: sess, Jobs: jobs, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	job, err := jobs.Start(root, `read x; echo "got [$x]"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"text": "/jobs stdin " + strconv.Itoa(job.ID) + " two  words"})
+	res, err := http.Post(ts.URL+"/api/command", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := jobs.Wait(ctx, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := jobs.Output(job.ID, 0); out != "got [two  words]" {
+		t.Fatalf("job read %q", out)
 	}
 }

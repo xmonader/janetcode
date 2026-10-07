@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/provenance"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -48,7 +49,15 @@ type Stats struct {
 	// the same model answered in the end — but a run that spent four
 	// attempts on every call is not the run the timings suggest.
 	Retries int
-	Tools   []ToolStat // sorted by calls, descending
+	// Mismatches counts model calls whose response named another vendor
+	// than the requested model's (see internal/provenance), and Mismatch
+	// is the first one's verdict, with the requested model. A run where
+	// this is non-zero measured a different model than it claims to.
+	Mismatches int
+	Mismatch   string
+	// Served is the last call's provenance, for a result file.
+	Served llm.Provenance
+	Tools  []ToolStat // sorted by calls, descending
 	// Approvals counts permission prompts actually shown to the user
 	// (mutating calls the rules and the auto modes did not already
 	// settle), and Refusals how many of them were denied. A call
@@ -130,7 +139,10 @@ type ModelStat struct {
 // the audit line an escalation arm needs: asked X, got Y, N times.
 func (m ModelStat) ServedElsewhere() (string, int) {
 	for got, n := range m.Served {
-		if got != m.Name {
+		// A dated snapshot or a gateway's vendor/ prefix is the same
+		// model; reporting "asked claude-sonnet-4-6, got
+		// claude-sonnet-4-6-20260101" would cry wolf on every call.
+		if !provenance.SameModel(m.Name, got) {
 			return got, n
 		}
 	}
@@ -209,6 +221,9 @@ type statsCounter struct {
 	s      Stats
 	tools  map[string]*ToolStat
 	models map[string]*ModelStat
+	// mismatchSeen is the (requested model, served vendor) pairs already
+	// announced this session.
+	mismatchSeen map[string]bool
 }
 
 func (c *statsCounter) turn() {
@@ -253,6 +268,32 @@ func (c *statsCounter) model(name, served string, d time.Duration, u llm.Usage, 
 		m.Served[served]++
 	}
 	c.mu.Unlock()
+}
+
+// served records what a call's response said about who served it, and
+// the verdict against the requested model. It reports whether this is
+// the first mismatch of the session for this requested model and served
+// vendor, so the caller says so once rather than on every call.
+func (c *statsCounter) served(requested string, p llm.Provenance, v provenance.Verdict) (first bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.s.Served = p
+	if !v.Mismatch {
+		return false
+	}
+	c.s.Mismatches++
+	if c.s.Mismatch == "" {
+		c.s.Mismatch = "requested " + requested + ": " + v.String()
+	}
+	key := requested + "\x00" + v.Served
+	if c.mismatchSeen == nil {
+		c.mismatchSeen = map[string]bool{}
+	}
+	if c.mismatchSeen[key] {
+		return false
+	}
+	c.mismatchSeen[key] = true
+	return true
 }
 
 // firstToken records how long one call waited before the provider
@@ -426,6 +467,7 @@ var switches = map[string]bool{
 	"protected": true, "ladder": true, "undoabout": true, "mermaid": true,
 	"keeprevert": true, "memoryrank": true, "sleep": true, "decisions": true,
 	"escalate": true, "advisor": true, "scrub": true, "opentodos": true,
+	"orient": true, "baseline": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

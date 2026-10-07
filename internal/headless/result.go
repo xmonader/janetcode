@@ -1,6 +1,12 @@
 package headless
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/llm"
+)
 
 // The result object is defined here, by the package that writes it; the
 // eval bench reads it back from a CLI's stdout (internal/eval's
@@ -57,6 +63,14 @@ type CLIResult struct {
 	// a later attempt. The wait is already in duration_ms; this says how
 	// much of it was the provider refusing rather than thinking.
 	Retries int `json:"retries"`
+	// Served is what the last model call's response said about who served
+	// it (llm.Provenance); Mismatches counts the calls whose response named
+	// another vendor than the requested model's, and Mismatch is the first
+	// verdict. A benchmark reading this result can tell the model it asked
+	// for from the one a gateway substituted.
+	Served     *llm.Provenance `json:"served,omitempty"`
+	Mismatches int             `json:"provenance_mismatches,omitempty"`
+	Mismatch   string          `json:"provenance_mismatch,omitempty"`
 	// Decisions is the optional decision provider's footprint (internal/
 	// jev): null until its first call, so a session that never consulted
 	// it is indistinguishable from one without the feature configured.
@@ -70,6 +84,22 @@ type CLIResult struct {
 	// StructuredOutput is the answer as data, validated against
 	// --json-schema; absent without the flag or when no valid answer came.
 	StructuredOutput json.RawMessage `json:"structured_output,omitempty"`
+	// Egress is what each turn of the run sent off the machine: the
+	// hosts, the bytes, the files and tool output that went into the
+	// model requests, memory and skills attached, and how many
+	// secret-shaped values were redacted first (see internal/egress).
+	Egress []egress.Report `json:"egress,omitempty"`
+	// DryRun is the preview a --dry-run run built instead of changing
+	// anything: the files it would change with their diffs, and every
+	// call it recorded rather than made. Omitted outside a dry run.
+	DryRun *CLIDryRun `json:"dry_run,omitempty"`
+}
+
+// CLIDryRun is a dry run's preview in the result object: the same content
+// /dryrun show gives in the terminal.
+type CLIDryRun struct {
+	Files   []agent.DryFile   `json:"files"`
+	Actions []agent.DryAction `json:"actions"`
 }
 
 // CLIRoute is one model call served away from the session's own model.

@@ -69,9 +69,90 @@ drag             select transcript text and copy it on release (the system
                  terminals that allow it); a click clears the selection
 ctrl+c           cancel the turn; when idle, press twice to quit
 shift+tab        cycle ask → plan → auto → yolo (approvals, plan-first, safe-auto, auto-approve)
-ctrl+r           cycle the reasoning tier up the ladder and round again (/effort)
+alt+e            cycle the reasoning tier up the ladder and round again (/effort)
 ctrl+t           open the overlay of continuable subagents (/agents)
+ctrl+r           search the prompt history backwards as you type
+ctrl+x ctrl+e    write the prompt in $VISUAL / $EDITOR
 ```
+
+### Finding an old prompt: ctrl+r
+
+`ctrl+r` searches the prompt history backwards the way a shell does. The
+history is the one up and down step through: every prompt typed in this
+directory, in this session and the earlier ones. Each character you type
+narrows the search and the newest match is put in the composer as you
+go; `ctrl+r` again steps to an older match, skipping ones that read the
+same. The status line shows `(reverse-i-search)`query'`, and says
+`failing` when nothing matches. `enter` keeps the match in the composer —
+it is not sent, so you can edit it first — and `esc` puts back what you
+had typed before the search. Any other key (an arrow, `home`) keeps the
+match and then does what it does.
+
+The reasoning-tier cycle that used to be on `ctrl+r` is on `alt+e`: the
+shell convention wins, and `/effort` is still there.
+
+### Writing the prompt in your editor: ctrl+x ctrl+e
+
+`ctrl+x ctrl+e`, as in bash, hands the prompt to `$VISUAL`, or `$EDITOR`,
+or `vi` when neither is set (`notepad` on Windows). An editor that needs
+a flag to wait works as it would for git: `EDITOR="code --wait"`. The
+window gives the terminal to the editor and takes it back when it exits;
+what you saved comes back into the composer, without the trailing
+newline editors add, to read over and send. It is not sent on its own.
+An editor that exits non-zero leaves the prompt as it was.
+
+### Vim mode
+
+`/vim` (or `/vim on`, `/vim off`) gives the composer vim's two modes;
+`"vim_mode": true` in the config starts every session in it. It starts in
+insert mode, which is the ordinary composer. `esc` goes to normal mode
+— it no longer cancels the turn or clears the input from insert mode; in
+normal mode `esc` cancels a running turn as it always has, and otherwise
+does nothing. The status line shows `NORMAL` (with a pending operator,
+`NORMAL d`) or `INSERT` next to the mode.
+
+In normal mode: `h` `j` `k` `l`, `w` `b` `e`, `0` `^` `$`, `gg` `G` move;
+`x`, `dd`, `dw`, `de`, `d$`, `D`, `diw` delete (what was deleted goes to
+the register that `p` puts back, a whole line below the current one);
+`cw`, `ce`, `c$`, `C`, `cc`, `ciw` change; `i` `a` `I` `A` `o` `O` go back
+to insert mode; `u` undoes the last normal-mode edit. `enter` sends and
+the ctrl keys keep their meanings in both modes. A paste is text in
+either mode. It is the everyday subset, not an ex line or macros.
+
+### Your own keys: keybindings
+
+Every key at the prompt is an action with a name, and the config file's
+`keybindings` object moves any of them. `/help keys` lists the actions
+with the keys they have in your session (your changes included):
+
+```json
+{
+  "keybindings": {
+    "effort": ["f2", "alt+e"],
+    "history_search": "ctrl+r",
+    "external_editor": "ctrl+x ctrl+e",
+    "agents": ""
+  }
+}
+```
+
+The actions are `submit`, `newline`, `cancel`, `interrupt`, `quit`,
+`expand`, `background`, `steer`, `redraw`, `mode_cycle`, `agents`,
+`effort`, `paste_image`, `complete`, `history_prev`, `history_next`,
+`history_search`, `external_editor`, `page_up`, `page_down` and `voice`
+(unbound until you give it a key: `"voice": "f5"` starts a recording and
+the same key stops it, as `/voice` does). A value is
+a key, a list of keys, or `""` to unbind the action; an action you name
+loses its default keys. A key is a name as the terminal reports it —
+`ctrl+r`, `alt+e`, `shift+tab`, `f2`, `pgup`, `enter` — or a chord of two,
+`"ctrl+x ctrl+e"`. The file is refused at start, naming the problem, for
+an unknown action, a name that is not a key, a plain character (it could
+no longer be typed), a key left on two actions, or a key that is both
+bound and the start of a chord. Taking a key another action has by
+default means moving that action too, in the same object:
+`{"effort": "ctrl+t", "agents": "alt+a"}`. `ctrl+u`, `ctrl+b` and
+`ctrl+f` page only while the prompt is empty: with text in it they are
+the composer's own readline keys.
 
 ## Colour and themes
 
@@ -247,6 +328,114 @@ The header shows the git branch and the session's `+N −M`. Settings
 (the gear in the rail) sets Moon bright, Moon dark or System, the font
 size, and a sound when a turn finishes in a background tab.
 
+## The screen-reader interface
+
+The full-screen interface redraws itself many times a second: a spinner,
+a status bar, a transcript that re-wraps when the window changes size. A
+screen reader reads each redraw as new text, or nothing useful at all.
+`janetcode --screen-reader` runs the same session as a conversation on
+plain lines instead:
+
+```
+janetcode, screen reader mode. Working in /home/me/proj. Model qwen3.8-27b.
+Type a request and press enter. /help lists commands, /quit exits.
+Ready.
+> add a test for the parser
+Working.
+Running tool: read_file parser.go.
+Tool read_file finished.
+Result: package parser …
+Waiting for permission: write_file {"path":"parser_test.go",…}.
+Type y to allow once, a to allow for this session, r to save the rule write_file(parser_test.go), n to deny. You can add a reason after n.
+> y
+Allowed.
+Answer:
+I added parser_test.go with three cases.
+Outcome: ✓ verified: go test ./... passed
+Turn finished.
+Ready.
+```
+
+Every line is written once, below the one before, and never moved or
+overwritten: no cursor addressing, no carriage returns, no colour, no
+box drawing and no animation reach the terminal — whatever the model or
+a tool prints is stripped of escape sequences on the way out. States the
+full-screen interface shows as a glyph or a colour are said in words.
+The model's answer is handed over a line at a time rather than a word at
+a time, with Markdown's symbols taken off (`## Heading` is read as
+"Heading", `**bold**` as "bold", a code fence as "Code, go:" and "End
+of code."); bullets and numbers stay, since they are how a list is
+heard.
+
+Permission questions are answered by typing `y` (once), `a` (this tool
+for the session), `r` (save the offered rule) or `n`, optionally
+followed by a reason for the model. ctrl+c cancels a running turn and
+leaves the session open; at the prompt it exits, as do `/quit` and
+ctrl+d. `/cost` says what the session has spent, and `/voice` records a
+prompt (see [Voice input](#voice-input)). Everything else typed is sent
+to the model; `@path` attaches a file as it does in the full-screen
+interface.
+
+It starts with `--screen-reader`, `JANETCODE_SCREEN_READER=1` or
+`"screen_reader": true` in the config, and by itself when the
+environment has `ACCESSIBILITY_ENABLED=1`, which some Linux desktops
+export when a screen reader runs at login; `JANETCODE_SCREEN_READER=0`
+keeps the full-screen interface. The browser interface, `--web`, is the
+other accessible choice: it has landmarks and live announcements and
+passes an automated accessibility check (`make ui-a11y`).
+
+## Language
+
+`"language": "Spanish"` (or `es`, `español`, `pt-BR`, any language by
+name or code) does two things. The model is told to write every
+answer, explanation, question and plan in that language, whatever the
+request or the files are in, while code, identifiers, commands, commit
+messages and file contents stay in the language the project already
+uses. And the interface's own words — `/help`'s headings and first
+page, the permission prompt, the mode on the status line, the queued
+message line, the turn's waiting states, the screen-reader interface's
+labels, and the browser page's buttons, tabs and placeholders — are
+shown in that language when janetcode carries it: Spanish (`es`) and
+French (`fr`) today. Anything the catalogue lacks is shown in English,
+and so is the rest of the interface (`/help all`'s command descriptions
+beyond the everyday group, the manual, config keys); command names are
+never translated,
+since they are what you type.
+
+With no `language` key the model follows you, and the interface takes
+its language from `LC_ALL`, `LC_MESSAGES` or `LANG`, so `LANG=es_ES.UTF-8`
+shows the Spanish interface without telling the model anything. A
+`language` naming one the catalogue lacks shows English, not `LANG`'s:
+you asked for a language, and English is the nearest the interface has.
+`/config language=<name>` changes both at once in a running session; the
+next model call carries the new instruction.
+
+## Voice input
+
+`/voice` records a prompt from the microphone; `/voice` again stops the
+recording, and the transcript is put in the input, after anything
+already typed, for you to read, correct and send. It is never sent on
+its own: a mishearing sent unread is a request nobody made. In the
+screen-reader interface, enter stops the recording, and the transcript
+is read back to you before an empty enter sends it. In the browser
+interface the microphone button beside the command button does the
+same, recording in the browser and transcribing on the server.
+
+Recording uses a program the machine already has — `arecord` (ALSA),
+sox's `rec`, or `ffmpeg` — found on `PATH` in that order, recording 16
+kHz mono WAV and stopped with an interrupt so it finishes the file.
+`voice.recorder` names another command; it runs in the shell with the
+file to write in `$JANETCODE_VOICE_FILE` (and appended as the last
+argument when the command does not mention it), and must stop cleanly
+on SIGINT. One recording is capped at five minutes.
+
+The recording goes to an OpenAI-compatible `/audio/transcriptions`
+endpoint: the active provider's when it speaks the OpenAI API, else
+`OPENAI_BASE_URL` (or OpenAI's) with `OPENAI_API_KEY`. `voice.endpoint`
+and `voice.api_key_env` point it elsewhere, and `voice.model` names the
+model (`whisper-1` by default; many gateways call it `whisper`). When
+`language` is set it is passed along as a hint.
+
 ## The terminal takes part
 
 janetcode tells the terminal what is happening, so the terminal can help:
@@ -316,6 +505,10 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /sandbox [on|off|workspace|read-only|strict|backend|image]  (run local bash under a sandbox profile; file tools stay here)
 /review [focus]  (two subagents read the current diff: bugs and tests)
+/security-review [focus]  (two read-only subagents look for attacks in the diff; one report, most severe first)
+/commit [-m message]  (draft a message into the input box; sending /commit -m commits it)
+/pr [create <title>]  (draft a pull request; sending /pr create pushes and opens it)
+/pr-comments [n]   /issue <n>  (fetch a pull request's reviews or an issue with gh and share it)
 /loop [duration] [prompt|off]  (repeat a prompt this session; restored on resume)
 /agents [id|new <brief>|fork <brief>]  (overlay of subagents; new starts a general one, fork inherits this conversation)
 /add-dir <path>  (grant file tools another local directory)
@@ -392,7 +585,7 @@ still wins over every one of them, and `/jev` says so when it is set.
 whatever the provider does on its own. Alone it reports the tier the
 session is asking for, marks it on the ladder and says whether the
 provider behind it takes one at all; `/effort up` and `/effort down` step
-a rung, and `ctrl+r` cycles up and round. The tier rides on every request
+a rung, and `alt+e` cycles up and round. The tier rides on every request
 from the next one onward, so it can be raised for one hard step and
 lowered again afterwards, in the middle of a session and even while a
 turn is running. It changes this session only — `/config effort=high`
@@ -450,7 +643,14 @@ tree is snapshotted before the first mutating tool of a turn (a hidden
 commit under `refs/janetcode/cp/`, taken through a temporary index so
 HEAD, your index and your branches are never touched), so changes made by
 shell commands, generated files and deletions all revert. Outside git the
-files changed through `edit_file`/`write_file` are restored from copies.
+same snapshots are taken into a private store in janetcode's data
+directory (`shadow/` beside `sessions/`; nothing is written into the
+project), so shell changes revert there too. A directory too large to
+snapshot every turn (over 20,000 files or 512 MiB), a home directory and
+the file system root get no store, and there the files changed through
+`edit_file`/`write_file` are restored from copies. The store is never
+used for proof notes or a session's recorded start, which need your own
+repository's history.
 Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
@@ -497,10 +697,10 @@ touched, when:
 
 What it restores is recorded as changes of its own, exactly as `/undo n`
 records a revert, so the restore appears in `/changes` and `/blame` and
-`/undo <n>` can take it back. Outside a git repository there is no
-work-tree snapshot, so the restore falls back to the copies the file
-tools made — the same fallback `/undo` uses, covering file-tool changes
-only.
+`/undo <n>` can take it back. Outside a git repository the private
+store's snapshot does the same job; where there is none (see above), the
+restore falls back to the copies the file tools made — the same fallback
+`/undo` uses, covering file-tool changes only.
 
 A rewind drops, from turn n on: every message of those turns (prompts,
 replies, tool calls and their results), the undo checkpoints of those
@@ -519,6 +719,37 @@ themselves, when the conversation has been compacted since turn n began:
 the summary replaced the messages that marked where the turn started, so
 that point can no longer be located and cutting at a guess would take
 the wrong messages. The preview says so in as many words.
+
+#### The checkpoint list: /checkpoints, esc esc
+
+`/checkpoints` lists every restore point the session holds, newest
+first: its id (`t4·1a2b3c4`, the turn and the git snapshot behind it),
+when it was taken, what the turn said it was doing, and what restoring it
+covers —
+
+- **whole work tree (git snapshot)**, so shell changes go back too —
+  inside a repository or through the private store outside one — or
+  **file copies only** where there is neither, and only what the file
+  tools changed can be put back;
+- the files the file tools changed and how many paths the turn left
+  different;
+- whether it is **complete**: a file that could not be read before the
+  turn, or was too large to copy (see below), is listed as a gap, and the
+  checkpoint is marked incomplete. A complete checkpoint with a manifest
+  also promises that an undo leaves later edits alone.
+
+In the terminal the list is a picker: enter on a row runs `/undo turn n`
+for that turn, the preview above, and `/undo apply` carries it out.
+Pressing esc twice on an empty prompt while no turn is running opens the
+same list. In the web UI it is a card: each row has a Preview button that
+runs `/undo turn n`, and Apply carries out the last preview.
+
+A checkpoint copies a file before the file tools change it. A copy over
+1 MiB is streamed to a blob beside the session's undo file rather than
+held in memory; a file over 256 MiB is not copied at all. Outside git you
+are told when that happens, before the change is made, and `/undo` then
+leaves that file as it is and says why rather than writing an empty
+"before" over it. Inside git the snapshot still covers it.
 
 ### Permission rules
 
@@ -561,7 +792,8 @@ before `r` saves anything — narrower to the left, wider to the right, with
 `2/3` on the key line saying where you stand. For `go test ./internal/...`
 the rungs are `bash(go test ./internal/...)`, `bash(go test *)` and
 `bash(go *)`; for `internal/agent/x.go` they are the file itself,
-`edit_file(internal/agent/*)` and `edit_file(internal/*)`; for a URL, the
+`edit_file(internal/agent/*)`, `edit_file(write:internal/agent/*)` and
+`edit_file(internal/*)`; for a URL, the
 page, its section of the site, then the whole host. The prompt starts on
 the rung it has always proposed, so pressing `r` straight away saves
 exactly what it used to, and a call with only one rung shows no ladder at
@@ -627,14 +859,118 @@ nothing.
 The `r` key never proposes a parameter rule: the ladder is about breadth
 — this path, its directory, the tree above it — and a field is not a
 wider or narrower version of anything. Parameter rules are written by
-hand, in the config file or with `/permissions allow <rule>`.
+hand, in the config file or with `/permissions allow <rule>`. Two
+exceptions: the network, below, and a file tool's directory, which is
+offered twice — as `edit_file(internal/agent/*)` and as the typed
+`edit_file(write:internal/agent/*)` (`read:` for the tools that read). The
+typed rung judges the path after symlinks and `..` are resolved, so a
+link in the directory that points out of it is not covered; the bare one
+judges the path as it is spelled.
 
-`/permissions` lists rules, `/permissions allow <rule>` and `/permissions
-deny <rule>` add one. A project can ship `.janetcode/permissions.json`
-with the same shape: its deny rules always apply, its allow rules only
-after `/permissions trust`. Headless runs take `--allow` and `--deny`
-with comma-separated rules, and a `pre_tool` hook can answer
-`{"decision":"allow"}` to approve a call itself.
+#### Typed scopes
+
+A handful of clause names are not fields but *scopes*: something the
+call does, worked out from the call whatever tool it is, so one rule can
+say what you mean without knowing where each tool keeps it.
+
+```
+bash(cmd:go test *)                      the command's words, one by one
+*(read:docs/**)                          the paths a call reads
+*(write:internal/**)                     the paths a call writes, bash included
+fetch_url(host:*.go.dev)                 the hosts a call contacts
+bash(cmd:curl *, host:api.github.com)    both: curl, and only to that host
+*(touches:**/.env)                       any path a call names, read or written
+*(arg:*BEGIN*PRIVATE KEY*)               any string anywhere in the input
+*(secret:*)                              the input holds a credential
+```
+
+`cmd:` matches the command's argv word by word after the shell's quoting
+is undone, so `go test './...'` is `go test ./...`, and a trailing `*` is
+"any further words". As an allow rule it covers one command and nothing
+it is chained with, never looks through a wrapper (`sudo go test` is not
+`go test`), and refuses a command that writes outside the workspace:
+`bash(cmd:go test *)` allows `go test ./... 2>&1` and asks about
+`go test ./... && curl …`, `cd /etc && go test` and
+`go test > ~/.profile`. As a deny or ask rule it catches the command
+anywhere on the line — behind `sudo`, `env`, `timeout`, `xargs`, a path
+(`/bin/rm`), inside `$( )`, `sh -c '…'`, or a here-document fed to
+`bash`, `ssh` or `python`.
+
+`host:` reads the host of a `fetch_url` URL, the hosts a bash command
+names (every URL with a scheme, `git clone git@host:…`, the host of
+`ssh`, `scp`, `rsync`, `curl`, `wget`, `nc` and the like), the search
+provider behind `web_search`, and the server behind a remote MCP
+server's tools. `*.example.com` also covers `example.com`; a pattern
+without a port matches any port. A command that reaches the network
+through something it does not show — `git push` to a configured remote,
+`curl $URL` — has no host, and a host-scoped allow rule does not cover
+it.
+
+`read:`, `write:` and `touches:` compare paths in every spelling they
+have — as written, relative to the workspace or absolute in it, and with
+symlinks resolved. A leading `**/` also matches at the top, so
+`**/.env` matches `.env`, and `dir/**` names `dir` itself too.
+
+A scope with several values reads differently depending on the rule, and
+it is on purpose: they fail in opposite directions. An **allow** rule
+covers a call only when *every* value is in scope and there is at least
+one — `*(write:docs/**)` does not cover `echo x > docs/a > main.go`, and a
+path written inside `docs/` that resolves through a symlink to somewhere
+else, or climbs out with `..`, is not in `docs/`. A **deny** or **ask**
+rule catches a call when *any* value is in scope — `*(touches:**/.env)`
+refuses `cat README.md .env`.
+
+A tool whose own input has a field called `cmd` or `host` keeps that
+meaning: the scopes apply where they can be worked out (`cmd:` for bash,
+`host:` for bash, `fetch_url`, `web_search` and remote MCP tools).
+
+For a network command, `r` offers the host and never more: approving
+`curl -s https://api.github.com/repos/x` offers
+`bash(cmd:curl *, host:api.github.com)` instead of `bash(curl *)`, which
+would allow the same command against any host. A command that names two
+hosts offers only itself.
+
+#### Ask rules: the sensitive calls
+
+The third list is `ask`. A call an ask rule matches is put to you in
+every mode — `/edits`, `/auto` and `--yolo` included — even when an allow
+rule covers it, even when the tool only reads, and the answer covers that
+one call (`a` and `r` do not widen it). It is the list for what should
+never happen unwatched: reading `.env`, sending a credential anywhere,
+touching production.
+
+```json
+"permissions": {
+  "allow": ["bash(cmd:go test *)", "fetch_url(host:*.go.dev)"],
+  "deny":  ["bash(cmd:git push *)", "*(host:*.internal.example)"],
+  "ask":   ["*(touches:**/.env)", "*(secret:*)", "bash(cmd:kubectl * --context=prod*)"]
+}
+```
+
+The order of authority is: the hard-deny tier (commands that wreck the
+machine), then deny rules, then ask rules, then allow rules. When a rule
+that won outranked an allow rule that would have covered the call, the
+refusal or the prompt says so — "Denied by permission rule
+bash(cmd:rm *) (it outranks allow rule bash(*))", "asks because of rule
+*(touches:**/.env) (it outranks allow rule read_file)" — and
+`/permissions check <command>` (or `/permissions check read_file
+{"path":".env"}`) answers the same question before anything runs, in the
+terminal and in the web page alike.
+
+A subagent inherits every deny and ask rule of the session that started
+it, and none of its allow rules.
+
+`/permissions` lists rules, `/permissions allow <rule>`, `/permissions
+deny <rule>` and `/permissions ask <rule>` add one. A project can ship
+`.janetcode/permissions.json` with the same shape: its deny and ask rules
+always apply, since they only ever take something away; its allow rules
+only after `/permissions trust`. Headless runs take `--allow`, `--deny`
+and `--ask` with comma-separated rules (a comma inside a rule's
+parentheses stays in the rule), and a `pre_tool` hook can answer
+`{"decision":"allow"}` to approve a call itself. A here-document's body
+is the command's input rather than commands for deny and ask rules as
+well: `bash(rm *)` does not refuse a commit whose message mentions
+`rm -rf`.
 
 janetcode also remembers, per project and across sessions, how you
 answered every permission prompt — a ledger under `"permissions"` in the
@@ -670,7 +1006,10 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   entries you wrote with `/remember` are never evicted by the cap.
 - **The model has a `memory` tool**: `recall` by query, `remember` when
   you tell it something worth keeping (it picks the type; the entry is
-  kept for this project), `forget`.
+  kept for this project), `forget` — of what it or the automatic
+  extraction wrote. An entry you saved with `/remember` is yours: the
+  tool refuses to forget it and tells the model to suggest `/forget`,
+  which only you can type.
 - **Automatic extraction.** After a turn that changed something, or one
   where you gave feedback ("never…", "always…", "prefer…"), a cheap extra
   call asks what the conversation *established*, as typed JSON entries
@@ -797,6 +1136,106 @@ they have fired; `pin` keeps one, `archive` moves it to
 `.janetcode/archived-skills/`, `restore` puts it back. Usage is stored in
 `.janetcode/skill-usage.json`. Hand-written skills are left alone.
 
+### What left the machine: /egress
+
+Every turn keeps a ledger of what it sent off the machine: each model
+request's host and size (model slots, the advisor and subagents
+included), fetch_url and web search hosts, remote MCP servers, shell
+commands that visibly name a host, the files and tool output that went
+back into the conversation, the memory entries and skills attached, and
+how many secret-shaped values were redacted before sending. `/egress`
+(and `--inspect egress`) shows the last turn's; every turn's is in the
+session log as `egress/turn`, and `-p --output-format json` carries them
+under `"egress"`.
+
+The `egress` config key restricts where data may go:
+
+```json
+"egress": {"default": "ask", "allow": ["github.com", "*.golang.org", ".pypi.org"]}
+```
+
+`default` is what happens with a host not on `allow`: `allow` (no
+restriction, the default), `ask` (the call asks whatever the mode, even a
+read-only web search, and the prompt names the host) or `block` (the call
+is refused before anything is sent). fetch_url, web search and remote
+MCP calls are also checked at the connection, so a redirect to a blocked
+host is refused too. Shell commands are judged by the hosts they spell
+out, which is recognition rather than enforcement: a command can reach a
+host it does not name. The model provider is always allowed.
+
+With the sandbox on (`/sandbox workspace`, or any profile that has a
+network), bash is held to the policy for every host, named or not.
+janetcode runs a small filtering proxy on loopback, points the command's
+`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` (both spellings) at it with
+`NO_PROXY` cleared, and takes every other way out away:
+
+- Landlock (ABI 4, Linux 6.7+) allows TCP connect to the proxy's port
+  alone, and a seccomp filter takes UDP and unix sockets (so DNS too: the
+  proxy resolves names). The rule is by port, so a remote host listening
+  on that same port would be reachable. An older kernel cannot narrow
+  TCP, and sandboxed commands are refused while the policy is active.
+- docker puts the container on an internal network, `janetcode-egress`,
+  which has no route out; the proxy listens on its gateway. Services on
+  the host that listen on every address are reachable from it too.
+- seatbelt allows network-outbound only to the proxy on localhost.
+
+Each host goes through the policy as the connection is made: allowed
+hosts pass, blocked ones get `403` from the proxy, and an `ask` host is
+put to you as a bash prompt ("network access to <host>"), with a yes
+remembered for the session; with no one to ask (headless) it is refused.
+What went through shows in `/egress` as "sandboxed command (egress
+proxy)" with the bytes sent. `/egress` and `--doctor` say how far the
+active backend enforces it. A client that ignores the proxy variables
+simply cannot connect. `JANETCODE_SANDBOX_BACKEND` and
+`JANETCODE_SANDBOX_IMAGE` pick the backend and docker image for a run,
+as `/sandbox landlock` and `/sandbox <image>` do in a session.
+
+With `memory_confirm` on (or `/memory confirm on` for the session), what
+the model or the extractor decides to remember waits instead of being
+saved: `/memory pending` lists each with where it was learned, its scope
+and what it would update or retire; `/memory approve <n|name|all>` keeps
+it and `/memory reject` drops it. `/memory expire <name>` retires an
+entry, which stays on disk as history. What you write with `/remember`
+is saved at once.
+
+### Project trust
+
+A repository can ship more than code: skills and agent profiles the
+model reads, custom commands, path-scoped rules, and files that run
+things — hooks, MCP servers, verify commands, allow rules and recipes.
+None of it is used until you say how far to trust the project. The first
+time a session opens in a directory that ships any of it, the terminal
+asks, and the browser puts the same question at the top of the page:
+
+| level | what the project gets |
+|---|---|
+| `untrusted` | nothing it ships is used |
+| `instructions` | its skills, agent profiles, custom commands and rules |
+| `full` | also its hooks, `.mcp.json` servers, `verify.json`, the allow rules in `permissions.json` and its recipes |
+
+`/trust` shows the level, where it came from and every file it governs;
+`/trust full`, `/trust instructions` or `/trust untrusted` sets it, and a
+trailing `session` holds it only until you exit. `--inspect trust` and
+`--doctor` print the same report. A headless run uses the recorded level
+and says on stderr when the project ships something that is held back;
+`--trust <level>` (or `JANETCODE_TRUST`) sets it for one run without
+writing anything down.
+
+The level is recorded against a fingerprint of every one of those files,
+so an edited hook, a new skill or a changed `.mcp.json` undoes it and the
+question comes back. Files janetcode writes for you — `/verify set`, a
+saved recipe, `/mcp add` — keep the level you chose. Choosing
+`untrusted` also withdraws the older per-file approvals (`/hooks trust`,
+`/verify trust`, `/mcp trust`, `/permissions trust`), which still work on
+their own for a project nobody has chosen a level for. Every change of
+level is written to the session log with the project and the files it
+affects.
+
+Trust never approves a tool call: a trusted project's hook or MCP tool
+runs, but a write or a command still asks as your permission mode says.
+`JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as
+they always were.
+
 ### Changing janetcode's own settings always asks
 
 Everything that decides what janetcode may do without asking is a file:
@@ -858,6 +1297,30 @@ shell, a fork bomb) is refused before the rules are consulted at all. An
 allow rule, `--yolo` and a `pre_tool` hook all pass it by without being
 asked, and the model is told it was refused and not to retry it in
 another form.
+
+### Jupyter notebooks
+
+`read_file` on a `.ipynb` shows the notebook as cells, not as JSON: each
+cell's index, type, id and execution count, its source, and each output
+trimmed to 30 lines (stream text, results, errors without their colour
+codes; an image is named with its size, not dumped as base64). A file
+that does not parse as a notebook is shown as the text it is.
+
+Changing one goes through `notebook_edit`: `replace` a cell's source (or
+only its type), `insert` a cell at an index or after a cell id, or
+`delete` one. It asks, previews, undoes and records provenance like
+`edit_file`, and its preview is a diff of the cells as `read_file` shows
+them. Editing a code cell clears its outputs and execution count, which
+belonged to the code that is gone. Everything else in the file stays
+byte for byte as it was: key order, indent, how non-ASCII was written,
+the notebook's metadata and every other cell's outputs, so a review of
+the change shows only the cell that changed. New cells get an id in
+nbformat 4.5 notebooks and none in older ones. The tool is deferred, so
+projects without notebooks do not pay for its schema: the rendering
+names it, and the model loads it with `tool_search`, which returns the
+schema in the same turn. Permission rules, protected paths and hooks treat it as a file
+edit: `notebook_edit(path:analysis/**)` is a rule, and a Claude Code hook
+matching `NotebookEdit` fires for it.
 
 ### Encodings, byte-order marks and line endings
 
@@ -935,9 +1398,55 @@ command, since approving a background shell once does not approve what
 the model later types into it. `/jobs` opens a
 live overlay of them (empty if none); enter (or `/jobs <n>`) tails the
 log, `k` kills the highlighted job, esc closes. `/jobs kill <n>` and
-`/jobs stdin <n> <text>` still work typed. A one-shot `bash` call still
-gets EOF on stdin; only a background job has a pipe. Every job is
-stopped when janetcode exits.
+`/jobs stdin <n> <text>` still work typed, in the terminal and in
+`--web`. Every job is stopped when janetcode exits.
+
+#### Commands that ask questions
+
+No command the model runs has a terminal: each starts in a session of
+its own, without a controlling terminal. A program that opens `/dev/tty`
+to ask for something (ssh's password, sudo, gpg) fails at once saying it
+has no terminal. Before, it shared janetcode's terminal from a background
+process group, and the read stopped it, silently, until the timeout
+killed it two minutes later.
+
+There are three ways to answer a command:
+
+- **`stdin`** on `bash` feeds text to the command's standard input, then
+  end-of-file, for answers known in advance:
+  `{"command": "./configure.sh", "stdin": "yes\n/opt/app\n"}`.
+- **A foreground command found asking.** On Linux, a command started
+  without `stdin` gets a pipe that stays open instead of an immediate
+  end-of-file, and janetcode watches it through `/proc`. When the
+  command blocks reading that pipe right after printing something that
+  looks like a question (an unfinished line, or a line ending in `?` or
+  `:`), it is moved to the background, as `ctrl+g` would move it. The
+  model is told what it asked and the job id, and answers with the
+  `job` tool. A program that waits on an event loop rather than in
+  `read` (node, a Python prompt toolkit) counts after a second and a
+  half of silence, when its last line ends like a prompt (`?`, `:`, `>`,
+  `)`, `]`, `[y/N]`). A read that follows no question, such as `cat`,
+  `wc -l` or a test that reads an empty stdin, gets its end-of-file at
+  once, as it always did. When there is no jobs registry (a subagent),
+  every read gets end-of-file, and a command that then fails is noted
+  as having read its stdin. Other systems, remote workspaces and the
+  sandbox keep the old behaviour: end-of-file at once.
+- **`interactive: true`** starts the command as a background job on a
+  pseudo-terminal (`TERM=dumb`, 120×40), for programs that only prompt
+  properly on a terminal: installers, REPLs, `ssh-keygen` and anything
+  else that reads a passphrase from `/dev/tty` with echo off. The result
+  shows what it printed first. On Windows there is no pseudo-terminal,
+  so the job gets a pipe and the result says so.
+
+The `job` tool's `stdin` action types `text` and presses Enter (a
+carriage return on a terminal job, which a program in raw mode needs).
+An empty `text` presses Enter alone, to take a prompt's default, and
+`eof: true` then ends the input (closing the pipe, or Ctrl-D on a
+terminal). It waits up to five seconds for the job's reply and returns
+it, usually the next question, so a whole installer is one call per
+answer. Output from a terminal job is cleaned before anyone reads it:
+escape sequences are removed, CRLF becomes a newline, and a line
+redrawn with carriage returns (a progress bar) shows only as it ended.
 
 A command already running in the foreground can be moved to the
 background instead of being waited out or killed: press `ctrl+g`. It keeps
@@ -1260,6 +1769,33 @@ credential helper or SSH first.
 /pr                                # onto the default branch
 /pr release-2.1                    # onto another base
 ```
+
+`/pr-comments [n]` and `/issue <n>` bring GitHub into the conversation:
+`gh` fetches the pull request's description, reviews, inline comments
+(with file and line) and conversation, or the issue with its labels and
+comments, and the text is shown and shared with the model as context for
+your next prompt — "address the review comments" then needs no pasting.
+Both need `gh` installed and logged in (`gh auth login`); they read only.
+
+```text
+/pr-comments                 # reviews and comments on this branch's pull request
+/pr-comments 42              # … or on #42
+/issue 17                    # issue #17, its labels and comments
+```
+
+`/security-review [focus]` is `/review` with an attacker's brief. Two
+read-only subagents read the current diff: one follows untrusted input to
+where it is used (injection, path traversal, request forgery, unsafe
+deserialization, missing output encoding), the other checks access and
+leaks (authorization, secrets, cryptography, insecure defaults,
+check-then-use races). Each reports one line per finding with a severity;
+janetcode merges the two, drops a finding both wrote, and shows one list,
+critical first, which is also shared with the model so "fix the high ones"
+works as the next prompt. A reviewer that ignores the format is not lost:
+what it wrote is shown after the ranked list.
+
+Running janetcode on pull requests in CI is covered in
+[Continuous integration](ci.md).
 
 ### Proof in the commit
 
@@ -2101,6 +2637,57 @@ asking) → ask. The current mode stays on the status line (and as a
 header prefix); cycling it does not print into the transcript. `/edits`
 and `/readonly` stay their own toggles.
 
+### Dry run: see the whole change first
+
+`/dryrun` (or `--dry-run` on the command line) lets the model carry out
+the task while nothing it does reaches the disk or the world. Approving
+calls one at a time shows the change a piece at a time; a dry run shows
+all of it before any of it happens.
+
+- `write_file` and `edit_file` write to a preview instead of the file.
+  `read_file` reads the preview back, so the model can edit a file twice
+  and see its own work, and the diff you review is the real one.
+- A shell command runs only when it merely reads — the same allowlist
+  auto mode uses (`ls`, `cat`, `grep`, `git status`/`diff`/`log` …) — and
+  not in the background. Any other command is recorded, not run, and the
+  model is told so.
+- An MCP tool the server does not mark read-only, a job's `stdin` or
+  `kill`, a script, the terminal, the computer and an editing subagent
+  are recorded the same way. `fetch_url` and `web_search` run, since they
+  only read, and the preview lists the hosts they reached.
+- Nothing recorded asks for permission: a preview is not an approval.
+  Each entry says what the ordinary path would do with it — `would allow`,
+  `would ask (why)` or `would deny (the rule)`.
+
+`/dryrun show` is the preview: every file that would change with its
+diff, the commands and tools that were not run, the network reads that
+were, the mode and sandbox the real run would use, and the verify
+commands that would run after it. `/dryrun status` lists the same
+without the diffs; `/dryrun` alone turns the dry run on or off. Then:
+
+- `/dryrun apply` writes every previewed file, as one checkpoint that
+  `/undo` takes back, and ends the dry run. `/dryrun apply 1,3` writes
+  only those files (the numbers are the preview's). The model is told
+  which files were written and which of its commands never ran, and runs
+  the ones still needed for real — each through the permission prompt.
+- `/dryrun discard` drops the preview and stays in the dry run, for
+  another go at the plan.
+- `/dryrun off` ends the dry run; an unapplied preview is dropped and the
+  model is told none of it happened.
+
+A fork shares the parent's dry run and preview. With `-p --dry-run` the
+preview, diffs included, is printed on stderr at the end; with
+`--output-format json` it is the `dry_run` field of the result
+(`files` with their diffs, `actions` with each recorded call). The status
+line and the web mode chip say `DRY RUN` while it is on.
+
+read_file, grep and glob see the preview: a pending edit's new text, a
+file only the preview holds, and not a file it deletes. A read-only shell
+command still reads the disk — running it against a copy of the tree
+would cost a copy of the tree — so while the preview holds anything its
+output ends with a note saying how many files have pending changes it
+did not see, and the model is told to use the file tools for those.
+
 `/sandbox workspace` runs local bash under a named profile (see *The
 sandbox* below); `/sandbox on` is the same as `/sandbox workspace`. File
 tools, `/ssh` and `/docker` are unchanged: only the shell is isolated,
@@ -2127,7 +2714,7 @@ tools, `/ssh` and `/docker` are untouched, so only the shell is confined.
 
 | profile | writes | reads | network | never writable |
 |---|---|---|---|---|
-| `workspace` | the project root, the directories `/add-dir` granted, and the temp dir | anything | allowed | `.janetcode/**`, `**/id_rsa`, `**/id_ed25519`, `**/.ssh/**`, `**/.aws/credentials` |
+| `workspace` | the project root, the directories `/add-dir` granted, and the temp dir | anything | allowed | `.git/hooks/**`, `.janetcode/**`, `**/id_rsa`, `**/id_ed25519`, `**/.ssh/**`, `**/.aws/credentials` |
 | `read-only` | nothing | anything | allowed | — (nothing is writable) |
 | `strict` | the project root, the `/add-dir` directories, and the temp dir | anything | **none** | `.git/**` and everything `workspace` denies |
 
@@ -2142,6 +2729,25 @@ can start every session sandboxed with the `sandbox` config key (see
 `strict` denies writes to `.git/**`, which means git cannot commit
 inside it. That is the point of the profile; use `workspace` when the
 model is expected to commit.
+
+**What `workspace` does with `.git`.** Commits, checkouts, fetches and
+branch changes work: `.git` is writable. Three things in it are not left
+to the command, because they run code later, outside the sandbox, the
+next time you type a git command: hooks, config keys that name a
+program (`core.hooksPath`, `core.fsmonitor`, `core.sshCommand`,
+`alias.*`, filter and diff drivers, `include.path`, …), and the `.git`
+entry itself (a worktree's `gitdir:` line). Before each sandboxed
+command janetcode records them — for the repository, a worktree's
+common directory and every submodule under `.git/modules` — and after
+it puts back whatever changed, saying so in the command's output. Config
+is judged key by key: the keys ordinary git writes (`branch.*` tracking,
+`remote.*` URLs and refspecs, `user.name`, `user.email`, plain
+preferences such as `pull.rebase`) stand; any other key changed, added
+or removed puts the file back. A change you do want (a new alias, a
+hook) is one to make with the sandbox off. docker and seatbelt also
+mount or deny `.git/hooks` directly; Landlock cannot, since its grants
+cover everything beneath the project root, so there the after-the-fact
+check is the enforcement.
 
 **Backends.** macOS uses `sandbox-exec` (seatbelt). Linux uses
 **bubblewrap** (`bwrap`) when it is installed and can run, then docker
@@ -2171,14 +2777,33 @@ What each backend can and cannot do:
 - **seatbelt** writes a policy with a `subpath` rule per write root, a
   `deny` rule per deny glob (a `subpath` for a directory, a regex for a
   wildcard glob) and `deny network*` for `strict`. Reads stay broad by
-  design.
+  design. Mach services are an allowlist rather than every one on the
+  machine: directory lookups, logging, preferences, the per-user temp
+  dir, certificate trust and file-system events, plus name resolution
+  and network configuration under a profile with the network. A tool
+  that needs another service fails to reach it;
+  `JANETCODE_SANDBOX_MACH=name,name` adds services by name. (This list
+  has not been exercised on a Mac yet.)
 - **Landlock** confines writes to the profile's roots in the kernel.
   It has allow rules only, so it cannot carve a deny glob out of a root
   it made writable. It also cannot take a network away before ABI 4
   (Linux 6.7), so `strict` **refuses to run** on such a kernel rather
   than pretending — install docker, or use `workspace`. From ABI 4 it
-  denies TCP bind and connect, but not UDP (DNS included) or unix
-  sockets; docker's `--network=none` is the stronger no.
+  denies TCP bind and connect, and a seccomp filter on `socket(2)` takes
+  the rest: under a profile with no network a command may make a TCP
+  socket (which Landlock keeps from connecting) or a netlink one (the
+  kernel's interface table, which `getaddrinfo` reads) and nothing else
+  — no unix socket (the docker daemon, an ssh agent), no UDP (DNS
+  included), no raw or SCTP socket. `socketpair` still works, since
+  both ends are inside the sandbox; `io_uring`, which can make sockets
+  without `socket(2)`, is refused; and a 32-bit or x32 binary's
+  syscalls are refused outright under `strict`. The filter exists for
+  amd64 and arm64; elsewhere `strict` refuses to run under Landlock.
+  From ABI 6 (Linux 6.12) the command is also scoped out of signalling
+  processes outside its sandbox, under every profile, and out of
+  abstract unix sockets under `strict`. Under `workspace`, which keeps
+  the network, unix sockets stay reachable: use `strict` when the
+  command must not reach a local daemon.
 
 Whatever the backend, a deny glob is also enforced before the command
 runs: janetcode reads the command line with the same static analysis the
@@ -2402,6 +3027,44 @@ came with a clone needs a one-time `/verify trust` before it runs, because
 it executes commands on your machine; files you write through `/verify
 set` or `/verify add` are trusted as you write them. In headless mode `--until` remains the
 one-off equivalent.
+
+#### Failures that were there before the turn: `verify_baseline`
+
+On by default since the 2026-10-02 A/B
+([orient-baseline](../benchmarks/orient-baseline/REPORT.md)): on the
+held-out controls whose checks fail for a reason outside the repository
+the gate alone passed 0 of 4 runs and the gate with a baseline 5 of 5,
+with no task lost elsewhere. `"verify_baseline": false` (or `/config
+verify_baseline=false`) turns it off.
+
+In a repository whose tests were already red, the gate sends every turn
+back to "fix" failures it did not cause, at a model call per round. So
+janetcode runs the commands once more at the start of each turn, in the background, on the
+tree as it was. The turn's first change waits for that run to finish (at
+most three minutes; past that the turn carries on without a baseline), so
+the baseline really is the state before the turn. At the end, every
+command runs (not only up to the first failure) and the result is
+compared:
+
+- a command that passed before and fails now, or a failure that was not
+  there before, goes back to the model as usual, with the failures that
+  were already there listed separately so the round is not spent on them;
+- failures that were all there before go back once, as a reminder rather
+  than a repair order and without spending a round (`… reminding the
+  model once`): the request may be "make these pass", so a half-fixed
+  turn is told they still fail, and a turn that has nothing to do with
+  them is told it did not cause them and may finish. They are not sent
+  back again.
+
+Failures are told apart by name where the output says them: `go test`
+(`--- FAIL: TestX`, and a package that failed to build), `pytest`
+(`FAILED`/`ERROR path::test`), `jest` (`● Suite › test`) and `cargo
+test`. For any other command a failure that still fails counts as new only
+if it prints more failure lines than before. A turn that never changes
+anything never waits; its baseline is stopped when it ends. A verify file
+with `mutate` gets no baseline, since the full run does not do mutation
+testing. Off by default until measured (`docs/benchmarks/orient-baseline`);
+`--eval-off baseline` turns it off for one run.
 
 ### Diagnostics from language servers
 
@@ -2649,6 +3312,66 @@ are refreshed before requests; a 401 with a stored token triggers one
 refresh and retry. Servers without dynamic registration take
 `"client_id"`, `"client_secret"` (env references expand) and `"scope"` in
 their config. `/mcp logout <server>` forgets the token.
+
+A login belongs to the server's name and URL together, so two entries
+for the same URL (a work and a personal account on one service) keep
+separate logins. Logins stored before that, under the URL alone, move
+to the first server that uses them.
+
+When a call needs more access than the login grants, the server answers
+403 `insufficient_scope` and the error says to run `/mcp auth <server>`
+again; janetcode notes the scope the server named. The new login asks for
+that scope together with everything already granted, so the new token
+keeps the old one's access. Nothing signs in again by itself.
+
+Checks the login makes, and what each refuses:
+
+- the authorization response must come from the authorization server the
+  login started with: an `iss` naming another server, or no `iss` when
+  the server promised one, is refused before the code is exchanged
+  (RFC 9207, against mix-up attacks);
+- the authorization server's metadata must name the issuer it was
+  fetched for (RFC 8414), and protected-resource metadata must describe
+  this server (RFC 9728);
+- PKCE with S256 is always used, and a server that lists its PKCE methods
+  without S256 is refused;
+- the authorization, token and registration endpoints must be https,
+  except on this machine; a refresh to a stored plain-http endpoint is
+  refused too;
+- the redirect is only received on a loopback address.
+
+A server that advertises a wrong authorization server, or none, takes
+`"auth_server_metadata_url"`: the authorization server's metadata
+document, used instead of discovery. pi's spelling is read as well:
+
+```json
+{"mcpServers": {"tools": {"url": "https://tools.example/mcp",
+  "oauth": {"authServerMetadataUrl": "https://login.example/.well-known/oauth-authorization-server"}}}}
+```
+
+Token replies are read leniently: `"scope": ""` and `null` fields count as
+absent, and `expires_in` may be a number or a string. A reply that names
+no scope granted the scope asked for.
+
+#### When a server goes away
+
+A stdio server whose process exits, or a remote one that stops
+answering (the connection is refused or reset, or it no longer knows the
+session it gave out), is marked down: `/mcp` lists it with `⚠`, the
+reason, and when it is tried next. janetcode starts it again on its own,
+waiting one second, then two, four and so on up to a minute, for eight
+attempts; after that it stays down until you ask. `/mcp reconnect
+<server>` restarts one now, whatever state it is in, and `/mcp reconnect`
+alone restarts every server that is down or failed. A line in the
+transcript says when a server goes down and when it is back.
+
+While a server is down its tools stay listed for the model, and calling
+one returns "the server is down, so the tool was not called" rather than
+"no such tool" or a result that leaves open whether it ran. When it comes
+back its tools are registered afresh from what it offers now. A server
+that announces `notifications/tools/list_changed` mid-session has its
+tool list reloaded the same way, so a tool it added is callable and one it
+dropped is gone.
 
 #### Adding a server
 

@@ -72,11 +72,31 @@ and stop sending them. `api_keys` lists extra keys to rotate through on
 `--provider openrouter` comes back with the model last used there. The older
 `anthropic`/`openai` sections are still read.
 
-Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
+An `anthropic`-type entry sends its key as `x-api-key`, as the Anthropic
+API wants. A gateway in front of the Messages API usually wants
+`Authorization: Bearer` instead: set `"auth": "bearer"` on the entry, or
+export the key as `ANTHROPIC_AUTH_TOKEN`, which Claude Code reads the same
+way (`ANTHROPIC_API_KEY` wins when both are set). For example, the Hero AI
+broker serves the Messages API for every model it routes:
+
+```sh
+export ANTHROPIC_AUTH_TOKEN=sk-hab-v1-...
+export ANTHROPIC_BASE_URL=https://api.ai02.ourhero.ai   # no /v1: the SDK adds it
+janetcode --provider anthropic --model deepseek/deepseek-v4.1-flash
+```
+
+Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
 `OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_URL` (a key may be a
 comma-separated list), `JANETCODE_PROVIDER`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
+
+`JANETCODE_SHELL` names the shell that `bash`, hooks, verify commands
+and background jobs run through, in place of bash on Unix and PowerShell
+on Windows. It must take the command after `-c`: Git Bash
+(`C:\Program Files\Git\bin\bash.exe`) and busybox-w32 (`busybox.exe`,
+run as `busybox.exe sh -c`) are the Windows choices for people who would
+rather write bash than PowerShell.
 
 `effort` is how hard the model thinks: `low`, `medium`, `high`, `xhigh` or
 `max`, in that order, or absent for whatever the provider does on its own.
@@ -97,6 +117,22 @@ session shows any tier above the default on its status line.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
+`keybindings` moves the terminal interface's prompt keys, action name to
+a key, a list of keys or `""` to unbind (`{"effort": "f2"}`), and
+`vim_mode` (default off) starts the composer in vim mode; both are in
+[the interface manual](interface.md#your-own-keys-keybindings), and
+`/help keys` shows the table a session is using. A bad binding is a
+config error that names the action and the key.
+
+`ask_timeout` is how long a question from the model waits for your
+answer in a turn you typed before the turn goes on with the model's
+recommended choice: a duration (`90s`, `5m`), `0` to go on at once, or
+`forever` (the default). `ask_timeout_unattended` is the same for a turn
+nobody need be watching — a `--bg` run, a goal round, a `/loop` firing —
+default `2m`. A question the model gave no recommendation for always
+waits, and an answer given after the turn went on still reaches the
+model. See [sessions](sessions.md#when-the-model-asks-a-question).
+
 `lean_tools` (default on) defers the search tools behind `tool_search` —
 19% less context on fan-out work, one extra call when the model needs a
 search. `"lean_tools": false` exposes them all in every request.
@@ -113,6 +149,68 @@ the reasoning.
 tool call — a readable narrative at roughly a fifth more context per
 call. Unlike `thinking` there is no per-request budget to weigh it
 against; the reasons are read or they are not.
+
+### Proxies and private certificate authorities
+
+Every connection janetcode makes (the providers, `fetch_url`,
+`web_search`, remote MCP servers and their OAuth logins, `--update`, the
+decisions service, the price table) goes through the proxy the standard
+variables name: `HTTPS_PROXY` (and `HTTP_PROXY` for plain http), with
+`NO_PROXY` listing hosts to reach directly (`localhost,127.0.0.1,.corp`).
+Lower-case spellings work too.
+
+A proxy that intercepts TLS, or a gateway with a certificate from a
+private CA, needs that CA trusted. Put its certificate (PEM, one or more)
+in a file and name it:
+
+```json
+{ "ca_file": "~/certs/corp-root.pem" }
+```
+
+or `JANETCODE_CA_FILE=~/certs/corp-root.pem` for a run. Both may be set;
+each adds to the system's roots and replaces nothing. A file that cannot
+be read or holds no certificate is a configuration error (exit 52), not a
+warning, because the alternative is every call failing later with a
+certificate error that does not say why.
+
+`SSL_CERT_FILE` and `SSL_CERT_DIR` are honoured on every platform. On
+Linux and the BSDs they *replace* the system bundle, as they do for
+OpenSSL and curl; on macOS and Windows, where Go verifies against the
+system store and would otherwise ignore them, janetcode adds what they
+name to the system roots.
+
+Commands janetcode runs for you (`bash`, hooks, MCP servers started as
+processes) inherit your environment unchanged and use their own trust
+settings: Node reads `NODE_EXTRA_CA_CERTS`, Python's requests reads
+`REQUESTS_CA_BUNDLE`, git reads `http.sslCAInfo`.
+
+`language` is the language the model answers in and the interface is
+shown in: `"language": "es"`, `"Spanish"` or `"español"` alike. The
+interface's own words are catalogued in Spanish and French and fall back
+to English otherwise; the model is told any language by name. Without
+it, the model follows you and the interface follows `LANG`. See
+[Language](interface.md#language).
+
+`screen_reader: true` starts every terminal session in the
+screen-reader line interface (see
+[The screen-reader interface](interface.md#the-screen-reader-interface)).
+
+`voice` is where `/voice` sends a recording, every field optional:
+
+```json
+"voice": {
+  "model": "whisper",
+  "endpoint": "https://api.openai.com/v1",
+  "api_key_env": "OPENAI_API_KEY",
+  "recorder": "arecord -q -f S16_LE -r 16000 -c 1 -t wav"
+}
+```
+
+`model` defaults to `whisper-1`; `endpoint` to the active provider's base
+URL when it speaks the OpenAI API, else `OPENAI_BASE_URL`; `api_key_env`
+to that provider's key; `recorder` to the first of `arecord`, `rec` and
+`ffmpeg` found. `/config voice.model=whisper` sets one field. See
+[Voice input](interface.md#voice-input).
 
 ### The sandbox key
 
@@ -192,6 +290,83 @@ build output and vendored code are often exactly what a question is
 about. Over `--ssh` and `--docker`, the remote side's ignore files are
 not read.
 
+### Managed policy
+
+An organisation can install a policy that every session on a machine
+runs under and nobody inside a session can change: not `/config`, not
+`--set` or another flag, not the model, and not an edit to the user's
+own config file, because the policy is applied after all of them.
+
+It is one JSON file at a path only an administrator can write:
+
+| OS | path |
+|---|---|
+| Linux and the rest | `/etc/janetcode/managed.json` |
+| macOS | `/Library/Application Support/janetcode/managed.json` |
+| Windows | `%ProgramData%\janetcode\managed.json` |
+
+```json
+{
+  "message": "Managed by ACME IT, see go/janetcode",
+  "settings": { "effort": "high", "memory": false, "search": {"provider": "brave", "key": "${BRAVE_API_KEY}"} },
+  "permissions": {
+    "allow": ["bash(cmd:go test *)"],
+    "deny":  ["*(host:*.internal.example)", "bash(cmd:git push * --force*)"],
+    "ask":   ["*(touches:**/.env)", "*(secret:*)"]
+  },
+  "managed_permission_rules_only": false,
+  "disabled_tools": ["web_search", "mcp__*__delete*"],
+  "allowed_providers": ["corp-gateway"],
+  "allowed_models": ["claude-*", "qwen3*"],
+  "sandbox": "workspace",
+  "disabled_modes": ["yolo"],
+  "allowed_mcp_servers": ["github", "jira"]
+}
+```
+
+Every key is optional:
+
+- `settings` fixes config keys to a value, in the config file's own
+  shape. They override the file, the environment and the command line,
+  and `/config` and `--set` refuse to change them ("changing effort is
+  not allowed by the managed policy (/etc/janetcode/managed.json): …").
+- `permissions` are rules that always apply, in the shape of the
+  config's own (see [Permission rules](interface.md#permission-rules)).
+  Their deny and ask rules outrank every allow rule, as any deny does.
+  With `managed_permission_rules_only`, the policy's allow rules are the
+  only ones: the user's saved rules, the project's and `--allow` are
+  dropped, `/permissions allow` is refused, and `r` at a prompt allows
+  just that call.
+- `disabled_tools` are tool names, with wildcards, the model is never
+  offered — including MCP tools that come up later. Calling one gets
+  "tool is withheld by policy (disabled by the managed policy)" rather
+  than "unknown tool", so the model does not hunt for a workaround.
+- `allowed_providers` (by configured name or by type, `anthropic` or
+  `openai`) and `allowed_models` (wildcards) are the only ones a session
+  may start on or switch to with `/model` or `/connect`.
+- `sandbox` turns that sandbox profile on for every session, and
+  `/sandbox off` or another profile is refused.
+- `disabled_modes` are the approval shortcuts that cannot be turned on:
+  `yolo` (`--yolo`, `/yolo`, `auto_approve`), `auto` (`--auto`, `/auto`)
+  and `edits` (`--auto-edits`, `/edits`). A flag asking for one is a
+  usage error (exit 42); `auto_approve: true` in the user's file is
+  switched off with a note.
+- `allowed_mcp_servers` are the only MCP servers that may start, from
+  the config or a project's `.mcp.json`; the rest are listed by `/mcp`
+  with the reason. An empty list allows none.
+
+A file that exists and cannot be read or parsed stops janetcode from
+starting (exit 52): a policy that silently stopped applying would be
+worse. `JANETCODE_MANAGED_FILE` names one more policy file, for tests and
+container images; it is read *after* the system file and can only make
+the policy stricter — its disallowed things are added, its allow-lists
+are intersected with the system file's, and a setting, sandbox or
+message the system file fixes keeps the system file's value.
+
+`janetcode --inspect managed` prints the policy in force and where it
+came from, `/permissions` lists what it fixes under "managed", and
+`--doctor` reports it.
+
 ### What janetcode records about you
 
 Two small files in the config directory, and nothing else:
@@ -246,6 +421,33 @@ choice away from the model.
 path is open: a spent budget, a provider error, a timeout and an empty
 reply all leave the turn exactly as it would have been with the feature
 off. `--eval-off advisor` switches it off for one run.
+
+A turn-start reply that hit the token limit, or that exists only as the
+model's thinking, is dropped rather than injected: half a plan anchors
+the executor on its first half.
+
+#### Orient instead of plan: `advisor_turn_start_style`
+
+`"advisor_turn_start_style": "orient"` changes what the consult at the
+start of a turn asks for. Instead of "give it the plan", a model reads the
+request, the project's check commands, the current contents of the files
+the repository map ranks highest for the request (up to four, 16 KB) and
+what sits beside them, and answers in three sections: where to LOOK, what
+to WATCH FOR, how to CHECK. It is told not to say what to change. Its
+answer goes into the context as evidence about where to look, not as
+instructions.
+
+Orient runs on every turn whether or not `advisor_mode` is `always`, on
+`advisor_model`, else `strong_model`, else the session's own model, so a
+cheap model can orient itself. With `advisor_mode` `always` it is that
+turn-start consult and counts against `advisor_max_consults`. `plan` (the
+default) keeps the original consult. `--eval-off orient` switches orient
+off for one run.
+
+Why it exists: hero_agent measured the two shapes against each other and
+found that prescribing an edit before anyone read the code can turn a
+pass into a fail, while pointing at evidence helped. It is off until
+janetcode's own A/B says so (`docs/benchmarks/orient-baseline/PLAN.md`).
 
 ### The strong slot and the cascade
 
@@ -352,8 +554,14 @@ for directly.
 
 `fallback_models` is an ordered list (at most three are used, duplicates and
 the model in use dropped) tried when a call fails in a way another model
-could survive: an exhausted quota or plan, or rate limits and server errors
-that outlived the provider's own retries. A bad request, a context overflow
+could survive: an exhausted quota or plan, rate limits and server errors
+that outlived the provider's own retries, or an endpoint that could not be
+reached at all (connection refused or reset, a name that does not resolve,
+a stream that stalled or was cut off on every attempt). The decision reads
+the HTTP status, the error type a server sends inside an open stream
+(`overloaded_error`, `insufficient_quota`, OpenRouter's numeric `code`) and
+the transport error itself; only a provider message with none of those is
+judged by its words. A bad request, a context overflow
 or a cancellation fails as it always did — another model would fail the same
 way. Each name is routed like any other, so a fallback may live on a
 different provider. The partial answer from the failed attempt is discarded,

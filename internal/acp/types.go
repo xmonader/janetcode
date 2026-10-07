@@ -38,6 +38,7 @@ type initializeResult struct {
 type agentCapabilities struct {
 	LoadSession        bool               `json:"loadSession"`
 	PromptCapabilities promptCapabilities `json:"promptCapabilities"`
+	MCPCapabilities    mcpCapabilities    `json:"mcpCapabilities"`
 }
 
 type promptCapabilities struct {
@@ -53,8 +54,9 @@ type authMethod struct {
 }
 
 type newSessionParams struct {
-	Cwd                   string   `json:"cwd"`
-	AdditionalDirectories []string `json:"additionalDirectories,omitempty"`
+	Cwd                   string          `json:"cwd"`
+	AdditionalDirectories []string        `json:"additionalDirectories,omitempty"`
+	MCPServers            []mcpServerSpec `json:"mcpServers,omitempty"`
 }
 
 type newSessionResult struct {
@@ -62,8 +64,9 @@ type newSessionResult struct {
 }
 
 type loadSessionParams struct {
-	SessionID string `json:"sessionId"`
-	Cwd       string `json:"cwd"`
+	SessionID  string          `json:"sessionId"`
+	Cwd        string          `json:"cwd"`
+	MCPServers []mcpServerSpec `json:"mcpServers,omitempty"`
 }
 
 type promptParams struct {
@@ -72,7 +75,32 @@ type promptParams struct {
 }
 
 type promptResult struct {
-	StopReason string `json:"stopReason"`
+	StopReason string      `json:"stopReason"`
+	Meta       *promptMeta `json:"_meta,omitempty"`
+}
+
+// promptMeta is janetcode's extension of a prompt's result, under the
+// protocol's _meta key: what the turn cost and what it demonstrated. An
+// editor that does not know it ignores it; the Go SDK reads it.
+type promptMeta struct {
+	Janetcode turnReport `json:"janetcode"`
+}
+
+type turnReport struct {
+	// Verdict is what the turn demonstrated, computed by the harness
+	// (the same line -p prints as [verdict]); empty when there was none.
+	Verdict string `json:"verdict,omitempty"`
+	// Usage is the turn's token usage, summed over its model calls.
+	Usage     turnUsage `json:"usage"`
+	ToolCalls int       `json:"toolCalls"`
+}
+
+type turnUsage struct {
+	InputTokens      int     `json:"inputTokens"`
+	OutputTokens     int     `json:"outputTokens"`
+	CacheReadTokens  int     `json:"cacheReadTokens"`
+	CacheWriteTokens int     `json:"cacheWriteTokens"`
+	CostUSD          float64 `json:"costUsd,omitempty"`
 }
 
 type cancelParams struct {
@@ -115,6 +143,31 @@ type msgUpdate struct {
 	SessionUpdate string        `json:"sessionUpdate"`
 	MessageID     string        `json:"messageId,omitempty"`
 	Content       *contentBlock `json:"content,omitempty"`
+	// Meta marks a chunk that is the harness speaking (a notice, a
+	// discarded stream), not the model, for a client that tells them
+	// apart; an editor shows it inline like any other chunk.
+	Meta *chunkMeta `json:"_meta,omitempty"`
+}
+
+type chunkMeta struct {
+	Janetcode struct {
+		Notice bool `json:"notice"`
+		// Discard says the message streamed before it was cut off and
+		// is void: its retry follows in full.
+		Discard bool `json:"discard,omitempty"`
+	} `json:"janetcode"`
+}
+
+func noticeMeta() *chunkMeta {
+	m := &chunkMeta{}
+	m.Janetcode.Notice = true
+	return m
+}
+
+func discardMeta() *chunkMeta {
+	m := noticeMeta()
+	m.Janetcode.Discard = true
+	return m
 }
 
 // toolUpdate is tool_call or tool_call_update.

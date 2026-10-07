@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // ProjectFile lists the commands, relative to the project root.
@@ -77,7 +78,11 @@ func Save(root string, c Config) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	return fsutil.AtomicWrite(p, append(data, '\n'))
+	if err := fsutil.AtomicWrite(p, append(data, '\n')); err != nil {
+		return err
+	}
+	trust.SelfWrote(root)
+	return nil
 }
 
 // Result is the outcome of one verification run.
@@ -201,54 +206,14 @@ func (r *Runner) Enabled() bool {
 func (r *Runner) Run(ctx context.Context) Result {
 	start := time.Now()
 	res := Result{}
-	timeout := time.Duration(r.Config.Timeout) * time.Second
-	if timeout <= 0 {
-		timeout = 10 * time.Minute
-	}
+	timeout := r.timeout()
 	for _, command := range r.Config.Commands {
-		cctx, cancel := context.WithTimeout(ctx, timeout)
-		cmd := shell.Command(cctx, command)
-		// The timeout has to be a real bound: without a process group the
-		// context kills the shell alone, and the wait then blocks on the
-		// output pipes for as long as anything the command started still
-		// holds them. Supervise kills the group and bounds that wait.
-		shell.Supervise(cmd)
-		cmd.Dir = r.Cwd
-		// Scrubbed of the agent's credentials: verify commands come from
-		// the project, and their output goes back to the model.
-		cmd.Env = append(shell.ScrubEnv(os.Environ()), "JANETCODE_VERIFY=1")
-		// Bounded rather than CombinedOutput: a verbose suite can print
-		// for as long as it runs, and only the ends are ever read.
-		out := &capture{}
-		cmd.Stdout, cmd.Stderr = out, out
-		err := cmd.Run()
-		// A command that exits 0 but leaks a grandchild holding its pipes
-		// surfaces as ErrWaitDelay once the bounded pipe wait cuts the
-		// read — the command itself passed.
-		if errors.Is(err, exec.ErrWaitDelay) {
-			err = nil
-		}
-		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
-		cancel()
-		if err == nil {
+		ok, exit, output := r.runOne(ctx, command, timeout)
+		if ok {
 			res.Passed = append(res.Passed, r.name(command))
 			continue
 		}
-		// Redacted as a bash result is: this output goes to the model,
-		// the session log and eval records, and a suite that prints the
-		// environment or a .env on failure would otherwise hand over what
-		// the same command run through bash does not.
-		red, _ := secret.Redact(out.String())
-		res.Failed, res.Output = r.name(command), red
-		var ee *exec.ExitError
-		switch {
-		case timedOut:
-			res.Exit, res.Output = 124, res.Output+"\n[timed out after "+timeout.String()+"]"
-		case errors.As(err, &ee):
-			res.Exit = ee.ExitCode()
-		default:
-			res.Exit, res.Output = 1, res.Output+"\n"+err.Error()
-		}
+		res.Failed, res.Exit, res.Output = r.name(command), exit, output
 		break
 	}
 	if res.Failed == "" && strings.TrimSpace(r.Config.Mutate) != "" && ctx.Err() == nil {
@@ -262,4 +227,57 @@ func (r *Runner) Run(ctx context.Context) Result {
 	}
 	res.Duration = time.Since(start)
 	return res
+}
+
+// timeout is the per-command bound: the config's, else ten minutes.
+func (r *Runner) timeout() time.Duration {
+	if t := time.Duration(r.Config.Timeout) * time.Second; t > 0 {
+		return t
+	}
+	return 10 * time.Minute
+}
+
+// runOne runs one command and reports whether it passed, its exit code
+// and, for a failure, its redacted output.
+func (r *Runner) runOne(ctx context.Context, command string, timeout time.Duration) (bool, int, string) {
+	cctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := shell.Command(cctx, command)
+	// The timeout has to be a real bound: without a process group the
+	// context kills the shell alone, and the wait then blocks on the
+	// output pipes for as long as anything the command started still
+	// holds them. Supervise kills the group and bounds that wait.
+	shell.Supervise(cmd)
+	cmd.Dir = r.Cwd
+	// Scrubbed of the agent's credentials: verify commands come from
+	// the project, and their output goes back to the model.
+	cmd.Env = append(shell.ScrubEnv(os.Environ()), "JANETCODE_VERIFY=1")
+	// Bounded rather than CombinedOutput: a verbose suite can print
+	// for as long as it runs, and only the ends are ever read.
+	out := &capture{}
+	cmd.Stdout, cmd.Stderr = out, out
+	err := cmd.Run()
+	// A command that exits 0 but leaks a grandchild holding its pipes
+	// surfaces as ErrWaitDelay once the bounded pipe wait cuts the
+	// read — the command itself passed.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil
+	}
+	if err == nil {
+		return true, 0, ""
+	}
+	// Redacted as a bash result is: this output goes to the model, the
+	// session log and eval records, and a suite that prints the
+	// environment or a .env on failure would otherwise hand over what the
+	// same command run through bash does not.
+	red, _ := secret.Redact(out.String())
+	var ee *exec.ExitError
+	switch {
+	case errors.Is(cctx.Err(), context.DeadlineExceeded):
+		return false, 124, red + "\n[timed out after " + timeout.String() + "]"
+	case errors.As(err, &ee):
+		return false, ee.ExitCode(), red
+	default:
+		return false, 1, red + "\n" + err.Error()
+	}
 }

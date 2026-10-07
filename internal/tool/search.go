@@ -263,13 +263,17 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	var sb, long strings.Builder
 	count, longLines := 0, 0
+	head := make([]byte, 8000)
+	br := bufio.NewReaderSize(nil, 64<<10)
+	var lineBuf []byte
 	grepFile := func(display, full string) error {
 		f, err := openOf(ctx, t.WS, full)
 		if err != nil {
 			return nil
 		}
 		defer f.Close()
-		head := make([]byte, 8000)
+		// head, br and lineBuf are shared by every file of the search:
+		// grepFile runs one file at a time.
 		// ReadFull, not Read: one Read may come back with a handful of
 		// bytes from a pipe or a slow filesystem, and a binary file whose
 		// first NUL sits past them would then be scanned as text.
@@ -284,10 +288,11 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// minified bundle, a data blob) it stops, and every match after
 		// that line went unreported. A long line is searched up to
 		// maxScanLine and the rest of it skipped, which the result says.
-		br := bufio.NewReader(io.MultiReader(bytes.NewReader(head[:n]), f))
+		br.Reset(io.MultiReader(bytes.NewReader(head[:n]), f))
 		ln := 0
 		for {
-			raw, clipped, rerr := readLineCapped(br, maxScanLine)
+			raw, clipped, rerr := readLineCapped(br, maxScanLine, lineBuf)
+			lineBuf = raw
 			if rerr != nil && len(raw) == 0 && !clipped {
 				return nil // end of file, or a read error: stop this file
 			}
@@ -298,8 +303,11 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 				}
 				longLines++
 			}
-			if line := string(raw); re.MatchString(line) {
-				fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, textfmt.ClipBytes(line, maxGrepLine))
+			// Matched on the bytes: a string per line was most of what a
+			// search of a large tree allocated (1 GB for one identifier
+			// across kubernetes), and only a matching line needs one.
+			if re.Match(raw) {
+				fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, textfmt.ClipBytes(string(raw), maxGrepLine))
 				count++
 				if count >= maxGrepResults {
 					return errLimit
@@ -345,8 +353,11 @@ var errLimit = fmt.Errorf("limit reached")
 // way bufio.ScanLines splits, keeping at most max bytes of it and
 // discarding the rest; clipped says whether any was discarded. err is
 // the read error that ended the line (io.EOF for a last line with no
-// newline), with whatever of the line was read before it.
-func readLineCapped(r *bufio.Reader, max int) (line []byte, clipped bool, err error) {
+// newline), with whatever of the line was read before it. The line is
+// appended to line[:0], so a caller reading many lines passes the last
+// one back and the buffer is reused rather than allocated per line.
+func readLineCapped(r *bufio.Reader, max int, line []byte) (_ []byte, clipped bool, err error) {
+	line = line[:0]
 	for {
 		frag, e := r.ReadSlice('\n')
 		if e == nil {

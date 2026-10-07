@@ -54,6 +54,11 @@ type Provider struct {
 	// Models are the model names this provider serves, so one can be
 	// asked for by name and routed here without a Routes entry.
 	Models []string `json:"models,omitempty"`
+	// Auth is how an Anthropic-type provider presents its key: "" or
+	// "api_key" sends it as x-api-key (the Anthropic API), "bearer" as
+	// Authorization: Bearer (gateways and proxies that speak the
+	// Messages API, as ANTHROPIC_AUTH_TOKEN does for Claude Code).
+	Auth string `json:"auth,omitempty"`
 
 	// envKeys is set when the keys came from the environment, so Update
 	// does not copy them into the config file.
@@ -101,6 +106,10 @@ func (p Provider) NeedsKey() bool {
 	}
 	return true
 }
+
+// Bearer reports whether the key goes in an Authorization: Bearer header
+// instead of x-api-key.
+func (p Provider) Bearer() bool { return strings.EqualFold(strings.TrimSpace(p.Auth), "bearer") }
 
 // KeysFromEnv reports whether the provider's keys came from an
 // environment variable, which outranks the config file: advice to fix a
@@ -223,7 +232,7 @@ func Update(path, name string, p Provider, model string) error {
 		if r, ok := provs[name]; ok {
 			_ = json.Unmarshal(r, &old)
 		}
-		p.APIKey, p.APIKeys = old.APIKey, old.APIKeys
+		p.APIKey, p.APIKeys, p.Auth = old.APIKey, old.APIKeys, old.Auth
 	}
 	p.Model = model
 	var marshalErr error
@@ -290,7 +299,7 @@ func writePrivate(path string, data []byte) error {
 // AddPermission appends a rule under "permissions" in the config file,
 // touching no other key. kind is "allow" or "deny".
 func AddPermission(path, kind string, rule perm.Rule) error {
-	if kind != "allow" && kind != "deny" {
+	if kind != "allow" && kind != "deny" && kind != "ask" {
 		return fmt.Errorf("bad permission kind %q", kind)
 	}
 	raw := map[string]json.RawMessage{}
@@ -308,8 +317,11 @@ func AddPermission(path, kind string, rule perm.Rule) error {
 		}
 	}
 	list := &f.Allow
-	if kind == "deny" {
+	switch kind {
+	case "deny":
 		list = &f.Deny
+	case "ask":
+		list = &f.Ask
 	}
 	for _, e := range *list {
 		if e == rule.String() {

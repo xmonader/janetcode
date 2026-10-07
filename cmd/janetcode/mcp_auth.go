@@ -24,9 +24,10 @@ func authorizeMCP(name string, global, project map[string]mcp.ServerConfig, toke
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	clientID, clientSecret, scope, metadataURL := cfg.OAuthSettings()
 	_, err := mcp.Authorize(ctx, mcp.AuthOptions{
-		ServerURL: cfg.URL, Store: tokens,
-		ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
+		ServerName: name, ServerURL: cfg.URL, Store: tokens, MetadataURL: metadataURL,
+		ClientID: clientID, ClientSecret: clientSecret, Scope: scope,
 		OpenURL: mcp.OpenBrowser,
 		Notify:  func(s string) { fmt.Fprintln(os.Stderr, "[mcp auth] "+s) },
 	})

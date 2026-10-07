@@ -17,6 +17,9 @@ const maxStopContinues = 3
 type gateState struct {
 	rounds int
 	seen   int // a.mutations when the checks last ran
+	// preNoted is set once the turn has been reminded of failures that
+	// were there before it (see baselineGate).
+	preNoted bool
 }
 
 // verifyGate runs the project's verification commands when the model ends
@@ -36,18 +39,46 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	}
 	g.seen = a.mutations
 	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(gate.CommandNames(), " · ")})
-	res := gate.Run(ctx)
-	if ctx.Err() != nil {
-		return false
-	}
-	a.logGate(session.GateVerify, res)
-	a.working.Verify = res.Summary()
-	if res.Mutation != nil && res.Mutation.Scored() {
-		a.logEvent(res.Mutation.Event())
-	}
-	if res.OK() {
-		emit(Event{Kind: EvNotice, Text: res.Summary()})
-		return false
+	var res verify.Result
+	feedback := ""
+	if run := a.usableBaseline(); run != nil {
+		// With a baseline, what this turn broke goes back on the usual
+		// rounds; what was broken before goes back once, as a reminder.
+		res, feedback = a.baselineGate(ctx, g, gate, run, emit)
+		if ctx.Err() != nil {
+			return false
+		}
+		a.logGate(session.GateVerify, res)
+		a.working.Verify = res.Summary()
+		if res.OK() {
+			emit(Event{Kind: EvNotice, Text: res.Summary()})
+			return false
+		}
+		if feedback == "" {
+			return false
+		}
+		if g.preNoted && !strings.HasPrefix(feedback, verify.RegressionLead) {
+			// The reminder is not a repair round: no round is spent, no
+			// cascade or consult is bought for a failure the turn did not
+			// cause.
+			a.appendHarnessText(feedback)
+			return true
+		}
+	} else {
+		res = gate.Run(ctx)
+		if ctx.Err() != nil {
+			return false
+		}
+		a.logGate(session.GateVerify, res)
+		a.working.Verify = res.Summary()
+		if res.Mutation != nil && res.Mutation.Scored() {
+			a.logEvent(res.Mutation.Event())
+		}
+		if res.OK() {
+			emit(Event{Kind: EvNotice, Text: res.Summary()})
+			return false
+		}
+		feedback = res.Feedback()
 	}
 	g.rounds++
 	if g.rounds > verify.MaxRounds {
@@ -75,8 +106,8 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	// work is wrong, which is the one trigger with a real signal behind
 	// it. It goes in before the feedback so the model reads the failure
 	// last, closest to its next call.
-	a.adviseOnGateFailure(ctx, res.Feedback(), emit)
-	a.appendHarnessText(res.Feedback())
+	a.adviseOnGateFailure(ctx, feedback, emit)
+	a.appendHarnessText(feedback)
 	return true
 }
 

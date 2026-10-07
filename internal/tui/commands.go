@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -88,13 +90,32 @@ var dispatch = map[string]cmdHandler{
 	"/review": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.reviewCommand(cmdArg(text, fields)), true
 	},
+	"/security-review": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.securityReviewCommand(cmdArg(text, fields))
+		return nil, false
+	},
+	"/pr-comments": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.gitCommand("/pr-comments", cmdArg(text, fields))
+		return nil, false
+	},
+	"/issue": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.gitCommand("/issue", cmdArg(text, fields))
+		return nil, false
+	},
 	"/loop": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.loopCommand(cmdArg(text, fields))
 		return nil, false
 	},
-	"/edits":    (*model).cmdEdits,
-	"/settle":   (*model).cmdSettle,
-	"/readonly": (*model).cmdReadonly,
+	"/voice": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		cmd := m.voiceCommand(cmdArg(text, fields))
+		m.refresh(false)
+		return cmd, true
+	},
+	"/edits":       (*model).cmdEdits,
+	"/settle":      (*model).cmdSettle,
+	"/readonly":    (*model).cmdReadonly,
+	"/dryrun":      (*model).cmdDryrun,
+	"/checkpoints": (*model).cmdCheckpoints,
 	"/plan": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.planCommand(cmdArg(text, fields)), true
 	},
@@ -148,12 +169,16 @@ var dispatch = map[string]cmdHandler{
 		return nil, false
 	},
 	"/verbose": (*model).cmdVerbose,
+	"/vim":     (*model).cmdVim,
 	"/connect": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.openConnect(stepPick), true
 	},
 	"/model":    (*model).cmdModel,
 	"/features": (*model).cmdFeatures,
 	"/jev":      (*model).cmdJev,
+	"/plugin": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		return m.pluginCommand(fields[1:]), true
+	},
 	"/mcp": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		// Quotes keep a header value with a space in it one argument.
 		args, err := mcp.SplitArgs(strings.TrimPrefix(strings.TrimSpace(text), fields[0]))
@@ -162,6 +187,16 @@ var dispatch = map[string]cmdHandler{
 			return nil, false
 		}
 		if cmd := m.mcpCommand(args); cmd != nil {
+			return cmd, true
+		}
+		return nil, false
+	},
+	"/egress": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.transcript.info(m.opts.Agent.EgressSummary())
+		return nil, false
+	},
+	"/trust": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		if cmd := m.trustCommand(fields[1:]); cmd != nil {
 			return cmd, true
 		}
 		return nil, false
@@ -256,6 +291,7 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/find": (*model).cmdFind, "/search": (*model).cmdFind,
 	"/resume": (*model).cmdResume, "/sessions": (*model).cmdResume,
+	"/recover":      (*model).cmdRecover,
 	"/compact":      (*model).cmdCompact,
 	"/compact-fast": (*model).cmdCompactFast, "/compress-fast": (*model).cmdCompactFast,
 	"/export": (*model).cmdExport,
@@ -384,12 +420,25 @@ func (m *model) cmdHelp(text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.help(m.helpText())
 		return nil, false
 	}
+	if len(fields) == 2 && isKeysQuery(fields[1]) {
+		m.transcript.help(m.keysHelpText())
+		return nil, false
+	}
 	if len(fields) > 1 && m.opts.Features != nil {
 		m.transcript.info(feature.AnswerWidth(m.opts.Features, strings.Join(fields[1:], " "), "", m.width-4))
 		return nil, false
 	}
 	m.transcript.help(m.briefHelpText())
 	return nil, false
+}
+
+// isKeysQuery is /help keys and its spellings.
+func isKeysQuery(w string) bool {
+	switch strings.ToLower(w) {
+	case "key", "keys", "keybinding", "keybindings", "shortcuts", "keyboard":
+		return true
+	}
+	return false
 }
 
 func (m *model) cmdQuit(text string, fields []string) (tea.Cmd, bool) {
@@ -417,7 +466,23 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 	return nil, false
 }
 
+// modeRefused reports, and notes, a mode the managed policy will not let
+// be turned on. Turning one off is always allowed.
+func (m *model) modeRefused(mode string, on bool) bool {
+	if !on {
+		return false
+	}
+	if err := m.opts.Agent.ModeRefusal(mode); err != nil {
+		m.transcript.errorf("%v", err)
+		return true
+	}
+	return false
+}
+
 func (m *model) cmdYolo(text string, fields []string) (tea.Cmd, bool) {
+	if m.modeRefused(managed.ModeYolo, !m.opts.Agent.Settings().AutoApprove) {
+		return nil, false
+	}
 	m.opts.Agent.UpdateSettings(func(s *agent.Settings) {
 		s.AutoApprove = !s.AutoApprove
 		if s.AutoApprove {
@@ -443,6 +508,9 @@ func (m *model) cmdRouting(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdAuto(text string, fields []string) (tea.Cmd, bool) {
+	if m.modeRefused(managed.ModeAuto, !m.opts.Agent.Settings().AutoMode) {
+		return nil, false
+	}
 	var on bool
 	m.opts.Agent.UpdateSettings(func(s *agent.Settings) {
 		s.AutoMode = !s.AutoMode
@@ -458,6 +526,9 @@ func (m *model) cmdAuto(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdEdits(text string, fields []string) (tea.Cmd, bool) {
+	if m.modeRefused(managed.ModeEdits, !m.opts.Agent.Settings().AutoEdits) {
+		return nil, false
+	}
 	m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.AutoEdits = !s.AutoEdits })
 	m.noteMode()
 	return nil, false
@@ -491,6 +562,11 @@ func (m *model) cmdVerbose(text string, fields []string) (tea.Cmd, bool) {
 	return nil, false
 }
 
+func (m *model) cmdVim(text string, fields []string) (tea.Cmd, bool) {
+	m.vimCommandLine(strings.Join(fields[1:], " "))
+	return nil, false
+}
+
 func (m *model) cmdModel(text string, fields []string) (tea.Cmd, bool) {
 	// /model cheap|strong|advisor|vision picks one of the other slots
 	// through the same dialog; anything else is a model id, as before.
@@ -505,10 +581,18 @@ func (m *model) cmdModel(text string, fields []string) (tea.Cmd, bool) {
 		return m.openConnect(stepModel), true
 	}
 	var prov llm.Provider
+	if err := settingsapply.Allowed(m.opts.Config, "", "", fields[1]); err != nil {
+		m.transcript.errorf("%v", err)
+		return nil, false
+	}
 	if cfg := m.opts.Config; cfg != nil && m.opts.Models != nil {
 		// The name may belong to a provider other than the one in
 		// use; follow it rather than sending it to the wrong endpoint.
 		if name, ok := cfg.RouteFor(fields[1]); ok && name != cfg.Provider {
+			if err := settingsapply.Allowed(cfg, name, cfg.Providers[name].Type, ""); err != nil {
+				m.transcript.errorf("%v", err)
+				return nil, false
+			}
 			p, _, err := m.opts.Models(fields[1])
 			if err != nil {
 				m.transcript.errorf("%v", err)
@@ -660,8 +744,43 @@ func (m *model) cmdResume(text string, fields []string) (tea.Cmd, bool) {
 	if len(fields) < 2 {
 		return m.openSessionPicker(), true
 	}
-	m.resume(fields[1])
+	m.resume(strings.Join(fields[1:], " "))
 	return nil, false
+}
+
+// cmdRecover carries on the turn the session died in (see
+// docs/notes/durable-turns.md). It runs like a turn the user started:
+// same spinner, same esc, same verdict.
+func (m *model) cmdRecover(text string, fields []string) (tea.Cmd, bool) {
+	if m.turn.running {
+		m.transcript.errorf("a turn is already running")
+		return nil, false
+	}
+	if m.opts.Agent.Interrupted() == nil {
+		m.transcript.info("nothing to recover: the last turn ended")
+		return nil, false
+	}
+	if m.opts.Agent.Settings().Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect")
+		return nil, false
+	}
+	m.startTurn("thinking")
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
+	ag, send, queue := m.opts.Agent, m.send, m.queue
+	m.refresh(false)
+	go func() {
+		send(agentDoneMsg{err: ag.ContinueInterrupted(ctx, queue.push)})
+	}()
+	return m.spinner.Tick, true
+}
+
+// noteInterrupted tells the user, on opening a session, that its last
+// turn died and how to carry it on.
+func (m *model) noteInterrupted() {
+	if n := m.opts.Agent.InterruptedNotice("/recover"); n != "" {
+		m.transcript.info(n)
+	}
 }
 
 func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {

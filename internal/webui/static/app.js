@@ -19,6 +19,8 @@
   const questionsEl = document.getElementById("questions");
   const qPrompt = document.getElementById("q-prompt");
   const qDetail = document.getElementById("q-detail");
+  const qWait = document.getElementById("q-wait");
+  let qWaitTimer = null;
   const qOpts = document.getElementById("q-opts");
   const qOther = document.getElementById("q-other");
   const qOtherText = document.getElementById("q-other-text");
@@ -194,6 +196,9 @@
     } else if (e.kind === "usage") {
       n.className = "turn card";
       n.innerHTML = usageCardHTML(e.data);
+    } else if (e.kind === "checkpoints") {
+      n.className = "turn card";
+      n.innerHTML = checkpointsCardHTML(e.data || []);
     } else if (e.kind === "sheet") {
       n.className = "turn sheet";
       n.innerHTML = `<div class="k">${esc(e.name || "")}<button type="button" class="act copy-btn sheet-copy" data-copy="${e.id}" title="Copy output" aria-label="Copy output">${icon("copy")}</button></div><pre class="sheetbody">${esc(e.text || "")}</pre>`;
@@ -286,6 +291,13 @@
   }
 
   log.addEventListener("click", async (ev) => {
+    // A card's own command buttons (the checkpoints card's preview and
+    // apply) run the command they name, as typing it would.
+    const cmdBtn = ev.target.closest("button[data-cmd]");
+    if (cmdBtn) {
+      await post("/api/command", { text: cmdBtn.dataset.cmd });
+      return;
+    }
     const wrap = ev.target.closest("[data-wrap]");
     if (wrap) {
       const pre = wrap.closest(".codeblock")?.querySelector("pre");
@@ -498,7 +510,7 @@
   let localNote = "", lastServerStatus = "";
   function finishStatus(st) {
     statusEl.classList.toggle("busy", !!st.running);
-    if (st.mode) setModeChip(st.mode);
+    if (st.mode) setModeChip(st.mode, st.dry_run);
     setEffortChip(st.effort);
     if (st.phase) lastFlavor = st.phase;
     relabelThinking();
@@ -515,13 +527,15 @@
     });
   }
 
-  function setModeChip(mode) {
+  // dry says the session is a dry run: not a permission mode of its own
+  // but a layer over whichever is set, so the chip names both.
+  function setModeChip(mode, dry) {
     const chip = document.getElementById("mode-chip");
     if (!chip) return;
     const m = mode || "ask";
     const names = { ask: "Ask first", AUTO: "Auto", EDITS: "Auto-edit", PLAN: "Plan", "READ-ONLY": "Read-only", YOLO: "Allow all" };
-    chip.textContent = names[m] || m;
-    chip.title = "Permission mode: " + (names[m] || m) + " — click to switch";
+    chip.textContent = (names[m] || m) + (dry ? " · dry run" : "");
+    chip.title = "Permission mode: " + (names[m] || m) + (dry ? " (dry run: nothing reaches the disk until /dryrun apply)" : "") + " — click to switch";
     chip.dataset.mode = m;
   }
 
@@ -634,6 +648,7 @@
     if (!pendingQs.length) {
       qOpts.innerHTML = "";
       qOther.hidden = true;
+      showWait(null);
       return;
     }
     renderQuestion();
@@ -646,14 +661,47 @@
     qDetail.hidden = !q.detail;
     qDetail.textContent = q.detail || "";
     const opts = (q.options || []).concat([{ label: "Other", description: "type your own answer" }]);
-    qOpts.innerHTML = opts.map((o) =>
-      `<button type="button" data-label="${esc(o.label)}">${esc(o.label)}</button>`
-    ).join("");
+    // The model's recommendation is marked and focused, so Enter takes
+    // it: it is what the turn goes on with if nobody answers in time.
+    qOpts.innerHTML = opts.map((o) => {
+      const rec = q.recommended && o.label === q.recommended;
+      return `<button type="button" data-label="${esc(o.label)}"${rec ? ' class="recommended"' : ""}>${esc(o.label)}${rec ? " (recommended)" : ""}</button>`;
+    }).join("") + (q.proceeded ? `<button type="button" data-dismiss="1" class="secondary">Dismiss</button>` : "");
     qOther.hidden = true;
     qOtherText.value = "";
+    showWait(q);
+    const rec = qOpts.querySelector("button.recommended");
+    if (rec && !(document.activeElement === input && input.value.trim() !== "")) rec.focus();
+  }
+
+  // showWait says how long the question still holds the turn ("no answer
+  // in 1m12s and it proceeds with 9000"), or that the turn went on and an
+  // answer now reaches the model as a late one. Nothing for a question
+  // that waits as long as it takes.
+  function showWait(q) {
+    if (qWaitTimer) { clearInterval(qWaitTimer); qWaitTimer = null; }
+    const line = () => {
+      if (!q || !q.recommended) return "";
+      if (q.proceeded) return "Went on with " + q.recommended + " (recommended). Answer now and the model gets it as a late answer.";
+      if (!q.deadline) return "";
+      const left = Math.max(0, Math.round((Date.parse(q.deadline) - Date.now()) / 1000));
+      const t = left >= 60 ? Math.floor(left / 60) + "m" + String(left % 60).padStart(2, "0") + "s" : left + "s";
+      return "No answer in " + t + " and it proceeds with " + q.recommended + " (recommended).";
+    };
+    const text = line();
+    qWait.hidden = !text;
+    qWait.textContent = text;
+    if (text && q && !q.proceeded && q.deadline) {
+      qWaitTimer = setInterval(() => { qWait.textContent = line(); }, 1000);
+    }
   }
 
   qOpts.addEventListener("click", async (ev) => {
+    if (ev.target.closest("button[data-dismiss]")) {
+      await post("/api/question", { answers: pendingQs.map(() => ({ label: "skipped" })) });
+      showQuestions([]);
+      return;
+    }
     const b = ev.target.closest("button[data-label]");
     if (!b) return;
     if (b.dataset.label === "Other") {
@@ -704,12 +752,33 @@
         statusEl.textContent = msg.notice || "";
         break;
       case "connect": openConnect(); break;
+      case "compose":
+        // A /commit or /pr draft: into the composer only when it is empty,
+        // so nothing the user was typing is lost.
+        if (!input.value.trim() && msg.compose) {
+          input.value = msg.compose;
+          input.dispatchEvent(new Event("input"));
+          input.focus();
+        }
+        break;
     }
   }
 
   // post never throws: a server that is down (restarting, killed) made
   // fetch reject, the promise went unhandled and the caller never learned
   // the message had gone nowhere.
+  // checkpointsCardHTML draws /checkpoints: newest first, each restore
+  // point with what it covers and a button that previews restoring the
+  // tree to before that turn; Apply carries out the last preview.
+  function checkpointsCardHTML(rows) {
+    const items = rows.map((c) =>
+      `<li><button type="button" class="act" data-cmd="/undo turn ${c.turn}" title="Preview restoring to before turn ${c.turn}">Preview</button> ` +
+      `<code>${esc(c.id)}</code> ${esc(c.what)} · <span class="dim">${esc(c.coverage)}</span>` +
+      (c.complete ? "" : ` <span class="warn">incomplete: ${esc((c.gaps || []).join("; "))}</span>`) + `</li>`).join("");
+    return `<div class="k">checkpoints</div><ul class="checkpoints">${items}</ul>` +
+      `<div><button type="button" class="act" data-cmd="/undo apply">Apply the last preview</button></div>`;
+  }
+
   async function post(path, body) {
     let r;
     try {
@@ -1465,7 +1534,8 @@
       document.getElementById("mode-edits").classList.toggle("on", !!ws.edits);
       document.getElementById("mode-plan").classList.toggle("on", !!ws.plan);
       document.getElementById("mode-ro").classList.toggle("on", !!ws.readonly);
-      setModeChip(ws.mode);
+      document.getElementById("mode-dry").classList.toggle("on", !!ws.dry_run);
+      setModeChip(ws.mode, ws.dry_run);
       lastWorkspace = ws;
       paintGit(ws);
       paintTurnFiles(ws.files);
@@ -1516,7 +1586,8 @@
       !q ||
       (r.label || "").toLowerCase().includes(q) ||
       (r.id || "").toLowerCase().includes(q) ||
-      (r.note || "").toLowerCase().includes(q);
+      (r.note || "").toLowerCase().includes(q) ||
+      !!r.hit;
     const kept = rows.filter((r) => !r.current).filter(match).slice(0, 40);
     if (!kept.length) {
       ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : "Earlier conversations in this project will appear here."}</li>`;
@@ -1532,21 +1603,30 @@
         parts.push(`<li class="sess-group">${esc(b)}</li>`);
       }
       parts.push(
-        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span></li>`
+        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span>${r.hit ? `<span class="sess-hit">${r.turn ? "turn " + r.turn + ": " : ""}${esc(r.hit)}</span>` : ""}</li>`
       );
     }
     ul.innerHTML = parts.join("");
   }
 
+  // The filter searches what the conversations said as well as their
+  // titles: with three letters or more the server reads the sessions for
+  // them, so that request waits for a pause in the typing.
   async function loadSessions() {
     try {
-      const rows = await (await fetch("/api/sessions")).json();
+      const q = sessionFilter.value.trim();
+      const url = q.length >= 3 ? "/api/sessions?q=" + encodeURIComponent(q) : "/api/sessions";
+      const rows = await (await fetch(url)).json();
       renderSessions(rows, sessionFilter.value);
     } catch (_) {}
   }
 
   const sessionFilter = document.getElementById("session-filter");
-  sessionFilter.addEventListener("input", loadSessions);
+  let sessionFilterTimer = 0;
+  sessionFilter.addEventListener("input", () => {
+    clearTimeout(sessionFilterTimer);
+    sessionFilterTimer = setTimeout(loadSessions, 250);
+  });
 
   document.getElementById("sessions").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-id]");
@@ -1555,7 +1635,20 @@
     // loaded thread on /events before it answers here. Clearing the log
     // again on this answer wiped a thread that had already arrived,
     // leaving the empty page over a conversation that was loaded.
-    if (await post("/api/load", { id: li.dataset.id })) {
+    // A session another janetcode is running turns in is refused with a
+    // conflict that names the way on: offer it, and continue in a copy.
+    let opened = false;
+    try {
+      const r = await fetch("/api/load", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: li.dataset.id }) });
+      const why = r.ok ? "" : await r.text();
+      if (r.ok) opened = true;
+      else if (r.status === 409 && why.includes("fork") && window.confirm(why.trim() + "\n\nContinue in a copy of it?")) {
+        opened = await post("/api/load", { id: li.dataset.id, fork: true });
+      } else statusEl.textContent = why || r.statusText;
+    } catch (e) {
+      statusEl.textContent = localNote = "Cannot reach janetcode. Is it still running?";
+    }
+    if (opened) {
       if (window.matchMedia("(max-width: 960px)").matches && !shell.classList.contains("nav-collapsed")) {
         setCollapsed("nav-collapsed", true);
       }

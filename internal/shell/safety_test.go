@@ -9,6 +9,7 @@ import (
 )
 
 func TestClassify(t *testing.T) {
+	posixOnly(t)
 	root := t.TempDir()
 	home, _ := os.UserHomeDir()
 	cases := []struct {
@@ -91,6 +92,7 @@ func TestClassify(t *testing.T) {
 // a cd to something unresolvable makes the rest of the line unjudgeable
 // rather than ordinary.
 func TestClassifyCdTracking(t *testing.T) {
+	posixOnly(t)
 	root := t.TempDir()
 	cases := []struct {
 		cmd  string
@@ -136,6 +138,7 @@ func TestClassifyCdTracking(t *testing.T) {
 // write-target list). The exemption now judges the resolved path, and
 // $HOME/${HOME}/$TMPDIR/${TMPDIR} expand.
 func TestClassifyTempAndVarBypasses(t *testing.T) {
+	posixOnly(t)
 	root := t.TempDir()
 	home, _ := os.UserHomeDir()
 	cases := []struct {
@@ -195,6 +198,7 @@ func TestWriteTargetsTracksCdAndVars(t *testing.T) {
 // internal/agent's acceptDenial): a bare relative name, a redirect, a
 // wrapped command, and the innocuous cases that must not show up.
 func TestWriteTargets(t *testing.T) {
+	posixOnly(t)
 	root := t.TempDir()
 	want := func(rel string) string { return filepath.Join(root, rel) }
 	cases := []struct {

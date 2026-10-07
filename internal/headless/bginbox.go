@@ -45,6 +45,18 @@ type InboxApprover struct {
 
 	mu sync.Mutex
 	n  int
+	// stMu guards Status: the approver, the question asker (BgAsker) and
+	// the end of the run all change it, and a question left open after
+	// its turn went on is answered from a goroutine of its own.
+	stMu sync.Mutex
+}
+
+// Update changes the run's status under the lock and writes it.
+func (a *InboxApprover) Update(change func(st *session.BgStatus)) error {
+	a.stMu.Lock()
+	defer a.stMu.Unlock()
+	change(a.Status)
+	return session.WriteBgStatus(a.SessionPath, *a.Status)
 }
 
 func (a *InboxApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
@@ -65,15 +77,14 @@ func (a *InboxApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 		Preview: textfmt.Clip(call.Preview, 4000),
 		Asked:   time.Now(),
 	}
-	a.Status.State, a.Status.Ask = session.BgWaiting, ask
-	if err := session.WriteBgStatus(a.SessionPath, *a.Status); err != nil {
+	if err := a.Update(func(st *session.BgStatus) { st.State, st.Ask = session.BgWaiting, ask }); err != nil {
 		// Nobody could ever answer a request that was not recorded.
 		fmt.Fprintf(a.Log, "[permission] %s denied: could not record the request: %v\n", call.Name, err)
 		return agent.Deny, "the request could not be recorded for an answer", nil
 	}
 	answer := "janetcode --answer " + a.SessionID + " allow"
 	fmt.Fprintf(a.Log, "[permission] waiting: %s %s — answer with: %s (or session, deny)\n", call.Name, ask.Summary, strings.TrimSuffix(answer, " allow"))
-	a.notify(ctx, ask, answer)
+	a.notify(ctx, ask.Tool+" "+ask.Summary, answer)
 
 	poll := a.Poll
 	if poll <= 0 {
@@ -83,8 +94,7 @@ func (a *InboxApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 	defer t.Stop()
 	for {
 		if d, ok := session.TakeBgAnswer(a.SessionPath, ask.ID); ok {
-			a.Status.State, a.Status.Ask = session.BgRunning, nil
-			_ = session.WriteBgStatus(a.SessionPath, *a.Status)
+			_ = a.Update(func(st *session.BgStatus) { st.State, st.Ask = session.BgRunning, nil })
 			fmt.Fprintf(a.Log, "[permission] %s: %s\n", call.Name, d)
 			switch d {
 			case "allow":
@@ -97,8 +107,7 @@ func (a *InboxApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 		}
 		select {
 		case <-ctx.Done():
-			a.Status.State, a.Status.Ask = session.BgRunning, nil
-			_ = session.WriteBgStatus(a.SessionPath, *a.Status)
+			_ = a.Update(func(st *session.BgStatus) { st.State, st.Ask = session.BgRunning, nil })
 			return agent.Deny, agent.CancelledReason, nil
 		case <-t.C:
 		}
@@ -107,7 +116,7 @@ func (a *InboxApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 
 // notify runs the JANETCODE_NOTIFY command, bounded so a hung notifier
 // cannot hold the run, and says in the log when it failed.
-func (a *InboxApprover) notify(ctx context.Context, ask *session.BgAsk, answer string) {
+func (a *InboxApprover) notify(ctx context.Context, what, answer string) {
 	if strings.TrimSpace(a.Notify) == "" {
 		return
 	}
@@ -119,7 +128,7 @@ func (a *InboxApprover) notify(ctx context.Context, ask *session.BgAsk, answer s
 	// that an answer is wanted.
 	cmd.Env = append(shell.ScrubEnv(os.Environ()),
 		"JANETCODE_SESSION="+a.SessionID,
-		"JANETCODE_ASK="+ask.Tool+" "+ask.Summary,
+		"JANETCODE_ASK="+what,
 		"JANETCODE_ANSWER="+answer,
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {

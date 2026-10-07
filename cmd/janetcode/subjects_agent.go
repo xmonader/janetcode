@@ -256,8 +256,14 @@ func permissionsReport(a *agent.Agent, cfg *config.Config) string {
 	if modes.PlanMode {
 		b.WriteString("plan mode: the model may look but not change\n")
 	}
+	if lines := a.Policy.Summary(); len(lines) > 0 {
+		b.WriteString("\nmanaged policy (cannot be changed from the session):\n")
+		for _, l := range lines {
+			fmt.Fprintf(&b, "  %s\n", l)
+		}
+	}
 	rules := a.RulesSnapshot()
-	if len(rules.Allow) == 0 && len(rules.Deny) == 0 {
+	if len(rules.Allow) == 0 && len(rules.Deny) == 0 && len(rules.Ask) == 0 {
 		b.WriteString("\nno standing rules; every mutating call is asked about\n")
 		return b.String()
 	}
@@ -270,6 +276,12 @@ func permissionsReport(a *agent.Agent, cfg *config.Config) string {
 	if len(rules.Deny) > 0 {
 		b.WriteString("\nalways denied:\n")
 		for _, r := range rules.Deny {
+			fmt.Fprintf(&b, "  %s\n", r)
+		}
+	}
+	if len(rules.Ask) > 0 {
+		b.WriteString("\nalways asked about, in every mode (sensitive):\n")
+		for _, r := range rules.Ask {
 			fmt.Fprintf(&b, "  %s\n", r)
 		}
 	}

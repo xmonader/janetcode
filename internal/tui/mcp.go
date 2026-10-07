@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -38,12 +37,18 @@ type mcpPromptMsg struct {
 	err     error
 }
 
+// mcpNoteMsg is a line the MCP manager has for the person: a server
+// went down, or came back.
+type mcpNoteMsg struct{ text string }
+
 // startMCP launches the configured servers in the background.
 func (m *model) startMCP() {
 	o := m.opts.MCP
 	if o == nil || o.Manager == nil {
 		return
 	}
+	send := m.send
+	o.Manager.SetNotify(func(s string) { send(mcpNoteMsg{text: s}) })
 	start := func(servers map[string]mcp.ServerConfig) {
 		for name, cfg := range servers {
 			o.Manager.Start(m.life, name, cfg, func(name string, c *mcp.Client, err error) {
@@ -157,6 +162,9 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 		return m.mcpAdd(args[1:])
 	case len(args) > 0 && (args[0] == "remove" || args[0] == "rm"):
 		return m.mcpRemove(args[1:])
+	case len(args) > 0 && args[0] == "reconnect":
+		m.mcpReconnect(args[1:])
+		return nil
 	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
@@ -164,6 +172,7 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 			m.transcript.errorf("no %s in %s", mcp.ProjectFile, shortPath(m.opts.Cwd))
 		case o.ProjectTrusted:
 			m.note("project servers are already trusted")
+		case m.execTrustBlocked():
 		default:
 			if err := o.Trust.Trust(m.opts.Cwd, o.ProjectHash); err != nil {
 				m.transcript.errorf("record trust: %v", err)
@@ -196,6 +205,8 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 	sb.WriteString("MCP servers\n")
 	for _, s := range st {
 		switch {
+		case s.Down:
+			fmt.Fprintf(&sb, "  ⚠ %s\n", s.DownLine(time.Now()))
 		case s.Starting:
 			fmt.Fprintf(&sb, "  … %s starting\n", s.Name)
 		case s.Err != nil:
@@ -238,25 +249,27 @@ func (m *model) mcpAuth(args []string) {
 		return
 	}
 	if args[0] == "logout" {
-		if _, had := o.Tokens.Get(cfg.URL); !had {
+		if _, had := o.Tokens.Get(name, cfg.URL); !had {
 			m.note("mcp " + name + ": no token stored")
 			return
 		}
-		if err := o.Tokens.Delete(cfg.URL); err != nil {
+		if err := o.Tokens.Delete(name, cfg.URL); err != nil {
 			m.transcript.errorf("forget token: %v", err)
 			return
 		}
 		m.note("mcp " + name + ": token forgotten · the server will need /mcp auth again")
 		return
 	}
-	// A failed start may have told us where the server's metadata lives.
-	var meta string
+	// A failed start may have told us where the server's metadata lives,
+	// and what scope it wants.
+	var meta, need string
 	for _, st := range o.Manager.Status() {
 		var ae *mcp.AuthError
 		if st.Name == name && errors.As(st.Err, &ae) {
-			meta = ae.ResourceMetadata
+			meta, need = ae.ResourceMetadata, ae.Scope
 		}
 	}
+	clientID, clientSecret, scope, metadataURL := cfg.OAuthSettings()
 	openURL := o.OpenURL
 	if openURL == nil {
 		openURL = mcp.OpenBrowser
@@ -267,8 +280,9 @@ func (m *model) mcpAuth(args []string) {
 		ctx, cancel := context.WithTimeout(life, 5*time.Minute)
 		defer cancel()
 		_, err := mcp.Authorize(ctx, mcp.AuthOptions{
-			ServerURL: cfg.URL, Store: o.Tokens, ResourceMetadata: meta,
-			ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
+			ServerName: name, ServerURL: cfg.URL, Store: o.Tokens,
+			ResourceMetadata: meta, RequiredScope: need, MetadataURL: metadataURL,
+			ClientID: clientID, ClientSecret: clientSecret, Scope: scope,
 			OpenURL: openURL,
 			Notify:  func(s string) { send(mcpAuthMsg{name: name, text: s}) },
 		})
@@ -293,4 +307,47 @@ func (m *model) restartMCP(name string) {
 		}
 		m.send(mcpDoneMsg{name: name, tools: n, err: err})
 	})
+}
+
+// mcpReconnect answers /mcp reconnect [name]: restart one server, or
+// every server that is down or failed, now rather than at its next
+// backoff.
+func (m *model) mcpReconnect(args []string) {
+	o := m.opts.MCP
+	var names []string
+	if len(args) > 0 {
+		names = args
+	} else {
+		for _, st := range o.Manager.Status() {
+			if st.Down || st.Err != nil {
+				names = append(names, st.Name)
+			}
+		}
+		if len(names) == 0 {
+			m.note("every MCP server is up · /mcp reconnect <name> restarts one anyway")
+			return
+		}
+	}
+	for _, name := range names {
+		send := m.send
+		ok := o.Manager.Reconnect(name, func(name string, c *mcp.Client, err error) {
+			n := 0
+			if c != nil {
+				n = len(c.Tools())
+			}
+			send(mcpDoneMsg{name: name, tools: n, err: err})
+		})
+		if !ok {
+			// Never started in this session (untrusted, or added to the
+			// file by hand): restartMCP finds it in the configuration.
+			if _, g := o.Global[name]; !g {
+				if _, p := o.Project[name]; !p {
+					m.transcript.errorf("no MCP server named %q", name)
+					continue
+				}
+			}
+			m.restartMCP(name)
+		}
+		m.note("mcp " + name + ": reconnecting")
+	}
 }

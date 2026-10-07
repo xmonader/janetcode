@@ -110,6 +110,33 @@ func TestRecorderBuildsTheResultEnvelope(t *testing.T) {
 	}
 }
 
+// A turn's text written by two model calls, a tool between them, came
+// out as one run-on sentence: "I'll list the files.The files are …"
+// (live on the Anthropic path, 2026-09-29).
+func TestResultSeparatesTextOfLaterModelCalls(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out, Agent: &agent.Agent{}}, FormatJSON)
+	var seps []string
+	for _, e := range []agent.Event{
+		{Kind: agent.EvText, Text: "I'll list the files."},
+		{Kind: agent.EvToolRun, Call: call("t1", "list_dir")},
+		{Kind: agent.EvToolResult, Call: call("t1", "list_dir"), Output: "a.go"},
+		{Kind: agent.EvText, Text: "The files are "},
+		{Kind: agent.EvText, Text: "a.go."},
+		{Kind: agent.EvTurnDone, StopReason: llm.StopEndTurn},
+	} {
+		if s := r.event(e); s != "" {
+			seps = append(seps, s)
+		}
+	}
+	if got := r.result(nil, nil).Result; got != "I'll list the files.\n\nThe files are a.go." {
+		t.Fatalf("result = %q", got)
+	}
+	if len(seps) != 1 {
+		t.Fatalf("text mode separators = %q, want one", seps)
+	}
+}
+
 func TestResultCarriesTheError(t *testing.T) {
 	var out strings.Builder
 	r := newRecorder(Options{Stdout: &out}, FormatJSON)

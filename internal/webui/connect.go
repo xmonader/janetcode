@@ -227,6 +227,9 @@ func (s *server) applyConnect(next *config.Config, name string, p config.Provide
 	if running {
 		return "", errors.New("wait for the current turn to finish, then connect")
 	}
+	if err := settingsapply.Allowed(s.opts.Config, name, p.Type, model); err != nil {
+		return "", err
+	}
 	prov, err := s.opts.Build(next)
 	if err != nil {
 		return "", err

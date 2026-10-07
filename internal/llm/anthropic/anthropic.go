@@ -29,6 +29,9 @@ type Config struct {
 	APIKeys []string
 	// BaseURL overrides the API root (tests, proxies). Empty means default.
 	BaseURL string
+	// Bearer sends the key as Authorization: Bearer instead of
+	// x-api-key, for a gateway in front of the Messages API.
+	Bearer bool
 	// Thinking enables adaptive thinking. Set false for models that reject
 	// the parameter (Haiku 4.5 and older).
 	Thinking bool
@@ -86,8 +89,18 @@ func New(cfg Config) (*Provider, error) {
 	}
 	p := &Provider{cfg: cfg, ring: ring}
 	for _, key := range keys {
+		auth := option.WithAPIKey(key)
+		if cfg.Bearer {
+			auth = option.WithAuthToken(key)
+		}
 		opts := []option.RequestOption{
-			option.WithAPIKey(key),
+			// The config already folded ANTHROPIC_API_KEY,
+			// ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL in; the SDK's
+			// own reading of them would add a second credential header
+			// beside the one chosen here (x-api-key and a bearer token
+			// both on one request) and a base URL the config overrode.
+			option.WithoutEnvironmentDefaults(),
+			auth,
 			// The SDK does not retry: retries hidden inside it are
 			// invisible to the stream watchdog and to the events a UI
 			// draws, so a long Retry-After there reads as a stalled turn
@@ -691,7 +704,14 @@ func toResponse(msg sdk.Message) (*llm.Response, error) {
 	default:
 		stop = llm.StopOther
 	}
+	// What the response said about who built it: a Messages endpoint in
+	// front of another vendor still answers in Anthropic's shape, but its
+	// message and tool-call ids are its own (a broker serving Kimi under
+	// a Claude name returns chatcmpl- ids and tool_ ones).
+	served := llm.Provenance{Model: string(msg.Model), IDPrefix: llm.IDPrefix(msg.ID), ToolIDs: llm.ToolIDsOf(out)}
 	return &llm.Response{
+		Model:      string(msg.Model),
+		Served:     served,
 		Message:    out,
 		StopReason: stop,
 		Usage: llm.Usage{

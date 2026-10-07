@@ -8,13 +8,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // httpTransport talks to a remote server. It starts with Streamable HTTP
@@ -53,9 +58,24 @@ func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTra
 	if mode != "http" && mode != "sse" {
 		mode = ""
 	}
+	client := &http.Client{Timeout: 0} // streams stay open; ctx bounds calls
+	if weburl.PrivateTarget(u) == "" {
+		// The URL names a public host, so it has no business reaching
+		// this machine or its network: judge the address each
+		// connection resolves to, as fetch_url does, so a name that
+		// resolves (or later rebinds) to 169.254.169.254 or 127.0.0.1
+		// never receives the server's headers or OAuth token. A URL
+		// that spells out localhost or a private address is left alone:
+		// whoever wrote it meant this machine.
+		client.Transport = weburl.GuardDial(nil, true)
+	}
+	// Tool calls run under the turn's context, so what each sends to the
+	// server lands in that turn's egress report, and a host the policy
+	// blocks is refused before the arguments leave.
+	client.Transport = egress.Transport(client.Transport, egress.KindMCP)
 	return &httpTransport{
 		c:       c,
-		client:  &http.Client{Timeout: 0}, // streams stay open; ctx bounds calls
+		client:  client,
 		url:     cfg.URL,
 		headers: headers,
 		mode:    mode,
@@ -76,23 +96,38 @@ func (t *httpTransport) bearer(ctx context.Context, force bool) (string, error) 
 			return "", nil
 		}
 	}
-	tok, ok, err := t.tokens.Bearer(ctx, t.client, t.url, force)
+	tok, ok, err := t.tokens.Bearer(ctx, t.client, t.c.Name, t.url, force)
 	if !ok {
 		return "", nil
 	}
 	return tok, err
 }
 
-// unauthorized turns a 401 into ErrAuthRequired with a hint for the user,
-// remembering where the server said its metadata lives.
-func (t *httpTransport) unauthorized(resp *http.Response) error {
-	hint := resourceMetadataHint(resp.Header.Get("WWW-Authenticate"))
+// unauthorized turns a 401, or a 403 insufficient_scope (stepUp), into
+// ErrAuthRequired with a hint for the user, remembering where the server
+// said its metadata lives and, on the stored login, the scope it asked
+// for, so /mcp auth asks for that scope on top of what is granted.
+func (t *httpTransport) unauthorized(resp *http.Response, stepUp bool) error {
+	h := resp.Header.Get("WWW-Authenticate")
+	hint := resourceMetadataHint(h)
+	scope := authParam(h, "scope")
 	t.mu.Lock()
 	if hint != "" {
 		t.authMeta = hint
 	}
 	t.mu.Unlock()
-	return &AuthError{Server: t.c.Name, ResourceMetadata: hint}
+	if scope != "" && t.tokens != nil {
+		_ = t.tokens.NoteRequiredScope(t.c.Name, t.url, scope)
+	}
+	return &AuthError{Server: t.c.Name, ResourceMetadata: hint, Scope: scope, StepUp: stepUp}
+}
+
+// insufficientScope reports a 403 whose challenge says the token is
+// valid but lacks scope (RFC 6750 §3.1). A refresh cannot widen a token,
+// so this is not retried: it asks for a login with more scope.
+func insufficientScope(resp *http.Response) bool {
+	return resp.StatusCode == http.StatusForbidden &&
+		strings.EqualFold(authParam(resp.Header.Get("WWW-Authenticate"), "error"), "insufficient_scope")
 }
 
 func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
@@ -103,7 +138,16 @@ func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
 	case "sse":
 		return t.sendLegacy(ctx, msg)
 	case "http":
-		return t.sendStreamable(ctx, msg)
+		err := t.sendStreamable(ctx, msg)
+		if t.dropped(ctx, err) {
+			// Streamable HTTP has no stream whose end says the server is
+			// gone: every request is its own connection. A connection
+			// refused or reset, or a 404 for the session the server gave
+			// us, is that end, so the client is closed like a stdio one
+			// whose process exited, and the manager reconnects it.
+			t.c.exited(err)
+		}
+		return err
 	}
 	// Unknown yet: try Streamable HTTP; 404/405 means the old transport.
 	err := t.sendStreamable(ctx, msg)
@@ -122,12 +166,41 @@ func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
 	return err
 }
 
+// dropped reports whether err from an established Streamable HTTP
+// connection means the server is gone rather than that one request
+// failed: the network refused or reset it, or the server no longer knows
+// the session it issued (the spec's 404 for a terminated session).
+func (t *httpTransport) dropped(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() != nil {
+		return false
+	}
+	var se *statusError
+	if errors.As(err, &se) {
+		t.mu.Lock()
+		sid := t.sessionID
+		t.mu.Unlock()
+		return se.code == http.StatusNotFound && sid != ""
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return false
+	}
+	var oe *net.OpError
+	return errors.As(err, &oe) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET)
+}
+
 // do sends a request; on 401 with a stored token it refreshes the token
 // and retries once (rebuilt by again), and turns a final 401 into
 // ErrAuthRequired.
 func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() (*http.Request, error)) (*http.Response, error) {
 	resp, err := t.client.Do(req)
 	if err != nil {
+		return nil, err
+	}
+	if insufficientScope(resp) {
+		err = t.unauthorized(resp, true)
+		resp.Body.Close()
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusUnauthorized {
@@ -142,6 +215,11 @@ func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() 
 			if resp, err = t.client.Do(req); err != nil {
 				return nil, err
 			}
+			if insufficientScope(resp) {
+				err = t.unauthorized(resp, true)
+				resp.Body.Close()
+				return nil, err
+			}
 			if resp.StatusCode != http.StatusUnauthorized {
 				return resp, nil
 			}
@@ -149,7 +227,7 @@ func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() 
 			return nil, rerr
 		}
 	}
-	err = t.unauthorized(resp)
+	err = t.unauthorized(resp, false)
 	resp.Body.Close()
 	return nil, err
 }

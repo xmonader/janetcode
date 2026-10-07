@@ -300,7 +300,7 @@ func TestMCPAuthCommand(t *testing.T) {
 	if !strings.Contains(v, "mcp secure ready") {
 		t.Fatalf("ready ack not on the status line:\n%s", v)
 	}
-	if tok, ok := tokens.Get(secure.URL); !ok || tok.AccessToken != "at-1" {
+	if tok, ok := tokens.Get("secure", secure.URL); !ok || tok.AccessToken != "at-1" {
 		t.Fatalf("token = %+v %v", tok, ok)
 	}
 	h.keys("/mcp logout secure")
@@ -308,7 +308,7 @@ func TestMCPAuthCommand(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "token forgotten") {
 		t.Fatalf("view:\n%s", v)
 	}
-	if _, ok := tokens.Get(secure.URL); ok {
+	if _, ok := tokens.Get("secure", secure.URL); ok {
 		t.Fatal("token still stored after logout")
 	}
 }
@@ -361,6 +361,43 @@ func TestMCPTrustFlow(t *testing.T) {
 		t.Fatalf("prompt sent = %q", sent)
 	}
 	mgr.Close()
+}
+
+// A server whose connection ends is reported, listed as down, and
+// brought back by /mcp reconnect.
+func TestMCPServerDownAndReconnect(t *testing.T) {
+	h := newHarness(t)
+	reg := h.m.opts.Agent.Tools
+	mgr := &mcptool.Manager{
+		Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 20 * time.Second}, Registry: reg,
+		Backoff: func(int) time.Duration { return time.Hour },
+	}
+	defer mgr.Close()
+	fake := mcp.ServerConfig{Command: os.Args[0], Args: []string{"-test.run=TestFakeMCPServerProcess"}, Env: map[string]string{"MCP_FAKE_SERVER": "1"}}
+	h.m.opts.MCP = &MCPOptions{Manager: mgr, Global: map[string]mcp.ServerConfig{"srv": fake}}
+	h.m.Init()
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "mcp srv ready") })
+	c, _ := mgr.Client("srv")
+	c.Close() // the connection ends without the session asking for it
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "mcp srv disconnected") })
+	h.keys("/mcp")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "⚠ srv down") || !strings.Contains(v, "/mcp reconnect srv tries now") {
+		t.Fatalf("listing of a down server:\n%s", v)
+	}
+	h.keys("/mcp reconnect")
+	h.enter()
+	h.pump(func() bool {
+		nc, ok := mgr.Client("srv")
+		return ok && nc != c
+	})
+	h.pump(func() bool {
+		v := plain(h.m.View())
+		return strings.Contains(v, "mcp srv ready") && !strings.Contains(v, "mcp srv: reconnecting")
+	})
+	if _, ok := reg.Get("mcp__srv__echo"); !ok {
+		t.Fatal("the reconnected server's tools are not registered")
+	}
 }
 
 func TestConnectDialogSwitchesProvider(t *testing.T) {
@@ -1615,6 +1652,9 @@ func TestGoalRoundsBudgetAndExhaustionInTheUI(t *testing.T) {
 	if g := agent.ActiveGoal(h.m.opts.Agent.Log.Events()); g == nil || g.MaxRounds != 4 {
 		t.Fatalf("after /goal rounds 4 = %+v", g)
 	}
+	// The goal carries on in a turn of its own; let it finish before the
+	// session directory is removed, or its writes race the cleanup.
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // TestConnectRejectedKeyGoesBackToTheKey: a 401 on the model list left the

@@ -3,6 +3,7 @@ package settingsapply
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -81,6 +82,14 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.StaleCheckNudge = false },
 			func(a *agent.Agent) any { return a.StaleNudgeOn() },
 			func(cfg *config.Config) any { return cfg.StaleCheckNudge }},
+		{"ask_timeout", "90s",
+			func(a *agent.Agent) { a.SetAskWait(agent.AskWaitForever, time.Minute) },
+			func(a *agent.Agent) any { d, _ := a.AskWaitFor(); return d },
+			func(cfg *config.Config) any { d, _, _ := cfg.AskWaits(); return d }},
+		{"ask_timeout_unattended", "0",
+			func(a *agent.Agent) { a.Unattended = true; a.SetAskWait(agent.AskWaitForever, time.Minute) },
+			func(a *agent.Agent) any { d, _ := a.AskWaitFor(); return d },
+			func(cfg *config.Config) any { _, d, _ := cfg.AskWaits(); return d }},
 		{"escalate_after", "3",
 			func(a *agent.Agent) { a.EscalateAfter = 1 },
 			func(a *agent.Agent) any { return a.EscalateRounds() },
@@ -89,6 +98,18 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.AdvisorMode = "off" },
 			func(a *agent.Agent) any { return a.AdvisorMode },
 			func(cfg *config.Config) any { return cfg.AdvisorMode }},
+		{"advisor_turn_start_style", "orient",
+			func(a *agent.Agent) { a.TurnStartStyle = "plan" },
+			func(a *agent.Agent) any { return a.TurnStartStyle },
+			func(cfg *config.Config) any { return cfg.AdvisorTurnStartStyle }},
+		{"verify_baseline", "true",
+			func(a *agent.Agent) { a.VerifyBaseline = false },
+			func(a *agent.Agent) any { return a.VerifyBaseline },
+			func(cfg *config.Config) any { return cfg.VerifyBaselineEnabled() }},
+		{"language", "Spanish",
+			func(a *agent.Agent) { a.SetLanguage("") },
+			func(a *agent.Agent) any { return a.Language() },
+			func(cfg *config.Config) any { return cfg.Language }},
 		{"advisor_max_consults", "4",
 			func(a *agent.Agent) { a.AdvisorMaxConsults = 1 },
 			func(a *agent.Agent) any { return a.AdvisorMaxConsults },
@@ -108,8 +129,15 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"hints":         "read via cfg.ShowHints() by the hint engine",
 		"memory":        "read via cfg.AutoMemory() where memory extraction is scheduled",
 		"followup":      "read via cfg.FollowupEnabled() by the terminal after a turn",
+		"vim_mode":      "a terminal-only composer setting: the TUI reads cfg.VimMode at start and its /config applies it to the window",
 		"computer_use":  "read via cfg.ComputerUseEnabled() when MCP servers start",
 		"vision_model":  "no consumer yet: resolved through cfg.Slot wherever it is eventually read",
+		"screen_reader": "read via cfg.ScreenReaderOn() when the session picks its interface",
+	}
+	for _, k := range config.SettableKeys {
+		if strings.HasPrefix(k, "voice.") {
+			noAgentField[k] = "read from cfg.Voice each time /voice transcribes"
+		}
 	}
 	// The decisions block is wired as a whole rather than key by key
 	// (see Apply), so its keys are audited by TestDecisionsKeysRewire

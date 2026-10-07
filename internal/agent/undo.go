@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -29,6 +28,16 @@ type Snapshot struct {
 	// with nothing and call it an undo, so the file is left alone and
 	// the failure is reported instead.
 	Failed bool `json:"failed,omitempty"`
+	// Blob, when set, is the file holding the copy instead of Data: a
+	// file over inlineCopyBytes is streamed there rather than held in
+	// memory and in the undo sidecar (see cpcopy.go).
+	Blob string `json:"blob,omitempty"`
+	// TooLarge marks a file over maxCopyBytes: its state before the turn
+	// was not copied, and an undo leaves it alone and says so.
+	TooLarge bool `json:"too_large,omitempty"`
+	// Size is the file's size when it was captured as a blob or found too
+	// large, for the messages that talk about it.
+	Size int64 `json:"size,omitempty"`
 }
 
 // Checkpoint is the state before a turn that changed something. Inside a
@@ -194,8 +203,9 @@ func (c *checkpointer) turnStart() int {
 
 // snapshot records the state before a mutating tool runs: a git snapshot
 // of the work tree on the first mutating call of the turn, and a copy of
-// every path a file tool will touch, once per turn per path.
-func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, t tool.Tool, input []byte) {
+// every path a file tool will touch, once per turn per path. It returns
+// the copies it found too large to take (see maxCopyBytes).
+func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, blobs func() string, t tool.Tool, input []byte) (tooLarge []Snapshot) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if repo != nil && !c.gitTried {
@@ -213,25 +223,19 @@ func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, t tool.To
 	}
 	tc, ok := t.(tool.Toucher)
 	if !ok {
-		return
+		return nil
 	}
 	paths, err := tc.Touches(input)
 	if err != nil {
-		return // the tool itself will report the bad input
+		return nil // the tool itself will report the bad input
 	}
 	for _, p := range paths {
 		if c.open && c.all[len(c.all)-1].has(p) {
 			continue
 		}
-		snap := Snapshot{Path: p}
-		if data, err := os.ReadFile(p); err == nil {
-			snap.Data, snap.Existed = data, true
-		} else if !errors.Is(err, os.ErrNotExist) {
-			// Unreadable: the checkpoint records that it could not be
-			// captured rather than quietly holding nothing, which an
-			// undo would otherwise write over the file as if it were
-			// the state before the turn.
-			snap.Failed = true
+		snap := captureCopy(p, blobs)
+		if snap.TooLarge {
+			tooLarge = append(tooLarge, snap)
 		}
 		if !c.open {
 			c.openCheckpoint(ctx, repo)
@@ -240,17 +244,29 @@ func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, t tool.To
 		cur.Files = append(cur.Files, snap)
 		c.dirty = true
 	}
+	return tooLarge
 }
 
 // snapshotBefore records the state before a mutating call on whichever
 // agent owns the undo stack for this workspace — the parent, when this
-// agent is a fork sharing it.
-func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte) {
+// agent is a fork sharing it. A file too large for the checkpoint to copy
+// is said as it happens, outside git (whose snapshot still holds it): the
+// user learns that /undo cannot put it back before the call changes it,
+// not after.
+func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte, emit func(Event)) {
+	// The turn's first change waits for the pre-edit check run, so the
+	// baseline saw the tree this call is about to change.
+	a.awaitBaseline(ctx, emit)
 	owner := a
 	if a.UndoOwner != nil {
 		owner = a.UndoOwner
 	}
-	owner.cp.snapshot(ctx, owner.snaps(), t, input)
+	repo := owner.snaps()
+	for _, f := range owner.cp.snapshot(ctx, repo, owner.blobDir, t, input) {
+		if repo == nil && emit != nil {
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("checkpoint: %s is %d MiB, over the %d MiB a checkpoint copies — /undo will not be able to put it back", f.Path, f.Size>>20, maxCopyBytes>>20)})
+		}
+	}
 }
 
 // openCheckpoint starts a checkpoint for the running turn. A new change
@@ -375,6 +391,7 @@ func (a *Agent) endTurn(ctx context.Context) {
 	// accepted against a checkpoint that had no manifest yet, and so
 	// restored the whole tree.
 	defer a.running.Store(false)
+	defer a.endAskTurn()
 	// The turn's event sink goes with the turn: emitter() promises a sink
 	// that drops events when no turn is running, and without this it kept
 	// handing out the finished turn's one.
@@ -873,8 +890,12 @@ func restoreCopies(files []Snapshot, cp Checkpoint, scoped bool) ([]string, []er
 			errs = append(errs, fmt.Errorf("%s: its state before the turn could not be captured, so it was left as it is", f.Path))
 			continue
 		}
+		if f.TooLarge {
+			errs = append(errs, fmt.Errorf("%s: %s", f.Path, tooLargeReason(f)))
+			continue
+		}
 		if f.Existed {
-			err = fsutil.AtomicWrite(f.Path, f.Data)
+			err = restoreCopy(f)
 		} else if err = os.Remove(f.Path); errors.Is(err, os.ErrNotExist) {
 			err = nil
 		}

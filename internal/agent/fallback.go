@@ -3,9 +3,12 @@ package agent
 import (
 	"context"
 	"errors"
+	"net"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -49,11 +52,16 @@ var statusRe = regexp.MustCompile(`(?i)(?:http |status |status code |code |error
 // context overflow, an unknown tool, the user's cancellation — would fail
 // the same way on any model and is reported as it is.
 //
-// An error that carries its HTTP status is judged by the status and the
-// server's whole text (llm.ClassifyText), not by Error(): that is cut for
-// display, and an "insufficient balance" past the cut was missed. Only an
-// error with no status — a failure reported inside the stream — falls
-// back to reading its words.
+// The signals are read in order of how much they can be trusted. An error
+// that carries its HTTP status is judged by the status and the server's
+// whole text (llm.ClassifyText), not by Error(): that is cut for display,
+// and an "insufficient balance" past the cut was missed. Both providers
+// turn an error frame inside a stream into the status it stands for, so
+// that case is typed too. A transport failure the provider's retries did
+// not get past (the endpoint unreachable, the stream stalled or cut off
+// every time) is typed by its error value: another model, often on
+// another provider, may well be reachable. Only an error with none of
+// those — a provider's own untyped message — is judged by its words.
 func worthFallback(err error) bool {
 	if err == nil || isContextOverflow(err) || errIsCancel(err) {
 		return false
@@ -63,8 +71,11 @@ func worthFallback(err error) bool {
 		return true
 	}
 	var se llm.StatusError
-	if errors.As(err, &se) && se.HTTPStatus() != 0 {
+	if errors.As(err, &se) && se.HTTPStatus() != 0 && se.HTTPStatus()/100 != 2 {
 		return fallbackStatus(se.HTTPStatus())
+	}
+	if unreachable(err) {
+		return true
 	}
 	l := strings.ToLower(text)
 	if strings.Contains(l, "rate limit") || strings.Contains(l, "overloaded") {
@@ -75,6 +86,22 @@ func worthFallback(err error) bool {
 		return fallbackStatus(code)
 	}
 	return false
+}
+
+// unreachable reports whether err is the endpoint failing at the
+// transport: a refused or reset connection, a name that does not
+// resolve, a dial or TLS timeout, a stream the watchdog had to kill, or
+// one that ended without its terminal frame.
+func unreachable(err error) bool {
+	if errors.Is(err, llm.ErrStreamWatchdog) || llm.Truncated(err) {
+		return true
+	}
+	var dnsErr *net.DNSError
+	var opErr *net.OpError
+	var urlErr *url.Error
+	return errors.As(err, &dnsErr) || errors.As(err, &opErr) ||
+		(errors.As(err, &urlErr) && urlErr.Timeout()) ||
+		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET)
 }
 
 // fallbackStatus reports whether a status says this model cannot serve the

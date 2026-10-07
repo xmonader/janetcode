@@ -178,6 +178,23 @@ type swapBuffer struct {
 	tail    []byte
 	dropped int64
 	f       *os.File
+	// written counts every byte ever written, wherever it went, so a
+	// watcher can tell a quiet command from a busy one.
+	written int64
+	// last is the end of the output, kept whether or not the output now
+	// goes to a file: what a command printed last is the question it is
+	// asking, when it is asking one.
+	last []byte
+}
+
+// lastMax bounds last.
+const lastMax = 4096
+
+// progress reports how much has been written so far and the end of it.
+func (s *swapBuffer) progress() (int64, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.written, string(s.last)
 }
 
 func (s *swapBuffer) headMax() int { return s.max * 2 / 3 }
@@ -186,6 +203,11 @@ func (s *swapBuffer) tailMax() int { return s.max - s.headMax() }
 func (s *swapBuffer) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.written += int64(len(p))
+	s.last = append(s.last, p...)
+	if len(s.last) > 2*lastMax {
+		s.last = append(s.last[:0], s.last[len(s.last)-lastMax:]...)
+	}
 	if s.f != nil {
 		if _, err := s.f.Write(p); err != nil {
 			return 0, err

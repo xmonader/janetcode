@@ -67,6 +67,10 @@ type Options struct {
 	// Hints is the one-time hint engine. Nil, or an engine with Off set,
 	// means the session says nothing beyond what it is asked.
 	Hints *hints.Engine
+	// TrustGate decides how far the project's own capability files are
+	// let in; /trust sets it and a project nobody has decided about is
+	// asked on the first run. Nil leaves everything as before the levels.
+	TrustGate *trust.Gate
 	// Untrusted names project files that are present but waiting for
 	// approval (.mcp.json and friends), for the hint that says so.
 	Untrusted []string
@@ -89,7 +93,10 @@ type Options struct {
 	// the caller's context because it makes a live model call; /doctor
 	// runs it off the UI goroutine under the session's life context, so
 	// quitting stops it. Nil leaves /doctor as a short local note.
-	Doctor   func(context.Context, io.Writer) error
+	Doctor func(context.Context, io.Writer) error
+	// Voice records from the microphone until stop is closed and returns
+	// the transcript (/voice). Nil says there is no voice input here.
+	Voice    func(ctx context.Context, stop <-chan struct{}) (string, error)
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string

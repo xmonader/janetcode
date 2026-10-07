@@ -186,6 +186,27 @@ func (f *fakeProvider) Stream(_ context.Context, req llm.Request, _ func(llm.Eve
 	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, f.reply), StopReason: llm.StopEndTurn}, nil
 }
 
+// The extractor call on Sonnet 4.6 answered by carrying on the coding
+// conversation, and every line of it was stored as a project fact
+// ("wait-output-would-pass-count", 2026-09-29).
+func TestParseExtractedDropsAConversationalReply(t *testing.T) {
+	reply := "Wait, that output would be a pass if count==10. Let me re-read.\n" +
+		"Actually a FAIL message saying expected 10 pairs would only appear if count != 10.\n" +
+		"The harness didn't show actual output — let me run it properly."
+	if xs := ParseExtracted(reply); len(xs) != 0 {
+		t.Fatalf("conversation stored as memory: %+v", xs)
+	}
+	reply = "count_test.go: expected 10 pairs, got 10 pairs\n[tool_result]--- FAIL: TestCountPairs (0.00s)"
+	if xs := ParseExtracted(reply); len(xs) != 0 {
+		t.Fatalf("conversation stored as memory: %+v", xs)
+	}
+	// JSON lines beside it still count: they are what was asked for.
+	xs := ParseExtracted(`{"type":"project","name":"x","description":"Tests need CGO_ENABLED=0"}` + "\nLet me also note something.")
+	if len(xs) != 1 || xs[0].Name != "x" {
+		t.Fatalf("xs = %+v", xs)
+	}
+}
+
 func TestExtractParsesAppliesAndReplaces(t *testing.T) {
 	s := Open(t.TempDir(), t.TempDir())
 	s.Put(Entry{Name: "commit-size", Description: "Commits under 100 lines", Body: "old"})

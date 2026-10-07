@@ -21,12 +21,16 @@ import (
 	"github.com/xmonader/janetcode/internal/jev"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/rates"
+	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/treesitter"
@@ -90,6 +94,9 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			if p.Type != n {
 				detail = p.Type + " · " + detail
 			}
+			if p.Type == "anthropic" && p.Bearer() {
+				detail += " (sent as a bearer token)"
+			}
 			if p.Model != "" {
 				detail += " · last model " + p.Model
 			}
@@ -124,6 +131,13 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 		}
 		if err == nil {
 			row(true, "selected", fmt.Sprintf("%s / %s", cfg.Provider, cfg.Model))
+			if cas := netcfg.Added(); len(cas) > 0 {
+				sort.Strings(cas)
+				row(true, "certificates", "trusted beside the system roots: "+strings.Join(cas, ", "))
+			}
+			if pol, _ := cfg.EgressPolicy(); pol.Active() {
+				row(true, "egress", pol.Describe()+" · bash: "+egressBashReach(cfg))
+			}
 			if cfg.Decisions != nil {
 				d := cfg.Decisions
 				key := os.Getenv(d.KeyEnv())
@@ -223,25 +237,32 @@ func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) err
 			warn("cua", "computer_use is on but no driver is on PATH")
 		}
 	}
+	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
+	gate := &trust.Gate{Store: ts}
+	tokens := &mcp.TokenStore{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-auth.json")}
 	if cfg != nil {
-		for name, sc := range cfg.MCPServers {
-			row(true, "mcp "+name, describeServer(sc))
+		for _, name := range sortedNames(cfg.MCPServers) {
+			sc := cfg.MCPServers[name]
+			row(true, "mcp "+name, "global · "+describeServer(sc)+authNote(tokens, name, sc)+probeServer(ctx, name, sc, cwd, tokens))
 		}
 	}
 	if servers, hash, perr := mcp.LoadProject(cwd); perr != nil {
 		row(false, "mcp project", perr.Error())
 	} else if len(servers) > 0 {
-		ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
-		trusted := ts.Trusted(cwd, hash)
-		for name, sc := range servers {
-			detail := describeServer(sc)
-			if !trusted {
-				detail += " · not trusted yet (/mcp trust in the TUI)"
+		trusted := gate.Exec(cwd, ts.Trusted(cwd, hash))
+		for _, name := range sortedNames(servers) {
+			sc := servers[name]
+			detail := "project " + mcp.ProjectFile + " · " + describeServer(sc) + authNote(tokens, name, sc)
+			if trusted {
+				// Probed only once trusted: starting a project's server
+				// runs the project's command.
+				detail += probeServer(ctx, name, sc, cwd, tokens)
+			} else {
+				detail += " · not trusted yet (/trust full or /mcp trust), so not started"
 			}
 			row(true, "mcp "+name, detail)
 		}
 	}
-	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
 	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, ts)
 	fmt.Fprintln(w)
 	repairs := doctorfix.Run(fixEnv(cfgPath, cwd, sessDir, ts), fix)
@@ -339,6 +360,56 @@ func printResult(w io.Writer, res cmdresult.Result) {
 	}
 }
 
+// sortedNames orders a server map so the checkup reads the same twice.
+func sortedNames(m map[string]mcp.ServerConfig) []string {
+	out := make([]string, 0, len(m))
+	for n := range m {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// authNote says whether a remote server has a stored OAuth login; the
+// token itself is never printed.
+func authNote(tokens *mcp.TokenStore, name string, sc mcp.ServerConfig) string {
+	if sc.URL == "" {
+		return ""
+	}
+	if _, ok := tokens.Get(name, sc.URL); ok {
+		return " · OAuth login stored"
+	}
+	if len(sc.Headers) > 0 {
+		return " · headers configured"
+	}
+	return ""
+}
+
+// probeTimeout bounds one server's handshake in the checkup.
+const probeTimeout = 10 * time.Second
+
+// probeServer starts the server, lists what it offers and stops it. It
+// calls no tool: the handshake and the list requests are the whole probe.
+func probeServer(ctx context.Context, name string, sc mcp.ServerConfig, cwd string, tokens *mcp.TokenStore) string {
+	if os.Getenv("JANETCODE_DOCTOR_NO_PROBE") != "" {
+		return ""
+	}
+	if sc.URL == "" {
+		if _, err := exec.LookPath(sc.Command); err != nil {
+			return ""
+		}
+	}
+	pctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	c, err := mcp.Start(pctx, name, sc, mcp.Options{Root: cwd, Version: version, Tokens: tokens})
+	if err != nil {
+		msg, _ := secret.Redact(err.Error())
+		return " · probe failed: " + msg
+	}
+	defer c.Close()
+	return fmt.Sprintf(" · answers: %d tools, %d prompts", len(c.Tools()), len(c.Prompts()))
+}
+
 func describeServer(sc mcp.ServerConfig) string {
 	if sc.URL != "" {
 		return "remote " + sc.URL
@@ -384,11 +455,22 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		}
 		return fmt.Sprintf("%d %s", n, strings.TrimSuffix(what, "y")+map[bool]string{true: "ies", false: "s"}[strings.HasSuffix(what, "y")])
 	}
-	trustNote := func(trusted bool, cmd string) string {
-		if trusted {
+	gate := &trust.Gate{Store: ts}
+	trustNote := func(approved bool, cmd string) string {
+		if gate.Exec(cwd, approved) {
 			return "trusted"
 		}
-		return "not trusted yet (" + cmd + " in the TUI)"
+		return "not trusted yet (/trust full, or " + cmd + " in the TUI)"
+	}
+	if st := gate.State(cwd); len(st.Caps) == 0 {
+		info("trust", "the project ships no skills, hooks, MCP servers or other capability files")
+	} else {
+		detail := fmt.Sprintf("%s (%s) · governs %s · /trust or --inspect trust for the list", st.Level, st.Source, strings.Join(capKinds(st), ", "))
+		if st.Decided {
+			row(true, "trust", detail)
+		} else {
+			warn("trust", detail+" · nothing from the project is used until a level is chosen")
+		}
 	}
 
 	global := 0
@@ -417,12 +499,20 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		row(true, "verify", fmt.Sprintf("%s in %s · %s", plural(len(vc.Commands), "command"), verify.ProjectFile, trustNote(ts.Trusted(trust.VerifyKey(cwd), hash), "/verify trust")))
 	}
 
+	if pol, err := managed.Load(os.Getenv); err != nil {
+		row(false, "managed policy", err.Error())
+	} else if pol == nil {
+		info("managed policy", "none ("+managed.SystemPath()+")")
+	} else {
+		row(true, "managed policy", strings.Join(pol.Summary(), " · "))
+	}
+
 	if rules, hash, err := perm.LoadProject(cwd); err != nil {
 		row(false, "permissions", err.Error())
-	} else if len(rules.Allow)+len(rules.Deny) == 0 {
+	} else if len(rules.Allow)+len(rules.Deny)+len(rules.Ask) == 0 {
 		n := 0
 		if cfg != nil {
-			n = len(cfg.Permissions.Allow) + len(cfg.Permissions.Deny)
+			n = len(cfg.Permissions.Allow) + len(cfg.Permissions.Deny) + len(cfg.Permissions.Ask)
 		}
 		if n > 0 {
 			row(true, "permissions", fmt.Sprintf("%s in the config, none in %s", plural(n, "rule"), perm.ProjectFile))
@@ -430,7 +520,11 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 			info("permissions", "no rules; every mutating tool asks (or use --yolo)")
 		}
 	} else {
-		detail := fmt.Sprintf("%d allow / %d deny in %s", len(rules.Allow), len(rules.Deny), perm.ProjectFile)
+		counts := fmt.Sprintf("%d allow / %d deny", len(rules.Allow), len(rules.Deny))
+		if len(rules.Ask) > 0 {
+			counts += fmt.Sprintf(" / %d ask", len(rules.Ask))
+		}
+		detail := counts + " in " + perm.ProjectFile
 		if len(rules.Allow) > 0 {
 			detail += " · allow rules " + trustNote(ts.Trusted(trust.PermissionsKey(cwd), hash), "/permissions trust")
 		}
@@ -445,7 +539,11 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		for _, sk := range skills {
 			by[sk.Source]++
 		}
-		row(true, "skills", fmt.Sprintf("%s (%d project, %d global, %d claude)", plural(len(skills), "skill"), by["project"], by["global"], by["claude"]))
+		detail := fmt.Sprintf("%s (%d project, %d global, %d claude)", plural(len(skills), "skill"), by["project"], by["global"], by["claude"])
+		if by["project"]+by["claude"]+by["agents"] > 0 && !gate.Instructions(cwd) {
+			detail += " · the project's are not used until it is trusted (/trust instructions)"
+		}
+		row(true, "skills", detail)
 	}
 	for _, sk := range skills {
 		if sk.Blocked {
@@ -525,3 +623,27 @@ func doctorLine(w io.Writer, mark, what, detail string) {
 		fmt.Fprintf(w, "%*s%s\n", col+8, "", strings.TrimLeft(l, " "))
 	}
 }
+
+// egressBashReach says how far the egress policy would reach bash with
+// this configuration's sandbox, the way /egress says it in a session.
+func egressBashReach(cfg *config.Config) string {
+	sb := &shell.Sandbox{}
+	if v := os.Getenv("JANETCODE_SANDBOX_BACKEND"); v != "" {
+		_ = sb.SetBackend(v)
+	}
+	profile := sandboxProfile(cfg.Sandbox, false)
+	if pol := cfg.Managed; pol != nil && pol.Sandbox != "" {
+		profile = pol.Sandbox
+	}
+	if profile != "" && sb.SetProfile(profile) == nil {
+		_ = sb.Enable()
+	}
+	sb.SetEgressProxy(doctorProxy{})
+	return sb.EgressNote()
+}
+
+// doctorProxy stands in for the egress proxy a session would start.
+type doctorProxy struct{}
+
+func (doctorProxy) Port() int                          { return 0 }
+func (doctorProxy) ListenOn(ip string) (string, error) { return ip + ":0", nil }

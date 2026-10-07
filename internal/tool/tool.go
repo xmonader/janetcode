@@ -5,6 +5,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Result is what a tool may return besides text: screenshots a vision
@@ -54,6 +56,10 @@ type Registry struct {
 	// it in). It is consulted on every Add, so tools that arrive late
 	// (MCP servers, plugins) are held to the same rule as built-ins.
 	gate func(name string) string
+	// disabled, when set, names tools that may never be registered (see
+	// Disable), and disabledWhy is what Withheld then says about them.
+	disabled    func(string) bool
+	disabledWhy string
 	// Intent adds a short "why this call" field to every tool's schema.
 	// It is set on the registry rather than per tool so that MCP tools and
 	// anything registered at runtime carry it too. Set it before the
@@ -124,7 +130,7 @@ func (r *Registry) Get(name string) (Tool, bool) {
 func (r *Registry) Add(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.gatedLocked(t.Name()) {
+	if r.gatedLocked(t.Name()) || r.refusedLocked(t.Name()) {
 		return
 	}
 	r.tools[t.Name()] = t
@@ -137,7 +143,7 @@ func (r *Registry) Add(t Tool) {
 func (r *Registry) AddDeferred(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.gatedLocked(t.Name()) {
+	if r.gatedLocked(t.Name()) || r.refusedLocked(t.Name()) {
 		return
 	}
 	r.tools[t.Name()] = t
@@ -177,6 +183,40 @@ func (r *Registry) Deferred() []llm.ToolDef {
 		defs = append(defs, llm.ToolDef{Name: n, Description: t.Description(), InputSchema: t.Schema()})
 	}
 	return defs
+}
+
+// Disable removes every registered tool disabled names, and refuses to
+// register one later (an MCP server's tools come up after startup). Each
+// is recorded as withheld with why, so a call to one is answered as a
+// policy decision rather than a typo.
+func (r *Registry) Disable(disabled func(string) bool, why string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.disabled, r.disabledWhy = disabled, why
+	for name := range r.tools {
+		if disabled(name) {
+			delete(r.tools, name)
+			delete(r.deferred, name)
+			if r.withheld == nil {
+				r.withheld = map[string]string{}
+			}
+			r.withheld[name] = why
+		}
+	}
+	r.version++
+}
+
+// refusedLocked reports whether Disable refuses name, recording it as
+// withheld. Called with mu held.
+func (r *Registry) refusedLocked(name string) bool {
+	if r.disabled == nil || !r.disabled(name) {
+		return false
+	}
+	if r.withheld == nil {
+		r.withheld = map[string]string{}
+	}
+	r.withheld[name] = r.disabledWhy
+	return true
 }
 
 // Remove unregisters a tool.
@@ -473,11 +513,83 @@ func decodeStrict(input json.RawMessage, v any) error {
 		// "timeout" for "timeout_ms". The accepted names are in the
 		// struct; say them.
 		if fields := jsonFields(v); fields != "" && strings.Contains(err.Error(), "unknown field") {
+			// The closest accepted name first: "timeout" for "timeout_ms"
+			// is a near miss, and saying so saves reading the list.
+			if bad := unknownFieldName(err); bad != "" {
+				if near := textfmt.NearestName(bad, strings.Split(fields, ", ")); near != "" {
+					return fmt.Errorf("invalid input: %w; did you mean %q? This tool accepts: %s", err, near, fields)
+				}
+			}
 			return fmt.Errorf("invalid input: %w; this tool accepts: %s", err, fields)
+		}
+		// encoding/json says "cannot unmarshal string into Go struct field
+		// .limit of type int": Go's words for a JSON shape. Say it in JSON's.
+		var te *json.UnmarshalTypeError
+		if errors.As(err, &te) && te.Field != "" {
+			return fmt.Errorf("invalid input: %s must be %s, not %s", te.Field, jsonShape(te.Type), jsonKind(te.Value))
 		}
 		return fmt.Errorf("invalid input: %w", err)
 	}
 	return nil
+}
+
+// unknownFieldName is the name in encoding/json's `json: unknown field
+// "x"` error, or "".
+func unknownFieldName(err error) string {
+	msg := err.Error()
+	i := strings.Index(msg, `unknown field "`)
+	if i < 0 {
+		return ""
+	}
+	rest := msg[i+len(`unknown field "`):]
+	if j := strings.IndexByte(rest, '"'); j >= 0 {
+		return rest[:j]
+	}
+	return ""
+}
+
+// jsonShape names the JSON value a Go type decodes from.
+func jsonShape(t reflect.Type) string {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.String:
+		return "a string"
+	case reflect.Bool:
+		return "true or false"
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "a whole number"
+	case reflect.Float32, reflect.Float64:
+		return "a number"
+	case reflect.Slice, reflect.Array:
+		if t.Elem().Kind() == reflect.String {
+			return "a list of strings"
+		}
+		return "a list"
+	case reflect.Map, reflect.Struct:
+		return "an object"
+	}
+	return "a " + t.String()
+}
+
+// jsonKind names what encoding/json found ("string", "number 1.5",
+// "array") in plain words.
+func jsonKind(v string) string {
+	switch {
+	case v == "array":
+		return "a list"
+	case v == "object":
+		return "an object"
+	case v == "bool":
+		return "true/false"
+	case strings.HasPrefix(v, "number"):
+		return "a number (" + strings.TrimSpace(strings.TrimPrefix(v, "number")) + ")"
+	case v == "":
+		return "that value"
+	}
+	return "a " + v
 }
 
 // unquoteStructured replaces each top-level value of input that is a

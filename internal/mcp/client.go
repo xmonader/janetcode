@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -41,6 +42,46 @@ type ServerConfig struct {
 	ClientID     string `json:"client_id,omitempty"`
 	ClientSecret string `json:"client_secret,omitempty"`
 	Scope        string `json:"scope,omitempty"`
+	// AuthServerMetadataURL names the authorization server's metadata
+	// document (RFC 8414) for a server that advertises a wrong
+	// authorization server, or none: /mcp auth uses it instead of
+	// discovery.
+	AuthServerMetadataURL string `json:"auth_server_metadata_url,omitempty"`
+	// OAuth is the same settings in the shape pi and other agents write
+	// in .mcp.json ({"oauth": {"authServerMetadataUrl": ...}}); the
+	// fields above win when both are set.
+	OAuth *OAuthConfig `json:"oauth,omitempty"`
+}
+
+// OAuthConfig is the "oauth" block of a server entry as other agents
+// write it.
+type OAuthConfig struct {
+	AuthServerMetadataURL string `json:"authServerMetadataUrl,omitempty"`
+	ClientID              string `json:"clientId,omitempty"`
+	ClientSecret          string `json:"clientSecret,omitempty"`
+	Scope                 string `json:"scope,omitempty"`
+}
+
+// OAuthSettings returns the client id, client secret (${ENV} expanded),
+// scope and metadata URL /mcp auth uses for this server, from the
+// janetcode fields or else the "oauth" block.
+func (c ServerConfig) OAuthSettings() (clientID, clientSecret, scope, metadataURL string) {
+	clientID, clientSecret, scope, metadataURL = c.ClientID, c.ClientSecret, c.Scope, c.AuthServerMetadataURL
+	if o := c.OAuth; o != nil {
+		if clientID == "" {
+			clientID = o.ClientID
+		}
+		if clientSecret == "" {
+			clientSecret = o.ClientSecret
+		}
+		if scope == "" {
+			scope = o.Scope
+		}
+		if metadataURL == "" {
+			metadataURL = o.AuthServerMetadataURL
+		}
+	}
+	return clientID, os.ExpandEnv(clientSecret), scope, metadataURL
 }
 
 // ToolInfo is one tool the server offers.
@@ -80,8 +121,15 @@ type Client struct {
 	pendMu  sync.Mutex
 	pending map[int64]chan rpcReply
 
+	// toolsMu guards tools, which a tools/list_changed notification
+	// replaces while the session may be reading them.
+	toolsMu sync.Mutex
 	tools   []ToolInfo
 	prompts []PromptInfo
+
+	// onToolsChanged runs after the server said its tool list changed
+	// and the new list has been loaded (Options.OnToolsChanged).
+	onToolsChanged func(*Client)
 
 	root  string // reported to roots/list
 	debug io.Writer
@@ -152,6 +200,9 @@ type Options struct {
 	HandshakeTimeout time.Duration
 	// Tokens holds OAuth tokens for remote servers (see Authorize).
 	Tokens *TokenStore
+	// OnToolsChanged runs, on its own goroutine, after the server sent
+	// notifications/tools/list_changed and Tools has been reloaded.
+	OnToolsChanged func(*Client)
 }
 
 // Start launches or connects to the server, completes the handshake and
@@ -163,6 +214,8 @@ func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*C
 		root:    opts.Root,
 		debug:   opts.Debug,
 		done:    make(chan struct{}),
+
+		onToolsChanged: opts.OnToolsChanged,
 	}
 	var err error
 	switch {
@@ -263,7 +316,9 @@ func (c *Client) loadTools(ctx context.Context) error {
 		}
 		cursor = page.NextCursor
 	}
+	c.toolsMu.Lock()
 	c.tools = all
+	c.toolsMu.Unlock()
 	return nil
 }
 
@@ -439,7 +494,33 @@ func (c *Client) ReadResource(ctx context.Context, uri string) (string, error) {
 }
 
 // Tools lists what the server offers, as reported at startup.
-func (c *Client) Tools() []ToolInfo { return append([]ToolInfo(nil), c.tools...) }
+func (c *Client) Tools() []ToolInfo {
+	c.toolsMu.Lock()
+	defer c.toolsMu.Unlock()
+	return append([]ToolInfo(nil), c.tools...)
+}
+
+// reloadTools answers notifications/tools/list_changed: the server's tool
+// set is fetched again and the owner told, so a server that grows or
+// drops tools mid-session is not called by its old list.
+func (c *Client) reloadTools() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	go func() {
+		select {
+		case <-c.done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	if err := c.loadTools(ctx); err != nil {
+		c.logf("tools/list after list_changed failed: %v", err)
+		return
+	}
+	if c.onToolsChanged != nil {
+		c.onToolsChanged(c)
+	}
+}
 
 // Image is a base64 image a tool returned, typically a screenshot.
 type Image struct {
@@ -517,6 +598,17 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 }
 
 // Close stops the server or connection. It is safe to call more than once.
+// RemoteHost is the host of a remote (HTTP) server, "" for a local one
+// run over stdio.
+func (c *Client) RemoteHost() string {
+	if t, ok := c.tr.(*httpTransport); ok {
+		if u, err := url.Parse(t.url); err == nil {
+			return strings.ToLower(u.Hostname())
+		}
+	}
+	return ""
+}
+
 func (c *Client) Close() error {
 	c.tr.close()
 	c.fail(fmt.Errorf("%w: the client closed it", ErrDisconnected))
@@ -550,6 +642,16 @@ func (c *Client) exitError() error {
 		return c.exitErr
 	}
 	return ErrDisconnected
+}
+
+// Err is why the connection ended, or nil while it is up.
+func (c *Client) Err() error {
+	select {
+	case <-c.done:
+		return c.exitError()
+	default:
+		return nil
+	}
 }
 
 // Done is closed once the connection is finished — the server process
@@ -633,8 +735,10 @@ func (c *Client) dispatch(msg rpcMessage) {
 	switch {
 	case msg.Method != "" && msg.ID != nil:
 		go c.handleRequest(msg)
+	case msg.Method == "notifications/tools/list_changed":
+		go c.reloadTools()
 	case msg.Method != "":
-		// notification (progress, log, list_changed): nothing to do
+		// other notifications (progress, log): nothing to do
 	case msg.ID != nil:
 		var id int64
 		if err := json.Unmarshal(*msg.ID, &id); err != nil {

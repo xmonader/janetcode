@@ -77,6 +77,10 @@ func loadConfig(o *options) (cfg *config.Config, needsConnect bool, err error) {
 		if e := cfg.Decisions.Validate(); e != nil {
 			return cfg, needsConnect, e
 		}
+		// Installed plugins' hooks and servers join the user's own.
+		if p, e := config.Path(); e == nil {
+			applyPlugins(filepath.Dir(p), cfg)
+		}
 	}
 	return cfg, needsConnect, err
 }
@@ -191,12 +195,15 @@ func evalMode(o *options, cfg *config.Config, prov llm.Provider) (bool, error) {
 	}
 	return true, runEval(ctx, cfg, prov, evalOptions{path: o.evalPath, jobs: o.evalJobs, only: o.evalOnly, jsonOut: o.evalJSON, keep: o.evalKeep,
 		runs: o.evalRuns, compare: o.evalCompare, off: o.evalOff, route: o.evalRoute, label: o.evalLabel, prompt: ov,
-		timeout: o.evalTimeout, maxTurns: o.evalTurns, noToolLimit: o.evalNoLimit, compactAt: o.evalCompact, facts: o.evalFacts, factsBlind: o.evalBlind, gate: o.evalGate})
+		timeout: o.evalTimeout, maxTurns: o.evalTurns, noToolLimit: o.evalNoLimit, strictProvenance: o.evalStrict, compactAt: o.evalCompact, facts: o.evalFacts, factsBlind: o.evalBlind, gate: o.evalGate})
 }
 
 // openSession resumes the session --resume or --continue names, or starts
-// a new one for this directory.
+// a new one for this directory, and takes its lease: one process runs
+// turns in a session at a time. A session another process holds is
+// refused with who holds it; --fork continues in a copy instead.
 func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.Session, []llm.Message, error) {
+	session.SetHolder(holderFor(o))
 	resumeID := o.resume
 	if o.cont && resumeID == "" {
 		var err error
@@ -212,13 +219,53 @@ func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.
 		if err != nil {
 			return nil, nil, fmt.Errorf("resume: %w", err)
 		}
+		if o.fork {
+			ns, err := session.Fork(sessDir, sess, "")
+			if err != nil {
+				return nil, nil, fmt.Errorf("fork: %w", err)
+			}
+			if err := ns.EnsureWritten(); err != nil {
+				return nil, nil, fmt.Errorf("fork: %w", err)
+			}
+			sess = ns
+		}
+		if err := sess.Acquire(); err != nil {
+			return nil, nil, leaseRefusal(err)
+		}
 		return sess, history, nil
 	}
 	sess, err := session.New(sessDir, cwd, cfg.Provider, cfg.Model)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create session: %w", err)
 	}
+	if err := sess.Acquire(); err != nil {
+		return nil, nil, leaseRefusal(err)
+	}
 	return sess, nil, nil
+}
+
+// leaseRefusal adds the ways on to a session another process holds.
+func leaseRefusal(err error) error {
+	var le *session.LeasedError
+	if !errors.As(err, &le) {
+		return err
+	}
+	return fmt.Errorf("%w\n  janetcode --resume %s --fork   continue in a copy of it\n  janetcode --show %s           read it without opening it", err, le.ID, le.ID)
+}
+
+// holderFor names this process for a lease refusal another one shows.
+func holderFor(o *options) string {
+	switch {
+	case o.acpMode:
+		return "an editor (ACP)"
+	case o.web:
+		return "the web interface"
+	case os.Getenv(headless.BgEnv) != "":
+		return "a background run"
+	case o.promptText != "" || o.watchCmd != "" || o.recipeName != "":
+		return "a headless run"
+	}
+	return "the terminal interface"
 }
 
 // maxBackgroundStdin is the most piped input --bg will fold into the
@@ -255,6 +302,13 @@ func bgMode(o *options, sess *session.Session, initial string) (bool, error) {
 	text := strings.TrimSpace(o.promptText)
 	if text == "" {
 		text = initial
+	}
+	if o.recoverTurn {
+		// The child carries on the dead turn: --resume <id> --recover.
+		if text != "" {
+			return true, fmt.Errorf("%w: --recover takes no prompt", headless.ErrBadInput)
+		}
+		return true, launchBackground(sess, "", o.addDir, append(bgPermissionArgs(o), bgRunArgs(o)...))
 	}
 	if text == "" {
 		return true, fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)

@@ -54,6 +54,9 @@ func (t *resourceListTool) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 }
 func (t *resourceListTool) Run(ctx context.Context, _ json.RawMessage) (string, error) {
+	if err := t.c.Err(); err != nil {
+		return "", downError(t.c.Name, err)
+	}
 	items, err := t.c.ListResources(ctx)
 	if err != nil {
 		return "", err
@@ -100,6 +103,9 @@ func (t *resourceReadTool) Run(ctx context.Context, input json.RawMessage) (stri
 	if err := json.Unmarshal(input, &in); err != nil || strings.TrimSpace(in.URI) == "" {
 		return "", fmt.Errorf("uri is required")
 	}
+	if err := t.c.Err(); err != nil {
+		return "", downError(t.c.Name, err)
+	}
 	out, err := t.c.ReadResource(ctx, in.URI)
 	if err != nil {
 		return "", err
@@ -130,6 +136,15 @@ func nonce() string {
 }
 
 func (t *Tool) Name() string { return t.name }
+
+// EgressHosts is the remote server's host: the call's arguments go there.
+// A local server is a process on this machine and names none.
+func (t *Tool) EgressHosts(json.RawMessage) []string {
+	if h := t.Client.RemoteHost(); h != "" {
+		return []string{h}
+	}
+	return nil
+}
 func (t *Tool) Description() string {
 	d := strings.TrimSpace(t.Info.Description)
 	if d == "" {
@@ -187,6 +202,9 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 }
 
 func (t *Tool) RunRich(ctx context.Context, input json.RawMessage) (tool.Result, error) {
+	if err := t.Client.Err(); err != nil {
+		return tool.Result{}, downError(t.Client.Name, err)
+	}
 	res, err := t.Client.CallTool(ctx, t.Info.Name, input)
 	if lostConnection(err) && ctx.Err() == nil {
 		// The reply never arrived, which says nothing about whether the
@@ -224,6 +242,13 @@ func (t *Tool) RunRich(ctx context.Context, input json.RawMessage) (tool.Result,
 		out.Images = append(out.Images, llm.Block{Type: llm.BlockImage, MediaType: mime, Data: img.Data})
 	}
 	return out, nil
+}
+
+// downError is what a call to a server that is known to be gone returns:
+// the tool was not called, so the model is not left wondering whether it
+// ran, and it learns the server is being brought back.
+func downError(server string, reason error) error {
+	return fmt.Errorf("the %s MCP server is down (%v), so the tool was not called. janetcode is reconnecting it; try again shortly, or tell the user it can be restarted with /mcp reconnect %s", server, reason, server)
 }
 
 func firstNonEmpty(a, b string) string {

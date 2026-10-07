@@ -16,7 +16,7 @@ import (
 // are silent: the only consequence is that /eval keep later cannot keep
 // this session.
 func (a *Agent) recordStart(ctx context.Context) {
-	if a.Snapshots == nil {
+	if a.userRepo() == nil {
 		return
 	}
 	sess, ok := a.Log.(*session.Session)

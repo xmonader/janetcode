@@ -14,11 +14,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/jev"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/statusline"
@@ -43,6 +47,12 @@ type Config struct {
 	// Notes are things load decided on the user's behalf and should say
 	// so: a provider switched because the configured one had no key.
 	Notes []string `json:"-"`
+
+	// Managed is the administrator's managed policy (see package
+	// managed), nil when there is none. load has already applied its
+	// settings; /config, --set and the mode switches consult it for what
+	// they may not change.
+	Managed *managed.Policy `json:"-"`
 
 	Provider  string `json:"provider"`
 	Model     string `json:"model"`
@@ -78,6 +88,11 @@ type Config struct {
 	// dark, light, or the name of a builtin or user theme. See the themes
 	// package for the builtins.
 	Theme string `json:"theme,omitempty"`
+	// CAFile is a PEM file of extra certificate authorities every
+	// outbound HTTPS connection trusts beside the system's (a
+	// TLS-intercepting proxy, a private gateway). JANETCODE_CA_FILE adds
+	// one from the environment. See netcfg.
+	CAFile string `json:"ca_file,omitempty"`
 	// Themes are user-defined palettes by name, each a role→colour map with
 	// an optional base to inherit from. They override or add to the
 	// builtins and are validated on load (a bad colour or an unknown role
@@ -108,6 +123,26 @@ type Config struct {
 	// Hooks run for every project. Project-specific ones go in
 	// <project>/.janetcode/hooks.json and need a one-time approval.
 	Hooks hook.Config `json:"hooks,omitempty"`
+	// Keybindings move the terminal interface's prompt keys: action name
+	// to a key, a list of keys, or "" to unbind it ("history_search":
+	// "ctrl+r", "effort": ["alt+e", "f2"]). An action named here loses its
+	// default keys. Unknown actions, keys bubbletea cannot report, plain
+	// characters and a key left on two actions are ErrBadConfig. KeyMap
+	// is the resolved table, built by load.
+	Keybindings keymap.Overrides `json:"keybindings,omitempty"`
+	KeyMap      *keymap.Map      `json:"-"`
+	// VimMode starts the composer in vim mode (normal/insert); /vim
+	// toggles it for the session.
+	VimMode bool `json:"vim_mode,omitempty"`
+	// AskTimeout is how long a question from the ask tool waits for an
+	// answer in an interactive turn before the turn goes on with the
+	// model's recommended choice: a duration ("90s", "5m"), "0" to not
+	// wait, or "forever" (the default, "" too). AskTimeoutUnattended is
+	// the same for a turn nobody is necessarily watching — a --bg run, a
+	// goal round, a /loop firing — default 2m. A question with no
+	// recommendation always waits; see ParseAskWait.
+	AskTimeout           string `json:"ask_timeout,omitempty"`
+	AskTimeoutUnattended string `json:"ask_timeout_unattended,omitempty"`
 	// StatusLine is a command whose output the terminal interface shows
 	// under the input; it gets the session as JSON on stdin.
 	StatusLine *statusline.Config `json:"status_line,omitempty"`
@@ -155,6 +190,15 @@ type Config struct {
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
+	// MemoryConfirm holds every memory the model or the extractor writes
+	// as pending until the user approves it (/memory pending); what the
+	// user writes with /remember is saved at once. /memory confirm
+	// on|off changes it for the session.
+	MemoryConfirm bool `json:"memory_confirm,omitempty"`
+	// Egress restricts which hosts a turn may send data to: fetch_url,
+	// web search, remote MCP servers and shell commands that visibly
+	// reach a host. Requests to the model provider are always allowed.
+	Egress *EgressConfig `json:"egress,omitempty"`
 	// Hints enables the one-time notes about features a session could
 	// have used; nil means on. Each fires at most once per project, so
 	// turning them off is for somebody who knows the harness and wants
@@ -204,6 +248,20 @@ type Config struct {
 	AdvisorMode string `json:"advisor_mode,omitempty"`
 	// AdvisorMaxConsults caps forced consults per turn. 0 is two.
 	AdvisorMaxConsults int `json:"advisor_max_consults,omitempty"`
+	// AdvisorTurnStartStyle is what the consult at the start of a turn
+	// asks for: "plan" (the default; only with advisor_mode always) or
+	// "orient": a model reads the request, the project's checks and the
+	// likeliest files and says where to LOOK, what to WATCH FOR and how
+	// to CHECK, never what to change. Orient runs on every turn, on the
+	// advisor slot, else the strong slot, else the session's own model.
+	AdvisorTurnStartStyle string `json:"advisor_turn_start_style,omitempty"`
+	// VerifyBaseline runs the verify commands at the start of each turn,
+	// before the first change, so the gate sends a turn back only for the
+	// failures it caused, not for ones that were already there. On by
+	// default since the 2026-10-02 A/B (docs/benchmarks/orient-baseline):
+	// nil is on, false turns it off. It costs one extra run of the checks
+	// per turn, in the background.
+	VerifyBaseline *bool `json:"verify_baseline,omitempty"`
 	// StrongModel is the strong slot of the cheap/default/strong trio:
 	// route_cheap names the cheap one, model the default, this one the
 	// model a failing turn escalates to. Empty means there is no tier
@@ -229,7 +287,42 @@ type Config struct {
 	// loop. Nil means the feature is invisible. When the block is
 	// present each consumer is still off until its own key says so.
 	Decisions *DecisionsConfig `json:"decisions,omitempty"`
+	// Language is the language the model answers in and the interface's
+	// own words are shown in: a code ("es", "pt-BR") or a name
+	// ("Spanish", "español"). Empty leaves the model to follow the user
+	// and takes the interface's language from LANG. The interface falls
+	// back to English for a language its catalogue does not carry; the
+	// model is told the language whatever it is.
+	Language string `json:"language,omitempty"`
+	// ScreenReader starts the terminal session as a linear, append-only
+	// line interface instead of the full-screen one (see --screen-reader).
+	ScreenReader *bool `json:"screen_reader,omitempty"`
+	// Voice configures speech-to-text for /voice. Nil uses the defaults:
+	// the active provider's endpoint and a whisper model.
+	Voice *VoiceConfig `json:"voice,omitempty"`
 }
+
+// VoiceConfig is the "voice" config block: where /voice sends a recording
+// to be transcribed. Every field may be empty.
+type VoiceConfig struct {
+	// Model is the transcription model; empty is "whisper-1".
+	Model string `json:"model,omitempty"`
+	// Endpoint is an OpenAI-compatible base URL (".../v1") whose
+	// /audio/transcriptions takes the recording. Empty is the active
+	// provider's base URL.
+	Endpoint string `json:"endpoint,omitempty"`
+	// APIKeyEnv names the environment variable holding the key for
+	// Endpoint. Empty is the active provider's key.
+	APIKeyEnv string `json:"api_key_env,omitempty"`
+	// Recorder is the command that records; empty detects arecord, sox's
+	// rec or ffmpeg on PATH. It gets the WAV path to write as its last
+	// argument and must stop cleanly on SIGINT.
+	Recorder string `json:"recorder,omitempty"`
+}
+
+// ScreenReaderOn reports whether the config asks for the screen-reader
+// interface.
+func (c *Config) ScreenReaderOn() bool { return c != nil && c.ScreenReader != nil && *c.ScreenReader }
 
 // DecisionsConfig is the "decisions" config block. Everything about it
 // is advisory: no answer it produces can permit, refuse or edit — the
@@ -351,6 +444,11 @@ func (c *Config) ProofNotesEnabled() bool { return c.ProofNotes == nil || *c.Pro
 
 // UpdateCheckEnabled reports whether the TUI says when a release is out.
 func (c *Config) UpdateCheckEnabled() bool { return c.UpdateCheck == nil || *c.UpdateCheck }
+
+// VerifyBaselineEnabled reports whether the gate compares with a baseline
+// run of the checks taken before the turn's first change; on unless the
+// config says false.
+func (c *Config) VerifyBaselineEnabled() bool { return c.VerifyBaseline == nil || *c.VerifyBaseline }
 
 // ModelMeta is what a provider's model list said about one model.
 type ModelMeta struct {
@@ -538,7 +636,16 @@ func Load(ov Overrides) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return load(p, os.Getenv, ov)
+	cfg, err := load(p, os.Getenv, ov)
+	// The extra roots go in before any client is built from this
+	// configuration: a provider, MCP or fetch_url made first would
+	// refuse the proxy's certificate for the rest of the process.
+	if cfg != nil && cfg.CAFile != "" {
+		if _, caErr := netcfg.AddCAFile(cfg.CAFile); caErr != nil {
+			return nil, badf("config %s: ca_file: %v", p, caErr)
+		}
+	}
+	return cfg, err
 }
 
 // inferProvider picks a backend when none was configured: Anthropic when
@@ -567,10 +674,10 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]Provider{}
 	}
-	fold := func(name, typ string, legacy ProviderConfig, keyEnv, urlEnv string) {
+	fold := func(name, typ string, legacy ProviderConfig, keyEnv, tokenEnv, urlEnv string) {
 		e, ok := cfg.Providers[name]
 		if !ok {
-			if legacy.APIKey == "" && legacy.BaseURL == "" && getenv(keyEnv) == "" && getenv(urlEnv) == "" {
+			if legacy.APIKey == "" && legacy.BaseURL == "" && getenv(keyEnv) == "" && (tokenEnv == "" || getenv(tokenEnv) == "") && getenv(urlEnv) == "" {
 				return
 			}
 			e = Provider{Type: typ}
@@ -587,15 +694,26 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 		if k := getenv(keyEnv); k != "" {
 			e.SetKeys(strings.Split(k, ","))
 			e.envKeys = true
+			if typ == "anthropic" {
+				e.Auth = ""
+			}
+		} else if t := getenv(tokenEnv); t != "" {
+			// ANTHROPIC_AUTH_TOKEN, as Claude Code reads it: the same
+			// key, sent as a bearer token, which is what gateways in
+			// front of the Messages API ask for. An x-api-key variable
+			// set beside it wins, as it does in the SDK.
+			e.SetKeys(strings.Split(t, ","))
+			e.envKeys = true
+			e.Auth = "bearer"
 		}
 		if u := getenv(urlEnv); u != "" {
 			e.BaseURL = u
 		}
 		cfg.Providers[name] = e
 	}
-	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")
-	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "OPENAI_BASE_URL")
-	fold("gemini", TypeGemini, ProviderConfig{}, "GEMINI_API_KEY", "GEMINI_BASE_URL")
+	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
+	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "", "OPENAI_BASE_URL")
+	fold("gemini", TypeGemini, ProviderConfig{}, "GEMINI_API_KEY", "", "GEMINI_BASE_URL")
 	for n, e := range cfg.Providers {
 		if pre, ok := FindPreset(n); ok {
 			if e.Type == "" {
@@ -650,6 +768,13 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 	}
 	mergeProviders(cfg, getenv)
+	for _, n := range cfg.ProviderNames() {
+		switch strings.ToLower(strings.TrimSpace(cfg.Providers[n].Auth)) {
+		case "", "api_key", "bearer":
+		default:
+			return nil, badf("config %s: providers.%s.auth: %q is not one of api_key, bearer", path, n, cfg.Providers[n].Auth)
+		}
+	}
 	// Normalised as cfg.Provider is below, so "OpenRouter" in the file
 	// is recognised as the provider the file's model belongs to.
 	fileProvider, fileModel := strings.ToLower(strings.TrimSpace(cfg.Provider)), cfg.Model
@@ -672,6 +797,13 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 	if ov.AutoApprove {
 		cfg.AutoApprove = true
+	}
+	pol, err := managed.Load(getenv)
+	if err != nil {
+		return nil, badf("%v", err)
+	}
+	if err := applyManaged(cfg, pol, ov); err != nil {
+		return nil, err
 	}
 
 	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
@@ -746,6 +878,12 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	default:
 		return nil, badf("provider %q has type %q (want %s)", cfg.Provider, active.Type, strings.Join(Types, ", "))
 	}
+	if !pol.ProviderAllowed(cfg.Provider, active.Type) {
+		return nil, badValue(ov.Provider != "", "provider", "%v", pol.Refusal(fmt.Sprintf("provider %q", cfg.Provider)))
+	}
+	if !pol.ModelAllowed(cfg.Model) {
+		return nil, badValue(ov.Model != "", "model", "%v", pol.Refusal(fmt.Sprintf("model %q", cfg.Model)))
+	}
 	if !llm.ValidEffort(cfg.Effort) {
 		return nil, badValue(ov.Effort != "", "effort", "invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
 	}
@@ -792,6 +930,11 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if _, err := cfg.Permissions.Rules(); err != nil {
 		return nil, badf("%s: permissions: %v", path, err)
 	}
+	km, err := keymap.Resolve(cfg.Keybindings)
+	if err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	cfg.KeyMap = km
 	if err := cfg.LSP.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
@@ -807,9 +950,54 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if err := cfg.Decisions.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
+	if _, err := cfg.EgressPolicy(); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	if _, _, err := cfg.AskWaits(); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	if err := ValidateLanguage(cfg.Language); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
 	// A file that cannot be used beats credentials that are merely
 	// missing: /connect can supply a key, not repair a broken theme.
 	return cfg, credErr
+}
+
+// applyManaged lays the managed policy over a configuration that already
+// holds the file, the environment and the command line: its settings
+// replace theirs, a disabled --yolo is refused when it was asked for on
+// the command line and switched off when the file asked for it, and a
+// forced sandbox profile is the project's. A nil policy changes nothing.
+func applyManaged(cfg *Config, pol *managed.Policy, ov Overrides) error {
+	cfg.Managed = pol
+	if pol == nil {
+		return nil
+	}
+	if len(pol.Settings) > 0 {
+		obj, err := json.Marshal(pol.Settings)
+		if err != nil {
+			return badf("managed policy settings: %v", err)
+		}
+		dec := json.NewDecoder(strings.NewReader(string(obj)))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(cfg); err != nil {
+			return badf("managed policy %s: settings: %v", strings.Join(pol.Sources, ", "), err)
+		}
+	}
+	if pol.ModeDisabled(managed.ModeYolo) {
+		if ov.AutoApprove {
+			return badValue(true, "yolo", "%v", pol.Refusal("--yolo"))
+		}
+		if cfg.AutoApprove {
+			cfg.Notes = append(cfg.Notes, "auto_approve is off: the managed policy disables yolo")
+		}
+		cfg.AutoApprove = false
+	}
+	if pol.Sandbox != "" {
+		cfg.Sandbox = pol.Sandbox
+	}
+	return nil
 }
 
 // validateSandbox accepts an empty value, "off", or a profile name the
@@ -906,4 +1094,32 @@ func (c *Config) ThinkingEnabled() bool {
 	}
 	m := strings.ToLower(c.Model)
 	return !strings.Contains(m, "haiku") && !strings.Contains(m, "claude-3")
+}
+
+// EgressConfig is the "egress" block: which hosts a turn may send data
+// to, and what happens with any other.
+type EgressConfig struct {
+	// Default is what happens with a host not in Allow: "allow" (the
+	// default: no restriction), "ask" (the call asks, whatever the mode)
+	// or "block" (the call is refused).
+	Default string `json:"default,omitempty"`
+	// Allow lists hosts: "github.com", "*.golang.org" (any subdomain) or
+	// ".pypi.org" (the domain and its subdomains).
+	Allow []string `json:"allow,omitempty"`
+}
+
+// EgressPolicy is the configured policy; nil when none is set.
+func (c *Config) EgressPolicy() (*egress.Policy, error) {
+	if c == nil || c.Egress == nil {
+		return nil, nil
+	}
+	v, err := egress.ParseVerdict(c.Egress.Default)
+	if err != nil {
+		return nil, err
+	}
+	p := &egress.Policy{Default: v, Allow: c.Egress.Allow}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
 }

@@ -372,7 +372,9 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 		}
 	}
 	if out == "" && runErr == nil && ctxErr == nil {
-		b.WriteString("(the script printed nothing)")
+		// The usual cause is a script that computed its answer and never
+		// printed it: a returned or last-expression value is not shown.
+		b.WriteString("(the script printed nothing: only what it prints comes back, so print() the results you need)")
 	}
 	nl(&b)
 	fmt.Fprintf(&b, "[%s]", textfmt.Plural(calls, "tool call"))
@@ -535,7 +537,13 @@ func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) 
 func (s *Script) stub() string {
 	var b strings.Builder
 	b.WriteString(scriptStub)
-	for _, t := range s.tools() {
+	tools := s.tools()
+	names := make([]string, len(tools))
+	for i, t := range tools {
+		names[i] = fmt.Sprintf("%q", t.name)
+	}
+	fmt.Fprintf(&b, "\n_TOOLS = [%s]\n", strings.Join(names, ", "))
+	for _, t := range tools {
 		if t.primary == "" {
 			fmt.Fprintf(&b, "\ndef %s(**kwargs):\n    return call(%q, **kwargs)\n", t.name, t.name)
 			continue
@@ -614,6 +622,36 @@ def plain(text):
 def shell_quote(s):
     """Quote a string for safe interpolation into a shell command."""
     return shlex.quote(str(s))
+
+
+def _fold(s):
+    return s.lower().replace("_", "").replace("-", "").replace(".", "")
+
+
+def _nearest(name):
+    """The tool a misspelt name most likely meant, or None."""
+    want = _fold(name)
+    for t in _TOOLS:
+        if _fold(t) == want:
+            return t
+    import difflib
+    close = difflib.get_close_matches(want, [_fold(t) for t in _TOOLS], n=1, cutoff=0.75)
+    if close:
+        return next(t for t in _TOOLS if _fold(t) == close[0])
+    return None
+
+
+def __getattr__(name):
+    # A name this module does not define. Python looks up dunders here
+    # too (__path__, __spec__), and those must stay AttributeErrors.
+    if name.startswith("_"):
+        raise AttributeError(name)
+    near = _nearest(name)
+    hint = f"did you mean {near}()?" if near else "tools: " + ", ".join(_TOOLS)
+
+    def missing(*args, **kwargs):
+        raise ToolError(f"janetcode_tools has no tool {name!r}; {hint}")
+    return missing
 
 
 def retry(fn, attempts=3, delay=1.0):

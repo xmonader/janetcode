@@ -124,6 +124,10 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 		m.term.focused = false
 		return nil, true
 
+	case editorDoneMsg:
+		m.editorDone(msg)
+		return nil, true
+
 	case tea.MouseMsg:
 		if m.mouseSelect(msg) {
 			return nil, true
@@ -140,7 +144,7 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 			// (or in the session's worktree) from outside; follow it.
 			m.followBranch()
 		}
-		if m.turn.running || m.ov.kind != "" {
+		if m.turn.running || m.ov.kind != "" || m.asking != nil {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
@@ -227,6 +231,10 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		m.term.announce("janetcode", "a question for you")
 		return nil, true
 
+	case askTimedOutMsg:
+		m.askTimedOut()
+		return nil, true
+
 	case agentDoneMsg:
 		m.drainEvents()
 		cmd := m.finishTurn(msg)
@@ -289,6 +297,10 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 			m.note(msg.note)
 		}
 		for _, e := range msg.added {
+			if e.Pending {
+				m.note("memory held for your confirmation (/memory pending): " + memoryLine(e))
+				continue
+			}
 			m.note("remembered: " + memoryLine(e))
 		}
 		m.refresh(false)
@@ -317,6 +329,10 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 
 	case recipeDoneMsg:
 		return m.finishRecipe(msg), true
+
+	case gitflowMsg:
+		m.handleGitflow(msg)
+		return nil, true
 
 	case btwMsg:
 		if msg.err != nil {
@@ -358,7 +374,7 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		return cmd, true
 
 	case editorDoneMsg:
-		m.finishEditor(msg)
+		m.editorDone(msg)
 		return nil, true
 
 	case updateNoticeMsg:
@@ -424,6 +440,10 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 	case mcpFetchMsg:
 		return m.handleMCPFetch(msg), true
 
+	case mcpNoteMsg:
+		m.note(msg.text)
+		m.refresh(false)
+		return nil, true
 	case mcpDoneMsg:
 		if msg.err != nil {
 			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))
@@ -440,6 +460,10 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 
+	case voiceDoneMsg:
+		m.finishVoice(msg)
+		m.refresh(false)
+		return nil, true
 	case shellDoneMsg:
 		m.finishShell(msg)
 		var cmd tea.Cmd

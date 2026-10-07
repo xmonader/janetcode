@@ -18,10 +18,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/md"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/plugin"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -59,7 +61,7 @@ type Skill struct {
 // repoSupplied reports a skill that came with the working directory
 // rather than from the user's own configuration.
 func repoSupplied(source string) bool {
-	return source == "project" || source == "agents" || source == "claude"
+	return source == "project" || source == "agents" || source == "claude" || strings.HasPrefix(source, "plugin:")
 }
 
 // maxFiles bounds the supporting files listed per skill.
@@ -79,6 +81,11 @@ func Load(cwd, configDir string) []Skill {
 	var locs []loc
 	if configDir != "" {
 		locs = append(locs, loc{filepath.Join(configDir, "skills"), "global"})
+		// An installed plugin's skills sit between the user's own and the
+		// project's: a project skill of the same name still wins.
+		for _, src := range plugin.Dirs(configDir, "skills") {
+			locs = append(locs, loc{src.Dir, "plugin:" + src.Plugin})
+		}
 	}
 	if cwd != "" {
 		locs = append(locs,
@@ -600,6 +607,9 @@ func TurnPrep(in *Injector, mem *memory.Store) func(context.Context, []llm.Block
 		blocks, names := in.Prepare(blocks)
 		if len(names) > 0 {
 			notes = append(notes, "skills attached: "+strings.Join(names, ", "))
+			for _, n := range names {
+				egress.From(ctx).Add(egress.Entry{Kind: egress.KindSkill, What: n})
+			}
 		}
 		if mem != nil {
 			rctx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -621,6 +631,7 @@ func TurnPrep(in *Injector, mem *memory.Store) func(context.Context, []llm.Block
 				var ns []string
 				for _, e := range used {
 					ns = append(ns, e.Name)
+					egress.From(ctx).Add(egress.Entry{Kind: egress.KindMemory, What: e.Name + " (" + e.Scope + ")", Bytes: int64(len(e.Body))})
 				}
 				notes = append(notes, "memory recalled: "+strings.Join(ns, ", "))
 			}

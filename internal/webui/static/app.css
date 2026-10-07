@@ -345,6 +345,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   white-space: nowrap;
 }
 #sessions .when { display: block; color: var(--faint); font-size: 0.68rem; margin-top: 2px; font-variant-numeric: tabular-nums; }
+#sessions .sess-hit { display: block; color: var(--faint); font-size: 0.7rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sessions .sess-group {
   margin: 12px 0 4px;
   padding: 0 0.65rem;
@@ -491,6 +492,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .model-group .model-btn:has(+ .effort-chip[hidden]) { border-radius: 8px; }
 .effort-chip .i { width: 13px; height: 13px; }
 .mode-chip[data-mode="YOLO"] { background: var(--bad-soft); color: var(--bad); }
+#voice-btn.on { background: var(--bad-soft); color: var(--bad); }
 .mode-chip[data-mode="AUTO"],
 .mode-chip[data-mode="EDITS"] { background: var(--ok-soft); color: var(--ok); }
 .mode-chip[data-mode="PLAN"] { background: var(--warn-soft); color: var(--warn); }
@@ -1284,6 +1286,9 @@ pre.sheetbody {
   transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 .ask-actions button:hover { border-color: var(--line-strong); }
+/* The model's recommended answer: what the turn goes on with if nobody
+   answers in time. */
+.ask-actions button.recommended { border-color: var(--accent-soft-border); font-weight: 600; }
 .ask-actions button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft-border); }
 .ask-actions [data-d="deny"] { color: var(--bad); }
 .ask-actions .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }

@@ -44,9 +44,10 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 		return nil, err
 	}
 	child.System = p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them."
-	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
+	child.Rules = childRules(p.RulesSnapshot())
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
+	child.EgressPolicy = p.EgressPolicy
 	child.Impact = p.Impact
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
@@ -188,10 +189,11 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	// a path the user refused could be read simply by delegating the job.
 	// The allow list is deliberately not passed on: permission granted in
 	// the session is not permission the subagent asked for.
-	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
+	child.Rules = childRules(p.RulesSnapshot())
 	child.Debug = p.Debug
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
+	child.EgressPolicy = p.EgressPolicy
 	child.Impact = p.Impact
 	child.Files = p.Files
 	withholdFromChild(child.Tools, profile)
@@ -278,6 +280,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.UndoOwner = p
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
+	child.EgressPolicy = p.EgressPolicy
 	child.Impact = p.Impact
 	child.Files = p.Files
 	withholdFromChild(child.Tools, nil)
@@ -329,4 +332,12 @@ func copyMessages(in []llm.Message) []llm.Message {
 		out[i].Blocks = blocks
 	}
 	return out
+}
+
+// childRules are the rules a subagent inherits: every deny and ask rule,
+// so what the parent refuses or always asks about stays refused or asked
+// about in a subagent, and no allow rule, since a subagent's approvals
+// are its profile's.
+func childRules(rs perm.Rules) perm.Rules {
+	return perm.Rules{Deny: rs.Deny, Ask: rs.Ask}
 }

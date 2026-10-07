@@ -14,6 +14,7 @@ import (
 // quoting inverted and the rm after it was taken for quoted text; $'…'
 // and a backslash-newline turned `rm` into a word nothing recognised.
 func TestQuotingIsReadAsTheShellReadsIt(t *testing.T) {
+	posixOnly(t)
 	root := "/work/repo"
 	for _, cmd := range []string{
 		`echo "a\"b" ; rm -rf /`,
@@ -113,6 +114,7 @@ func TestEveryRedirectionFormIsAWrite(t *testing.T) {
 // "$(rm -rf /)"` was ordinary to Classify, because nothing looked inside
 // $(…), backticks or <(…) at all.
 func TestSubstitutionsAreJudgedAsCommands(t *testing.T) {
+	posixOnly(t)
 	root := "/work/repo"
 	for _, cmd := range []string{
 		"echo $(rm -rf /)",
@@ -161,6 +163,7 @@ func TestSubstitutionsAreJudgedAsCommands(t *testing.T) {
 // "-c"), and a leading assignment or a path to the program hid the
 // command name altogether.
 func TestWrappersAreReadAsTheyRun(t *testing.T) {
+	posixOnly(t)
 	root := "/work/repo"
 	for _, cmd := range []string{
 		"X=1 rm -rf /",

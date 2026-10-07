@@ -34,6 +34,20 @@ type landlockSpec struct {
 	// Net reports whether the command may use the network. Taking it
 	// away needs ABI 4; the caller has already refused otherwise.
 	Net bool `json:"net"`
+	// ProxyPort, with Net, narrows the network to TCP connects to this
+	// one port (the egress proxy on loopback) and takes every other
+	// socket away, so the proxy is the only way out. Needs ABI 4.
+	ProxyPort int `json:"proxy_port,omitempty"`
+}
+
+// landlockRuleNetPort is LANDLOCK_RULE_NET_PORT (ABI 4), which x/sys
+// does not name yet.
+const landlockRuleNetPort = 2
+
+// netPort mirrors struct landlock_net_port_attr.
+type netPort struct {
+	access uint64
+	port   uint64
 }
 
 // Landlock's ABI 1 write accesses. Read and execute are deliberately not
@@ -74,6 +88,34 @@ func handledAccess(abi int) uint64 {
 		access |= unix.LANDLOCK_ACCESS_FS_TRUNCATE
 	}
 	return access
+}
+
+// rulesetAttr is what the ruleset handles at this ABI. With no network,
+// TCP connect and bind are handled (ABI 4), and from ABI 6 the command is
+// also scoped out of abstract unix sockets created outside its domain.
+// From ABI 6 every profile is scoped for signals, so a sandboxed command
+// can signal its own children but not janetcode or the person's other
+// programs.
+//
+// With an egress proxy (proxy), TCP connect is handled even though the
+// profile has a network: the one rule added for the proxy's port is then
+// the only connect allowed. Bind stays unhandled, so a dev server can
+// still listen.
+func rulesetAttr(abi int, net, proxy bool) unix.LandlockRulesetAttr {
+	attr := unix.LandlockRulesetAttr{Access_fs: handledAccess(abi)}
+	if !net && abi >= 4 {
+		attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+	}
+	if net && proxy && abi >= 4 {
+		attr.Access_net = unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+	}
+	if abi >= 6 {
+		attr.Scoped = unix.LANDLOCK_SCOPE_SIGNAL
+		if !net {
+			attr.Scoped |= unix.LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET
+		}
+	}
+	return attr
 }
 
 // landlockDevices stay writable under every profile. They are not the
@@ -121,12 +163,10 @@ func applyLandlock(spec landlockSpec) error {
 	if abi < 1 {
 		return fmt.Errorf("this kernel has no Landlock")
 	}
-	attr := unix.LandlockRulesetAttr{Access_fs: handledAccess(abi)}
-	if !spec.Net {
-		if abi < 4 {
-			return fmt.Errorf("this kernel's Landlock ABI is %d, which cannot take the network away (needs ABI 4)", abi)
-		}
-		attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+	proxy := spec.Net && spec.ProxyPort > 0
+	attr := rulesetAttr(abi, spec.Net, proxy)
+	if (!spec.Net || proxy) && abi < 4 {
+		return fmt.Errorf("this kernel's Landlock ABI is %d, which cannot take the network away (needs ABI 4)", abi)
 	}
 	fd, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET,
 		uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
@@ -139,10 +179,26 @@ func applyLandlock(spec landlockSpec) error {
 			return err
 		}
 	}
+	if proxy {
+		rule := netPort{access: unix.LANDLOCK_ACCESS_NET_CONNECT_TCP, port: uint64(spec.ProxyPort)}
+		if _, _, errno := unix.Syscall6(unix.SYS_LANDLOCK_ADD_RULE,
+			fd, landlockRuleNetPort, uintptr(unsafe.Pointer(&rule)), 0, 0, 0); errno != 0 {
+			return fmt.Errorf("landlock_add_rule port %d: %w", spec.ProxyPort, errno)
+		}
+	}
 	// Landlock refuses to restrict a thread that could still gain
 	// privileges through a setuid binary.
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("prctl(no_new_privs): %w", err)
+	}
+	if !spec.Net || proxy {
+		// Landlock's network rules are TCP only; the filter takes the
+		// rest (see sandbox_seccomp_linux.go). Behind the egress proxy
+		// that is what stops UDP (DNS included: the proxy resolves
+		// names) and unix sockets reaching around it.
+		if err := applyNoNetSeccomp(); err != nil {
+			return err
+		}
 	}
 	if _, _, errno := unix.Syscall(unix.SYS_LANDLOCK_RESTRICT_SELF, fd, 0, 0); errno != 0 {
 		return fmt.Errorf("landlock_restrict_self: %w", errno)
@@ -208,13 +264,22 @@ func (s *Sandbox) landlock(ctx context.Context, p Profile, root string, extra []
 	sh := Default()
 	argv := append([]string{landlockSentinel, sh.Path}, sh.Args...)
 	argv = append(argv, command)
-	policy, err := json.Marshal(landlockSpec{Write: p.WritableRoots(root, extra, os.TempDir()), Net: p.Network})
+	spec := landlockSpec{Write: p.WritableRoots(root, extra, os.TempDir()), Net: p.Network}
+	env := ScrubEnv(os.Environ())
+	if port := s.proxyPort(p); port > 0 {
+		if abi < 4 {
+			return nil, fmt.Errorf("the egress policy needs bash's network narrowed to the egress proxy, and Landlock ABI %d cannot do that (needs ABI 4, Linux 6.7); install docker, use the strict profile, or set egress.default to allow", abi)
+		}
+		spec.ProxyPort = port
+		env = WithProxyEnv(env, fmt.Sprintf("http://127.0.0.1:%d", port))
+	}
+	policy, err := json.Marshal(spec)
 	if err != nil {
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, self, argv...)
 	cmd.Dir = root
-	cmd.Env = append(ScrubEnv(os.Environ()), landlockEnv+"="+string(policy))
+	cmd.Env = append(env, landlockEnv+"="+string(policy))
 	SetProcessGroup(cmd)
 	return cmd, nil
 }

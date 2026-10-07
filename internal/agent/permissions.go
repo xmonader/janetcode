@@ -5,6 +5,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -38,6 +40,11 @@ type permissions struct {
 	Approver Approver
 	// Asker, when set, answers labeled questions from the ask tool.
 	Asker Asker
+	// Unattended marks a session nobody is watching as it runs (a --bg
+	// run): a question waits only the unattended time before the turn
+	// goes on with the recommendation (see askwait.go).
+	Unattended bool
+	askWait    askWait
 	// Rules are persistent permission rules consulted before the Approver:
 	// a deny refuses the call outright, an allow skips the prompt.
 	// Guarded by Agent.settingsMu, with the live settings.
@@ -66,6 +73,17 @@ type permissions struct {
 	// janetcode's own permission record. Nil protects nothing, which is
 	// what a test agent that never sets one up wants.
 	Protected *perm.Protected
+	// Policy, when set, is the administrator's managed policy: the modes
+	// it disables stay off whatever a front-end or the model asks for
+	// (see UpdateSettings). Nil is no policy.
+	Policy *managed.Policy
+	// EgressPolicy, when active, decides which hosts a tool call may send
+	// data to: a blocked host is refused before the call runs, an "ask"
+	// host makes the call ask whatever the mode. Nil allows every host.
+	EgressPolicy *egress.Policy
+
+	egressMu  sync.Mutex
+	egressRec *egress.Recorder
 
 	// allowed are the tools the user allowed for the rest of the session
 	// (Decision AllowSession). allowedMu guards it: a turn writes it while
@@ -130,6 +148,10 @@ func (a *Agent) Permissions() present.Permissions {
 	for _, r := range rs.Deny {
 		p.Deny = append(p.Deny, r.String())
 	}
+	for _, r := range rs.Ask {
+		p.Ask = append(p.Ask, r.String())
+	}
+	p.Managed = a.Policy.Summary()
 	if a.Protected != nil && !a.Off["protected"] {
 		p.Protected = len(a.Protected.Patterns())
 	}

@@ -1,0 +1,106 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// hostTool is a non-mutating tool that reaches a host named in its input:
+// a stand-in for web_search or a read-only remote MCP tool.
+type hostTool struct{ ran *bool }
+
+func (hostTool) Name() string            { return "lookup" }
+func (hostTool) Description() string     { return "looks something up on a host" }
+func (hostTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (hostTool) Mutating() bool          { return false }
+func (h hostTool) Run(context.Context, json.RawMessage) (string, error) {
+	*h.ran = true
+	return "found it; token=sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH", nil
+}
+func (hostTool) EgressHosts(in json.RawMessage) []string {
+	var v struct{ Host string }
+	_ = json.Unmarshal(in, &v)
+	return []string{v.Host}
+}
+
+func TestEgressReportCoversTheTurn(t *testing.T) {
+	ran := false
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		toolCall("t2", "lookup", `{"host":"docs.example.com"}`),
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	a.Tools.Add(hostTool{ran: &ran})
+	_, emit := collect()
+	if err := a.Run(context.Background(), "go", emit); err != nil {
+		t.Fatal(err)
+	}
+	rep, ok := a.EgressLast()
+	if !ok {
+		t.Fatal("no report after the turn")
+	}
+	txt := rep.Text()
+	for _, want := range []string{"a.txt", "read_file", "lookup", "secret-shaped values redacted"} {
+		if !strings.Contains(txt, want) {
+			t.Errorf("report lacks %q:\n%s", want, txt)
+		}
+	}
+	if !strings.Contains(a.EgressSummary(), "every host allowed") {
+		t.Errorf("summary = %s", a.EgressSummary())
+	}
+}
+
+func TestEgressPolicyBlocksAndAsks(t *testing.T) {
+	ran := false
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "lookup", `{"host":"evil.example"}`),
+		text("ok"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	a.Tools.Add(hostTool{ran: &ran})
+	a.EgressPolicy = &egress.Policy{Default: egress.Block, Allow: []string{"docs.example.com"}}
+	_, emit := collect()
+	if err := a.Run(context.Background(), "go", emit); err != nil {
+		t.Fatal(err)
+	}
+	if ran {
+		t.Fatal("a call to a blocked host ran")
+	}
+	if rep, _ := a.EgressLast(); !strings.Contains(rep.Text(), "BLOCKED") {
+		t.Fatalf("the refusal is not in the report:\n%s", rep.Text())
+	}
+
+	// ask: a read-only call to an unlisted host is put to the user even
+	// under --yolo, and a refusal keeps it from running.
+	ran = false
+	asked := 0
+	f2 := &fake{responses: []*llm.Response{toolCall("t1", "lookup", `{"host":"other.example"}`), text("ok")}}
+	a2, _ := newAgent(t, f2, egressApprover(func(c ToolCall) {
+		asked++
+		if !strings.Contains(c.Warning, "other.example") {
+			t.Errorf("the prompt does not name the host: %q", c.Warning)
+		}
+	}))
+	a2.Tools.Add(hostTool{ran: &ran})
+	a2.AutoApprove = true
+	a2.EgressPolicy = &egress.Policy{Default: egress.Ask}
+	if err := a2.Run(context.Background(), "go", emit); err != nil {
+		t.Fatal(err)
+	}
+	if asked != 1 || ran {
+		t.Fatalf("asked %d, ran %v", asked, ran)
+	}
+}
+
+type egressApprover func(ToolCall)
+
+func (f egressApprover) Approve(ctx context.Context, c ToolCall) (Decision, error) {
+	f(c)
+	return Deny, nil
+}

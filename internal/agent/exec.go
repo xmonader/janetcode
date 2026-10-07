@@ -11,12 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -183,10 +185,15 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 // accept lock refuses before anything can allow; a deny rule refuses
 // before anything asks; and only what none of those settled reaches the
 // user.
-func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
-	hookNotes, hookAllowed, hookMustAsk, refusal := a.preToolHook(ctx, u, call, emit)
-	if refusal != "" {
-		return nil, refusal, nil
+func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) (notes []string, refusal string, err error) {
+	// basis is what settled the call, for the audit record written on
+	// the way out (see logPermission).
+	var basis string
+	defer func() { a.logPermission(t, u, basis, refusal, err) }()
+	hookNotes, hookAllowed, hookMustAsk, hookRefusal := a.preToolHook(ctx, u, call, emit)
+	if hookRefusal != "" {
+		basis = "pre-tool hook"
+		return nil, hookRefusal, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
 	if hookMustAsk {
@@ -199,6 +206,18 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// allow rule and --yolo alike, and the prompt says which path it is
 	// asking about. It rides on the warning line the prompt already has,
 	// so both front-ends show it without knowing about any of this.
+	// The egress policy: a blocked host is refused here, and a host it
+	// asks about is asked about whatever the mode — for a read-only call
+	// too (web search, a read-only MCP tool), since what it sends is
+	// the point, not what it changes.
+	egressAsk := false
+	switch refusal, why := a.egressGate(ctx, t, *u); {
+	case refusal != "":
+		return nil, refusal, nil
+	case why != "":
+		mustAsk, egressAsk = true, true
+		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
+	}
 	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
 			mustAsk = true
@@ -212,6 +231,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// saved rule to skip past it (see accept.Mode.Denial).
 	if tool.MutatingCall(t, u.Input) {
 		if reason := a.locks().Denial(t, u.Input); reason != "" {
+			basis = "accept lock"
 			return nil, reason, nil
 		}
 		// toolGate judged the phase rule on the input the model sent; a
@@ -219,6 +239,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// test-file write rewritten into an implementation write would
 		// pass a gate its own input never faced.
 		if reason := a.locks().WritingDenial(t, u.Input); reason != "" {
+			basis = "accept lock"
 			return nil, reason, nil
 		}
 	}
@@ -227,10 +248,23 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// before the rules are consulted at all, so no allow rule and no mode
 	// can put it in front of the user as something to approve.
 	if hard != "" {
+		basis = "hard deny"
 		return nil, fmt.Sprintf("Refused: this command %s. janetcode never runs it, not even with auto-approve or an allow rule; do not retry it in another form.", hard), nil
 	}
 	if verdict == perm.Denied {
-		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
+		basis = "rule " + rule.String()
+		return nil, fmt.Sprintf("Denied by permission rule %s%s. Do not retry this call; choose another approach or ask the user to change the rule.", rule, a.outranked(u, subject)), nil
+	}
+	// An ask rule marks the call as sensitive: it is put to the user
+	// whatever the mode, a session allowance or an allow rule would do,
+	// and even when the tool only reads. The answer covers this call
+	// only (mustAsk), and the prompt says which rule asked and which
+	// allow rule it outranked.
+	sensitive := verdict == perm.Ask && !rule.IsZero()
+	if sensitive {
+		mustAsk = true
+		why := "asks because of rule " + rule.String() + a.outranked(u, subject)
+		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 	}
 	switch {
 	case verdict == perm.Allowed:
@@ -238,25 +272,31 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	if !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+	if !sensitive && !egressAsk && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+		basis = a.shortcutBasis(t, u, verdict, rule, hookAllowed)
 		return hookNotes, "", nil
 	}
-	switch allowed, refusal := a.permissionHook(ctx, u, call, mustAsk, emit); {
-	case refusal != "":
-		return nil, refusal, nil
+	switch allowed, hr := a.permissionHook(ctx, u, call, mustAsk, emit); {
+	case hr != "":
+		basis = "permission hook"
+		return nil, hr, nil
 	case allowed:
+		basis = "permission hook"
 		return hookNotes, "", nil
 	}
 	if a.Approver == nil {
+		basis = "no approver"
 		return nil, "Permission denied: no approver configured for mutating tools.", nil
 	}
 	a.notifyHook("permission_prompt", "janetcode needs your permission to use "+u.Name)
-	d, reason, suggested, err := a.ask(ctx, u, call, subject, mustAsk)
-	if err != nil {
-		return nil, "", err
+	d, reason, suggested, askErr := a.ask(ctx, u, call, subject, mustAsk)
+	if askErr != nil {
+		basis = "the user (no answer)"
+		return nil, "", askErr
 	}
-	if refusal := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); refusal != "" {
-		return nil, refusal, nil
+	basis = a.answerBasis(d)
+	if r := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); r != "" {
+		return nil, r, nil
 	}
 	return hookNotes, "", nil
 }
@@ -325,6 +365,17 @@ func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict
 	subject = perm.SubjectIn(u.Name, u.Input, a.displayRoot())
 	verdict, rule, hard = a.decideCall(a.permCall(u.Name, u.Input, subject))
 	return subject, verdict, rule, hard
+}
+
+// outranked is the note a refusal or a forced prompt adds when an allow
+// rule would have covered the call: " (it outranks allow rule X)", so a
+// conflict between rules says which one won and why.
+func (a *Agent) outranked(u *llm.Block, subject string) string {
+	rs := a.RulesSnapshot()
+	if r, ok := rs.AllowedBy(a.permCall(u.Name, u.Input, subject)); ok {
+		return " (it outranks allow rule " + r.String() + ")"
+	}
+	return ""
 }
 
 // permCall is one call as the permission rules see it.
@@ -449,6 +500,12 @@ func (a *Agent) applyDecision(d Decision, reason string, suggested perm.Rule, na
 			a.allowSession(name)
 		}
 	case AllowAlways:
+		if a.Policy != nil && a.Policy.ManagedRulesOnly {
+			// Only the managed policy's allow rules apply, so "always"
+			// is this call only, and the user is told why.
+			emit(Event{Kind: EvNotice, Text: "allowed once: " + a.Policy.Refusal("a saved allow rule").Error()})
+			break
+		}
 		if !mustAsk && !suggested.IsZero() {
 			a.AddRule(perm.Allowed, suggested)
 			if a.SaveRule != nil {
@@ -496,10 +553,13 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		if why, withheld := a.Tools.Withheld(u.Name); withheld {
 			return refuse(fmt.Sprintf("tool %q is withheld by policy (%s). It is not available in this session; do not search for a workaround.", u.Name, why), false)
 		}
-		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()), false)
+		return refuse(a.unknownTool(u.Name), false)
 	}
 	if reason, denied := a.toolGate(t, u.Input); denied {
 		return refuse(reason, true)
+	}
+	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
+		return out, nil, false, nil
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
@@ -513,17 +573,21 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// A rule scoped to these paths joins the conversation before the
 	// next model call, once for the session.
 	a.applyPathRules(t, u.Input, emit)
-	if tool.MutatingCall(t, u.Input) {
-		a.snapshotBefore(ctx, t, u.Input)
+	// A dry run lets through only calls that read (see dryIntercept):
+	// they need no checkpoint and do not make the turn a mutating one.
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
+		a.snapshotBefore(ctx, t, u.Input, emit)
 	}
 	start := time.Now()
 	var pend []pending
 	var tamperedBefore string
-	if tool.MutatingCall(t, u.Input) {
+	var shellBefore bashAuditState
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		// A locked file changed outside any tool call is put back before
 		// this call runs, so the note after it never blames this call.
 		tamperedBefore = a.acceptRestoreTampered("", emit)
 		pend = a.before(t, u.Input)
+		shellBefore = a.bashAuditBefore(ctx, u)
 	}
 	// A bash call that looks like `git commit` gets HEAD read before it
 	// runs, so a move can be detected after: see checkCommitAttach. The
@@ -536,9 +600,13 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	out, images, err := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
+	if err == nil {
+		out += a.dryShellNote(u.Name)
+	}
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
 	}
+	a.bashAuditAfter(ctx, u, shellBefore)
 	if ctx.Err() != nil && err != nil {
 		// The call was interrupted before it produced a result. It was
 		// announced with EvToolRun, so it is closed here with the text
@@ -557,7 +625,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err != nil {
 		out = "Error: " + err.Error()
 		isErr = true
-	} else if tool.MutatingCall(t, u.Input) {
+	} else if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		a.mutated = true
 		a.mutations++
 		if editTool(u.Name) {
@@ -635,6 +703,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
+	a.noteToolEgress(ctx, u.Name, u.Input, out)
 	if isErr {
 		images = nil
 	}
@@ -656,11 +725,16 @@ func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessag
 	if a.Off["scrub"] {
 		return out, images, err
 	}
-	out, _ = secret.Redact(out)
+	var n int
+	out, n = secret.Redact(out)
 	if err != nil {
-		if red, n := secret.Redact(err.Error()); n > 0 {
+		if red, m := secret.Redact(err.Error()); m > 0 {
 			err = errors.New(red)
+			n += m
 		}
+	}
+	if n > 0 {
+		egress.From(ctx).Add(egress.Entry{Kind: egress.KindRedacted, What: "in tool output", Count: n})
 	}
 	return out, images, err
 }
@@ -678,6 +752,24 @@ func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out str
 	}
 	out, err = t.Run(ctx, input)
 	return out, nil, err
+}
+
+// unknownTool is the answer to a call naming no tool of this session. A
+// name typed from memory is usually a near miss — "Bash", "readfile",
+// "read-file" — so the closest real name comes first, on one line, ahead
+// of the whole list a model would otherwise have to search.
+func (a *Agent) unknownTool(name string) string {
+	if near := textfmt.NearestName(name, a.Tools.Names()); near != "" {
+		return fmt.Sprintf("Unknown tool %q; did you mean %q? Available: %s", name, near, a.toolNames())
+	}
+	var deferred []string
+	for _, d := range a.Tools.Deferred() {
+		deferred = append(deferred, d.Name)
+	}
+	if near := textfmt.NearestName(name, deferred); near != "" {
+		return fmt.Sprintf("Unknown tool %q; did you mean %q? It is deferred: load it with tool_search first. Available: %s", name, near, a.toolNames())
+	}
+	return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames())
 }
 
 func (a *Agent) toolNames() string {
@@ -713,7 +805,9 @@ func (a *Agent) autoAllows(u llm.Block) bool {
 
 // editTool reports the tools AutoEdits covers: the ones that change files
 // through the harness, never the shell.
-func editTool(name string) bool { return name == "write_file" || name == "edit_file" }
+func editTool(name string) bool {
+	return name == "write_file" || name == "edit_file" || name == "notebook_edit"
+}
 
 // LastTurnMutated reports whether the most recent turn ran a mutating tool
 // successfully, i.e. whether it may have decided something worth
@@ -745,7 +839,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
 	t, ok := a.Tools.Get(name)
 	if !ok {
-		return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames()), true, false
+		return a.unknownTool(name), true, false
 	}
 	// The same mode gate as executeTool: a script is a way to save round
 	// trips, not a way around read-only, plan or accept mode.
@@ -754,6 +848,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		return reason, true, true
 	}
 	u := llm.Block{ID: id, Name: name, Input: input}
+	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
+		return out, false, false
+	}
 	_, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "Error: " + err.Error(), true, false
@@ -766,18 +863,21 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
 	var pend []pending
 	var tamperedBefore string
-	if tool.MutatingCall(t, u.Input) {
+	var shellBefore bashAuditState
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
-		a.snapshotBefore(ctx, t, u.Input)
+		a.snapshotBefore(ctx, t, u.Input, emit)
 		pend = a.before(t, u.Input)
+		shellBefore = a.bashAuditBefore(ctx, u)
 	}
 	start := time.Now()
 	out, _, runErr := a.runSafely(ctx, t, u.Input)
+	a.bashAuditAfter(ctx, u, shellBefore)
 	dur := time.Since(start)
 	isErr := runErr != nil
 	if isErr {
 		out = "Error: " + runErr.Error()
-	} else if tool.MutatingCall(t, u.Input) {
+	} else if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		a.after(u, intent, pend)
 		a.mutated = true
 		a.mutations++

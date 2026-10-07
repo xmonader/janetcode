@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
@@ -94,6 +95,12 @@ type Entry struct {
 	// is still recognised. A global entry about one ecosystem is never
 	// recalled in a project of another (see Store.hidden).
 	Ecosystems []string
+	// Pending marks an entry held for the user's confirmation (see
+	// pending.go); Replaces is the entry a correction would retire when
+	// it is approved, and MergesInto the existing entry it would update.
+	Pending    bool
+	Replaces   string
+	MergesInto string
 }
 
 // Closed reports whether a correction has retired the entry: it stopped
@@ -170,6 +177,9 @@ type Store struct {
 	// the work keeps needing above the ones it needed once.
 	PlainRanking bool
 	Ecosystem    string
+	// Confirm holds what the model and the extractors save as pending
+	// until the user approves it (memory_confirm, /memory confirm).
+	Confirm atomic.Bool
 
 	mu        sync.Mutex
 	embedMu   sync.Mutex
@@ -345,7 +355,11 @@ const (
 // Put creates or updates an entry. An entry of the same name is updated;
 // otherwise one whose description says nearly the same thing is updated
 // instead of duplicated.
-func (s *Store) Put(e Entry) (Entry, Status, error) {
+func (s *Store) Put(e Entry) (Entry, Status, error) { return s.put(e, true) }
+
+// put is Put; hold says whether an entry that needs confirmation is held
+// rather than written (Approve writes one that was).
+func (s *Store) put(e Entry, hold bool) (Entry, Status, error) {
 	e.Description = oneLine(e.Description, MaxIndexLine)
 	e.Body = strings.TrimSpace(e.Body)
 	if len(e.Body) > MaxBody {
@@ -388,6 +402,9 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing := s.read()
+	if hold && s.needsConfirm(e) {
+		return s.hold(e, existing)
+	}
 	now := time.Now()
 	for _, old := range existing {
 		if old.Closed() {
@@ -515,24 +532,46 @@ func (s *Store) trim(scope string, all []Entry) {
 	}
 }
 
-// Remove forgets an entry by name (or by its number in the listing).
-func (s *Store) Remove(ref string) (Entry, error) {
+// Remove forgets an entry by name (or by its number in the listing). It
+// is the user's /forget: any entry goes.
+func (s *Store) Remove(ref string) (Entry, error) { return s.remove(ref, false) }
+
+// ErrUserEntry refuses the model's forget of an entry the user wrote.
+var ErrUserEntry = errors.New("saved by the user")
+
+// RemoveModel is the memory tool's forget: it removes what the model or
+// the automatic extraction wrote, and refuses an entry the user saved
+// with /remember. Those are the user's instructions; an agent deciding
+// one no longer applies is exactly the drift they were written to stop,
+// so only /forget, typed by the user, removes one.
+func (s *Store) RemoveModel(ref string) (Entry, error) { return s.remove(ref, true) }
+
+func (s *Store) remove(ref string, byModel bool) (Entry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	all := s.read()
+	var target *Entry
 	if n, err := strconv.Atoi(ref); err == nil {
 		if n < 1 || n > len(all) {
 			return Entry{}, fmt.Errorf("no memory entry %d (there are %d)", n, len(all))
 		}
-		return all[n-1], os.Remove(all[n-1].Path)
-	}
-	name := Slug(ref)
-	for _, e := range all {
-		if e.Name == name {
-			return e, os.Remove(e.Path)
+		target = &all[n-1]
+	} else {
+		name := Slug(ref)
+		for i := range all {
+			if all[i].Name == name {
+				target = &all[i]
+				break
+			}
 		}
 	}
-	return Entry{}, fmt.Errorf("no memory entry named %q", ref)
+	if target == nil {
+		return Entry{}, fmt.Errorf("no memory entry named %q", ref)
+	}
+	if byModel && target.Source == "user" {
+		return *target, fmt.Errorf("%s was %w with /remember, so only they can remove it: if it no longer holds, say so and suggest /forget %s", target.Name, ErrUserEntry, target.Name)
+	}
+	return *target, os.Remove(target.Path)
 }
 
 // Touch records that entries were used, so ranking and trimming keep

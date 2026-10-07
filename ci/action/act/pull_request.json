@@ -1,0 +1,17 @@
+{
+  "action": "opened",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "Add a file download endpoint",
+    "body": "Lets users download what they uploaded.",
+    "draft": false,
+    "head": { "ref": "feat/download" },
+    "base": { "ref": "master" }
+  },
+  "repository": {
+    "full_name": "xmonader/janetcode",
+    "name": "janetcode",
+    "owner": { "login": "xmonader" }
+  }
+}

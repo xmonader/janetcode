@@ -5,6 +5,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/xmonader/janetcode/internal/i18n"
+	"github.com/xmonader/janetcode/internal/keymap"
 )
 
 // briefHelp is what plain /help lists: the commands a first week reaches
@@ -30,14 +33,14 @@ var briefHelp = []struct{ name, text string }{
 // prompt, the everyday commands, and where the rest are.
 func (m *model) briefHelpText() string {
 	var sb strings.Builder
-	sb.WriteString("keys\n")
-	sb.WriteString("  enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit\n")
-	sb.WriteString("  @path attaches a file · !command runs it and shares the output\n")
-	sb.WriteString("  shift+tab changes what asks first\n")
-	sb.WriteString("  permission prompt: y allow · a this session · n deny · c cancel\n")
-	sb.WriteString("\ncommands\n")
+	sb.WriteString(i18n.T("keys") + "\n")
+	sb.WriteString("  " + i18n.T("enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit") + "\n")
+	sb.WriteString("  " + i18n.T("@path attaches a file · !command runs it and shares the output") + "\n")
+	sb.WriteString("  " + i18n.T("shift+tab changes what asks first") + "\n")
+	sb.WriteString("  " + i18n.T("permission prompt: y allow · a this session · n deny · c cancel") + "\n")
+	sb.WriteString("\n" + i18n.T("commands") + "\n")
 	for _, b := range briefHelp {
-		fmt.Fprintf(&sb, "  %-10s %s\n", b.name, b.text)
+		fmt.Fprintf(&sb, "  %-10s %s\n", b.name, i18n.T(b.text))
 	}
 	builtin := map[string]bool{}
 	for _, c := range commands {
@@ -50,28 +53,31 @@ func (m *model) briefHelpText() string {
 		}
 	}
 	if len(own) > 0 {
-		sb.WriteString("\nyours\n")
+		sb.WriteString("\n" + i18n.T("yours") + "\n")
 		sb.WriteString(wrapAtDots("  "+strings.Join(own, " · "), 76, "  "))
 		sb.WriteString("\n")
 	}
-	fmt.Fprintf(&sb, "\n/help all        every key and all %d commands\n/help <question> what does what, e.g. /help undo a change", len(m.allCommands()))
+	fmt.Fprintf(&sb, "\n/help all        %s\n/help <question> %s", i18n.Tf("every key and all %d commands", len(m.allCommands())), i18n.T("what does what, e.g. /help undo a change"))
 	return sb.String()
 }
 
 func (m *model) helpText() string {
 	var sb strings.Builder
-	sb.WriteString("keys\n")
+	sb.WriteString(i18n.T("keys") + "\n")
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
 	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of /resume, /model, /forget, /undo, /open and /diff\n")
-	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
+	sb.WriteString("  esc cancel the turn (or clear the input) · esc esc on an empty prompt lists the checkpoints to rewind to · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
 	sb.WriteString("  ctrl+x writes the prompt in $EDITOR; what you save becomes the prompt\n")
 	sb.WriteString("  ctrl+g moves a command running in the foreground to the background: it becomes a job and keeps running, and the turn goes on\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	sb.WriteString("  shift+tab cycles ask → plan → auto → yolo · ctrl+r cycles how hard the model thinks (/effort) · ctrl+t opens the subagents overlay (/agents)\n")
-	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
+	fmt.Fprintf(&sb, "  %s cycles ask → plan → auto → yolo · %s cycles how hard the model thinks (/effort) · %s opens the subagents overlay (/agents)\n",
+		m.keys.Label(keymap.ModeCycle), m.keys.Label(keymap.Effort), m.keys.Label(keymap.Agents))
+	fmt.Fprintf(&sb, "  %s searches the prompt history as you type · %s writes the prompt in $VISUAL/$EDITOR · /vim edits the prompt the vim way · /help keys lists every key and its action (the keybindings config key moves them)\n",
+		m.keys.Label(keymap.HistorySearch), m.keys.Label(keymap.ExternalEditor))
+	sb.WriteString(i18n.T("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn") + "\n")
 	all := m.allCommands()
 	byName := map[string]command{}
 	for _, c := range all {
@@ -88,14 +94,16 @@ func (m *model) helpText() string {
 	// read as that command's second line: "/lsp  language servers and
 	// the diagnostics they reported" followed by "diagnostics".
 	writeGroup := func(title string, names []string) {
-		sb.WriteString("\n" + title + "\n")
+		sb.WriteString("\n" + i18n.T(title) + "\n")
 		for _, n := range names {
 			c, ok := byName[n]
 			if !ok {
 				continue
 			}
 			seen[n] = true
-			desc := strings.ReplaceAll(descStyle.Render(c.help), "\n", "\n"+strings.Repeat(" ", col))
+			// A description the catalogue has (the everyday group's) is
+			// shown in the interface's language; the rest stay English.
+			desc := strings.ReplaceAll(descStyle.Render(i18n.T(c.help)), "\n", "\n"+strings.Repeat(" ", col))
 			if len(c.name) > 10 || len(c.args) > 8 {
 				// Too wide for the columns: the description starts on
 				// its own line rather than wrapping from wherever the
@@ -128,9 +136,31 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"everyday", []string{"/help", "/connect", "/model", "/effort", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/compact-fast", "/clear", "/resume", "/settle", "/quit"}},
-	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/perf", "/context", "/review"}},
-	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor"}},
-	{"the project", []string{"/init", "/memory", "/remember", "/forget", "/dream", "/sleep", "/skills", "/curator", "/verify", "/accept", "/rules", "/eval", "/recipe", "/commit", "/pr", "/proof", "/permissions", "/hooks", "/mcp", "/cua", "/lsp"}},
+	{"everyday", []string{"/help", "/connect", "/model", "/effort", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/compact-fast", "/clear", "/resume", "/settle", "/quit", "/recover"}},
+	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/perf", "/context", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/checkpoints"}},
+	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/vim", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor", "/dryrun", "/voice"}},
+	{"the project", []string{"/init", "/memory", "/remember", "/forget", "/dream", "/sleep", "/skills", "/curator", "/verify", "/accept", "/rules", "/eval", "/recipe", "/proof", "/permissions", "/hooks", "/mcp", "/cua", "/lsp", "/trust", "/egress", "/plugin"}},
 	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints", "/followup", "/features", "/jev"}},
+}
+
+// keysHelpText is /help keys: every prompt action with the keys it has
+// in this session — the defaults with the config's keybindings applied —
+// so the sheet is right for the person reading it, not for the defaults.
+func (m *model) keysHelpText() string {
+	var sb strings.Builder
+	sb.WriteString("keys at the prompt · the keybindings config key moves any action: {\"keybindings\": {\"effort\": \"f2\"}}\n")
+	for _, d := range keymap.Defs {
+		fmt.Fprintf(&sb, "  %-16s %-22s %s\n", d.Action, m.keys.Label(d.Action), d.Help)
+	}
+	if changed := m.keys.Changed(); len(changed) > 0 {
+		names := make([]string, len(changed))
+		for i, a := range changed {
+			names[i] = string(a)
+		}
+		sb.WriteString("  yours: " + strings.Join(names, ", ") + " (moved from the defaults by your config)\n")
+	}
+	sb.WriteString("permission prompt: y allow once · a this session · r save a rule · n deny · esc deny · c cancel the turn\n")
+	sb.WriteString("reverse search (" + m.keys.Label(keymap.HistorySearch) + "): type to narrow · again for an older match · enter keeps it · esc puts back what you had\n")
+	sb.WriteString("vim mode (/vim, vim_mode): esc normal · h j k l w b e 0 ^ $ gg G move · x dd dw cw ciw diw D C p u edit · i a I A o O insert")
+	return sb.String()
 }

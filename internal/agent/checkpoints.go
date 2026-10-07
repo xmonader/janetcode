@@ -58,6 +58,8 @@ type checkpoints struct {
 	// a following "/undo apply" (see undo_intent.go). Not persisted: it
 	// does not survive a resume, the way turn-level undo checkpoints do.
 	pendingUndo *pendingUndo
+	// blobTemp is blobDir's directory when there is no UndoPath.
+	blobTemp blobTemp
 }
 
 // snaps is Snapshots as the interface the checkpoint code consumes, and
@@ -68,6 +70,17 @@ func (k *checkpoints) snaps() Snapshotter {
 		return k.snapshotter
 	}
 	if k.Snapshots == nil {
+		return nil
+	}
+	return k.Snapshots
+}
+
+// userRepo is Snapshots when it is the user's own repository, and nil
+// for none or for a shadow store (snapshot.OpenShadow): that one backs
+// /undo outside git, but it holds no history of the user's, so proof
+// notes and a session's recorded start commit must not look in it.
+func (k *checkpoints) userRepo() *snapshot.Repo {
+	if k.Snapshots == nil || k.Snapshots.Shadow() {
 		return nil
 	}
 	return k.Snapshots
@@ -164,13 +177,7 @@ func (k *checkpoints) captureState(ctx context.Context, like Checkpoint, label s
 		}
 	}
 	for _, f := range like.Files {
-		s := Snapshot{Path: f.Path}
-		if data, err := os.ReadFile(f.Path); err == nil {
-			s.Data, s.Existed = data, true
-		} else if !errors.Is(err, os.ErrNotExist) {
-			s.Failed = true
-		}
-		cp.Files = append(cp.Files, s)
+		cp.Files = append(cp.Files, captureCopy(f.Path, k.blobDir))
 	}
 	return cp, cp.Snap != nil || len(cp.Files) > 0
 }
@@ -206,7 +213,13 @@ func (k *checkpoints) SaveUndo() error {
 	}
 	// A session sidecar: it holds the contents of the files the turns
 	// changed, so it is private like the log beside it.
-	return fsutil.AtomicWriteMode(k.UndoPath, data, fsutil.PrivateFileMode)
+	if err := fsutil.AtomicWriteMode(k.UndoPath, data, fsutil.PrivateFileMode); err != nil {
+		return err
+	}
+	// Only once the sidecar no longer names them: a crash between the
+	// two leaves an orphan blob, never a checkpoint without its copy.
+	collectBlobs(k.madeBlobDir(), k.cp.all, k.cp.redo)
+	return nil
 }
 
 // LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.

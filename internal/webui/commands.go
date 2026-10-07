@@ -7,9 +7,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/projectinit"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -20,12 +23,12 @@ import (
 // webArgs only narrows the argument shape where the web version accepts
 // less than the terminal's.
 var webCommands = []string{
-	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
-	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
+	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
+	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
-	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/cua", "/commit", "/pr",
+	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/plugin", "/cua", "/trust", "/egress",
 }
 
 var webArgs = map[string]string{
@@ -35,10 +38,11 @@ var webArgs = map[string]string{
 	"/diff":        "[path]",
 	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
 	"/loop":        "[duration] [prompt|off]",
-	"/jobs":        "[kill n]",
-	"/memory":      "[query]",
+	"/jobs":        "[kill n | stdin n <text>]",
+	"/memory":      "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
 	"/remember":    "[-g] <fact>",
-	"/permissions": "",
+	"/permissions": "[check <command>]",
+	"/resume":      "[<n|id> [fork]]",
 	"/eval":        "keep [name] [--check cmd]",
 	"/mcp":         "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
 }
@@ -110,12 +114,36 @@ var webDispatch = map[string]webHandler{
 		s.review(arg)
 		return false, nil
 	},
+	"/security-review": func(s *server, arg string) (bool, error) {
+		s.securityReview(arg)
+		return false, nil
+	},
+	"/pr-comments": func(s *server, arg string) (bool, error) {
+		s.gitCommand("/pr-comments", arg)
+		return false, nil
+	},
+	"/issue": func(s *server, arg string) (bool, error) {
+		s.gitCommand("/issue", arg)
+		return false, nil
+	},
 	"/loop": func(s *server, arg string) (bool, error) {
 		s.loop(arg)
 		return false, nil
 	},
 	"/edits":    (*server).cmdEdits,
 	"/readonly": (*server).cmdReadonly,
+	"/dryrun": func(s *server, arg string) (bool, error) {
+		ag := s.opts.Agent
+		if first, _, _ := strings.Cut(strings.TrimSpace(arg), " "); strings.EqualFold(first, "apply") {
+			s.runBusy("applying the dry-run preview", func(ctx context.Context) {
+				s.showResult(ag.DryRunCommand(ctx, arg))
+			})
+			return false, nil
+		}
+		s.showResult(ag.DryRunCommand(s.life, arg))
+		s.emitStatus()
+		return false, nil
+	},
 	"/plan": func(s *server, arg string) (bool, error) {
 		s.plan(arg)
 		return false, nil
@@ -125,10 +153,13 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/verbose":      (*server).cmdVerbose,
+	"/recover":      (*server).cmdRecover,
 	"/compact":      (*server).cmdCompact,
 	"/compact-fast": (*server).cmdCompactFast, "/compress-fast": (*server).cmdCompactFast,
-	"/undo": (*server).cmdUndo,
-	"/redo": (*server).cmdRedo,
+	"/undo":        (*server).cmdUndo,
+	"/redo":        (*server).cmdRedo,
+	"/resume":      (*server).cmdResume,
+	"/checkpoints": (*server).cmdCheckpoints,
 	"/changes": func(s *server, arg string) (bool, error) {
 		s.sheet("changes", s.changesText(arg))
 		return false, nil
@@ -264,6 +295,12 @@ var webDispatch = map[string]webHandler{
 	},
 	"/reload": (*server).cmdReload,
 	"/permissions": func(s *server, arg string) (bool, error) {
+		// check <command> answers what the rules would decide, as in the
+		// terminal; anything else shows the summary.
+		if f := strings.Fields(arg); len(f) >= 2 && f[0] == "check" {
+			s.notice(s.opts.Agent.PermissionCheck(f[1:]))
+			return false, nil
+		}
 		s.sheet("permissions", s.permissionsText())
 		return false, nil
 	},
@@ -299,7 +336,19 @@ var webDispatch = map[string]webHandler{
 		s.mcpCommand(arg)
 		return false, nil
 	},
+	"/plugin": func(s *server, arg string) (bool, error) {
+		s.pluginCommand(strings.Fields(arg))
+		return false, nil
+	},
 	"/cua": (*server).cmdCua,
+	"/egress": func(s *server, arg string) (bool, error) {
+		s.sheet("egress", s.opts.Agent.EgressSummary())
+		return false, nil
+	},
+	"/trust": func(s *server, arg string) (bool, error) {
+		s.trustCommand(arg)
+		return false, nil
+	},
 	"/feedback": func(s *server, arg string) (bool, error) {
 		s.notice("recorded " + arg + " (not sent to the model)")
 		return false, nil
@@ -351,6 +400,11 @@ func (s *server) cmdClear(arg string) (bool, error) {
 
 func (s *server) cmdYolo(arg string) (bool, error) {
 	ag := s.opts.Agent
+	if !ag.Settings().AutoApprove {
+		if err := ag.ModeRefusal(managed.ModeYolo); err != nil {
+			return false, err
+		}
+	}
 	var on bool
 	ag.UpdateSettings(func(st *agent.Settings) {
 		st.AutoApprove = !st.AutoApprove
@@ -373,6 +427,11 @@ func (s *server) cmdRouting(arg string) (bool, error) {
 
 func (s *server) cmdAuto(arg string) (bool, error) {
 	ag := s.opts.Agent
+	if !ag.Settings().AutoMode {
+		if err := ag.ModeRefusal(managed.ModeAuto); err != nil {
+			return false, err
+		}
+	}
 	var on bool
 	ag.UpdateSettings(func(st *agent.Settings) {
 		st.AutoMode = !st.AutoMode
@@ -389,6 +448,11 @@ func (s *server) cmdAuto(arg string) (bool, error) {
 
 func (s *server) cmdEdits(arg string) (bool, error) {
 	ag := s.opts.Agent
+	if !ag.Settings().AutoEdits {
+		if err := ag.ModeRefusal(managed.ModeEdits); err != nil {
+			return false, err
+		}
+	}
 	var on bool
 	ag.UpdateSettings(func(st *agent.Settings) { st.AutoEdits = !st.AutoEdits; on = st.AutoEdits })
 	s.noteOnOff("auto-accept edits", on, "file changes go through, commands still ask")
@@ -412,6 +476,39 @@ func (s *server) cmdVerbose(arg string) (bool, error) {
 	return false, nil
 }
 
+// cmdRecover carries on the turn the session died in, as a turn the user
+// started: same Stop, same verdict (docs/notes/durable-turns.md).
+func (s *server) cmdRecover(arg string) (bool, error) {
+	ag := s.opts.Agent
+	if ag.Interrupted() == nil {
+		s.notice("nothing to recover: the last turn ended")
+		return true, nil
+	}
+	ctx, ok := s.begin("thinking")
+	if !ok {
+		s.errf("/recover waits for the turn to finish (esc cancels it)")
+		return true, nil
+	}
+	s.statusSet("")
+	s.add(entry{Kind: "thinking"})
+	s.emitStatus()
+	go func() {
+		s.finish(ag.ContinueInterrupted(ctx, s.apply))
+	}()
+	return false, nil
+}
+
+// noteInterrupted tells the page, when a session is opened, that its last
+// turn died and how to carry it on.
+func (s *server) noteInterrupted() {
+	if s.opts.Agent == nil {
+		return
+	}
+	if n := s.opts.Agent.InterruptedNotice("/recover"); n != "" {
+		s.notice(n)
+	}
+}
+
 func (s *server) cmdCompact(arg string) (bool, error) {
 	ag := s.opts.Agent
 	s.runBusy("compacting context", func(ctx context.Context) { _ = ag.CompactManual(ctx, s.apply) })
@@ -421,6 +518,92 @@ func (s *server) cmdCompact(arg string) (bool, error) {
 func (s *server) cmdCompactFast(arg string) (bool, error) {
 	ag := s.opts.Agent
 	s.runBusy("pruning context", func(ctx context.Context) { _ = ag.CompactFast(ctx, s.apply) })
+	return false, nil
+}
+
+// checkpointRow is one restore point as the checkpoints card draws it:
+// newest first, each with a button that previews /undo turn <n>.
+type checkpointRow struct {
+	ID       string   `json:"id"`
+	Turn     int      `json:"turn"`
+	What     string   `json:"what"`
+	Coverage string   `json:"coverage"`
+	Complete bool     `json:"complete"`
+	Gaps     []string `json:"gaps,omitempty"`
+}
+
+// cmdCheckpoints is /checkpoints: the restore points as a card to pick
+// from, the web's counterpart of the terminal's picker. Preview runs
+// /undo turn <n>, which shows what restoring would do; Apply carries out
+// the last preview (/undo apply), as in the terminal.
+func (s *server) cmdCheckpoints(arg string) (bool, error) {
+	list := s.opts.Agent.CheckpointList()
+	if len(list) == 0 {
+		s.notice("no checkpoints yet: one is taken before the first change of every turn that changes something")
+		return false, nil
+	}
+	root := s.cwd()
+	rows := make([]checkpointRow, 0, len(list))
+	for i := len(list) - 1; i >= 0; i-- {
+		c := list[i]
+		what := fmt.Sprintf("turn %d · %s ago", c.Turn, textfmt.Age(time.Since(c.When)))
+		if c.Intent != "" {
+			what += " · " + textfmt.Clip(c.Intent, 60)
+		}
+		rows = append(rows, checkpointRow{ID: c.ID, Turn: c.Turn, What: what, Coverage: c.Coverage(root), Complete: c.Complete, Gaps: c.Gaps})
+	}
+	s.card("checkpoints", rows)
+	return false, nil
+}
+
+// cmdResume is /resume: with no argument it lists this directory's
+// sessions (the sessions rail shows the same); /resume <id|n> opens one,
+// and /resume <id|n> fork continues in a copy of it, the way on when
+// another janetcode holds its lease. n counts the listing, as in the
+// terminal.
+func (s *server) cmdResume(arg string) (bool, error) {
+	arg, fork := strings.CutSuffix(strings.TrimSpace(arg), " fork")
+	arg = strings.TrimSpace(arg)
+	dir, err := session.Dir()
+	if err != nil {
+		return true, err
+	}
+	var others []session.Info
+	if infos, err := session.List(dir, s.cwd()); err == nil {
+		for _, in := range infos {
+			if (s.sess() == nil || in.Meta.ID != s.sess().Meta.ID) && in.Messages > 0 {
+				others = append(others, in)
+			}
+		}
+	}
+	if arg == "" {
+		var sb strings.Builder
+		for i, in := range others {
+			fmt.Fprintf(&sb, "%2d  %s  %s (%d messages)\n", i+1, in.Meta.ID, in.Meta.Title, in.Messages)
+		}
+		if sb.Len() == 0 {
+			sb.WriteString("no other sessions in this directory\n")
+		}
+		sb.WriteString("\n/resume <n|id> opens one · /resume <n|id> fork continues in a copy")
+		s.sheet("sessions", sb.String())
+		return false, nil
+	}
+	id := arg
+	if n, err := strconv.Atoi(arg); err == nil {
+		if n < 1 || n > len(others) {
+			s.errf("no session numbered %d (see /resume)", n)
+			return true, nil
+		}
+		id = others[n-1].Meta.ID
+	}
+	opened, _, err := s.openSession(id, fork)
+	if err != nil {
+		s.errf("resume %s: %v", id, err)
+		return true, nil
+	}
+	if fork {
+		s.notice(fmt.Sprintf("resumed a copy of %s as %s", id, opened))
+	}
 	return false, nil
 }
 

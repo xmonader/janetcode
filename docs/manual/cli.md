@@ -23,17 +23,24 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--compact-at <tokens>` | compact the history at this size instead of the configured one; `--eval-compact-at` with the everyday spelling |
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |
-| `--plain` | draw the terminal interface in ASCII (`+-|` borders, `>` and `*` marks) with a spinner that does not move, for the Linux console, a font without box drawing, or a quieter screen. `JANETCODE_PLAIN=1` does the same, and it is on by itself when `TERM=linux`; `NO_COLOR` turns colour off separately. For a screen reader, `--web` is the better interface: it has landmarks and live announcements |
+| `--plain` | draw the terminal interface in ASCII (`+-|` borders, `>` and `*` marks) with a spinner that does not move, for the Linux console, a font without box drawing, or a quieter screen. `JANETCODE_PLAIN=1` does the same, and it is on by itself when `TERM=linux`; `NO_COLOR` turns colour off separately. For a screen reader, use `--screen-reader` (below) or `--web`, which has landmarks and live announcements |
+| `--screen-reader` | a line interface for a screen reader or braille display instead of the full-screen one: every line is written once and never redrawn, with no animation, colour, box drawing or cursor movement, and every state is said in words (`Working.`, `Waiting for permission: bash go test ./....`, `Turn finished.`). Permission is answered by typing `y`, `a`, `r` or `n` (a reason may follow `n`); ctrl+c cancels a running turn and, at the prompt, exits. `/help`, `/cost`, `/voice` and `/quit` are its commands; everything else is sent to the model. On with `JANETCODE_SCREEN_READER=1`, `"screen_reader": true` in the config, or `ACCESSIBILITY_ENABLED=1` (which some desktops export when a screen reader starts); `JANETCODE_SCREEN_READER=0` keeps it off. See [The screen-reader interface](interface.md#the-screen-reader-interface) |
 | `--theme <name>` | colour theme for this run: `auto`, `dark`, `light`, or a builtin or user theme name. Overrides the config for this run only; `--inspect themes` lists them |
 | `--yolo` | run mutating tools without asking |
 | `--auto` | auto mode: in-workspace file edits and known-safe reads run without asking; other commands still ask. `/auto` toggles it; shift+tab cycles ask → plan → auto → yolo |
 | `--sandbox` | wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; `/sandbox` toggles it |
 | `--auto-edits` | auto-accept file edits; commands still ask. `/edits` toggles the same thing mid-session |
 | `--readonly` | read, search and answer, but change nothing |
+| `--dry-run` | the model plans and edits a preview; commands that change things are recorded, not run, and nothing reaches the disk until `/dryrun apply`. With `-p` the preview is printed at the end (stderr), and is the `dry_run` field of `--output-format json`. See [Dry run](interface.md#dry-run-see-the-whole-change-first) |
 | `--append-system-prompt "<text>"` | add text (or `@file`) to the system prompt for this run (TUI sessions too); `JANETCODE_SYSTEM_MD=<file>` replaces the base prompt instead. Both are recorded in eval results, so a prompt A/B stays traceable |
 | `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one (including one started with `--bg`) |
+| `--recover` | with `--resume` or `--continue`: carry on the turn the session died in (a crash, a kill, a lost machine) instead of sending a prompt; works with `--bg`. See [A turn the session died in](sessions.md#a-turn-the-session-died-in) |
+| `--fork` | with `--resume` or `--continue`: carry on in a copy of the session, leaving the original as it was. The way on when another janetcode has that session open (see [One process per session](sessions.md#one-process-per-session)) |
+| `--show <id>` | print a saved session's conversation as Markdown and exit. It takes no lease, so it reads a session another janetcode is running |
+| `--audit <session>` | check a session's audit log against the session and print what the session did, turn by turn, from the record alone: the prompts, each model call with its model, provider and cost, each tool call with what authorized it and how it ended, each file it changed, and what the turn demonstrated. Nothing runs. Exits 1 when the log and the session disagree (see [The audit log](sessions.md#the-audit-log)) |
+| `--search "<words>"` | search every saved session's conversation for all the words, any case, and exit: the matching sessions newest first, each with the turn and the line that matched |
 | `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume`. What its permission mode asks about waits for `--answer`; it runs `--yolo` only when given (see [sessions](sessions.md)) |
-| `--answer <id> [allow\|session\|deny]` | show, or settle, the permission request a `--bg` run is waiting on. `JANETCODE_NOTIFY=<command>` runs a command each time one starts waiting |
+| `--answer <id> [allow\|session\|deny\|<choice>]` | show, or settle, the permission request a `--bg` run is waiting on, or answer its open question: an option's number, its label, or your own words (`;` between several). A question the run already went on from takes a late answer. `JANETCODE_NOTIFY=<command>` runs a command each time one starts waiting |
 | `--add-dir <path>` | extra local directory file tools may read and edit this session (repeatable) |
 | `--set <key>=<value>` | set a config key for this run only, repeatable: the keys `/config` takes, including the model slots (`route_cheap`, `strong_model`, `advisor_model`, `vision_model`), the features that use them (`escalate_after`, `advisor_mode`, `stale_check_nudge`) and the decisions block (`decisions.enabled`, `decisions.model`, `decisions.endpoint`, `decisions.triage`, …). Nothing is written to the config file, and a key or value the file would be refused for is refused here |
 | `--replay <session>` | re-run a saved session against the current code, with the model's replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key |
@@ -48,6 +55,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
+| `--mcp-serve` | serve janetcode as an MCP server on stdio: one tool, `janetcode_task`, runs a prompt in this directory and returns the answer, session id, verdict and usage. Read-only unless `--auto-edits`, `--auto` or `--yolo` is given; see [Extending](extending.md#janetcode-as-an-mcp-server) |
 | `--web` | serve the session in a browser instead of the terminal |
 | `--web-addr <host:port>` | listen address for `--web` (default `127.0.0.1:8787`). Loopback unless you name another host. The page requires the access token in the printed URL, on loopback too, since other users of the machine can reach it (`JANETCODE_WEB_TOKEN` fixes it) |
 | `--inspect <subject>` | print one part of the session state and exit; `list` names them |
@@ -64,10 +72,15 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--allow`, `--deny` | add a permission rule for this run |
 | `--safe-mode` | start with nothing from the project and none of your extensions: no hooks (yours or the project's), no MCP servers, no verify gates, no project permission rules, no project instructions (`JANETCODE.md`, `AGENTS.md`, `CLAUDE.md`), and skills, rules and agent profiles from your config directory only. `auto_approve` is off and `--yolo`, `--auto` and `--auto-edits` are refused. For a repository you have not vetted, or for telling whether a problem is janetcode's or something you added to it. It does not sandbox `bash`; add `--sandbox` for that |
 | `--core-tools <list>`, `--exclude-tools <list>` | which tools the model is shown: only the `--core-tools` ones, none of the `--exclude-tools` ones. Comma-separated, globs allowed (`mcp__github__*`), MCP tools that connect later included. Unlike `--deny`, a filtered tool is not in the request at all, so it costs no tokens and the model never tries it. A plain name that is no tool of the session is an error (exit 42), so a typo cannot leave in place the tool it meant to remove |
+| `--ask` | add a sensitive-call rule for this run: what it matches always asks, in every mode, e.g. `--ask '*(touches:**/.env)'` (see [Permission rules](interface.md#permission-rules)) |
+| `--trust <level>` | the project's trust level for this run only, never written down: `untrusted`, `instructions` (its skills, agent profiles, custom commands and rules) or `full` (also its hooks, MCP servers, verify commands, allow rules and recipes). `JANETCODE_TRUST` does the same. See [Project trust](interface.md#project-trust) |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |
 | `--list-models` | print the models the configured provider (or `--provider`) serves, with context window and output limit as the provider reports them, then exit. `--output-format json` prints an array of `{id, name, context_window, max_output}` |
 | `--debug <file>` | append a timestamped timeline to `file`: each model call's start, duration, stop reason and usage, and every stream and tool event with its size (not its content). MCP messages are logged in full, so with MCP servers the file can hold what their tools returned. The same as `JANETCODE_DEBUG=<file>`; the flag wins when both are set |
+| `--plugin "<args>"` | manage plugins from the shell and exit: the arguments `/plugin` takes, e.g. `--plugin list`, `--plugin "install https://github.com/someone/kit"`, `--plugin "trust kit"`. See [Plugins](extending.md#plugins) |
 | `--update` | replace this binary with the latest release: the download is checked against the release's `SHA256SUMS` and written beside the old binary before it is renamed over it. A build from source says it is not a release; `JANETCODE_RELEASES` points at a mirror |
+| `--uninstall` | remove this binary when janetcode installed it: install.sh leaves a receipt (`.janetcode.install`) beside the binary naming its checksum, and a release build is recognised by its version. A build from source that janetcode did not install is refused and left alone. Every path removed is printed; the config and data directories are kept and named |
+| `--purge` | with `--uninstall`: also remove the config directory (settings, API keys, permission rules, MCP logins) and the data directory (sessions, memory, archives). `--backup <file>` first if in doubt |
 | `--version` | print the version |
 
 Eval flags (`--eval` and the rest) are documented under [Evals](evals.md).
@@ -132,6 +145,14 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   transiently — a rate limit, a server error — and succeeded on a later
   attempt; the backoff is already inside `duration_ms`, and this says how
   much of the wall time was the provider refusing rather than thinking.
+  `served` is what the last model call's response said about who served
+  it — its `model` field, a gateway's `provider` and `provider_model`,
+  the response `id` prefix and the shape of its `tool_ids` — and
+  `provenance_mismatches` counts the calls whose response named another
+  vendor than the requested model's, with the first verdict in
+  `provenance_mismatch` (both omitted when there were none). A gateway
+  that answers one model name with another model leaves no other trace;
+  see [Which model answered](evals.md#which-model-answered-and-runs-that-never-reached-it).
 
 - `stream-json` prints one JSON object per line as things happen —
   `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,

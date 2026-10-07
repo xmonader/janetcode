@@ -16,6 +16,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -49,6 +50,13 @@ type Options struct {
 	// called twice at once, so it may keep unsynchronised state of its
 	// own (which agent has been handed out, which session is next).
 	NewAgent func(cwd, resume string) (TurnRunner, *session.Session, error)
+	// StartMCP, when set, is called right after NewAgent (under the same
+	// lock) with the MCP servers the editor passed in session/new or
+	// session/load, possibly none: it starts the configured servers and
+	// those for the agent NewAgent just returned, and returns once they
+	// are up or have failed, so the session's first prompt has their
+	// tools.
+	StartMCP func(cwd string, servers map[string]mcp.ServerConfig)
 	In       io.Reader
 	Out      io.Writer
 	Log      io.Writer
@@ -199,6 +207,7 @@ func (s *Server) initialize(raw json.RawMessage) (any, error) {
 		AgentCapabilities: agentCapabilities{
 			LoadSession:        true,
 			PromptCapabilities: promptCapabilities{Image: true, EmbeddedContext: true},
+			MCPCapabilities:    mcpCapabilities{HTTP: s.opts.StartMCP != nil, SSE: s.opts.StartMCP != nil},
 		},
 		AgentInfo:   implInfo{Name: "janetcode", Title: "janetcode", Version: s.opts.Version},
 		AuthMethods: []authMethod{},
@@ -213,7 +222,11 @@ func (s *Server) newSession(raw json.RawMessage) (any, error) {
 	if p.Cwd == "" {
 		return nil, fmt.Errorf("%w: cwd is required", errBadParams)
 	}
-	as, err := s.open(p.Cwd, "")
+	servers, err := clientServers(p.MCPServers)
+	if err != nil {
+		return nil, err
+	}
+	as, err := s.open(p.Cwd, "", servers)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +240,11 @@ func (s *Server) loadSession(raw json.RawMessage) (any, error) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, fmt.Errorf("%w: %v", errBadParams, err)
 	}
-	as, err := s.open(p.Cwd, p.SessionID)
+	servers, err := clientServers(p.MCPServers)
+	if err != nil {
+		return nil, err
+	}
+	as, err := s.open(p.Cwd, p.SessionID, servers)
 	if err != nil {
 		return nil, err
 	}
@@ -248,12 +265,15 @@ func (s *Server) loadSession(raw json.RawMessage) (any, error) {
 
 // open builds the agent for a session and registers it under the session
 // file's own id, so an editor can load it again later.
-func (s *Server) open(cwd, resume string) (*acpSession, error) {
+func (s *Server) open(cwd, resume string, servers map[string]mcp.ServerConfig) (*acpSession, error) {
 	if s.opts.NewAgent == nil {
 		return nil, errors.New("no agent factory configured")
 	}
 	s.openMu.Lock()
 	ag, sess, err := s.opts.NewAgent(cwd, resume)
+	if err == nil && s.opts.StartMCP != nil {
+		s.opts.StartMCP(cwd, servers)
+	}
 	s.openMu.Unlock()
 	if err != nil {
 		return nil, err
@@ -362,16 +382,33 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage, seq uint64) (a
 	default:
 	}
 
-	err = as.agent.RunBlocks(turnCtx, blocks, s.emitter(as))
+	var report turnReport
+	emit := s.emitter(as)
+	err = as.agent.RunBlocks(turnCtx, blocks, func(e agent.Event) {
+		switch e.Kind {
+		case agent.EvVerdict:
+			report.Verdict = e.Text
+		case agent.EvToolStart:
+			report.ToolCalls++
+		case agent.EvTurnDone:
+			report.Usage = turnUsage{
+				InputTokens: e.Usage.InputTokens, OutputTokens: e.Usage.OutputTokens,
+				CacheReadTokens: e.Usage.CacheReadTokens, CacheWriteTokens: e.Usage.CacheWriteTokens,
+				CostUSD: e.Usage.CostUSD,
+			}
+		}
+		emit(e)
+	})
+	meta := &promptMeta{Janetcode: report}
 	switch {
 	case err == nil:
-		return promptResult{StopReason: stopEndTurn}, nil
+		return promptResult{StopReason: stopEndTurn, Meta: meta}, nil
 	case errors.Is(err, context.Canceled), errors.Is(turnCtx.Err(), context.Canceled):
-		return promptResult{StopReason: stopCancelled}, nil
+		return promptResult{StopReason: stopCancelled, Meta: meta}, nil
 	case errors.Is(err, agent.ErrMaxIterations):
-		return promptResult{StopReason: stopMaxTurns}, nil
+		return promptResult{StopReason: stopMaxTurns, Meta: meta}, nil
 	case errors.Is(err, agent.ErrStuck):
-		return promptResult{StopReason: stopRefusal}, nil
+		return promptResult{StopReason: stopRefusal, Meta: meta}, nil
 	default:
 		return nil, err
 	}
@@ -405,7 +442,7 @@ func (s *Server) emitter(as *acpSession) func(agent.Event) {
 			// rather than continuing the half one, and the client is
 			// told which of the two to read.
 			msgID = ""
-			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_(the answer above was cut off mid-stream and is being resent; read what follows)_\n"}})
+			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_(the answer above was cut off mid-stream and is being resent; read what follows)_\n"}, Meta: discardMeta()})
 		case agent.EvTextBlockDone:
 			msgID = ""
 		case agent.EvToolStart:
@@ -431,7 +468,7 @@ func (s *Server) emitter(as *acpSession) func(agent.Event) {
 			if e.Text == "" {
 				return
 			}
-			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_" + e.Text + "_\n"}})
+			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_" + e.Text + "_\n"}, Meta: noticeMeta()})
 		}
 	}
 }
@@ -518,7 +555,7 @@ func toolKind(name string) string {
 	switch name {
 	case "read_file", "list_dir", "expand_output":
 		return kindRead
-	case "write_file", "edit_file":
+	case "write_file", "edit_file", "notebook_edit":
 		return kindEdit
 	case "grep", "glob", "repo_map":
 		return kindSearch

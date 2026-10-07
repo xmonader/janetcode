@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -135,7 +136,7 @@ func outputArg(toks []string, flags []string, i *int) (string, bool) {
 // Classify grades a command line run with root as the working directory.
 // The reason describes the first problem found.
 func Classify(command, root string) (Risk, string) {
-	return classify(command, root, 0)
+	return classify(WindowsPaths(command), root, 0)
 }
 
 // classify is Classify with the wrapper depth carried in. A `sh -c` or an
@@ -361,7 +362,7 @@ func cdTokens(toks []string, cwd string, cwdKnown bool) (dir string, known, isCd
 	if tk == "-" {
 		return "", false, true
 	}
-	if !cwdKnown && !filepath.IsAbs(tk) && !strings.HasPrefix(tk, "~") && !strings.HasPrefix(tk, "$HOME") {
+	if !cwdKnown && !rooted(tk) && !strings.HasPrefix(tk, "~") && !strings.HasPrefix(tk, "$HOME") {
 		return "", false, true
 	}
 	abs, ok := resolvePathArg(tk, cwd)
@@ -811,10 +812,70 @@ func shellCommand(toks []string) (string, bool) {
 // whatever the working directory is: an absolute path, one anchored at
 // ~, or one whose variables expand to an absolute prefix ($HOME/x, ${TMPDIR}).
 func isAbsoluteWord(tk string) bool {
-	if filepath.IsAbs(tk) || strings.HasPrefix(tk, "~") {
+	if rooted(tk) || strings.HasPrefix(tk, "~") {
 		return true
 	}
-	return filepath.IsAbs(shellVarRe.ReplaceAllString(tk, "/"))
+	return rooted(shellVarRe.ReplaceAllString(tk, "/"))
+}
+
+// rooted reports whether a path names a fixed place rather than one
+// relative to the working directory. On Windows that includes a path
+// that starts with a slash: filepath.IsAbs says no to /etc/hosts there,
+// yet PowerShell and every Windows program read it as \etc\hosts on the
+// current drive, which is no more inside the workspace than C:\etc\hosts.
+// The classifier took such paths for relative ones, so `echo x >
+// /etc/hosts` and `rm -rf /Users/me` were ordinary commands on Windows.
+func rooted(p string) bool {
+	if filepath.IsAbs(p) {
+		return true
+	}
+	return runtime.GOOS == "windows" && (strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`))
+}
+
+// WindowsPaths readies a command line for the POSIX word splitting the
+// classifier does. The shell on Windows is PowerShell, where a backslash
+// is an ordinary character (its escape is the backtick) and is how every
+// path is written; read as a POSIX escape it vanished, so C:\Users became
+// C:Users and \Windows became Windows, a relative name, and neither was
+// judged. A forward slash means the same to Windows and to filepath, so a
+// backslash that separates path elements — one followed by a letter,
+// digit, dot, underscore or dash — becomes a slash before the words are
+// split. One before a quote, a dollar sign, a newline or another
+// backslash is left as the escape a bash-minded command means by it:
+// models write bash quoting on Windows too, and reading it as bash keeps
+// the quoting checks' judgement.
+func WindowsPaths(command string) string {
+	if runtime.GOOS != "windows" || !strings.Contains(command, `\`) {
+		return command
+	}
+	b := []byte(command)
+	for i := 0; i+1 < len(b); i++ {
+		if b[i] != '\\' {
+			continue
+		}
+		c := b[i+1]
+		if c == '\\' {
+			i++ // an escaped backslash stays one
+			continue
+		}
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' {
+			b[i] = '/'
+		}
+	}
+	return string(b)
+}
+
+// absFrom resolves p from cwd as the operating system would: a rooted
+// path as itself (on Windows, a slash-rooted one on cwd's drive), any
+// other joined to cwd.
+func absFrom(p, cwd string) string {
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	if rooted(p) {
+		return filepath.Clean(filepath.VolumeName(cwd) + p)
+	}
+	return filepath.Clean(filepath.Join(cwd, p))
 }
 
 // redirect matches an output redirection: the operator (group 1) and
@@ -854,6 +915,12 @@ func escapesResolved(abs, tk, root string) (string, bool) {
 	if abs == "/dev/null" || strings.HasPrefix(abs, "/dev/std") {
 		return "", false
 	}
+	// The null device by its Windows names, and by the POSIX one a model
+	// writes out of habit (which there resolves to \dev\null and fails
+	// rather than writing anywhere that matters).
+	if runtime.GOOS == "windows" && nullDevice(tk) {
+		return "", false
+	}
 	// Scratch files under the temp dir are fine; the resolved path must
 	// actually land there — /tmp/../home/... cleans outside and is judged.
 	if underTemp(abs) && directPath(tk) {
@@ -871,7 +938,7 @@ func underTemp(abs string) bool {
 // directPath reports whether the token reaches its cleaned path without
 // a .. element: explicit paths only.
 func directPath(tk string) bool {
-	if filepath.IsAbs(tk) {
+	if rooted(tk) {
 		return true
 	}
 	for _, el := range strings.Split(filepath.ToSlash(tk), "/") {
@@ -887,9 +954,25 @@ func directPath(tk string) bool {
 // `cd / && rm -rf home` is graded like `rm -rf /home`.
 var systemDirs = []string{"/home", "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64", "/opt", "/root", "/dev", "/proc", "/sys"}
 
+// windowsSystemDirs are their counterparts on a Windows drive.
+var windowsSystemDirs = []string{`\Windows`, `\Users`, `\Program Files`, `\Program Files (x86)`, `\ProgramData`}
+
 func catastrophicTarget(abs string) bool {
 	if abs == "/" {
 		return true
+	}
+	if runtime.GOOS == "windows" {
+		// A drive's root and the directories that hold the system, the
+		// programs and every user's files.
+		vol := filepath.VolumeName(abs)
+		if vol != "" && strings.EqualFold(abs, vol+`\`) {
+			return true
+		}
+		for _, d := range windowsSystemDirs {
+			if strings.EqualFold(abs, vol+d) {
+				return true
+			}
+		}
 	}
 	if home, err := os.UserHomeDir(); err == nil && abs == home {
 		return true
@@ -969,11 +1052,7 @@ func resolvePathArg(tk, cwd string) (string, bool) {
 	if strings.ContainsAny(tk, "$*?") {
 		return "", false // a glob or variable: cannot judge, leave it to the prompt
 	}
-	abs := tk
-	if !filepath.IsAbs(tk) {
-		abs = filepath.Join(cwd, tk)
-	}
-	return filepath.Clean(abs), true
+	return absFrom(tk, cwd), true
 }
 
 // WriteTargets returns the file paths a shell command line would write
@@ -985,6 +1064,7 @@ func resolvePathArg(tk, cwd string) (string, bool) {
 // by the accept-tests lock to catch a bash command that would touch a
 // locked test file the same way edit_file/write_file are caught.
 func WriteTargets(command, root string) []string {
+	command = WindowsPaths(command)
 	var out []string
 	seen := map[string]bool{}
 	add := func(p string) {
@@ -1087,10 +1167,24 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 // addRedirects adds the resolved targets of a segment's redirections.
 func addRedirects(seg, cwd string, add func(string)) {
 	for _, raw := range redirectTargets(seg) {
-		if abs, ok := resolvePathArg(strings.Trim(raw, `"'`), cwd); ok {
+		tk := strings.Trim(raw, `"'`)
+		if nullDevice(tk) {
+			continue
+		}
+		if abs, ok := resolvePathArg(tk, cwd); ok {
 			add(abs)
 		}
 	}
+}
+
+// nullDevice reports whether a redirect target is the null device or a
+// standard stream: writing there writes no file. On Windows that is NUL
+// or $null, and /dev/null too, which a model writes out of habit.
+func nullDevice(tk string) bool {
+	if tk == "/dev/null" || strings.HasPrefix(tk, "/dev/std") {
+		return true
+	}
+	return runtime.GOOS == "windows" && (strings.EqualFold(tk, "NUL") || strings.EqualFold(tk, "$null"))
 }
 
 // SafeRead reports whether a command is a known-safe read: listing,
@@ -1138,8 +1232,7 @@ func safeSegment(seg string, depth int) bool {
 
 func writesRedirect(seg string) bool {
 	for _, raw := range redirectTargets(seg) {
-		p := strings.Trim(raw, `"'`)
-		if p != "/dev/null" && !strings.HasPrefix(p, "/dev/std") {
+		if !nullDevice(strings.Trim(raw, `"'`)) {
 			return true
 		}
 	}
@@ -1592,9 +1685,7 @@ func TrimWorkspaceCd(command, root string) string {
 		if root == "" {
 			return command
 		}
-		if !filepath.IsAbs(dir) {
-			dir = filepath.Join(root, dir)
-		}
+		dir = absFrom(dir, root)
 		if filepath.Clean(dir) != filepath.Clean(root) {
 			return command
 		}

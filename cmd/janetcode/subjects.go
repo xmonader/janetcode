@@ -96,6 +96,7 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		return configReport(d.cfg, d.cfgPath, d.version, d.cwd)
 	})
 	r.AddText("permissions", "what may run without asking", func() string { return permissionsReport(d.agent, d.cfg) })
+	r.AddText("managed", "the administrator's managed policy and what it fixes", func() string { return managedReport(d.cfg) })
 	r.AddText("lsp", "language servers, their state and known problems", func() string { return lspReport(d.diag) })
 	r.AddText("mcp", "MCP servers and the tools they contributed", func() string { return mcpReport(d.mcp) })
 	r.AddText("jobs", "background jobs, running and finished", func() string { return jobsReport(d.jobs) })

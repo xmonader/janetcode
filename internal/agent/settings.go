@@ -6,6 +6,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -110,6 +111,7 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 	defer a.settingsMu.Unlock()
 	s := a.settingsLocked()
 	change(&s)
+	a.clampModes(&s)
 	a.Model = s.Model
 	a.Provider = s.Provider
 	a.Price = s.Price
@@ -209,7 +211,7 @@ func (s Settings) modeName() string {
 func (a *Agent) RulesSnapshot() perm.Rules {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
-	return perm.Rules{Allow: slices.Clone(a.Rules.Allow), Deny: slices.Clone(a.Rules.Deny)}
+	return perm.Rules{Allow: slices.Clone(a.Rules.Allow), Deny: slices.Clone(a.Rules.Deny), Ask: slices.Clone(a.Rules.Ask)}
 }
 
 // AddRule adds a permission rule to the live set (see perm.Rules.Add),
@@ -217,6 +219,13 @@ func (a *Agent) RulesSnapshot() perm.Rules {
 func (a *Agent) AddRule(v perm.Verdict, r perm.Rule) bool {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
+	switch {
+	case v == perm.Ask:
+		return a.Rules.AddAsk(r)
+	case v == perm.Allowed && a.Policy != nil && a.Policy.ManagedRulesOnly:
+		// Only the managed policy's own allow rules apply.
+		return false
+	}
 	return a.Rules.Add(v, r)
 }
 
@@ -302,4 +311,35 @@ func (a *Agent) PermLedger() *perm.Ledger {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
 	return a.Ledger
+}
+
+// clampModes turns off the approval shortcuts the managed policy
+// disables. It runs inside UpdateSettings, the one door every front-end's
+// /yolo, /auto, /edits and shift+tab goes through, so a policy holds
+// however the change was asked for.
+func (a *Agent) clampModes(s *Settings) {
+	p := a.Policy
+	if p == nil {
+		return
+	}
+	if p.ModeDisabled(managed.ModeYolo) {
+		s.AutoApprove = false
+	}
+	if p.ModeDisabled(managed.ModeAuto) {
+		s.AutoMode = false
+	}
+	if p.ModeDisabled(managed.ModeEdits) {
+		s.AutoEdits = false
+	}
+}
+
+// ModeRefusal is why the managed policy will not let a mode be turned
+// on, or nil when it may: mode is managed.ModeYolo, ModeAuto or
+// ModeEdits. A front-end asks before switching so it can say so instead
+// of reporting a mode that clampModes then quietly turned off.
+func (a *Agent) ModeRefusal(mode string) error {
+	if a.Policy.ModeDisabled(mode) {
+		return a.Policy.Refusal("/" + mode)
+	}
+	return nil
 }

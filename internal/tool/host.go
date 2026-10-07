@@ -58,6 +58,41 @@ type Workspace struct {
 	mu    sync.RWMutex
 	host  Host
 	extra []string
+	// overlay, while set, catches the file tools' writes (a dry run; see
+	// Overlay). Host hands it out wrapped around the real host.
+	overlay *Overlay
+}
+
+// SetOverlay starts (o != nil) or ends (nil) a dry run's overlay: from
+// now on the file tools write into o instead of the host.
+func (w *Workspace) SetOverlay(o *Overlay) {
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.overlay = o
+}
+
+// Overlay is the dry run's overlay, or nil when there is none.
+func (w *Workspace) Overlay() *Overlay {
+	if w == nil {
+		return nil
+	}
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.overlay
+}
+
+// RealHost is the host under any overlay: where a dry run's preview is
+// written once the user applies it.
+func (w *Workspace) RealHost() Host {
+	if w == nil {
+		return nil
+	}
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.host
 }
 
 // NewLocal builds a workspace on the process's own filesystem.
@@ -75,6 +110,9 @@ func (w *Workspace) Host() Host {
 	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
+	if w.overlay != nil && w.host != nil {
+		return overlayHost{Host: w.host, o: w.overlay}
+	}
 	return w.host
 }
 

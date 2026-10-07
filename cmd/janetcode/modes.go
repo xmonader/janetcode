@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/xmonader/janetcode/internal/acp"
@@ -24,6 +25,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -57,8 +59,9 @@ var sessionModes = []sessionMode{
 		func(r *root) error { return inspectOnce(r.subjects, r.opts.inspectWhat, os.Stdout, false) }},
 	{"recipe", func(o *options) bool { return o.recipeName != "" }, false, (*root).recipeMode},
 	{"acp", func(o *options) bool { return o.acpMode }, true, (*root).acpMode},
-	{"headless", func(o *options) bool { return o.headless() || o.watchCmd != "" }, true, (*root).headlessMode},
+	{"headless", func(o *options) bool { return o.headless() || o.watchCmd != "" || o.recoverTurn }, true, (*root).headlessMode},
 	{"web", func(o *options) bool { return o.web }, true, (*root).webMode},
+	{"screen-reader", func(o *options) bool { return o.screenReader }, true, (*root).screenReaderMode},
 	{"tui", func(*options) bool { return true }, true, (*root).tuiMode},
 }
 
@@ -98,6 +101,7 @@ func (r *root) startMCP(ctx context.Context, warnUntrusted bool) {
 			fmt.Fprintf(os.Stderr, "[cua] computer_use is on but no driver is on PATH\n%s\n", cua.InstallHint)
 		}
 	}
+	r.servers.SetNotify(func(msg string) { fmt.Fprintf(os.Stderr, "[mcp] %s\n", msg) })
 	r.servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
@@ -151,6 +155,9 @@ func (r *root) recipeMode() error {
 	if err != nil {
 		return fmt.Errorf("--recipe: %w", err)
 	}
+	if !r.gate.Exec(cwd, r.gate == nil) {
+		return headless.BadInput("--recipe: this project's recipes run once you trust it: add --trust full, or run /trust full in a session (project trust is %s)", r.gate.State(cwd).Level)
+	}
 	// A recipe is built through the same agent the normal headless
 	// run (-p) uses, so its steps see the same tools — including a
 	// configured MCP server's, when the recipe actually calls one.
@@ -173,7 +180,14 @@ func (r *root) acpMode() error {
 	defer stop()
 	first := built
 	used := false
+	// current is the agent NewAgent last handed out, and currentRoot its
+	// directory; StartMCP runs right after it, under the same lock.
+	current, currentRoot := first.agent, cwd
+	mcpFor := acpMCP{r: r, ctx: ctx, managers: map[*agent.Agent]*mcptool.Manager{}}
 	srv := acp.New(acp.Options{
+		StartMCP: func(_ string, servers map[string]mcp.ServerConfig) {
+			mcpFor.start(current, currentRoot, servers)
+		},
 		In: os.Stdin, Out: os.Stdout, Log: os.Stderr, Version: version,
 		NewAgent: func(sessionCwd, resume string) (acp.TurnRunner, *session.Session, error) {
 			// The editor says which directory the session is for, and
@@ -193,6 +207,11 @@ func (r *root) acpMode() error {
 				if s, hist, err = session.Open(sessDir, resume); err != nil {
 					return nil, nil, err
 				}
+				// The editor gets the same refusal a terminal does
+				// for a session another janetcode is running.
+				if err := s.Acquire(); err != nil {
+					return nil, nil, err
+				}
 				if s.Meta.Cwd != "" {
 					root = s.Meta.Cwd
 				}
@@ -201,12 +220,16 @@ func (r *root) acpMode() error {
 				if s, err = session.New(sessDir, root, cfg.Provider, cfg.Model); err != nil {
 					return nil, nil, err
 				}
+				if err := s.Acquire(); err != nil {
+					return nil, nil, err
+				}
 				hist = nil
 			}
 			// The agent this process already built is only right when
 			// the session is for the directory it was built for.
 			if !used && resume == "" && root == cwd {
 				used = true
+				current, currentRoot = first.agent, root
 				return acp.Wrap(first.agent), s, nil
 			}
 			used = true
@@ -216,6 +239,7 @@ func (r *root) acpMode() error {
 			if err != nil {
 				return nil, nil, err
 			}
+			current, currentRoot = b.agent, root
 			return acp.Wrap(b.agent), s, nil
 		},
 	})
@@ -248,17 +272,53 @@ func (r *root) headlessMode() error {
 			return err
 		}
 	}
+	if o.recoverTurn {
+		if strings.TrimSpace(o.promptText) != "" {
+			return headless.BadInput("--recover carries on the interrupted turn and takes no prompt; resume without --recover to send one")
+		}
+		if ag.Interrupted() == nil {
+			return headless.BadInput("--recover: this session's last turn ended, so there is nothing to carry on")
+		}
+	} else if n := ag.InterruptedNotice("--recover"); n != "" {
+		fmt.Fprintln(os.Stderr, "[session] "+n)
+	}
 	r.startMCP(ctx, true)
+	if line := trustNotice(r.gate, cwd); line != "" {
+		fmt.Fprintln(os.Stderr, line)
+	}
 	defer r.syncSession()
 	finish := startBgRun(ag, sess, cwd)
 	err := headless.Run(ctx, headless.Options{
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
-		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, JSONSchema: schema,
+		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, JSONSchema: schema, Recover: o.recoverTurn,
 	})
 	finish(err)
 	return err
+}
+
+// screenReaderMode is the interactive session as a line conversation for
+// a screen reader (headless.Converse): the terminal interface's session,
+// drawn as lines that are written once and never redrawn.
+func (r *root) screenReaderMode() error {
+	if r.needsConnect {
+		return headless.BadInput("no API key for the screen-reader session: set ANTHROPIC_API_KEY or OPENAI_API_KEY (and OPENAI_BASE_URL), or run janetcode --init; the line interface has no /connect wizard")
+	}
+	if err := interactiveTerminal(); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	defer stop()
+	r.startMCP(ctx, true)
+	defer r.syncSession()
+	return headless.Converse(ctx, headless.ConverseOptions{
+		Options: headless.Options{
+			Agent: r.ag, Session: r.sess, Stdin: os.Stdin, Stdout: os.Stdout, Cwd: r.cwd,
+			Memory: r.mem, AutoMemory: r.cfg.AutoMemory(),
+		},
+		Voice: voiceSession(r.cfg),
+	})
 }
 
 // webMode serves the session in a browser instead of the terminal.
@@ -274,7 +334,8 @@ func (r *root) webMode() error {
 	r.startMCP(ctx, false)
 	defer r.syncSession()
 	return webui.Run(ctx, webui.Options{
-		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
+		TrustGate: r.gate,
+		Agent:     ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For, Build: buildProvider,
@@ -284,6 +345,7 @@ func (r *root) webMode() error {
 			return buildProvider(&sub)
 		},
 		Workspace: built.ws, CD: built.cd, MCP: mcpOpts, Skills: built.skillInjector,
+		Transcribe: transcribeFile(cfg),
 		Doctor: func(ctx context.Context, w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a
 			// running session never changes files behind the user.
@@ -363,8 +425,10 @@ func (r *root) tuiMode() error {
 			// running session never changes files behind the user.
 			return doctor(ctx, w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
-		Verify: r.uiVerify,
-		Perms:  r.uiPerms,
+		Verify:    r.uiVerify,
+		Perms:     r.uiPerms,
+		TrustGate: r.gate,
+		Voice:     voiceSession(cfg),
 	})
 }
 

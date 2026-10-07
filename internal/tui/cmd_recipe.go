@@ -96,6 +96,10 @@ func (m *model) runRecipe(rest string) tea.Cmd {
 		m.transcript.info(recipe.FormatSteps(steps))
 		return nil
 	}
+	if g := m.opts.TrustGate; g != nil && !g.Exec(m.opts.Cwd, false) {
+		m.transcript.errorf("recipe run: this project's recipes run once you trust it: /trust full (a dry run still works)")
+		return nil
+	}
 	m.startTurn("running recipe " + name)
 	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel

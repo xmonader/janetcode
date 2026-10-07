@@ -103,6 +103,25 @@ func (s *server) jobs(arg string) {
 		return
 	}
 	fields := strings.Fields(arg)
+	if len(fields) >= 2 && fields[0] == "stdin" {
+		n, err := strconv.Atoi(fields[1])
+		if err != nil {
+			s.errf("usage: /jobs stdin <n> <text>")
+			return
+		}
+		// The text is everything after the job number, spaces kept; none
+		// at all presses Enter.
+		rest := strings.TrimLeft(strings.TrimLeft(arg, " \t")[len("stdin"):], " \t")
+		text := strings.TrimPrefix(rest[len(fields[1]):], " ")
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := s.opts.Jobs.Write(ctx, n, text); err != nil {
+			s.errf("%v", err)
+			return
+		}
+		s.notice(fmt.Sprintf("wrote to job %d", n))
+		return
+	}
 	if len(fields) == 2 && fields[0] == "kill" {
 		n, err := strconv.Atoi(fields[1])
 		if err != nil {
@@ -158,6 +177,18 @@ func (s *server) memory(cmd, arg string) {
 		}
 		s.notice("forgot " + gone.Name)
 	default:
+		if out, ok, err := store.ConfirmCommand(arg); ok {
+			if err != nil {
+				s.errf("memory: %v", err)
+			}
+			if out != "" {
+				s.sheet("memory", out)
+			}
+			if s.opts.Agent != nil {
+				s.opts.Agent.RefreshExtra()
+			}
+			return
+		}
 		s.sheet("memory", s.memoryText(arg))
 	}
 }

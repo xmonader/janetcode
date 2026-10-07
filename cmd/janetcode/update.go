@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/update"
 )
 
@@ -20,6 +21,10 @@ func selfUpdate() error {
 	if p, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = p
 	}
+	// Only for its ca_file: a download through a TLS-intercepting proxy
+	// needs the proxy's CA. A config that cannot be read is not this
+	// command's business; the download says so if it needed one.
+	_, _ = config.Load(config.Overrides{})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	res, err := update.Run(ctx, nil, update.Base(), version, exe)
@@ -31,5 +36,12 @@ func selfUpdate() error {
 		return nil
 	}
 	fmt.Printf("updated %s: %s → %s\n", res.Path, res.From, res.To)
+	// The receipt install.sh left names the bytes it wrote; it follows
+	// the binary so --uninstall still recognises it.
+	if rc, err := update.ReadReceipt(exe); err == nil && rc != nil {
+		if err := update.WriteReceipt(exe, res.To); err != nil {
+			fmt.Fprintf(os.Stderr, "janetcode: could not update %s: %v\n", update.ReceiptName(exe), err)
+		}
+	}
 	return nil
 }

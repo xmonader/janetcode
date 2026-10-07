@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -156,6 +159,31 @@ func (e statusErr) Error() string            { return e.msg }
 func (e statusErr) HTTPStatus() int          { return e.status }
 func (e statusErr) RetryHint() time.Duration { return 0 }
 func (e statusErr) ErrorDetail() string      { return e.detail }
+
+// A transport failure is judged by its error value, not its words: none
+// of these says "rate limit" or carries a status, and all of them used to
+// end the run although another model on another endpoint could answer.
+// A stream error still stamped 200 is judged by its words, as before.
+func TestWorthFallbackReadsTransportFailuresByType(t *testing.T) {
+	yes := []error{
+		fmt.Errorf("openai: %w", &url.Error{Op: "Post", URL: "https://x", Err: &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}}),
+		fmt.Errorf("anthropic: %w", &net.DNSError{Err: "no such host", Name: "api.example"}),
+		fmt.Errorf("call: %w", llm.ErrStreamWatchdog),
+		llm.Truncate(errors.New("openai: stream ended without finish_reason")),
+		fmt.Errorf("read: %w", syscall.ECONNRESET),
+	}
+	for _, err := range yes {
+		if !worthFallback(err) {
+			t.Errorf("%v should be worth a fallback", err)
+		}
+	}
+	if worthFallback(statusErr{200, "the model produced invalid output", ""}) {
+		t.Error("an untyped in-stream error with no telling words was taken for a fallback")
+	}
+	if !worthFallback(statusErr{200, "Overloaded", "overloaded"}) {
+		t.Error("the last-resort reading of words is gone")
+	}
+}
 
 // An error with a status is judged by the status and the whole server
 // text, not by the display copy, which is cut short.

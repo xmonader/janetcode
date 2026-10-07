@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -77,14 +78,44 @@ func keyName(msg tea.KeyMsg) string {
 // through to the textarea.
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if mode := m.mode(); mode != modePrompt {
-		return modeKeys[mode](m, msg)
+		cmd, ok := modeKeys[mode](m, msg)
+		if ok || mode != modeSearch || m.hsearch != nil {
+			return cmd, ok
+		}
+		// The search closed on a key it has no use for: that key goes on
+		// to do what it does at the prompt.
 	}
 	if msg.Paste {
 		if text := cleanPaste(string(msg.Runes)); bigPaste(text) {
 			return m.chipPaste(text)
 		}
 	}
-	if act, ok := promptKeys[keyName(msg)]; ok {
+	name := keyName(msg)
+	if m.chord != "" {
+		// The second key of a chord: whatever it is, the chord ends here,
+		// and a key that completes nothing is not typed either.
+		first := m.chord
+		m.chord = ""
+		if a, ok := m.keys.Lookup(first + " " + name); ok {
+			return actionKeys[a](m, msg)
+		}
+		m.status = first + " " + name + " is not bound · /help keys lists the keys"
+		m.refresh(false)
+		return nil, true
+	}
+	if m.keys.IsPrefix(name) {
+		m.chord = name
+		m.status = name + " …"
+		m.refresh(false)
+		return nil, true
+	}
+	if cmd, ok := m.vimKey(msg); ok {
+		return cmd, true
+	}
+	if a, ok := m.keys.Lookup(name); ok {
+		return actionKeys[a](m, msg)
+	}
+	if act, ok := fixedKeys[name]; ok {
 		return act(m, msg)
 	}
 	return nil, false
@@ -101,6 +132,7 @@ var modeKeys = map[uiMode]keyAction{
 	modeWizard:  (*model).handleWizardKey,
 	modeDeny:    (*model).handleDenyKey,
 	modeApprove: (*model).handlePendingKey,
+	modeSearch:  (*model).handleSearchKey,
 }
 
 // chipPaste turns a file dropped into the prompt into one chip. It is
@@ -195,32 +227,51 @@ func (m *model) handlePendingKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 // the others.
 type keyAction func(*model, tea.KeyMsg) (tea.Cmd, bool)
 
-// promptKeys is what each key does at the ordinary prompt — the same
+// actionKeys is what each action does at the ordinary prompt — the same
 // shape as the slash-command table, for the same reason: one long switch
-// hid which keys existed, and every arm had to be read to find out.
-var promptKeys = map[string]keyAction{
-	"ctrl+c":    (*model).keyInterrupt,
-	"ctrl+d":    (*model).keyEOF,
-	"esc":       (*model).keyEscape,
-	"ctrl+o":    (*model).keyFold,
+// hid which keys existed, and every arm had to be read to find out. Which
+// key runs which action is keymap's: its defaults and the config file's
+// "keybindings" go through one resolution, so a rebound key and a
+// default one reach the same handler. TestEveryActionHasAHandler keeps
+// the two tables in step.
+var actionKeys = map[keymap.Action]keyAction{
+	keymap.Submit:         (*model).keyEnter,
+	keymap.Newline:        (*model).keyNewline,
+	keymap.Cancel:         (*model).keyEscape,
+	keymap.Interrupt:      (*model).keyInterrupt,
+	keymap.Quit:           (*model).keyEOF,
+	keymap.Expand:         (*model).keyFold,
+	keymap.Background:     (*model).keyBackground,
+	keymap.Steer:          (*model).keySteer,
+	keymap.Redraw:         (*model).keyClearScreen,
+	keymap.ModeCycle:      (*model).keyCycleMode,
+	keymap.Agents:         (*model).keyAgents,
+	keymap.Effort:         (*model).keyCycleEffort,
+	keymap.PasteImage:     (*model).keyPasteImage,
+	keymap.Complete:       (*model).keyComplete,
+	keymap.HistoryPrev:    (*model).keyUp,
+	keymap.HistoryNext:    (*model).keyDown,
+	keymap.HistorySearch:  (*model).keyHistorySearch,
+	keymap.ExternalEditor: (*model).keyExternalEditor,
+	keymap.PageUp:         (*model).keyPageUp,
+	keymap.PageDown:       (*model).keyPageDown,
+	keymap.Voice:          (*model).keyVoice,
+}
+
+// fixedKeys are prompt keys that are not actions a user would move:
+// backspace takes a paste chip whole, and is backspace everywhere.
+var fixedKeys = map[string]keyAction{
 	"backspace": (*model).keyBackspace,
-	"ctrl+g":    (*model).keyBackground,
-	"ctrl+x":    (*model).keyEditor,
-	"ctrl+s":    (*model).keySteer,
-	"ctrl+l":    (*model).keyClearScreen,
-	"shift+tab": (*model).keyCycleMode,
-	"ctrl+t":    (*model).keyAgents,
-	"ctrl+r":    (*model).keyCycleEffort,
-	"ctrl+v":    (*model).keyPasteImage,
-	"tab":       (*model).keyComplete,
-	"up":        (*model).keyUp,
-	"down":      (*model).keyDown,
-	"pgup":      (*model).keyPage,
-	"pgdown":    (*model).keyPage,
-	"ctrl+u":    (*model).keyPage,
-	"ctrl+b":    (*model).keyPage,
-	"ctrl+f":    (*model).keyPage,
-	"enter":     (*model).keyEnter,
+}
+
+// keyNewline inserts a line break. The textarea has its own binding for
+// it, which newModel points at the same keys; this is the path a key
+// reaches when the table claims it first.
+func (m *model) keyNewline(tea.KeyMsg) (tea.Cmd, bool) {
+	m.input.InsertString("\n")
+	m.layout()
+	m.refresh(false)
+	return nil, true
 }
 
 // keyInterrupt is ctrl+c in three stages: cancel a running turn, else
@@ -286,6 +337,11 @@ func (m *model) keyEscape(tea.KeyMsg) (tea.Cmd, bool) {
 		m.layout()
 		m.refresh(false)
 		return nil, true
+	}
+	// Idle with nothing typed: esc esc opens the checkpoints, the quick
+	// way back to before a turn.
+	if cmd := m.escRewind(); cmd != nil {
+		return cmd, true
 	}
 	return nil, false
 }
@@ -439,14 +495,31 @@ func (m *model) keyDown(tea.KeyMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
-// keyPage pages the transcript. With text in the input ctrl+u/b/f are
-// the textarea's own readline keys (kill line, back/forward a
-// character); they page only when there is nothing to edit.
-func (m *model) keyPage(msg tea.KeyMsg) (tea.Cmd, bool) {
-	if k := keyName(msg); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
-		return m.scroll(msg), true
+// keyPageUp and keyPageDown page the transcript. With text in the input
+// a ctrl key (ctrl+u/b/f by default) is the textarea's own readline key
+// (kill line, back/forward a character); it pages only when there is
+// nothing to edit. pgup and pgdown always page.
+func (m *model) keyPageUp(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if !m.pageKeyPages(msg) {
+		return nil, false
 	}
-	return nil, false
+	m.viewport.scrollUp(m.viewport.Height)
+	m.pinned = m.viewport.AtBottom()
+	return nil, true
+}
+
+func (m *model) keyPageDown(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if !m.pageKeyPages(msg) {
+		return nil, false
+	}
+	m.viewport.scrollDown(m.viewport.Height)
+	m.pinned = m.viewport.AtBottom()
+	return nil, true
+}
+
+func (m *model) pageKeyPages(msg tea.KeyMsg) bool {
+	k := keyName(msg)
+	return !strings.HasPrefix(k, "ctrl+") || m.input.Value() == ""
 }
 
 // keyEnter takes the completion if one is highlighted, then sends what

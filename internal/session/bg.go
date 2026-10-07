@@ -38,6 +38,66 @@ type BgStatus struct {
 	Detail string `json:"detail,omitempty"`
 	// Ask is the permission request the run is waiting on, when waiting.
 	Ask *BgAsk `json:"ask,omitempty"`
+	// Question is the model's open question (the ask tool): the run
+	// waits on it, or — Proceeded — went on with the recommendation and
+	// still takes a late answer.
+	Question *BgQuestion `json:"question,omitempty"`
+}
+
+// BgQuestion is a question from the ask tool in a background run. It is
+// answered with janetcode --answer <id> <choice> through BgReplyPath.
+type BgQuestion struct {
+	ID        string           `json:"id"`
+	Items     []BgQuestionItem `json:"items"`
+	Asked     time.Time        `json:"asked"`
+	Deadline  time.Time        `json:"deadline,omitzero"`
+	Proceeded bool             `json:"proceeded,omitempty"`
+}
+
+// BgQuestionItem is one question of a BgQuestion.
+type BgQuestionItem struct {
+	Prompt      string   `json:"prompt"`
+	Options     []string `json:"options"`
+	Recommended string   `json:"recommended,omitempty"`
+}
+
+// BgReply answers the BgQuestion with the same ID: one choice per item,
+// an option label or free text.
+type BgReply struct {
+	ID      string   `json:"id"`
+	Answers []string `json:"answers"`
+}
+
+// BgReplyPath is where an answer to a background run's question goes. It
+// is apart from BgAnswerPath: a permission request and an open question
+// can be pending at once, and each poller removes an answer it does not
+// own as stale.
+func BgReplyPath(sessionPath string) string { return sidecar(sessionPath, ".bg-reply.json") }
+
+// WriteBgReply answers the open question.
+func WriteBgReply(sessionPath string, r BgReply) error {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	return fsutil.AtomicWriteMode(BgReplyPath(sessionPath), b, fsutil.PrivateFileMode)
+}
+
+// TakeBgReply returns the answers to question id and removes them, or ok
+// false while there are none. A reply to an earlier question is removed.
+func TakeBgReply(sessionPath, id string) ([]string, bool) {
+	p := BgReplyPath(sessionPath)
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return nil, false
+	}
+	var r BgReply
+	if json.Unmarshal(b, &r) != nil || r.ID != id {
+		_ = os.Remove(p)
+		return nil, false
+	}
+	_ = os.Remove(p)
+	return r.Answers, true
 }
 
 // BgAsk is one permission request from a background run.
@@ -92,9 +152,16 @@ func ReadBgStatus(sessionPath string) (st BgStatus, ok bool, err error) {
 	if err := json.Unmarshal(b, &st); err != nil {
 		return st, false, fmt.Errorf("%s: %w", BgStatusPath(sessionPath), err)
 	}
-	if (st.State == BgRunning || st.State == BgWaiting) && st.PID > 0 && !processAlive(st.PID) {
-		st.State, st.Ask = BgFailed, nil
-		st.Detail = fmt.Sprintf("the process (pid %d) stopped without finishing", st.PID)
+	pid := st.PID
+	if pid <= 0 {
+		// The launcher's own record, from before the child started:
+		// the child's pid is in the pid sidecar.
+		pid = readPID(sidecar(sessionPath, ".pid"))
+	}
+	if (st.State == BgRunning || st.State == BgWaiting) && pid > 0 && !processAlive(pid) {
+		st.PID = pid
+		st.State, st.Ask, st.Question = BgFailed, nil, nil
+		st.Detail = fmt.Sprintf("the process (pid %d) stopped without finishing", pid)
 	}
 	return st, true, nil
 }
@@ -134,8 +201,14 @@ func (st BgStatus) Line(now time.Time) string {
 		if st.Ask != nil {
 			return "waiting for an answer: " + st.Ask.Tool + " " + st.Ask.Summary
 		}
+		if q := st.Question; q != nil && len(q.Items) > 0 {
+			return "waiting for an answer: " + q.Items[0].Prompt
+		}
 		return "waiting for an answer"
 	case BgRunning:
+		if q := st.Question; q != nil && q.Proceeded && len(q.Items) > 0 {
+			return "running for " + since(now, st.Started) + " · went on with " + q.Items[0].Recommended + " for: " + q.Items[0].Prompt + " (a late answer is still taken)"
+		}
 		return "running for " + since(now, st.Started)
 	case BgDone:
 		if st.Detail != "" {
@@ -174,4 +247,17 @@ func BgSessionPath(dir, id string) (string, error) {
 		return "", fmt.Errorf("invalid session id %q", id)
 	}
 	return filepath.Join(dir, id+".jsonl"), nil
+}
+
+// readPID reads a pid sidecar, 0 when there is none.
+func readPID(path string) int {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var pid int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(b)), "%d", &pid); err != nil || pid <= 0 {
+		return 0
+	}
+	return pid
 }

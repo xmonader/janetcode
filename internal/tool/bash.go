@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -38,14 +39,16 @@ type Bash struct {
 
 func (Bash) Name() string { return "bash" }
 func (Bash) Description() string {
-	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
+	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). A command that asks questions: pass the answers in stdin, or set interactive: true and answer each prompt with the job tool's stdin action. Do not use for reading or editing files; use the dedicated tools."
 }
 func (Bash) Mutating() bool { return true }
 func (Bash) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "command":{"type":"string","description":"The command to run"},
 "timeout_ms":{"type":"integer","description":"Timeout in milliseconds (default 120000, max 600000)"},
-"background":{"type":"boolean","description":"Run detached and return immediately with a job id; output is collected and reported when the job ends"}},
+"background":{"type":"boolean","description":"Run detached and return immediately with a job id; output is collected and reported when the job ends"},
+"stdin":{"type":"string","description":"Standard input, then EOF; a newline after each answer"},
+"interactive":{"type":"boolean","description":"Background job on a terminal, for programs that prompt"}},
 "required":["command"],"additionalProperties":false}`)
 }
 
@@ -57,8 +60,10 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// and a rejected call costs a whole round trip: a recorded
 		// session lost a step to `"timeout": "30000"`. Accepted as
 		// milliseconds, as a numeric string, or as a Go duration.
-		Timeout    json.RawMessage `json:"timeout"`
-		Background bool            `json:"background"`
+		Timeout     json.RawMessage `json:"timeout"`
+		Background  bool            `json:"background"`
+		Stdin       *string         `json:"stdin"`
+		Interactive bool            `json:"interactive"`
 	}
 	if err := decode(input, &in); err != nil {
 		return "", err
@@ -73,19 +78,40 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if risk, why := shell.Classify(in.Command, root); risk == shell.RiskCatastrophic {
 		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
 	}
-	if in.Background {
+	if in.Background || in.Interactive {
 		if t.Jobs == nil {
-			return "", fmt.Errorf("background jobs are not available in this session; run the command in the foreground with a timeout")
+			return "", fmt.Errorf("background jobs are not available in this session; run the command in the foreground with a timeout, giving any answers it needs in stdin")
 		}
-		job, err := t.Jobs.StartOn(t.WS, root, in.Command)
+		if in.Stdin != nil && in.Interactive {
+			return "", fmt.Errorf("stdin and interactive do not go together: an interactive job is answered with the job tool's stdin action as it asks")
+		}
+		job, err := t.Jobs.StartWith(t.WS, root, in.Command, JobOptions{Terminal: in.Interactive})
 		if err != nil {
 			return "", err
 		}
 		t.Cache.invalidate()
+		if in.Stdin != nil && *in.Stdin != "" {
+			if err := t.Jobs.WriteRaw(ctx, job.ID, *in.Stdin); err != nil {
+				return "", fmt.Errorf("started job %d but could not write its stdin: %w", job.ID, err)
+			}
+		}
+		if in.Interactive {
+			first := t.Jobs.Settle(ctx, job.ID, 0, 3*time.Second)
+			msg := fmt.Sprintf("Started interactive job %d (pid %d) on a terminal: %s\n", job.ID, job.Pid, in.Command)
+			if job.Note != "" {
+				msg += "[" + job.Note + "]\n"
+			}
+			if first != "" {
+				msg += "It printed:\n" + textfmt.TruncateTo(first, 4000) + "\n"
+			} else {
+				msg += "It has printed nothing yet.\n"
+			}
+			return msg + "Answer a prompt with the job tool: action stdin, the job id, and text (an empty text presses Enter); the result shows what it printed next. You will be told when it finishes.", nil
+		}
 		return fmt.Sprintf("Started background job %d (pid %d): %s\nOutput is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}
 	cacheKey := t.Cache.key(root, in.Command)
-	if (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
+	if in.Stdin == nil && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		if out, age, ok := t.Cache.get(cacheKey); ok {
 			return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), noCacheMarker), nil
 		}
@@ -125,15 +151,55 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	cmd.Stdout = out
 	cmd.Stderr = out
 	cmd.Stdin = nil
+	// Standard input. Given text, the command reads it and then EOF.
+	// Otherwise it used to get EOF at once (a nil Stdin is /dev/null), so
+	// a program that asked a question read nothing and failed, and the
+	// model saw the failure, not the question. Where a read can be seen
+	// (Linux, a command on this machine outside the sandbox) the command
+	// now gets a pipe held open: a read that follows a question is
+	// reported as a command waiting for an answer and handed to the jobs
+	// registry to be answered, and any other read gets its EOF as before.
+	var pipe *inputPipe
+	var pipeIno uint64
+	var pipeR *os.File
+	if in.Stdin != nil {
+		cmd.Stdin = strings.NewReader(*in.Stdin)
+	} else if stdinWatchable() && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
+		if pr, pw, perr := os.Pipe(); perr == nil {
+			cmd.Stdin, pipeR = pr, pr
+			pipe = &inputPipe{w: pw}
+			pipeIno = pipeInode(pr)
+			defer pipe.eof()
+		}
+	}
 
-	if err := cmd.Start(); err != nil {
+	guard := sandboxGitGuard(t.WS, t.Sandbox, root)
+	err = cmd.Start()
+	if pipeR != nil {
+		pipeR.Close() // the child holds its own copy
+	}
+	if err != nil {
 		return "", fmt.Errorf("start bash: %w", err)
+	}
+	waiting := make(chan string, 1)
+	stopWatch := make(chan struct{})
+	defer close(stopWatch)
+	if pipe != nil {
+		go watchStdin(cmd, pipe, pipeIno, out, t.Jobs != nil, waiting, stopWatch)
 	}
 	// The wait runs in its own goroutine so the command can be handed to
 	// the jobs registry while it is still running: the same channel is
-	// then the job's wait, so the process is reaped exactly once.
+	// then the job's wait, so the process is reaped exactly once. What
+	// the guard puts back is said in the output, which by then is either
+	// this result or, after a promotion, the job's log.
 	wait := make(chan error, 1)
-	go func() { wait <- cmd.Wait() }()
+	go func() {
+		err := cmd.Wait()
+		if note := guard.Restore(); note != "" {
+			fmt.Fprintf(out, "\n%s\n", note)
+		}
+		wait <- err
+	}()
 	fg := t.Running.add(in.Command, cmd, out)
 	defer t.Running.remove(fg)
 
@@ -148,8 +214,23 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		killCmd()
 		err = <-wait
 		fg.hand(0)
+	case asked := <-waiting:
+		// The command asked something and is blocked reading the answer.
+		// Waiting it out would end in the timeout and killing it would
+		// lose what it has done, so it becomes a job the model answers.
+		job, perr := t.Jobs.AdoptWith(in.Command, cmd, out, wait, pipe.hand())
+		if perr != nil {
+			fg.hand(0)
+			pipe.eof()
+			err = <-wait
+			break
+		}
+		promoted = true
+		fg.hand(job.ID)
+		t.Cache.invalidate()
+		return fmt.Sprintf("The command is waiting for input. It asked:\n%s\n\nIt keeps running as background job %d (pid %d), so nothing it has done is lost. Answer with the job tool: action stdin, id %d, and the text to type (an empty text presses Enter); the result shows what it prints next. If it should not be answered, kill the job and rerun the command with its answers in stdin.", textfmt.TruncateTo(promptTail(asked), 2000), job.ID, job.Pid, job.ID), nil
 	case <-promoteChan(fg):
-		job, perr := t.Jobs.Adopt(in.Command, cmd, out, wait)
+		job, perr := t.Jobs.AdoptWith(in.Command, cmd, out, wait, pipe.hand())
 		if perr != nil {
 			// Promotion failed, so nothing was handed over: wait it out.
 			fg.hand(0)
@@ -201,6 +282,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if exit != 0 {
 		result += exitNote(in.Command, exit)
+		if pipe.sawRead() {
+			result += "\n[the command read its standard input, which had nothing for it, and got end-of-file. If it needs input, give it in stdin, or run it with interactive: true and answer it with the job tool]"
+		}
 	}
 	if leftBehind {
 		// What it left running may change the tree at any moment, as a
@@ -210,7 +294,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		return textfmt.Truncate(result + "\n[the command exited but left a process running that held its output open; that process was not stopped, and nothing it prints from now on is collected. Use background: true for servers and watchers]"), nil
 	}
 	result = textfmt.Truncate(result)
-	if (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
+	if in.Stdin == nil && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		t.Cache.put(cacheKey, result)
 	}
 	return result, nil

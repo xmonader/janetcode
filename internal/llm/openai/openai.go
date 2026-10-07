@@ -107,10 +107,14 @@ func New(cfg Config) (*Provider, error) {
 	if hc == nil {
 		// Agentic turns on large models can stream for a long time; bound
 		// the wait for headers, and let ctx cancel a stalled body.
-		hc = &http.Client{
-			Timeout:   RequestTimeout,
-			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
-		}
+		// A clone of the default transport, not a bare one: it keeps the
+		// dial and TLS handshake timeouts, HTTP/2, the proxy variables
+		// and any certificate authorities netcfg added (a bare
+		// Transport had none of the last, so a TLS-intercepting proxy's
+		// certificate was refused here and nowhere else).
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		tr.ResponseHeaderTimeout = 2 * time.Minute
+		hc = &http.Client{Timeout: RequestTimeout, Transport: tr}
 	}
 	// Both request paths — the stream and ListModels — share this client,
 	// and both send the key. Without a policy Go forwards Authorization

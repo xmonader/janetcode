@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,14 @@ import (
 // It is exported so a test can state the policy per profile, and so
 // /sandbox could one day show it.
 func SeatbeltPolicy(p Profile, root string, extra []string) string {
+	return seatbeltPolicy(p, root, extra, 0)
+}
+
+// seatbeltPolicy is SeatbeltPolicy with the egress proxy's port: when
+// it is set and the profile has a network, network access is narrowed to
+// connecting to the proxy on localhost, plus listening on localhost so a
+// dev server still works.
+func seatbeltPolicy(p Profile, root string, extra []string, proxyPort int) string {
 	var b strings.Builder
 	b.WriteString("(version 1)\n(deny default)\n(allow file-read*)\n")
 	roots := p.WritableRoots(root, extra, os.TempDir())
@@ -49,9 +58,11 @@ func SeatbeltPolicy(p Profile, root string, extra []string) string {
 (allow process-fork)
 (allow signal)
 (allow sysctl-read)
-(allow mach-lookup)
 `)
-	if p.Network {
+	b.WriteString(seatbeltMach(p.Network, os.Getenv("JANETCODE_SANDBOX_MACH")))
+	if p.Network && proxyPort > 0 {
+		fmt.Fprintf(&b, "(deny network*)\n(allow network-outbound (remote tcp \"localhost:%d\"))\n(allow network-bind (local ip \"localhost:*\"))\n(allow network-inbound (local ip \"localhost:*\"))\n", proxyPort)
+	} else if p.Network {
 		b.WriteString("(allow network*)\n")
 	} else {
 		b.WriteString("(deny network*)\n")
@@ -134,9 +145,13 @@ func (s *Sandbox) seatbelt(ctx context.Context, p Profile, root string, extra []
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, bin, "-p", SeatbeltPolicy(p, root, extra), "sh", "-c", command)
+	port := s.proxyPort(p)
+	cmd := exec.CommandContext(ctx, bin, "-p", seatbeltPolicy(p, root, extra, port), "sh", "-c", command)
 	cmd.Dir = root
 	cmd.Env = ScrubEnv(os.Environ())
+	if port > 0 {
+		cmd.Env = WithProxyEnv(cmd.Env, fmt.Sprintf("http://localhost:%d", port))
+	}
 	SetProcessGroup(cmd)
 	return cmd, nil
 }

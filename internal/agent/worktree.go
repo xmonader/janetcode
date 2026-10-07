@@ -22,6 +22,11 @@ type worktree struct {
 	base string // commit the checkout started from
 	snap *snapshot.Snap
 	repo *snapshot.Repo
+	// raw is gitx.ByteExact for the repository: the checkout and the
+	// patch copy content the way the base snapshot does, byte for byte,
+	// so a user's core.autocrlf does not turn every file of the patch
+	// into a line-ending change.
+	raw []string
 }
 
 // newWorktree checks the current state of root out into a temp directory.
@@ -31,7 +36,7 @@ func newWorktree(ctx context.Context, root string) (*worktree, error) {
 	if err != nil {
 		return nil, fmt.Errorf("editing subagents need a git repository: %w", err)
 	}
-	w := &worktree{Root: repo.Root, repo: repo}
+	w := &worktree{Root: repo.Root, repo: repo, raw: gitx.ByteExact(ctx, repo.Root)}
 	snap, err := repo.Take(ctx, "subagent base")
 	if err != nil {
 		return nil, fmt.Errorf("snapshot for the worktree: %w", err)
@@ -46,7 +51,7 @@ func newWorktree(ctx context.Context, root string) (*worktree, error) {
 		return nil, err
 	}
 	os.Remove(dir) // git wants to create it
-	if out, err := gitRun(ctx, repo.Root, "worktree", "add", "--detach", "-q", dir, w.base); err != nil {
+	if out, err := gitRunEnv(ctx, repo.Root, w.raw, "worktree", "add", "--detach", "-q", dir, w.base); err != nil {
 		os.RemoveAll(dir)
 		repo.Drop(context.WithoutCancel(ctx), snap)
 		return nil, fmt.Errorf("git worktree add: %v: %s", err, out)
@@ -58,7 +63,7 @@ func newWorktree(ctx context.Context, root string) (*worktree, error) {
 // diff stages everything in the checkout and returns the patch and a
 // --stat summary against the base.
 func (w *worktree) diff(ctx context.Context) (patch, stat string, err error) {
-	if out, err := gitRun(ctx, w.Dir, "add", "-A", "--", "."); err != nil {
+	if out, err := gitRunEnv(ctx, w.Dir, w.raw, "add", "-A", "--", "."); err != nil {
 		return "", "", fmt.Errorf("git add: %v: %s", err, out)
 	}
 	// The patch is applied later, so its format is pinned against the
@@ -66,6 +71,7 @@ func (w *worktree) diff(ctx context.Context) (patch, stat string, err error) {
 	args := append([]string{"diff", "--cached", "--binary"}, gitx.PatchFormat...)
 	cmd := exec.CommandContext(ctx, "git", append(args, w.base)...)
 	cmd.Dir = w.Dir
+	cmd.Env = append(os.Environ(), w.raw...)
 	raw, err := cmd.Output() // not trimmed: a patch needs its final newline
 	if err != nil {
 		return "", "", fmt.Errorf("git diff: %v", err)
@@ -90,11 +96,15 @@ func (w *worktree) remove(ctx context.Context) {
 	}
 }
 
-// tools is the full editing tool set rooted at the checkout.
+// tools is the full editing tool set rooted at the checkout. It carries
+// notebook_edit outright rather than deferred: the child has no
+// tool_search to load it with, and without it a subagent asked to change
+// a notebook rewrites the JSON by hand.
 func (w *worktree) tools(cache *tool.IOCache) []tool.Tool {
 	seen := &tool.Seen{}
 	return []tool.Tool{
 		tool.ReadFile{Root: w.Dir, Seen: seen, Cache: cache}, tool.WriteFile{Root: w.Dir, Seen: seen, Cache: cache}, tool.EditFile{Root: w.Dir, Seen: seen, Cache: cache},
+		tool.NotebookEdit{Root: w.Dir, Seen: seen, Cache: cache},
 		tool.ListDir{Root: w.Dir}, tool.Glob{Root: w.Dir}, tool.Grep{Root: w.Dir},
 		tool.Bash{Root: w.Dir, Cache: &tool.ShellCache{}},
 	}
@@ -137,9 +147,15 @@ func sanitizeLabel(s string) string {
 }
 
 func gitRun(ctx context.Context, dir string, args ...string) (string, error) {
+	return gitRunEnv(ctx, dir, nil, args...)
+}
+
+// gitRunEnv is gitRun with extra environment, such as gitx.ByteExact.
+func gitRunEnv(ctx context.Context, dir string, env []string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=janetcode", "GIT_AUTHOR_EMAIL=janetcode@localhost", "GIT_COMMITTER_NAME=janetcode", "GIT_COMMITTER_EMAIL=janetcode@localhost")
+	cmd.Env = append(cmd.Env, env...)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }

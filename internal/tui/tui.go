@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
@@ -28,6 +30,9 @@ type model struct {
 	// is no longer there.
 	life    context.Context
 	endLife context.CancelFunc
+	// voiceStop is open while /voice records; closing it stops the
+	// recording and starts the transcription.
+	voiceStop chan struct{}
 	// styles is what every view draws with; a theme switch replaces it.
 	styles *styles
 	// quitArmedAt is when ctrl+c was last pressed while idle.
@@ -75,6 +80,18 @@ type model struct {
 	// hist is the up/down recall of submitted prompts, loaded from and
 	// appended to a file per working directory (see history.go).
 	hist historyState
+	// hsearch is the reverse history search while it is open (ctrl+r).
+	hsearch *histSearch
+	// keys is which key runs which prompt action: the defaults with the
+	// config file's keybindings applied. chord is the first key of a
+	// two-key binding while the second is awaited.
+	keys  *keymap.Map
+	chord string
+	// vim is the composer's vim mode, when it is on.
+	vim vimState
+	// runEditor runs the external editor with the terminal handed over;
+	// nil is tea.ExecProcess. Tests run the command directly.
+	runEditor func(*exec.Cmd, tea.ExecCallback) tea.Cmd
 
 	// turn is the running turn: whether there is one, how to stop it,
 	// what it is doing, and what is waiting behind it.
@@ -102,6 +119,7 @@ type model struct {
 	goal           goalCache                // the status line's goal note, as last folded from the log
 	finder         findState                // the last /find, so a repeat advances
 	picker         *picker                  // open searchable list
+	lastEsc        time.Time                // an esc on an idle, empty prompt: a second soon after opens /checkpoints
 	connect        *connect                 // open provider/model dialog
 	wiz            *wizard                  // open step dialog (/mcp add)
 	ov             overlayState             // live panel over the transcript; empty kind is closed
@@ -189,9 +207,15 @@ func newModel(opts Options) *model {
 		spinner:    sp,
 		term:       newTermIntegration(),
 	}
+	m.keys = keymap.Default()
 	if opts.Config != nil {
 		m.followupOn = opts.Config.FollowupEnabled()
+		if opts.Config.KeyMap != nil {
+			m.keys = opts.Config.KeyMap
+		}
+		m.vim.on = opts.Config.VimMode
 	}
+	m.input.KeyMap.InsertNewline = key.NewBinding(key.WithKeys(singleKeys(m.keys.Keys(keymap.Newline))...))
 	m.life, m.endLife = context.WithCancel(context.Background())
 	if b, ok := prompt.GitBranch(opts.Cwd); ok {
 		m.branch = b
@@ -207,15 +231,13 @@ func newModel(opts Options) *model {
 	if opts.Session != nil {
 		m.hist.load(dirOf(opts.Session), opts.Cwd)
 	}
-	m.custom = map[string]prompt.Custom{}
-	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
-		m.custom["/"+c.Name] = c
-	}
+	m.loadCustom()
 	m.hint.engine = opts.Hints
 	var firstRun string
 	if opts.Resumed > 0 {
 		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
 		m.transcript.loadHistory(opts.Agent.Messages)
+		m.noteInterrupted()
 	} else {
 		m.transcript.banner(m.welcome(""))
 		// The first session in a directory janetcode has not seen gets
@@ -318,7 +340,11 @@ func (m *model) Init() tea.Cmd {
 		m.transcript.info(n)
 	}
 	m.startMCP()
-	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()), m.checkUpdate())
+	var ask tea.Cmd
+	if m.opts.TrustGate.NeedsDecision(m.opts.Cwd) {
+		ask = m.trustPicker()
+	}
+	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()), ask, m.checkUpdate())
 }
 
 func tick() tea.Cmd {

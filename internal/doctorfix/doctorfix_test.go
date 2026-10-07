@@ -251,7 +251,7 @@ func read(t *testing.T, path string) []byte {
 
 func put(t *testing.T, s *mcp.TokenStore, url string, tok mcp.Token) {
 	t.Helper()
-	if err := s.Put(url, tok); err != nil {
+	if err := s.Put("", url, tok); err != nil {
 		t.Fatal(err)
 	}
 }

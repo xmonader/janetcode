@@ -58,6 +58,24 @@ const (
 	// the model-visible surface; the model is never shown a decision's
 	// probabilities.
 	TypeDecision = "decision"
+	// TypePermission records how one call that could change something
+	// (or that was refused) was authorized: Name and CallID are the call,
+	// Reason what settled it ("rule bash(go test *)", "mode: yolo", "the
+	// user: allow", "pre-tool hook", ...), Denied whether it was refused
+	// and Output the refusal. Log-only; the audit log chains it with the
+	// rest (see audit.go).
+	TypePermission = "permission"
+	// TypeFileChange records one file a tool call changed: Name is the
+	// path, CallID the call, Arguments the content digests as
+	// "<before>-><after>" (sha256, "absent" for a file that did not
+	// exist). Log-only.
+	TypeFileChange = "file/change"
+	// TypeTrust records a change of the project's trust level: Name is
+	// the level, Reason the project and every capability it affects.
+	TypeTrust = "trust/change"
+	// TypeEgress records what one turn sent off the machine (see
+	// internal/egress): Output carries the report as JSON.
+	TypeEgress = "egress/turn"
 )
 
 // Gate sources on a TypeGate event.
@@ -100,9 +118,18 @@ type Event struct {
 	Shadowed  []int        `json:"shadowed,omitempty"`
 	Message   *llm.Message `json:"message,omitempty"`
 	Usage     *llm.Usage   `json:"usage,omitempty"`
-	CallID    string       `json:"call_id,omitempty"`
-	Name      string       `json:"name,omitempty"`
-	Arguments string       `json:"arguments,omitempty"`
+	// Served is what an assistant message's response said about who
+	// served it (llm.Provenance). It is written when it changes from the
+	// session's previous call and always when it disagrees with the
+	// requested model, so a long session carries it a handful of times.
+	Served *llm.Provenance `json:"served,omitempty"`
+	// Mismatch is the provenance verdict when the response named another
+	// vendor than the requested model's ("served by moonshot, not
+	// xiaomi (tool ids tool_24)"). Empty for a call that matched.
+	Mismatch  string `json:"mismatch,omitempty"`
+	CallID    string `json:"call_id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
 	// Intent is the model's own one-line reason for a tool call.
 	Intent  string `json:"intent,omitempty"`
 	Output  string `json:"output,omitempty"`
@@ -187,7 +214,62 @@ func FoldSurface(events []Event) []llm.Message {
 	if len(out) == 0 {
 		return nil
 	}
-	return answerOrphans(out)
+	return answerOrphans(out, callStates(events))
+}
+
+// callState is what the log says happened to one tool call: whether it
+// started (tool/call, appended after approval and before the run) and,
+// when it finished, its log-only result.
+type callState struct {
+	started bool
+	result  *Event
+}
+
+// callStates indexes the log-only tool/call and tool/result events by
+// call id.
+func callStates(events []Event) map[string]*callState {
+	m := map[string]*callState{}
+	get := func(id string) *callState {
+		if m[id] == nil {
+			m[id] = &callState{}
+		}
+		return m[id]
+	}
+	for i := range events {
+		e := &events[i]
+		if e.Surface || e.CallID == "" {
+			continue
+		}
+		switch e.Type {
+		case TypeToolCall:
+			get(e.CallID).started = true
+		case TypeToolResult:
+			st := get(e.CallID)
+			st.started, st.result = true, e
+		}
+	}
+	return m
+}
+
+// Answers to a call the session's end left without a result, by what the
+// log says about it. Exported for the continuation, which writes the same
+// words when it cannot do better.
+const (
+	OrphanRunning = "No result: the session ended while this call was running, so whether it took effect is unknown. Check before assuming either way."
+	// A call with no tool/call record most likely never ran — it was
+	// waiting for approval, or queued behind another — but a lost line
+	// would make "not run" invite a second run of a change, so it stays a
+	// likelihood the model is asked to check.
+	OrphanNotStarted = "No result, and no record that this call started: the session ended before it began or while it waited for approval. It most likely did not run, but that is unknown; check before reissuing anything that changes state."
+)
+
+// replyID is the id a tool_use is answered under (see the agent's
+// normalizeCallIDs): the server's own when the harness renamed it.
+func replyID(b llm.Block) string {
+	if b.ReplyID != "" {
+		return b.ReplyID
+	}
+	return b.ID
 }
 
 // answerOrphans gives every tool_use a tool_result.
@@ -199,7 +281,13 @@ func FoldSurface(events []Event) []llm.Message {
 // with nothing to tell the user what is wrong. The missing results are
 // synthesised here, in the position they would have occupied, saying what
 // actually happened.
-func answerOrphans(msgs []llm.Message) []llm.Message {
+//
+// A turn's results reach the history together, after the last of them,
+// so a session that died part-way through a step has finished calls whose
+// results are on the log but not on the surface. Those are given back as
+// they were; only a call that was still running is "unknown", and one that
+// never started says so.
+func answerOrphans(msgs []llm.Message, calls map[string]*callState) []llm.Message {
 	answered := map[string]bool{}
 	for _, m := range msgs {
 		for _, b := range m.Blocks {
@@ -213,10 +301,10 @@ func answerOrphans(msgs []llm.Message) []llm.Message {
 		out = append(out, m)
 		var missing []llm.Block
 		for _, b := range m.Blocks {
-			if b.Type == llm.BlockToolUse && !answered[b.ID] {
-				answered[b.ID] = true // a repeated id is answered once
-				missing = append(missing, llm.ToolResult(b.ID,
-					"No result: the session ended while this call was running, so whether it took effect is unknown. Check before assuming either way.", true))
+			id := replyID(b)
+			if b.Type == llm.BlockToolUse && !answered[id] {
+				answered[id] = true // a repeated id is answered once
+				missing = append(missing, orphanResult(b, calls[b.ID]))
 			}
 		}
 		if len(missing) > 0 {
@@ -224,6 +312,17 @@ func answerOrphans(msgs []llm.Message) []llm.Message {
 		}
 	}
 	return out
+}
+
+// orphanResult answers one unanswered call from what the log knows of it.
+func orphanResult(b llm.Block, st *callState) llm.Block {
+	switch {
+	case st != nil && st.result != nil:
+		return llm.ToolResult(replyID(b), st.result.Output, st.result.IsError)
+	case st != nil && st.started:
+		return llm.ToolResult(replyID(b), OrphanRunning, true)
+	}
+	return llm.ToolResult(replyID(b), OrphanNotStarted, true)
 }
 
 // FoldPlanMode is the last logged plan/mode value, or false if none.

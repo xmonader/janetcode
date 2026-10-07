@@ -38,12 +38,15 @@ func promptRecord(o prompt.Override) *eval.PromptRecord {
 }
 
 type evalOptions struct {
-	path, only, jsonOut        string
-	jobs, runs                 int
-	keep                       bool
-	timeout                    time.Duration
-	maxTurns                   int
-	noToolLimit                bool
+	path, only, jsonOut string
+	jobs, runs          int
+	keep                bool
+	timeout             time.Duration
+	maxTurns            int
+	noToolLimit         bool
+	// strictProvenance fails the whole eval when any run was answered by
+	// another vendor's model, instead of leaving those runs out.
+	strictProvenance           bool
 	compactAt                  int
 	facts                      int
 	factsBlind                 bool
@@ -175,8 +178,23 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		}
 		fmt.Fprintln(os.Stderr, "wrote", o.jsonOut)
 	}
-	if passed < len(results) {
-		return fmt.Errorf("%d of %d eval tasks failed", len(results)-passed, len(results))
+	return evalVerdict(eval.Summarize(results), len(results), passed, o.strictProvenance)
+}
+
+// evalVerdict is the eval's exit: an error when a scored run failed, when
+// no run reached the requested model at all (a set that every run of
+// which was lost to the gateway has not passed, it has not been run), or
+// — with strict provenance — when any run was answered by another
+// vendor's model. Runs lost to the gateway or answered by another model
+// are otherwise left out, not failed.
+func evalVerdict(s eval.Summary, runs, passed int, strict bool) error {
+	switch {
+	case strict && s.Mismatched > 0:
+		return fmt.Errorf("%d of %d eval runs were answered by another vendor's model than the one requested (--eval-strict-provenance)", s.Mismatched, runs)
+	case runs > 0 && s.Total == 0:
+		return fmt.Errorf("none of %d eval runs reached the requested model (%d lost to the provider, %d answered by another vendor's model)", runs, s.Infra, s.Mismatched)
+	case passed < s.Total:
+		return fmt.Errorf("%d of %d scored eval tasks failed", s.Total-passed, s.Total)
 	}
 	return nil
 }

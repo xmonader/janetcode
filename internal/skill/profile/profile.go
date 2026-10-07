@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/md"
+	"github.com/xmonader/janetcode/internal/plugin"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -54,6 +55,9 @@ func LoadProfiles(cwd, configDir string) []Profile {
 	var locs []loc
 	if configDir != "" {
 		locs = append(locs, loc{filepath.Join(configDir, "agents"), "global"})
+		for _, src := range plugin.Dirs(configDir, "agents") {
+			locs = append(locs, loc{src.Dir, "plugin:" + src.Plugin})
+		}
 	}
 	if cwd != "" {
 		locs = append(locs,

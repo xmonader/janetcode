@@ -1,0 +1,60 @@
+# The example review workflow (docs/examples/github/janetcode-review.yml)
+# as act runs it: the action from this checkout (uses: ./) instead of
+# xmonader/janetcode@master, a stub gh on PATH instead of GitHub, and an
+# OpenAI-compatible key and model from secrets. Run by ci/action/act/run.sh
+# (make action-test); not a workflow GitHub itself runs.
+name: janetcode review (act)
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stub gh
+        run: |
+          mkdir -p "$RUNNER_TEMP/stub-bin"
+          cp ci/action/act/gh "$RUNNER_TEMP/stub-bin/gh"
+          chmod +x "$RUNNER_TEMP/stub-bin/gh"
+          echo "$RUNNER_TEMP/stub-bin" >>"$GITHUB_PATH"
+          echo "GH_STUB_DIFF=$GITHUB_WORKSPACE/ci/action/act/pr.diff" >>"$GITHUB_ENV"
+
+      - uses: ./
+        id: janetcode
+        with:
+          mode: review
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          openai-base-url: ${{ secrets.OPENAI_BASE_URL }}
+          model: ${{ secrets.JANETCODE_MODEL }}
+          max-cost: "0.50"
+
+      - name: Check what the action did
+        env:
+          RESULT: ${{ steps.janetcode.outputs.result }}
+          EXIT_CODE: ${{ steps.janetcode.outputs.exit-code }}
+          COST: ${{ steps.janetcode.outputs.cost-usd }}
+          SESSION: ${{ steps.janetcode.outputs.session-id }}
+        run: |
+          set -eu
+          echo "exit-code=$EXIT_CODE cost-usd=$COST session-id=$SESSION"
+          test "$EXIT_CODE" = 0
+          test -n "$SESSION"
+          test -n "$RESULT"
+          grep -q "^pr diff 42 --repo xmonader/janetcode" "$RUNNER_TEMP/gh-stub/calls.log"
+          grep -q "repos/xmonader/janetcode/issues/42/comments" "$RUNNER_TEMP/gh-stub/calls.log"
+          test -s "$RUNNER_TEMP/gh-stub/comment.md"
+          echo "--- posted comment ---"
+          cat "$RUNNER_TEMP/gh-stub/comment.md"
+          # The diff joins a user-supplied name onto a path: a review worth
+          # the name says so.
+          grep -qiE "travers|\.\./|filepath\.Clean|escape|sanitiz" "$RUNNER_TEMP/gh-stub/comment.md"
+          echo "ACTION-TEST-OK"

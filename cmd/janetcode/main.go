@@ -18,7 +18,9 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -145,7 +147,7 @@ var argNames = map[string]string{
 	"model": "id", "provider": "name", "effort": "level", "r": "id", "resume": "id",
 	"web-addr": "host:port", "worktree": "branch", "add-dir": "dir", "theme": "name",
 	"p": "prompt", "output-format": "format", "until": "command", "watch": "command",
-	"allow": "rules", "deny": "rules", "mcp-auth": "server", "append-system-prompt": "text",
+	"allow": "rules", "deny": "rules", "ask": "rules", "mcp-auth": "server", "append-system-prompt": "text",
 	"off": "names", "prompt": "text", "recipe": "name", "replay": "session",
 	"session-profile": "path", "set": "key=value", "what-if": "session", "inspect": "subject",
 	"backup": "file", "restore": "file", "answer": "id",
@@ -246,6 +248,12 @@ var startupStages = []startupStage{
 }
 
 func run(args []string) error {
+	// Extra certificate authorities from the environment go in first,
+	// before anything (--update included) builds an HTTP client; the
+	// config's ca_file is added by config.Load.
+	if err := netcfg.FromEnv(os.Getenv); err != nil {
+		return fmt.Errorf("%w: %v", config.ErrBadConfig, err)
+	}
 	s := &startup{args: args}
 	defer s.close()
 	for _, stage := range startupStages {
@@ -357,6 +365,17 @@ func (s *startup) stageModeChecks() (bool, error) {
 // usable one, and starts the background price refresh.
 func (s *startup) stageConfig() (bool, error) {
 	s.cfg, s.needsConnect, s.cfgErr = loadConfig(s.opts)
+	// The interface's language is settled before anything is drawn: from
+	// the language key when it names a catalogued one, else from LANG.
+	lang := ""
+	if s.cfg != nil {
+		lang = s.cfg.Language
+	}
+	i18n.SetLanguage(i18n.Resolve(lang, os.Getenv))
+	if !s.opts.screenReader {
+		want, off := headless.ScreenReaderWanted(os.Getenv)
+		s.opts.screenReader = !off && (want || s.cfg.ScreenReaderOn())
+	}
 	if done, err := offlineInspect(s.fs, s.opts, s.cfg, s.cfgErr); done {
 		return true, err
 	}

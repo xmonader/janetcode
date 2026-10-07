@@ -259,7 +259,7 @@ func writeTargets(c Call) []string {
 			root, _ = os.Getwd()
 		}
 		return shell.WriteTargets(in.Command, root)
-	case "write_file", "edit_file":
+	case "write_file", "edit_file", "notebook_edit":
 		var in struct {
 			Path string `json:"path"`
 		}

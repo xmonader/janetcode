@@ -93,6 +93,11 @@ func (t Store) Trust(cwd, hash string) error {
 		return err
 	}
 	m[cwd] = hash
+	return t.writeMap(m)
+}
+
+// writeMap writes the whole store; the caller holds writeMu.
+func (t Store) writeMap(m map[string]string) error {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err

@@ -76,6 +76,128 @@ and measurements behind each round are in `docs/notes/history.md`.
   are only warned about. Tested against 400 real-world skills: none were
   blocked.
 
+### Borrowed and measured (2026-10-02)
+Ideas taken from pi 1.0, deepseek-harness 0.2, hero_agent and a failed
+experiment of our own, each checked against janetcode first.
+- **MCP OAuth hardening.** RFC 9207: an authorization response naming
+  another issuer, or none from a server that promises one, is refused
+  before the code is exchanged. Logins are kept per server name and URL;
+  `insufficient_scope` asks for the new scope plus what was granted, so
+  a step-up keeps old access; empty and null token fields are accepted;
+  `auth_server_metadata_url` overrides a wrong advertisement. The audit
+  also added issuer/resource metadata checks, https-only endpoints off
+  loopback, refusing servers without PKCE S256, a loopback-only redirect
+  and a `WWW-Authenticate` parser that no longer cuts quoted scopes.
+- **Timed questions.** `ask` takes a recommended option. A question in a
+  `--bg` run, goal round or `/loop` waits `ask_timeout_unattended`
+  (default 2m), in headless/ACP/SDK not at all, then goes on with the
+  recommendation and says so; a late answer still reaches the model, as
+  steering or with the next message. `--answer <id> <choice>` answers a
+  `--bg` run's question. A question without a recommendation is never
+  answered for you.
+- **Provenance guard.** Each model call records what served it (model
+  field, gateway provider, response-id and tool-call-id formats); a
+  different vendor gets a one-time notice. In evals such runs are
+  MISMATCH and runs that never reached the model are INFRA; both are left
+  out of pass rates and comparisons, and `--eval-strict-provenance` fails
+  the eval instead. It catches the 2026-10-01 broker swap to Kimi.
+- **Durable turns.** Every way out of a turn but a crash logs its end, so
+  a crash is recognisable; `/recover` (TUI, web) and `--recover` (with
+  `-c`/`--resume`, headless and `--bg`) carry the dead turn on: finished
+  results kept, reads re-run, changes never repeated but described from
+  disk. Verified with a live `kill -9` mid-command.
+- **Turn-start advice that orients.** `advisor_turn_start_style: orient`
+  has a model read the likeliest files and answer LOOK / WATCH FOR /
+  CHECK without naming the edit; `verify_baseline` runs the checks before
+  the first change so the gate sends a turn back only for failures it
+  caused. Both off until the A/B in `docs/benchmarks/orient-baseline`
+  says otherwise. Fixed for every user: a turn-start consult cut off at
+  its token limit, or present only as thinking, is no longer injected.
+- **Errors that say how to recover.** A misspelt tool (`Bash`,
+  `readfile`), an unknown argument or a wrong type names the right one;
+  a script that prints nothing is told why it got nothing back.
+- **The compiled agent loop was measured and rejected**
+  (`docs/benchmarks/jit`): `run_plan` saved nothing on the models that
+  could be measured cleanly. Its code stays on branch `development_jit`.
+
+### User-expectation gaps (2026-09-30)
+Closed from a checklist of what users expect of a coding agent
+(`docs/notes/user-expectations.md`). Live-verified against the broker
+with deepseek-v4.1-flash, mimo-v2.6-flash and qwen3.8-27b unless noted.
+- **Anthropic path verified live** through a Messages-API endpoint:
+  multi-turn tool use, streaming, SIGINT mid-stream, `-c`, effort and
+  adaptive thinking (Claude Haiku/Sonnet). Bearer auth via
+  `"auth": "bearer"` or `ANTHROPIC_AUTH_TOKEN`. Evidence in
+  `docs/notes/anthropic-live.md`.
+- **Networks:** `ca_file` / `JANETCODE_CA_FILE` add private CAs to every
+  outbound client; proxies documented. Provider fallback classifies by
+  status, error type and net error before any text match.
+- **Commands that ask questions:** `bash` takes `stdin` and
+  `interactive: true` (a pty job); on Linux a foreground command waiting
+  on a prompt becomes a job the model answers with `job stdin`. Commands
+  no longer inherit the terminal.
+- **Jupyter notebooks:** `read_file` renders cells; `notebook_edit`
+  replaces, inserts or deletes cells byte-preservingly, with diff, undo and
+  permissions like `edit_file`.
+- **Permissions:** typed scopes (`cmd:`, `read:`, `write:`, `host:`,
+  `touches:`, `arg:`, `secret:`), `ask` rules that prompt in every mode,
+  `/permissions check`, here-doc bodies no longer matched as commands.
+- **Managed policy:** `/etc/janetcode/managed.json` (per-OS paths) fixes
+  settings, locks rules, disables tools, modes, providers/models and MCP
+  servers, forces a sandbox; `--inspect managed`.
+- **Project trust levels:** `untrusted` / `instructions` / `full`, pinned to
+  a fingerprint of the project's capability files; `/trust`, `--trust`.
+  A project's skills, agents, commands, rules and recipes now wait for
+  trust (instruction files are always read).
+- **Egress:** per-turn report of what left the machine (`/egress`,
+  `"egress"` in JSON); an allow/ask/block host policy; model-written
+  memories can be held for confirmation (`memory_confirm`). Remote MCP
+  hosts are checked by resolved IP.
+- **Sessions:** an OS lease stops two processes writing one session
+  (`--fork`, `--show` for a held one); `--search` across sessions; a
+  hash-chained audit log checked by `--audit`; the model's forget can no
+  longer remove `/remember` entries.
+- **Recovery:** `/checkpoints` (esc esc on an empty prompt); undo outside
+  git uses a private shadow repository; large checkpoint copies stream to
+  blobs and huge ones are refused out loud; `--dry-run` / `/dryrun`
+  records a full preview and can apply it.
+- **Git and review:** `/commit` drafts a message in the repo's style;
+  `/pr` pushes and opens a PR (compare URL without `gh`); `/pr-comments`,
+  `/issue`, `/security-review`. A GitHub Action (`action.yml`) reviews PRs
+  and answers mentions.
+- **Extensibility:** MCP servers that die are marked down and reconnected
+  with backoff (`/mcp reconnect`); `--mcp-serve` exposes janetcode as an
+  MCP tool; plugins in Claude Code's layout with marketplaces (`/plugin`,
+  `--plugin`); a Go SDK (`sdk/`).
+- **Composer:** ctrl+r searches prompt history (effort moved to alt+e);
+  ctrl+x ctrl+e edits the prompt in `$EDITOR`; `/vim`; a `keybindings`
+  config key for every prompt action.
+- **Accessibility and language:** `--screen-reader` line interface;
+  `language` sets the answer language and the interface catalogue
+  (Spanish, French); `/voice` and a web microphone transcribe through an
+  OpenAI-compatible `/audio/transcriptions`.
+- **Editors:** JetBrains ACP setup documented and handshake-tested; a VS
+  Code extension in `editors/vscode`.
+- **Platforms:** Windows exercised under wine (full test run and a live
+  headless run); path rules and destructive-path grading fixed for
+  Windows paths; a windows/macos CI job. `--uninstall` / `--purge`.
+- **Sandbox:** `.git` hooks and config are put back after sandboxed
+  commands; `strict` Landlock also refuses unix and UDP sockets (seccomp);
+  seatbelt mach-lookup narrowed to an allowlist.
+- **Large repositories:** grep allocates 20x less on kubernetes; the repo
+  map samples across the tree and ranks the request's files first.
+- **Second pass:** the egress policy is enforced for sandboxed bash
+  through a filtering proxy (Landlock allows only its port; docker uses an
+  internal network); `--acp`, the SDK and `--mcp-serve` start MCP servers,
+  including those an editor passes; audit records name the real basis of a
+  headless refusal and the files bash changed; undo is byte-exact under
+  `core.autocrlf`; `JANETCODE_SHELL` picks a POSIX shell on Windows;
+  `make vscode-test` runs the extension in real VS Code; `make action-test`
+  runs the Action under act; `r` offers typed path rules; `/permissions
+  check`, `/resume … fork` and a checkpoints card in the web; a dry run's
+  grep and glob see pending edits; fixed a panic on the first MCP
+  reconnect of a headless run.
+
 ### Deep review (2026-09-29)
 About 240 fixes from a file-by-file review. Each has a regression test; the
 commit bodies give the failure scenario.
@@ -365,6 +487,10 @@ Web UI
   with the changed words in a stronger tint.
 
 ### Known limitations
-- The Anthropic provider has been tested against a fake server only; the
-  OpenAI-compatible path is tested live.
-- Windows is compile-checked only.
+- The Anthropic provider is verified live through a Messages-API broker,
+  not yet against `api.anthropic.com` itself; the broker reports no cache
+  usage, so cache discounts are untested live.
+- Windows has run under wine only (tests and a headless turn); PowerShell
+  commands, hooks and verify need a real Windows run (the CI job does it).
+- The seatbelt sandbox changes are unit-tested only; they have never run on
+  a Mac.

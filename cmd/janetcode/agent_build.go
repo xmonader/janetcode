@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -24,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -88,6 +91,7 @@ func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repomap.Cache, checks func() []string) func(context.Context, agent.ToolCall) string {
 	edit := tool.EditFile{Root: cd.Dir(), WS: ws}
 	write := tool.WriteFile{Root: cd.Dir(), WS: ws}
+	notebook := tool.NotebookEdit{Root: cd.Dir(), WS: ws}
 	return func(ctx context.Context, call agent.ToolCall) string {
 		var path, before, after string
 		var err error
@@ -96,6 +100,8 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 			path, before, after, err = edit.Result(ctx, call.Input)
 		case "write_file":
 			path, before, after, err = write.Result(ctx, call.Input)
+		case "notebook_edit":
+			path, before, after, err = notebook.Result(ctx, call.Input)
 		default:
 			return ""
 		}
@@ -158,6 +164,10 @@ type agentDeps struct {
 	// non-Go languages with, nil in a build without the grammars. The
 	// composition root supplies it; repomap registers nothing itself.
 	symbols repomap.Parser
+	// gate decides how far the project's own skills, agent profiles,
+	// commands, rules and executable files are let in (see trust.Gate).
+	// Nil lets everything in.
+	gate *trust.Gate
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -318,6 +328,22 @@ func (b *agentBuilder) buildSteps() []struct {
 // sandboxed session is sandboxed too.
 func (b *agentBuilder) stepSandbox() error {
 	profile := sandboxProfile(b.d.cfg.Sandbox, b.d.sandboxOn)
+	if pol := b.d.cfg.Managed; pol != nil && pol.Sandbox != "" {
+		profile = pol.Sandbox
+		if err := b.sb.Force(profile, "the managed policy"); err != nil {
+			return err
+		}
+	}
+	// The backend and the docker image /sandbox can switch in a session,
+	// for a run that has no session to type them into.
+	if v := os.Getenv("JANETCODE_SANDBOX_BACKEND"); v != "" {
+		if err := b.sb.SetBackend(v); err != nil {
+			return fmt.Errorf("JANETCODE_SANDBOX_BACKEND: %w", err)
+		}
+	}
+	if v := os.Getenv("JANETCODE_SANDBOX_IMAGE"); v != "" {
+		b.sb.SetImage(v)
+	}
 	if profile != "" {
 		if err := b.sb.SetProfile(profile); err != nil {
 			return err
@@ -408,14 +434,31 @@ func (b *agentBuilder) stepCore() error {
 	if d.tools.active() {
 		ag.Tools.Gate(d.tools.gate)
 	}
+	// The managed policy: the modes it disables are held off from here
+	// on (UpdateSettings clamps them), and the tools it disables are
+	// never offered to the model, MCP tools that come up later included.
+	ag.Policy = d.cfg.Managed
+	ag.UpdateSettings(func(*agent.Settings) {})
+	if pol := d.cfg.Managed; pol != nil && len(pol.DisabledTools) > 0 {
+		ag.Tools.Disable(pol.ToolDisabled, "disabled by the managed policy")
+	}
+	// web_search's host is its provider's, not in its input: tell the
+	// permission rules, so a host scope covers searching too.
+	if searchHost := (tool.WebSearch{Config: d.cfg.Search}).Host(); searchHost != "" {
+		perm.RegisterHosts("web_search", func(json.RawMessage) []string { return []string{searchHost} })
+	}
 	ag.Archive = b.archive
 	ag.Root = d.cwd
 	ag.Files = b.files
 	ag.AdvisorModel = d.cfg.AdvisorModel
 	ag.AdvisorMode = d.cfg.AdvisorMode
 	ag.AdvisorMaxConsults = d.cfg.AdvisorMaxConsults
+	ag.TurnStartStyle = d.cfg.AdvisorTurnStartStyle
+	ag.VerifyBaseline = d.cfg.VerifyBaselineEnabled()
 	ag.StrongModel = d.cfg.StrongModel
 	ag.SetVisionModel(d.cfg.VisionModel)
+	ag.SetLanguage(d.cfg.Language)
+	settingsapply.ApplyAskWait(d.cfg, ag)
 	ag.EscalateAfter = d.cfg.EscalateAfter
 	// Every model the session pays for, not only the one it is set to: a
 	// fallback, a routed cheap call, an advisor and a subagent each have
@@ -485,7 +528,10 @@ func (b *agentBuilder) stepAgentTools() error {
 // session.
 func (b *agentBuilder) stepKnowledge() error {
 	ag, cd, cfgDir, mem := b.ag, b.cd, b.d.cfgDir, b.d.mem
-	project := cd.Dir
+	gate := b.d.gate
+	// --safe-mode is stronger than any trust level: nothing of the
+	// project's is read, decided or not.
+	project := func() string { return gate.ProjectDir(cd.Dir()) }
 	if b.d.safe {
 		project = func() string { return "" }
 	}
@@ -535,6 +581,10 @@ func (b *agentBuilder) stepDiagnostics() error {
 func (b *agentBuilder) stepSearchTools() error {
 	ag, d := b.ag, b.d
 	b.repo = &repomap.Cache{Root: d.cwd, Parser: d.symbols}
+	// What the orient consult reads (advisor_turn_start_style orient).
+	ag.LikelyFiles = func(ctx context.Context, request string) (string, []string) {
+		return repomap.Likely(ctx, b.repo, request, 4)
+	}
 	for _, t := range []tool.Tool{
 		tool.ListDir{Root: d.cwd, WS: b.ws},
 		tool.Glob{Root: d.cwd, WS: b.ws},
@@ -550,6 +600,12 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
+	// Notebooks are rare, so their edit tool is not in every request.
+	// read_file's rendering of a notebook names it, and tool_search loads
+	// it: that returns the schema in the same turn, which activating it
+	// from read_file could not (a turn's tool list is fixed when the turn
+	// starts, so the model was told to use a tool it had no schema for).
+	ag.Tools.AddDeferred(tool.NotebookEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the
@@ -598,15 +654,14 @@ func (b *agentBuilder) stepDecisions() error {
 }
 
 // stepUndo opens the session's undo ledger and the snapshot store behind
-// it. Neither is fatal: a project that is not a git repository has no
-// snapshots, and an undo file that cannot be read costs the session its
-// history of changes, not its ability to run.
+// it. Neither is fatal: a project that is not a git repository gets a
+// shadow store when it is small enough (see openSnapshots), and an undo
+// file that cannot be read costs the session its history of changes, not
+// its ability to run.
 func (b *agentBuilder) stepUndo() error {
 	ag := b.ag
 	ag.UndoPath = b.sess.UndoPath()
-	if snaps, err := snapshot.Open(context.Background(), b.d.cwd); err == nil {
-		ag.Snapshots = snaps
-	}
+	ag.Snapshots = openSnapshots(b.d.cwd, b.d.sessDir)
 	if err := ag.LoadUndo(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
@@ -640,4 +695,25 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		}
 	}
 	return b.result(), nil
+}
+
+// openSnapshots is the snapshot store /undo uses in dir: the repository
+// dir is in, or, outside git, a shadow store in janetcode's data
+// directory (snapshot.OpenShadow) so a turn's shell changes can be undone
+// there too. nil when dir is neither — a home directory, a tree too large
+// to snapshot every turn — and /undo falls back to the file tools' copies.
+func openSnapshots(dir, sessDir string) *snapshot.Repo {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if repo, err := snapshot.Open(ctx, dir); err == nil {
+		return repo
+	}
+	if sessDir == "" {
+		return nil
+	}
+	repo, err := snapshot.OpenShadow(ctx, dir, filepath.Join(filepath.Dir(sessDir), "shadow"))
+	if err != nil {
+		return nil
+	}
+	return repo
 }

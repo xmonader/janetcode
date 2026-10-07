@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -43,6 +44,49 @@ type Sandbox struct {
 	abi func() int
 	// probe, when non-nil, replaces the check that bwrap can run (tests).
 	probe func() bool
+	// forced is the profile a managed policy fixes (see Force): the
+	// sandbox cannot be turned off or moved to another profile.
+	forced, forcedBy string
+	// proxy, when set, is the egress proxy a profile with a network is
+	// narrowed to (see sandbox_egress.go).
+	proxy EgressProxy
+}
+
+// Force fixes the sandbox on at profile for the rest of the session:
+// /sandbox off and a switch to any other profile are refused with why,
+// and Disable does nothing. It is what a managed policy's "sandbox" key
+// does. It does not enable the sandbox; the caller does that.
+func (s *Sandbox) Force(profile, why string) error {
+	if err := s.SetProfile(profile); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.forced, s.forcedBy = profile, why
+	s.mu.Unlock()
+	return nil
+}
+
+// Forced is the profile Force fixed, or "".
+func (s *Sandbox) Forced() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.forced
+}
+
+func (s *Sandbox) forcedErr(what string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.forced == "" {
+		return nil
+	}
+	msg := fmt.Sprintf("%s: the sandbox is fixed at profile %s", what, s.forced)
+	if s.forcedBy != "" {
+		msg += " by " + s.forcedBy
+	}
+	return errors.New(msg)
 }
 
 // Enabled reports whether wrapping is on.
@@ -110,8 +154,15 @@ func (s *Sandbox) SetProfile(name string) error {
 		return fmt.Errorf("unknown sandbox profile %q (want %s)", name, strings.Join(ProfileNames(), ", "))
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.forced != "" && name != s.forced {
+		msg := fmt.Sprintf("sandbox profile %s: the sandbox is fixed at profile %s", name, s.forced)
+		if s.forcedBy != "" {
+			msg += " by " + s.forcedBy
+		}
+		return errors.New(msg)
+	}
 	s.profile = name
-	s.mu.Unlock()
 	return nil
 }
 
@@ -164,7 +215,9 @@ func (s *Sandbox) Disable() {
 		return
 	}
 	s.mu.Lock()
-	s.on = false
+	if s.forced == "" {
+		s.on = false
+	}
 	s.mu.Unlock()
 }
 
@@ -261,6 +314,9 @@ func (s *Sandbox) usable() (string, error) {
 	if backend == BackendLandlock && !p.Network && s.landlockABI() < 4 {
 		return "", fmt.Errorf("the %s profile needs the network taken away, and Landlock ABI %d cannot do that (needs ABI 4, Linux 6.7); install docker, or use the workspace profile", p.Name, s.landlockABI())
 	}
+	if backend == BackendLandlock && !p.Network && !landlockSocketFilter {
+		return "", fmt.Errorf("the %s profile needs unix sockets and UDP taken away, and this architecture has no socket filter for Landlock to pair with; install docker, or use the workspace profile", p.Name)
+	}
 	return backend, nil
 }
 
@@ -294,7 +350,7 @@ func (s *Sandbox) Notes() []string {
 			out = append(out, "Landlock has allow rules only, so deny globs are refused by command analysis, not by the kernel")
 		}
 		if !p.Network {
-			out = append(out, "Landlock takes away TCP connect and bind, but not UDP (DNS included) or unix sockets; docker's --network=none is the stronger no")
+			out = append(out, "no network is Landlock for TCP plus a seccomp filter that refuses every other socket (unix, UDP, raw) but netlink; docker's --network=none is the same no from a separate network namespace")
 		}
 	}
 	return out
@@ -334,6 +390,9 @@ func SetSandbox(sb *Sandbox, arg string) (string, error) {
 	case "", "status":
 		return sb.Status(), nil
 	case "off":
+		if err := sb.forcedErr("sandbox off"); err != nil {
+			return "", err
+		}
 		sb.Disable()
 		return sb.Status(), nil
 	case "on":

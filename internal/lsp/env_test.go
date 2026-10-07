@@ -23,6 +23,12 @@ func TestServerDoesNotInheritTheAgentsKey(t *testing.T) {
 		t.Skip("no sh")
 	}
 	t.Setenv("OPENROUTER_API_KEY", "sk-or-v1-should-not-reach-the-server")
+	// What the server needs to fetch private modules stays: gopls runs
+	// `go list`, which fetches with these.
+	t.Setenv("GITHUB_TOKEN", "ghp_kept")
+	t.Setenv("GH_TOKEN", "gh_kept")
+	t.Setenv("GOPRIVATE", "example.com/private")
+	t.Setenv("NETRC", "/home/me/.netrc")
 	root := t.TempDir()
 	dump := filepath.Join(root, "env.txt")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -43,5 +49,10 @@ func TestServerDoesNotInheritTheAgentsKey(t *testing.T) {
 	}
 	if strings.Contains(string(data), "OPENROUTER_API_KEY") {
 		t.Fatalf("the language server saw the provider key:\n%s", data)
+	}
+	for _, kept := range []string{"GITHUB_TOKEN=ghp_kept", "GH_TOKEN=gh_kept", "GOPRIVATE=example.com/private", "NETRC=/home/me/.netrc"} {
+		if !strings.Contains(string(data), kept) {
+			t.Errorf("the language server lost %s, which private modules need:\n%s", kept, data)
+		}
 	}
 }

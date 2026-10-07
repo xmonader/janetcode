@@ -16,8 +16,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -81,6 +83,13 @@ func Parse(s string) (Rule, error) {
 		return Rule{}, fmt.Errorf("bad rule %q: want tool(pattern)", s)
 	}
 	r := Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}
+	// A file tool's subject is slash-separated on every OS (see Subject),
+	// so on Windows a path rule written with backslashes, as Windows
+	// paths are, is read with slashes; nothing in the pattern language
+	// uses a backslash.
+	if fileTools[r.Tool] && runtime.GOOS == "windows" {
+		r.Pattern = strings.ReplaceAll(r.Pattern, `\`, "/")
+	}
 	// A parameter rule is validated here rather than at match time, so a
 	// typo is reported to whoever wrote it instead of quietly matching
 	// nothing. Its spacing is canonicalised so the same rule written two
@@ -128,10 +137,14 @@ const (
 
 func (v Verdict) String() string { return [...]string{"ask", "allow", "deny"}[v] }
 
-// Rules is a set of allow and deny rules.
+// Rules is a set of allow, deny and ask rules. An ask rule marks a call
+// as sensitive: it is put to the user even when an allow rule, a session
+// allowance, /auto, /edits or --yolo would have let it run, and even when
+// the tool only reads (see DecideCall).
 type Rules struct {
 	Allow []Rule
 	Deny  []Rule
+	Ask   []Rule
 }
 
 // ParseAll parses rule strings, stopping at the first bad one.
@@ -173,21 +186,48 @@ func (rs Rules) Decide(tool, subject string) (Verdict, Rule) {
 // DecideCall matches a whole call. The order is the order of authority:
 // a hard deny (see HardDeny) refuses whatever the rules say and comes
 // back with the reason; then deny rules, so a deny always outranks an
-// allow however the two were written; then allow rules; anything
-// unmatched asks.
+// allow however the two were written; then ask rules, which come back as
+// Ask with the rule that matched (a non-zero Rule: the call is sensitive
+// and must be asked about whatever else would allow it); then allow
+// rules; anything unmatched asks with the zero Rule.
 func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
 	if why := HardDeny(c); why != "" {
 		return Denied, Rule{Tool: c.Tool}, why
 	}
+	dc := denyView(c)
 	for _, r := range rs.Deny {
-		if r.matchesCall(c) || r.matchesSegment(c) {
+		if r.matchesAny(dc) || r.matchesSegment(dc) {
 			return Denied, r, ""
+		}
+	}
+	for _, r := range rs.Ask {
+		if r.matchesAny(dc) || r.matchesSegment(dc) {
+			return Ask, r, ""
 		}
 	}
 	if r, ok := rs.allows(c); ok {
 		return Allowed, r, ""
 	}
 	return Ask, Rule{}, ""
+}
+
+// AllowedBy reports the allow rule that would cover the call if no deny
+// or ask rule stood in the way: what a refusal or a forced prompt names
+// as the rule it outranked, so a conflict says which rule won and why.
+func (rs Rules) AllowedBy(c Call) (Rule, bool) { return rs.allows(c) }
+
+// denyView is the call as deny and ask rules see it: a bash line with
+// its here-documents taken out, since a body is the command's stdin and
+// not commands — split at its newlines, a commit message mentioning
+// "rm -rf" was refused by bash(rm *). A here-document fed to something
+// that runs it (bash <<EOF, ssh host <<EOF, python3 - <<EOF) is code, and
+// is kept (see shell.HeredocRunsCode).
+func denyView(c Call) Call {
+	if c.Tool != "bash" || !strings.Contains(c.Subject, "<<") || shell.HeredocRunsCode(c.Subject) {
+		return c
+	}
+	c.Subject = shell.StripHeredocs(c.Subject)
+	return c
 }
 
 // dupRedirect is a descriptor duplication such as 2>&1 or >&2. Its & is
@@ -326,6 +366,20 @@ func (rs *Rules) Add(v Verdict, r Rule) bool {
 	return true
 }
 
+// addAsk appends an ask rule unless an equal one exists.
+func (rs *Rules) addAsk(r Rule) bool {
+	for _, e := range rs.Ask {
+		if e.Equal(r) {
+			return false
+		}
+	}
+	rs.Ask = append(rs.Ask, r.compile())
+	return true
+}
+
+// AddAsk adds an ask (sensitive) rule.
+func (rs *Rules) AddAsk(r Rule) bool { return rs.addAsk(r) }
+
 // hasAllow reports whether an equal rule is already saved as an allow.
 func (rs Rules) hasAllow(r Rule) bool {
 	for _, e := range rs.Allow {
@@ -339,6 +393,9 @@ func (rs Rules) hasAllow(r Rule) bool {
 // Merge returns the union of both sets, a's rules first.
 func Merge(a, b Rules) Rules {
 	out := Rules{}
+	for _, r := range append(append([]Rule{}, a.Ask...), b.Ask...) {
+		out.addAsk(r)
+	}
 	for _, r := range append(append([]Rule{}, a.Allow...), b.Allow...) {
 		out.Add(Allowed, r)
 	}
@@ -348,14 +405,18 @@ func Merge(a, b Rules) Rules {
 	return out
 }
 
-func (r Rule) matches(tool, subject string) bool {
-	return r.matchesCall(Call{Tool: tool, Subject: subject})
-}
+// matchesCall is the whole matcher, as an allow rule reads it: the tool
+// has to be the call's (or "*"), and then either the bare pattern
+// matches the subject or every parameter clause matches its field. A
+// typed scope (see scope.go) with several values has to hold for all of
+// them.
+func (r Rule) matchesCall(c Call) bool { return r.match(c, modeAll) }
 
-// matchesCall is the whole matcher: the tool has to be the call's (or
-// "*"), and then either the bare pattern matches the subject or every
-// parameter clause matches its field.
-func (r Rule) matchesCall(c Call) bool {
+// matchesAny is matchesCall as a deny or ask rule reads it: a typed
+// scope matches when any of its values does.
+func (r Rule) matchesAny(c Call) bool { return r.match(c, modeAny) }
+
+func (r Rule) match(c Call, mode matchMode) bool {
 	if r.Tool != c.Tool && r.Tool != "*" {
 		return false
 	}
@@ -375,6 +436,12 @@ func (r Rule) matchesCall(c Call) bool {
 	}
 	f := fields{tool: c.Tool, input: c.Input, root: c.Root}
 	for _, p := range r.params {
+		if isScope(p.Name, c.Tool) {
+			if !scopeMatch(p, c, &f, mode) {
+				return false
+			}
+			continue
+		}
 		if !matchAny(p.Pattern, f.values(p.Name)) {
 			return false
 		}
@@ -437,14 +504,15 @@ func otherSpelling(tool, p, root string) string {
 		return ""
 	}
 	root = filepath.Clean(root)
+	// Slash-separated like the subject it stands beside (see Subject).
 	if !filepath.IsAbs(p) {
-		return filepath.Join(root, p)
+		return filepath.ToSlash(filepath.Join(root, p))
 	}
 	rel, err := filepath.Rel(root, filepath.Clean(p))
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return ""
 	}
-	return rel
+	return filepath.ToSlash(rel)
 }
 
 // matchAny reports whether the pattern matches any of a field's values;
@@ -517,11 +585,16 @@ func Subject(tool string, input json.RawMessage) string {
 	switch tool {
 	case "bash":
 		return strings.TrimSpace(str("command"))
-	case "read_file", "write_file", "edit_file", "list_dir":
-		return filepath.Clean(str("path"))
+	// A path subject is written with forward slashes on every OS. On
+	// Windows filepath.Clean gave docs\a.md, while the rungs Suggest
+	// offers and the rules people write are docs/* — so a directory rule
+	// saved from a prompt never matched the very call it was saved for,
+	// and a saved file rule could not be shared with a Unix machine.
+	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir":
+		return filepath.ToSlash(filepath.Clean(str("path")))
 	case "glob", "grep":
 		if p := str("path"); p != "" {
-			return filepath.Clean(p)
+			return filepath.ToSlash(filepath.Clean(p))
 		}
 		return "."
 	case "fetch_url":
@@ -601,7 +674,7 @@ func ladder(tool, subject string) ([]Rule, int) {
 		return bashLadder(tool, subject)
 	case "fetch_url":
 		return urlLadder(tool, subject)
-	case "read_file", "write_file", "edit_file", "list_dir", "glob", "grep":
+	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir", "glob", "grep":
 		return pathLadder(tool, subject)
 	}
 	return []Rule{{Tool: tool}}, 0
@@ -622,6 +695,18 @@ func bashLadder(tool, subject string) ([]Rule, int) {
 	}
 	// The exact command is the narrowest rung: no wildcard at all.
 	rungs := []Rule{{Tool: tool, Pattern: strings.Join(words, " ")}}
+	// A command that reaches the network is widened by the host, never
+	// past it: approving curl https://api.github.com/x offers
+	// bash(cmd:curl *, host:api.github.com), not curl *, which would
+	// allow the same command against any host. Two hosts in one command
+	// have no rung that covers both without covering more.
+	if hosts := shell.NetworkHosts(subject); len(hosts) > 0 {
+		if len(hosts) == 1 && !strings.ContainsAny(hosts[0], "*?, ()") {
+			rungs = append(rungs, Rule{Tool: tool, Pattern: "cmd:" + words[0] + " *, host:" + hosts[0]}.compile())
+			return rungs, 1
+		}
+		return rungs, 0
+	}
 	// Runners take a subcommand that decides what the command does, so
 	// there is a rung that keeps it — "go test *" — above which sits the
 	// runner alone, "go *". The floor is the leading word: never bash
@@ -667,19 +752,49 @@ func pathLadder(tool, subject string) ([]Rule, int) {
 		return []Rule{{Tool: tool}}, 0
 	}
 	rungs := []Rule{{Tool: tool, Pattern: subject}}
-	dir := filepath.Dir(subject)
-	if dir == "." || dir == "/" {
+	// path, not filepath: the subject is slash-separated on every OS (see
+	// Subject), and filepath.Dir on Windows would turn it back into
+	// backslashes that no rung could then match.
+	dir := path.Dir(subject)
+	if isTop(dir) {
 		// Nothing to widen to but the tool itself, which is what
 		// Suggest has always proposed here.
 		return append(rungs, Rule{Tool: tool}), 1
 	}
 	rungs = append(rungs, Rule{Tool: tool, Pattern: dir + "/*"})
+	// The same directory as a typed scope (scope.go): read: or write:
+	// judges the path after symlinks and .. are resolved, where the bare
+	// pattern above judges it as spelled, so a link in the directory that
+	// points out of it is not covered. Offered beside the bare rung, not
+	// instead of it, so answering without moving saves what it used to.
+	if s := pathScope(tool); s != "" {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: s + ":" + dir + "/*"}.compile())
+	}
 	// One level above the directory is the tree the file sits in. Higher
 	// than that is guesswork, and the root is never a rung.
-	if up := filepath.Dir(dir); up != "." && up != "/" && up != dir {
+	if up := path.Dir(dir); !isTop(up) && up != dir {
 		rungs = append(rungs, Rule{Tool: tool, Pattern: up + "/*"})
 	}
 	return dedupe(rungs), 1
+}
+
+// pathScope is the typed scope a file tool's path falls under: write:
+// for the tools that write it, read: for those that read it, "" for none.
+func pathScope(tool string) string {
+	switch {
+	case writeTools[tool]:
+		return "write"
+	case readTools[tool]:
+		return "read"
+	}
+	return ""
+}
+
+// isTop reports whether a slash path is the top of a tree a rung must not
+// widen to: ".", "/", or a Windows drive ("C:", "C:/").
+func isTop(dir string) bool {
+	d := strings.TrimSuffix(dir, "/")
+	return d == "." || d == "" || (len(d) == 2 && d[1] == ':')
 }
 
 // dedupe drops rungs equal to one already in the list, keeping order: a
@@ -744,6 +859,9 @@ func isWordy(w string) bool {
 type File struct {
 	Allow []string `json:"allow,omitempty"`
 	Deny  []string `json:"deny,omitempty"`
+	// Ask are sensitive-call rules: a call they match is always asked
+	// about (see Rules.Ask).
+	Ask []string `json:"ask,omitempty"`
 }
 
 // ProjectFile is the per-project rule file, relative to the project root.
@@ -781,5 +899,62 @@ func (f File) Rules() (Rules, error) {
 	if err != nil {
 		return Rules{}, err
 	}
-	return Rules{Allow: allow, Deny: deny}, nil
+	ask, err := ParseAll(f.Ask)
+	if err != nil {
+		return Rules{}, err
+	}
+	return Rules{Allow: allow, Deny: deny, Ask: ask}, nil
+}
+
+// SplitList splits a comma-separated list of rules, as --allow and
+// --deny take them, at the commas between rules and not at the ones
+// inside a rule's parentheses: bash(cmd:curl *, host:x.example),read_file
+// is two rules.
+func SplitList(s string) []string {
+	var out []string
+	depth, start := 0, 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				if part := strings.TrimSpace(s[start:i]); part != "" {
+					out = append(out, part)
+				}
+				start = i + 1
+			}
+		}
+	}
+	if part := strings.TrimSpace(s[start:]); part != "" {
+		out = append(out, part)
+	}
+	return out
+}
+
+// Explain says in one line what the rules decide about a call and why:
+// which rule won, and which allow rule it outranked when one would have
+// covered the call too. It is /permissions check's answer.
+func (rs Rules) Explain(c Call) string {
+	v, r, hard := rs.DecideCall(c)
+	allow, allowed := rs.AllowedBy(c)
+	outranks := ""
+	if allowed {
+		outranks = ", which outranks allow rule " + allow.String()
+	}
+	switch {
+	case hard != "":
+		return "refused whatever the rules say: this command " + hard
+	case v == Denied:
+		return "denied by rule " + r.String() + outranks
+	case v == Ask && !r.IsZero():
+		return "always asks because of rule " + r.String() + outranks + " (in every mode, --yolo included)"
+	case v == Allowed:
+		return "allowed by rule " + r.String() + " (runs without asking in every mode)"
+	}
+	return "no rule matches: whether it asks depends on the mode"
 }

@@ -67,3 +67,17 @@ func TestShellCommandRunsHere(t *testing.T) {
 		t.Fatalf("shell name %q", n)
 	}
 }
+
+func TestOverrideNamesAPosixShell(t *testing.T) {
+	if _, ok := Override("  "); ok {
+		t.Fatal("blank JANETCODE_SHELL should not override")
+	}
+	s, ok := Override(`C:\Program Files\Git\bin\bash.exe`)
+	if !ok || s.Name != "bash" || strings.Join(s.Args, " ") != "-c" || s.encoded {
+		t.Fatalf("git bash: %+v", s)
+	}
+	s, _ = Override(`C:\tools\busybox64.exe`)
+	if cmd := s.Command(context.Background(), "echo hi"); strings.Join(cmd.Args[1:], " ") != "sh -c echo hi" {
+		t.Fatalf("busybox argv = %q", cmd.Args)
+	}
+}

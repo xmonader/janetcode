@@ -401,6 +401,55 @@ router is deliberately simple (no ML, a short list of named rules — see
 `internal/agent/steproute.go`), so a pass-rate drop on a specific task
 usually names the rule that let a step through it should not have.
 
+## Which model answered, and runs that never reached it
+
+A result belongs to the model that produced it, and a gateway is free to
+answer one model name with another model. On 2026-10-01 the ai02 broker
+answered every name — Claude, DeepSeek, Qwen, MiMo — with Kimi for
+hours, in the middle of an A/B; the "73% cheaper" it measured was the
+swap, and the report had to be withdrawn
+(`docs/benchmarks/jit/REPORT.md`). Nothing in the answers said so.
+
+Every model call now records what its response said about who served it
+— the response's model field, a gateway's `provider` field (OpenRouter's,
+the broker's), the upstream's own model name when given, the shape of the
+response id and of the tool-call ids — and checks it against the model
+asked for. The check compares *vendors*, not names: a gateway renaming
+`claude-sonnet-4-5` to `anthropic/claude-sonnet-4.5` is fine, and a host
+is not a vendor (Amazon Bedrock serves Claude, a `gpu_octo` route serves
+MiMo). It calls a mismatch only on evidence that names a different
+vendor: a provider field like `"kimi"`, a model name of another family, or
+a tool-id shape only one vendor mints (`toolu_…` is Anthropic's; `tool_`
+and 24 characters is Kimi's, which is how the broker's swap gave itself
+away while echoing the requested name everywhere else).
+
+In an eval, each run gets one of four outcomes:
+
+| outcome | meaning | counted |
+|---|---|---|
+| `PASS` / `FAIL` | the requested model answered; the check passed or not | yes |
+| `INFRA` | the run ended outside the model — a 429 or 5xx after the retries, an exhausted balance, a rejected key, the network, a stream that stayed dead — or timed out without a single answer, or was cancelled before it started (a `--max-cost` stop) | no |
+| `MISMATCH` | at least one call was answered by another vendor's model | no |
+
+`INFRA` and `MISMATCH` runs are in neither the numerator nor the
+denominator of the pass rate, are left out of the per-task comparison
+(`--eval-compare` pairs only what both arms measured), and are reported
+on a line of their own, with what they cost:
+
+```
+!! not scored: 15 answered by ANOTHER VENDOR'S MODEL than the one requested (provenance mismatch) · 4 lost to the provider or the network before the model could fail them — left out of the pass rate, the CI and the per-task comparison ($0.0412 spent on them)
+```
+
+Each result carries `infra`, `mismatches`, `mismatch` (the first
+verdict) and `served` (the last call's provenance) in the results file.
+An eval in which no run reached the requested model exits non-zero
+rather than passing on nothing, and `--eval-strict-provenance` makes any
+mismatch fail the whole eval. In an ordinary session the same check says
+it once — "requested xiaomi/mimo-v2.6-flash, but the response was served
+by moonshot, not xiaomi (tool ids tool_24)" — and each assistant event
+in the session log carries `served` when it changes and `mismatch` when
+it disagrees.
+
 ## Every eval flag
 
 The environment variables above are what `make eval` sets; each is a flag
@@ -422,6 +471,7 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-timeout <seconds>` | replace every task's own timeout, so a benchmark gives each harness the same wall budget |
 | `--eval-max-turns <n>` | cap the model calls one task may spend (`--max-turns` is the same cap for a real run) |
 | `--eval-no-tool-limit` | ignore each task's `max_tool_calls`, for comparing against harnesses that enforce no tool budget |
+| `--eval-strict-provenance` | fail the whole eval when any run was answered by another vendor's model than the one requested, instead of leaving those runs out (see [Which model answered](#which-model-answered-and-runs-that-never-reached-it)) |
 | `--eval-gate` | run tasks under a verification gate (the work directory's `.janetcode/verify.json`, else the checks for its project type) and wire the configured decision provider, so failure triage can be measured. Off by default: a gate changes tool counts, pass rates and cost, so results recorded without it are not comparable with results recorded under it |
 | `--eval-compact-at <tokens>` | compact earlier than the default, to force compaction on tasks that would not otherwise reach it |
 | `--eval-facts <n>` | after each run that compacted, probe up to n facts mined from what compaction removed and record how many the model still recalls |

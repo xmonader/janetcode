@@ -17,6 +17,7 @@ On Linux or macOS, from the latest release (checked against its
 ```sh
 curl -fsSL https://raw.githubusercontent.com/xmonader/janetcode/master/install.sh | sh
 janetcode --update  # later: the newest release, checked the same way
+janetcode --uninstall          # remove the binary; --purge also removes settings and sessions
 ```
 
 From source (Go 1.25+):
@@ -45,10 +46,16 @@ kept green and the shell paths are switched by OS, so `bash`, hooks,
 verification commands, `--watch`/`--until` checks and background jobs
 run through PowerShell (`pwsh` if installed, else Windows PowerShell)
 with the command passed as `-EncodedCommand` to avoid quoting rules, and
-cancelled commands are killed with `taskkill /T`. None of that has been
-exercised on a real Windows machine yet, and the command safety
-classifier still reasons about POSIX shell syntax, so treat it as
-untested. The cheapest way to use janetcode on Windows today is WSL.
+cancelled commands are killed with `taskkill /T`. The Windows build has
+been run under wine (a live headless edit against a real model works;
+see `docs/notes/windows-wine.md`), and CI runs the test suite on
+`windows-latest`, but PowerShell itself could not be exercised under
+wine, and the command safety classifier reads commands as bash with
+Windows paths, so treat the shell side as lightly tested.
+`JANETCODE_SHELL` names a POSIX shell to use instead, such as Git Bash
+(`C:\Program Files\Git\bin\bash.exe`) or busybox-w32; that path has
+run live under wine. The cheapest way to use janetcode on Windows today
+is WSL.
 
 ## Quick start
 
@@ -57,6 +64,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 cd your/project
 janetcode
 ```
+
+A gateway that serves the Messages API and wants a bearer token takes
+`ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_BASE_URL` instead, as Claude Code
+does ([configuration](docs/manual/configuration.md)).
 
 Or with an OpenAI-compatible backend. Tested live against Alibaba's coding
 endpoint and OpenRouter:
@@ -234,7 +245,8 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /accept <request> (write acceptance tests first; /accept approve locks them as a gate)
 /readonly  (toggle read-only: the model can inspect but change nothing)
-/sandbox [on|off]  /review [focus]  /loop [duration] <prompt>
+/sandbox [on|off]  /review [focus]  /security-review [focus]  /loop [duration] <prompt>
+/commit (draft a message, edit, send)  /pr (draft, then push and open)  /pr-comments [n]  /issue <n>
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)

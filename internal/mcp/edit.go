@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // Editing .mcp.json in place. /mcp add writes the file the user would
@@ -188,6 +190,7 @@ func editProject(cwd string, fn func(servers *ordered) error) (map[string]Server
 	if err := os.WriteFile(path, out, 0o644); err != nil {
 		return nil, "", err
 	}
+	trust.SelfWrote(cwd)
 	return LoadProject(cwd)
 }
 

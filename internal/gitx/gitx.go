@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -172,8 +173,55 @@ var PatchFormat = []string{"--no-color", "--no-ext-diff", "--no-textconv", "--sr
 // relative path from dir rather than from the caller's directory) to the
 // work tree at dir.
 func Apply(ctx context.Context, dir string, patch []byte) error {
-	_, err := RunInput(ctx, dir, patch, "apply", "--binary")
+	return ApplyEnv(ctx, dir, nil, patch)
+}
+
+// ApplyEnv is Apply with extra environment, such as ByteExact.
+func ApplyEnv(ctx context.Context, dir string, env []string, patch []byte) error {
+	_, err := RunInputEnv(ctx, dir, env, patch, "apply", "--binary")
 	return err
+}
+
+// ByteExactEnv is the environment for git commands that copy file
+// content between a work tree and the object store on janetcode's behalf
+// — snapshots, undo, scratch checkouts — so the bytes that come back are
+// the bytes that went in. The user's configuration and the repository's
+// attributes may otherwise convert them on the way: core.autocrlf (on by
+// default in Git for Windows) restores LF files as CRLF, autocrlf=input
+// stores a CRLF file as LF, and a text/eol attribute or a clean/smudge
+// filter rewrites them in either direction. The overrides go in through
+// GIT_CONFIG_COUNT (git 2.31+), which outranks every config file, and
+// GIT_ATTR_SOURCE (git 2.40+) points attribute lookup at the empty tree,
+// so the work tree's .gitattributes files no longer apply; an older git
+// ignores what it does not know. emptyTree is the repository's empty tree
+// (EmptyTree), "" to leave attributes alone. $GIT_DIR/info/attributes
+// still applies: it is the repository owner's own override, not content.
+func ByteExactEnv(emptyTree string) []string {
+	kv := [][2]string{
+		{"core.autocrlf", "false"},
+		{"core.eol", "lf"},
+		{"core.safecrlf", "false"},
+		{"core.attributesFile", os.DevNull},
+	}
+	env := []string{"GIT_CONFIG_COUNT=" + strconv.Itoa(len(kv))}
+	for i, p := range kv {
+		env = append(env, fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", i, p[0]), fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", i, p[1]))
+	}
+	if emptyTree != "" {
+		env = append(env, "GIT_ATTR_SOURCE="+emptyTree)
+	}
+	return env
+}
+
+// ByteExact is ByteExactEnv for repo, working out its empty tree. When
+// that fails attributes stay in force rather than failing the caller:
+// the config overrides alone already cover the common case.
+func ByteExact(ctx context.Context, repo string) []string {
+	empty, err := EmptyTree(ctx, repo)
+	if err != nil {
+		empty = ""
+	}
+	return ByteExactEnv(empty)
 }
 
 // Short is a commit sha shortened to 12 characters for display.

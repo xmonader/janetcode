@@ -29,6 +29,10 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		fmt.Println("janetcode", version)
 	case o.selfUpdate:
 		return true, selfUpdate()
+	case o.uninstall:
+		return true, uninstallMode(os.Stdout, o.purge)
+	case o.purge:
+		return true, headless.BadInput("--purge goes with --uninstall")
 	case o.initCfg:
 		if p, err := config.Path(); err == nil {
 			if _, err := os.Stat(p); err == nil {
@@ -87,6 +91,10 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 			return true, doctorJSON(ctx, os.Stdout, ov, o.doctorFix)
 		}
 		return true, doctor(ctx, os.Stdout, ov, o.doctorFix)
+	case o.mcpServe:
+		return true, mcpServeMode(o)
+	case o.pluginCmd != "":
+		return true, pluginMode(os.Stdout, o.pluginCmd, fs.Args())
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -116,7 +124,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{o.decisionsAnnotate != "" && o.decisionsReplay != "", "--decisions-annotate and --decisions-replay are separate runs"},
 		{o.sessionProfile != "" && o.promptText != "", "--session-profile reads recorded runs, it does not start one; drop -p"},
 		{o.doctorFix && !o.runDoctor, "--fix is --doctor's: run janetcode --doctor --fix"},
-		{format != headless.FormatText && !o.headless() && o.watchCmd == "" && !o.runDoctor && !o.listModels, "--output-format applies to a headless run (-p), --doctor or --list-models"},
+		{format != headless.FormatText && !o.headless() && o.watchCmd == "" && !o.recoverTurn && !o.runDoctor && !o.listModels, "--output-format applies to a headless run (-p, --input-format stream-json, --recover), --doctor or --list-models"},
 		{o.listModels && format == headless.FormatStreamJSON, "--list-models prints text or json, not stream-json"},
 		{o.inFormat != "" && o.inFormat != string(headless.InputText) && o.inFormat != string(headless.InputStreamJSON), "unknown --input-format " + o.inFormat + ": want text or stream-json"},
 		{o.inFormat == string(headless.InputStreamJSON) && format != headless.FormatStreamJSON, "--input-format stream-json needs --output-format stream-json"},
@@ -146,6 +154,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{whatIfRun && o.web, "--web is a session, not a one-shot; drop --what-if"},
 		{whatIfRun && o.acpMode, "--what-if and --acp do not combine"},
 		{whatIfRun && o.bg, "--what-if and --bg do not combine"},
+		{o.fork && o.resume == "" && !o.cont, "--fork copies the session --resume or --continue opens; name one"},
 		{whatIfRun && o.whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
 	} {
 		if bad.holds {
@@ -163,6 +172,12 @@ func offlineMode(o *options) (bool, error) {
 	switch {
 	case o.evalReport != "":
 		return true, reportEval(o.evalReport, o.evalCompare)
+	case o.showSess != "":
+		return true, showSession(os.Stdout, o.showSess)
+	case o.searchSess != "":
+		return true, searchSessionsMode(os.Stdout, o.searchSess)
+	case o.auditSess != "":
+		return true, auditMode(os.Stdout, o.auditSess)
 	case o.replayPath != "":
 		path, _, _, err := whatif.ResolveSession(o.replayPath)
 		if err != nil {

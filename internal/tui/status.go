@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -140,12 +141,12 @@ func (m *model) footerNotice() string {
 		// finding the message has not gone anywhere yet.
 		// The message is clipped first so the keys survive: a long
 		// message used to push "up takes it back" off an 80-column row.
-		hint := " · sends when this turn ends · up takes it back, ctrl+s steers it into this turn"
+		hint := i18n.T(" · sends when this turn ends · up takes it back, ctrl+s steers it into this turn")
 		if room < 110 {
-			hint = " · waits for this turn · ↑ takes back · ctrl+s steers"
+			hint = i18n.T(" · waits for this turn · ↑ takes back · ctrl+s steers")
 		}
 		msgRoom := max(10, room-lipgloss.Width(hint)-17)
-		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(truncateLine(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]), msgRoom))+m.styles.faint.Render(hint), room)
+		return fitLine("  "+m.styles.faint.Render(i18n.Tf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(truncateLine(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]), msgRoom))+m.styles.faint.Render(hint), room)
 	case m.notice.live():
 		return fitLine("  "+m.styles.dim.Render(m.notice.text), room)
 	}
@@ -179,17 +180,17 @@ func (m *model) statusMode() string {
 func (m *model) statusModeHint() string {
 	switch m.statusMode() {
 	case "PLAN":
-		return "reads only · writes a plan · /plan approve runs it"
+		return i18n.T("reads only · writes a plan · /plan approve runs it")
 	case "READ-ONLY":
-		return "inspect only"
+		return i18n.T("inspect only")
 	case "YOLO":
-		return "tools run without asking"
+		return i18n.T("tools run without asking")
 	case "AUTO":
-		return "edits and known-safe reads run · other commands ask"
+		return i18n.T("edits and known-safe reads run · other commands ask")
 	case "EDITS":
-		return "file changes go through · commands ask"
+		return i18n.T("file changes go through · commands ask")
 	default:
-		return "edits and commands ask first"
+		return i18n.T("edits and commands ask first")
 	}
 }
 
@@ -217,6 +218,15 @@ func (m *model) statusState() string {
 		st = m.styles.key
 	}
 	s := st.Render(mode)
+	if chip := m.vimChip(); chip != "" {
+		s += m.styles.faint.Render(" · ") + chip
+	}
+	// A dry run is not a permission mode — it sits on top of whichever
+	// one is set — but nothing on screen would otherwise say that the
+	// edits the transcript shows never reached the disk.
+	if ag := m.opts.Agent; ag != nil && ag.DryRunOn() {
+		s += m.styles.key.Render(" · DRY RUN")
+	}
 	// A tier above the provider's own default is a standing choice about
 	// what every call costs, so it sits with the mode rather than being
 	// something you have to run /effort to remember.
@@ -273,6 +283,8 @@ func (m *model) statusView() string {
 		left = m.styles.warn.Render("● denied · waiting for your reason")
 	case m.pending != nil:
 		left = m.styles.warn.Render("● approval needed")
+	case m.hsearch != nil:
+		left = m.styles.key.Render(m.searchStatus())
 	case m.turn.running && m.tight():
 		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText())
 	case m.turn.running:

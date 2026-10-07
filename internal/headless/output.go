@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
@@ -199,15 +200,19 @@ type recorder struct {
 	mu sync.Mutex
 	// started is the ids a tool_start has been written for, so a result
 	// never arrives for a call the consumer has not seen begin.
-	started   map[string]bool
-	enc       *json.Encoder
-	usage     llm.Usage
-	turns     int
-	tools     int
-	denials   int
-	retries   int
-	verdict   string
-	turnText  strings.Builder
+	started  map[string]bool
+	enc      *json.Encoder
+	usage    llm.Usage
+	turns    int
+	tools    int
+	denials  int
+	retries  int
+	verdict  string
+	turnText strings.Builder
+	// textBreak is set when a tool ran after some of the turn's text:
+	// the next text is another model call's, and running the two
+	// together read "I'll list the files.The files are …".
+	textBreak bool
 	answer    string
 	sessionID string
 	model     string
@@ -218,6 +223,9 @@ type recorder struct {
 	// perTurn is set by a stream-json input run that wrote a result
 	// after every message, so finish does not write the last one twice.
 	perTurn bool
+	// errOut is the run's stderr, where text mode puts a dry run's
+	// preview.
+	errOut io.Writer
 }
 
 // emitLocked is emit for a caller not already holding the lock: the
@@ -258,7 +266,7 @@ func (r *recorder) setStructured(v json.RawMessage) {
 }
 
 func newRecorder(opts Options, format Format) *recorder {
-	r := &recorder{format: format, out: opts.Stdout, start: time.Now(), started: map[string]bool{}}
+	r := &recorder{format: format, out: opts.Stdout, errOut: opts.Stderr, start: time.Now(), started: map[string]bool{}}
 	if format == FormatStreamJSON {
 		r.enc = json.NewEncoder(opts.Stdout)
 	}
@@ -301,18 +309,26 @@ func (r *recorder) emit(e streamEvent) {
 	_ = r.enc.Encode(e)
 }
 
-// event records one loop event, and streams it when asked to.
-func (r *recorder) event(e agent.Event) {
+// event records one loop event, and streams it when asked to. It
+// returns the separator text mode prints before an EvText that starts a
+// later model call's answer.
+func (r *recorder) event(e agent.Event) (sep string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	switch e.Kind {
 	case agent.EvText:
+		if r.textBreak && e.Text != "" {
+			r.textBreak = false
+			sep = "\n\n"
+			r.turnText.WriteString(sep)
+		}
 		r.turnText.WriteString(e.Text)
 		r.emit(streamEvent{Type: "text", Text: e.Text})
 	case agent.EvThinking:
 		r.emit(streamEvent{Type: "thinking", Text: e.Text})
 	case agent.EvToolRun:
 		r.tools++
+		r.textBreak = r.turnText.Len() > 0
 		if e.Call != nil {
 			r.started[e.Call.ID] = true
 			r.emit(streamEvent{Type: "tool_start", Name: e.Call.Name, ID: e.Call.ID, Intent: e.Call.Intent, Input: json.RawMessage(e.Call.Input)})
@@ -346,6 +362,7 @@ func (r *recorder) event(e agent.Event) {
 		// The dead attempt's deltas are void — the retried call replaces
 		// them. Without this the answer would read "half anfull answer".
 		r.turnText.Reset()
+		r.textBreak = false
 		r.started = map[string]bool{}
 		// The stream has already carried those deltas as text lines,
 		// which cannot be taken back: a line says they are void, or a
@@ -366,9 +383,11 @@ func (r *recorder) event(e agent.Event) {
 			r.answer = t
 		}
 		r.turnText.Reset()
+		r.textBreak = false
 		u := usageOf(e.Usage)
 		r.emit(streamEvent{Type: "turn_done", StopReason: string(e.StopReason), Usage: &u})
 	}
+	return sep
 }
 
 func usageOf(u llm.Usage) CLIUsage {
@@ -444,6 +463,11 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		if calls, _ := st.ToolCalls(); calls > 0 {
 			res.ToolCalls = calls
 		}
+		if !st.Served.Empty() {
+			served := st.Served
+			res.Served = &served
+		}
+		res.Mismatches, res.Mismatch = st.Mismatches, st.Mismatch
 		res.Recoveries = CLIRecoveries{
 			ProseToolCalls: st.Recoveries,
 			WatchdogKills:  st.WatchdogKills,
@@ -469,6 +493,15 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		// benchmark can audit routes without replaying the UI.
 		if ag.Log != nil {
 			for _, e := range ag.Log.Events() {
+				if e.Type != session.TypeEgress || e.Time.Before(r.start) {
+					continue
+				}
+				var rep egress.Report
+				if json.Unmarshal([]byte(e.Output), &rep) == nil {
+					res.Egress = append(res.Egress, rep)
+				}
+			}
+			for _, e := range ag.Log.Events() {
 				if e.Type != session.TypeAssistant || e.Route == "" {
 					continue
 				}
@@ -485,6 +518,15 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		}
 		res.CostSource = r.usage.CostSource(r.price)
 	}
+	if ag != nil && ag.DryRunOn() {
+		res.DryRun = &CLIDryRun{Files: ag.DryRunFiles(), Actions: ag.DryRunActions()}
+		if res.DryRun.Files == nil {
+			res.DryRun.Files = []agent.DryFile{}
+		}
+		if res.DryRun.Actions == nil {
+			res.DryRun.Actions = []agent.DryAction{}
+		}
+	}
 	if err != nil {
 		res.IsError, res.Error = true, err.Error()
 	}
@@ -495,6 +537,12 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 // already said everything it is going to say.
 func (r *recorder) finish(ag *agent.Agent, err error) {
 	if r.format == FormatText || r.perTurn {
+		// A dry run's whole product is its preview, and nothing else in
+		// text mode would show it: the report, diffs included, goes to
+		// stderr with the rest of the run's own account of itself.
+		if ag != nil && ag.DryRunOn() && r.errOut != nil {
+			fmt.Fprintf(r.errOut, "\n%s\n", ag.DryRunReport(true))
+		}
 		return
 	}
 	res := r.result(ag, err)

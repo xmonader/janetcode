@@ -7,4 +7,6 @@ The [README](../../README.md) covers install, quick start and what has been meas
 - [Sessions](sessions.md)
 - [Evals](evals.md)
 - [Command-line reference](cli.md)
-- [Editor integration (ACP)](editor.md)
+- [Editor integration: ACP, JetBrains, VS Code](editor.md)
+- [Continuous integration](ci.md)
+- [Extending and embedding](extending.md)

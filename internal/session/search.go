@@ -18,6 +18,9 @@ type Hit struct {
 	Role    llm.Role
 	Snippet string
 	Matches int
+	// Turn is the turn the match is in (1-based), 0 when the log does
+	// not say.
+	Turn int
 }
 
 // Search scans every session (all directories when cwd is "") for
@@ -45,7 +48,11 @@ func Search(dir, cwd, query string, limit int) ([]Hit, error) {
 			continue
 		}
 		var best Hit
-		for _, m := range msgs {
+		for _, ev := range s.Events() {
+			m := ev.Message
+			if m == nil {
+				continue
+			}
 			for _, b := range m.Blocks {
 				if b.Type != llm.BlockText && b.Type != llm.BlockToolResult {
 					continue
@@ -72,7 +79,7 @@ func Search(dir, cwd, query string, limit int) ([]Hit, error) {
 					score++ // conversation beats tool output
 				}
 				if score > best.Matches {
-					best = Hit{Role: m.Role, Snippet: snippetAround(b.Text, first), Matches: score}
+					best = Hit{Role: m.Role, Snippet: snippetAround(b.Text, first), Matches: score, Turn: ev.Turn}
 				}
 			}
 		}

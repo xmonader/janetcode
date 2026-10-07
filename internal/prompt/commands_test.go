@@ -1,9 +1,12 @@
 package prompt
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/plugin"
 )
 
 func TestCustomCommands(t *testing.T) {
@@ -36,5 +39,27 @@ func TestCustomCommands(t *testing.T) {
 	}
 	if got := CustomCommands(t.TempDir(), ""); len(got) != 0 {
 		t.Fatalf("expected none, got %+v", got)
+	}
+}
+
+// An installed plugin's commands load between the user's and the
+// project's, and say which plugin they came from.
+func TestPluginCommands(t *testing.T) {
+	cwd, cfg := t.TempDir(), t.TempDir()
+	src := filepath.Join(t.TempDir(), "kit")
+	os.MkdirAll(filepath.Join(src, "commands"), 0o755)
+	os.WriteFile(filepath.Join(src, "commands", "lint.md"), []byte("# Lint\nLint $ARGUMENTS"), 0o644)
+	os.WriteFile(filepath.Join(src, "commands", "notes.md"), []byte("plugin notes"), 0o644)
+	os.MkdirAll(filepath.Join(cwd, ".janetcode", "commands"), 0o755)
+	os.WriteFile(filepath.Join(cwd, ".janetcode", "commands", "notes.md"), []byte("project notes"), 0o644)
+	if _, _, err := plugin.Open(cfg).Install(context.Background(), src, plugin.InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	cmds := CustomCommands(cwd, cfg)
+	if len(cmds) != 2 || cmds[0].Name != "lint" || cmds[0].Plugin != "kit" {
+		t.Fatalf("cmds = %+v", cmds)
+	}
+	if cmds[1].Body != "project notes" || cmds[1].Plugin != "" {
+		t.Fatalf("the project's command did not shadow the plugin's: %+v", cmds[1])
 	}
 }

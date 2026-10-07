@@ -75,12 +75,14 @@
 <tr><td><code>/compact</code></td><td></td><td>summarise the conversation to free context</td></tr>
 <tr><td><code>/clear</code></td><td></td><td>start a new session</td></tr>
 <tr><td><code>/resume</code></td><td><code>[n|id]</code></td><td>reopen an earlier session here: alone opens a searchable list, or name one</td></tr>
+<tr><td><code>/recover</code></td><td></td><td>carry on the turn this session died in: finished tool results kept, running reads rerun, running changes described, not repeated</td></tr>
 <tr><td><code>/open</code></td><td><code>&lt;path[:line]&gt;</code></td><td>show a file inline, centred on a line</td></tr>
 <tr><td><code>/diff</code></td><td><code>[path|revert path:n]</code></td><td>changes against HEAD; a file&#x27;s hunks; revert one hunk</td></tr>
 <tr><td><code>/fork</code></td><td><code>[stay] [title]</code></td><td>copy this conversation into a new session; stay keeps this one live</td></tr>
 <tr><td><code>/add-dir</code></td><td><code>&lt;path&gt;</code></td><td>grant file tools another local directory for this session</td></tr>
 <tr><td><code>/btw</code></td><td><code>&lt;question&gt;</code></td><td>ask a side question that is not stored as a user turn</td></tr>
 <tr><td><code>/copy</code></td><td></td><td>copy the last assistant reply to the clipboard</td></tr>
+<tr><td><code>/voice</code></td><td><code>[stop]</code></td><td>record a prompt from the microphone; <code>/voice</code> again stops, and the transcript lands in the input to read and send</td></tr>
 <tr><td><code>/config</code></td><td><code>[key=value]</code></td><td>set a catalogued config key, or list settable keys</td></tr>
 <tr><td><code>/doctor</code></td><td></td><td>run a setup checkup; reports facts, changes nothing</td></tr>
 <tr><td><code>/title</code></td><td><code>&lt;text&gt;</code></td><td>name this session (titles are generated after the first turn)</td></tr>
@@ -91,7 +93,10 @@
 <tr><td><code>/changes</code></td><td><code>[n]</code></td><td>this session&#x27;s file changes grouped by turn and intent; n shows one change&#x27;s hunks</td></tr>
 <tr><td><code>/blame</code></td><td><code>&lt;path&gt;</code></td><td>which change wrote each line of a file changed this session</td></tr>
 <tr><td><code>/redo</code></td><td></td><td>reapply what the last /undo reverted (until the next change)</td></tr>
-<tr><td><code>/mcp</code></td><td><code>[trust|auth &lt;server&gt;|logout &lt;server&gt;]</code></td><td>MCP servers and their tools; trust starts the project&#x27;s .mcp.json servers; auth logs in to a remote server with OAuth</td></tr>
+<tr><td><code>/mcp</code></td><td><code>[trust|reconnect [server]|auth &lt;server&gt;|logout &lt;server&gt;]</code></td><td>MCP servers and their tools; reconnect restarts one that went down; trust starts the project&#x27;s .mcp.json servers; auth logs in to a remote server with OAuth</td></tr>
+<tr><td><code>/plugin</code></td><td><code>[install &lt;git url|dir|name@market&gt;|show|trust|enable|disable|update|remove|marketplace add|browse]</code></td><td>plugins: bundles of commands, skills, agent profiles, hooks and MCP servers in Claude Code's layout; hooks and servers stay off until <code>/plugin trust</code></td></tr>
+<tr><td><code>/egress</code></td><td></td><td>what the last turn sent off this machine: hosts, bytes, files and tool output, memory and skills attached, values redacted; and the egress policy</td></tr>
+<tr><td><code>/trust</code></td><td><code>[full | instructions | untrusted] [session]</code></td><td>how far this project&#x27;s own skills, agents, commands, rules, hooks, MCP servers, verify commands, allow rules and recipes are let in</td></tr>
 <tr><td><code>/hooks</code></td><td><code>[trust]</code></td><td>hooks in effect; trust enables the project&#x27;s .janetcode/hooks.json</td></tr>
 <tr><td><code>/permissions</code></td><td><code>[allow|deny &lt;rule&gt;|trust]</code></td><td>permission rules; add one, or trust the project&#x27;s .janetcode/permissions.json</td></tr>
 <tr><td><code>/verify</code></td><td><code>[set &lt;cmd&gt;|add &lt;cmd&gt;|mutate &lt;test cmd&gt;|clear|trust]</code></td><td>run the project&#x27;s checks now; set replaces .janetcode/verify.json&#x27;s commands with one, add appends one; mutate requires tests to catch mutations of changed lines</td></tr>
@@ -113,6 +118,8 @@
 <tr><td><code>/ssh</code></td><td><code>[user@host[:/path]|off]</code></td><td>run file tools and bash on a remote host over ssh; off returns here</td></tr>
 <tr><td><code>/docker</code></td><td><code>[container[:/path]|off]</code></td><td>run file tools and bash in a docker container; off returns here</td></tr>
 <tr><td><code>/readonly</code></td><td></td><td>toggle read-only mode (no edits or commands)</td></tr>
+<tr><td><code>/checkpoints</code></td><td></td><td>the restore points, what each covers and whether it is complete; enter previews restoring to before that turn</td></tr>
+<tr><td><code>/dryrun</code></td><td>[on|off|show|apply [n,m…]|discard]</td><td>dry run: edits go to a preview, commands that change things are recorded but not run; apply writes the files</td></tr>
 <tr><td><code>/memory</code></td><td></td><td>what janetcode remembers about this project</td></tr>
 <tr><td><code>/skills</code></td><td></td><td>skill files available to the model</td></tr>
 <tr><td><code>/rules</code></td><td></td><td>path-scoped project rules: what brings each in, and which have been sent this session</td></tr>
@@ -123,6 +130,11 @@
 <tr><td><code>/edits</code></td><td></td><td>toggle auto-accept edits: file changes go through, commands still ask</td></tr>
 <tr><td><code>/sandbox</code></td><td><code>[on|off|image]</code></td><td>wrap local bash in docker (or sandbox-exec on macOS); off by default</td></tr>
 <tr><td><code>/review</code></td><td><code>[focus]</code></td><td>fan out two subagents over the current diff (bugs and tests)</td></tr>
+<tr><td><code>/security-review</code></td><td><code>[focus]</code></td><td>two read-only subagents review the diff for security problems; one report ranked by severity</td></tr>
+<tr><td><code>/commit</code></td><td><code>[-m message]</code></td><td>draft a commit message into the input box; /commit -m commits with a proof note</td></tr>
+<tr><td><code>/pr</code></td><td><code>[create &lt;title&gt;]</code></td><td>draft a pull request; /pr create pushes the branch and opens it with gh</td></tr>
+<tr><td><code>/pr-comments</code></td><td><code>[n]</code></td><td>fetch a pull request's reviews and comments with gh and share them with the model</td></tr>
+<tr><td><code>/issue</code></td><td><code>&lt;n&gt;</code></td><td>fetch a GitHub issue with gh and share it with the model</td></tr>
 <tr><td><code>/loop</code></td><td><code>[duration] [prompt|off|cancel id]</code></td><td>session-scoped repeating prompt; restored on resume of this session</td></tr>
 <tr><td><code>/settle</code></td><td></td><td>mark this session done with (or active again); settled sessions list last in /resume</td></tr>
 <tr><td><code>/connect</code></td><td></td><td>connect to a provider (preset or custom API) and pick a model</td></tr>
@@ -132,10 +144,11 @@
 <tr><td><code>/export</code></td><td><code>[file.md]</code></td><td>write this session as a Markdown transcript</td></tr>
 <tr><td><code>/theme</code></td><td><code>[name]</code></td><td>switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved</td></tr>
 <tr><td><code>/verbose</code></td><td></td><td>toggle expanded tool output for the whole transcript (ctrl+o expands one turn)</td></tr>
+<tr><td><code>/vim</code></td><td><code>[on|off]</code></td><td>toggle vim mode for the prompt: <code>esc</code> for normal mode, <code>i</code> to insert; <code>vim_mode</code> starts every session in it</td></tr>
 <tr><td><code>/hints</code></td><td><code>[on|off]</code></td><td>one-time hints about features this session could have used; alone says how many have been given</td></tr>
 <tr><td><code>/cd</code></td><td><code>[path]</code></td><td>move this session&#x27;s working directory without restarting it</td></tr>
 <tr><td><code>/compact-fast</code></td><td></td><td>prune old tool results and thinking without a summary call</td></tr>
-<tr><td><code>/effort</code></td><td><code>[tier|up|down]</code></td><td>how hard the model thinks: low, medium, high, xhigh, max (also <code>ctrl+r</code>)</td></tr>
+<tr><td><code>/effort</code></td><td><code>[tier|up|down]</code></td><td>how hard the model thinks: low, medium, high, xhigh, max (also <code>alt+e</code>)</td></tr>
 <tr><td><code>/perf</code></td><td></td><td>where the time went: model, tools, waiting on you, the harness itself</td></tr>
 <tr><td><code>/routing</code></td><td></td><td>toggle the step router for this session: while it is off, every call goes to the session&#x27;s own model</td></tr>
 <tr><td><code>/features</code></td><td><code>[name [on|off]]</code></td><td>the extra models janetcode can call on (cheap, strong, advisor, vision) and whether each is on</td></tr>
@@ -180,6 +193,7 @@
 <tr><td><code>--sandbox</code></td><td>wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; <code>/sandbox</code> toggles it</td></tr>
 <tr><td><code>--auto-edits</code></td><td>auto-accept file edits; commands still ask. <code>/edits</code> toggles the same thing mid-session</td></tr>
 <tr><td><code>--readonly</code></td><td>read, search and answer, but change nothing</td></tr>
+<tr><td><code>--dry-run</code></td><td>edits go to a preview and commands are recorded, not run, until <code>/dryrun apply</code></td></tr>
 <tr><td><code>--continue</code> (or <code>-c</code>), <code>--resume &lt;id&gt;</code> (or <code>-r</code>)</td><td>carry on the last session here, or a named one (including one started with <code>--bg</code>)</td></tr>
 <tr><td><code>--bg</code></td><td>run the prompt in the background, print the session id, and return; reopen with <code>--resume</code>. What its permission mode asks about waits for <code>--answer</code>; it runs <code>--yolo</code> only when given</td></tr>
 <tr><td><code>--answer &lt;id&gt; [allow|session|deny]</code></td><td>show or settle the permission request a <code>--bg</code> run is waiting on</td></tr>

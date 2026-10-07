@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xmonader/janetcode/internal/i18n"
 )
 
 // Interval is how long one phrase stays on screen before the next.
@@ -67,9 +69,16 @@ func Phrase(at, started time.Time) string {
 
 // ForPhase leaves a specific wait (a tool, a retry, a compaction) as it
 // is, and dresses only the idle "thinking" wait.
+//
+// Outside English the phase is shown in the interface's language, and the
+// idle wait is plainly "thinking…": the verb pool is English wordplay
+// that no catalogue could carry line for line.
 func ForPhase(phase string, at, started time.Time) string {
 	if phase != "thinking" {
-		return phase
+		return i18n.T(phase)
+	}
+	if i18n.Active() != "en" {
+		return i18n.T("thinking") + "…"
 	}
 	return Phrase(at, started)
 }

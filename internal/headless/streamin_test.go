@@ -73,14 +73,14 @@ func TestStreamInputRunsATurnPerMessage(t *testing.T) {
 	}
 }
 
-// blocking answers once ctx ends, or with its text when released.
-type blocking struct {
+// gating answers once ctx ends, or with its text when released.
+type gating struct {
 	started chan struct{}
 	calls   int
 }
 
-func (b *blocking) Name() string { return "blocking" }
-func (b *blocking) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+func (b *gating) Name() string { return "gating" }
+func (b *gating) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	b.calls++
 	if b.calls == 1 {
 		close(b.started)
@@ -94,7 +94,7 @@ func (b *blocking) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 // An interrupt ends the running turn, not the session: the next message
 // still runs, and the process exits cleanly at EOF.
 func TestStreamInputInterruptCancelsOnlyTheTurn(t *testing.T) {
-	p := &blocking{started: make(chan struct{})}
+	p := &gating{started: make(chan struct{})}
 	ag := &agent.Agent{Provider: p, Tools: tool.NewRegistry(), Model: "m"}
 	pr, pw := io.Pipe()
 	var out, errOut syncBuffer

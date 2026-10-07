@@ -43,6 +43,9 @@ const (
 	// a denial; the composer takes text again, but the prompt is still up
 	// and still owns enter and esc.
 	modeDeny
+	// modeSearch is the reverse history search (ctrl+r): typed text is
+	// the query, and the match is shown in the composer.
+	modeSearch
 )
 
 func (k uiMode) String() string {
@@ -63,6 +66,8 @@ func (k uiMode) String() string {
 		return "approve"
 	case modeDeny:
 		return "deny"
+	case modeSearch:
+		return "search"
 	}
 	return "unknown"
 }
@@ -90,6 +95,8 @@ func (m *model) mode() uiMode {
 		return modeDeny
 	case m.pending != nil:
 		return modeApprove
+	case m.hsearch != nil:
+		return modeSearch
 	}
 	return modePrompt
 }

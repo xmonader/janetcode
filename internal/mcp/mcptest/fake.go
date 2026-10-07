@@ -39,6 +39,9 @@ func FakeServer() {
 		time.Sleep(d)
 	}
 	pingSent := false
+	// grown is set by an echo of "grow": the server then offers one more
+	// tool and says so with notifications/tools/list_changed.
+	grown := false
 	for in.Scan() {
 		var msg fakeMessage
 		if err := json.Unmarshal(in.Bytes(), &msg); err != nil {
@@ -88,6 +91,18 @@ func FakeServer() {
 			send(map[string]any{"jsonrpc": "2.0", "id": "srv-1", "method": "ping"})
 			send(map[string]any{"jsonrpc": "2.0", "id": "srv-2", "method": "roots/list"})
 			send(map[string]any{"jsonrpc": "2.0", "method": "notifications/message", "params": map[string]any{"level": "info", "data": "hello"}})
+			// MCP_FAKE_EXIT_ONCE names a file: the first server to find
+			// it missing creates it and dies shortly after the handshake,
+			// the way a server crashes mid-session; the next one lives.
+			if marker := os.Getenv("MCP_FAKE_EXIT_ONCE"); marker != "" {
+				if _, err := os.Stat(marker); err != nil {
+					_ = os.WriteFile(marker, nil, 0o644)
+					go func() {
+						time.Sleep(200 * time.Millisecond)
+						os.Exit(3)
+					}()
+				}
+			}
 		case "tools/list":
 			var p struct{ Cursor string }
 			json.Unmarshal(msg.Params, &p)
@@ -101,13 +116,15 @@ func FakeServer() {
 					"nextCursor": "page2",
 				}})
 			} else {
-				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{
-					"tools": []map[string]any{
-						{"name": "write thing!", "description": "Writes", "inputSchema": map[string]any{"type": "object"}},
-						{"name": "fail", "inputSchema": map[string]any{"type": "object"}},
-						{"name": "slow", "inputSchema": map[string]any{"type": "object"}},
-					},
-				}})
+				tools := []map[string]any{
+					{"name": "write thing!", "description": "Writes", "inputSchema": map[string]any{"type": "object"}},
+					{"name": "fail", "inputSchema": map[string]any{"type": "object"}},
+					{"name": "slow", "inputSchema": map[string]any{"type": "object"}},
+				}
+				if grown {
+					tools = append(tools, map[string]any{"name": "extra", "description": "Added later", "inputSchema": map[string]any{"type": "object"}})
+				}
+				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"tools": tools}})
 			}
 		case "tools/call":
 			var p struct {
@@ -122,6 +139,10 @@ func FakeServer() {
 				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{
 					"content": []map[string]any{{"type": "text", "text": "echo: " + a.Text}, {"type": "image", "mimeType": "image/png", "data": "AAAA"}},
 				}})
+				if a.Text == "grow" && !grown {
+					grown = true
+					send(map[string]any{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+				}
 			case "fail":
 				// The text of an error is server-controlled just as much
 				// as the text of a success, so a test can choose it and

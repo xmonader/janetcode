@@ -2,6 +2,7 @@ package webui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,7 @@ type workspace struct {
 	Edits     bool        `json:"edits"`
 	Plan      bool        `json:"plan"`
 	ReadOnly  bool        `json:"readonly"`
+	DryRun    bool        `json:"dry_run"`
 	Mode      string      `json:"mode"`
 	Terminals []termItem  `json:"terminals,omitempty"`
 	Ptc       []ptcItem   `json:"ptc,omitempty"`
@@ -175,6 +177,7 @@ func (s *server) workspace() workspace {
 	ws.Edits = modes.AutoEdits
 	ws.Plan = modes.PlanMode
 	ws.ReadOnly = modes.ReadOnly
+	ws.DryRun = ag.DryRunOn()
 	ws.Mode = sessionMode(ag)
 	if terms := termsOf(ag); terms != nil {
 		for _, x := range terms.List() {
@@ -328,31 +331,57 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		ID string `json:"id"`
+		// Fork continues in a copy of the session instead: the way on when
+		// another janetcode holds its lease.
+		Fork bool `json:"fork"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
+	id, code, err := s.openSession(body.ID, body.Fork)
+	if err != nil {
+		http.Error(w, err.Error(), code)
+		return
+	}
+	writeJSON(w, map[string]string{"ok": "1", "session": id})
+}
+
+// openSession switches the view to a saved session, or to a copy of it
+// when fork is set, and returns the id it is now on. The status is the
+// HTTP one a refusal maps to: a running turn or a lease someone else
+// holds is a conflict, an unknown id not found.
+func (s *server) openSession(id string, fork bool) (string, int, error) {
 	s.mu.Lock()
 	running := s.running
 	s.mu.Unlock()
 	if running {
-		http.Error(w, "wait for the current turn to finish", http.StatusConflict)
-		return
+		return "", http.StatusConflict, errors.New("wait for the current turn to finish")
 	}
 	dir, err := session.Dir()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return "", http.StatusInternalServerError, err
 	}
-	sess, msgs, err := session.Open(dir, body.ID)
+	sess, msgs, err := session.Open(dir, id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
+		return "", http.StatusNotFound, err
 	}
 	if s.cwd() != "" && sess.Meta.Cwd != "" && sess.Meta.Cwd != s.cwd() {
-		http.Error(w, "that session belongs to a different directory", http.StatusBadRequest)
-		return
+		return "", http.StatusBadRequest, errors.New("that session belongs to a different directory")
+	}
+	if fork {
+		if sess, err = session.Fork(dir, sess, ""); err != nil {
+			return "", http.StatusInternalServerError, fmt.Errorf("fork %s: %w", id, err)
+		}
+	}
+	// Taken before anything switches: a session another janetcode is
+	// running turns in is refused and this view stays where it was.
+	if err := sess.Acquire(); err != nil {
+		var le *session.LeasedError
+		if errors.As(err, &le) {
+			return "", http.StatusConflict, fmt.Errorf("%w · /resume %s fork continues in a copy of it", err, id)
+		}
+		return "", http.StatusConflict, err
 	}
 	s.setSession(sess)
 	s.opts.CD.SetSession(sess)
@@ -363,8 +392,9 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 	}
 	s.resetView()
 	s.replayHistory(msgs)
+	s.noteInterrupted()
 	s.emitStatus()
-	writeJSON(w, map[string]string{"ok": "1", "session": sess.Meta.ID})
+	return sess.Meta.ID, http.StatusOK, nil
 }
 
 // replayHistory rebuilds the thread view from a loaded session. Tool calls

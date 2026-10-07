@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -187,7 +188,11 @@ func (m *model) searchSessions(query string) {
 		if h.Info.Meta.Cwd != m.opts.Cwd {
 			where = " in " + shortPath(h.Info.Meta.Cwd)
 		}
-		fmt.Fprintf(&sb, "  %s  %s%s\n      %s: %s\n", h.Info.Meta.ID, h.Info.Label(), where, h.Role, h.Snippet)
+		turn := ""
+		if h.Turn > 0 {
+			turn = fmt.Sprintf(" turn %d", h.Turn)
+		}
+		fmt.Fprintf(&sb, "  %s  %s%s\n      %s%s: %s\n", h.Info.Meta.ID, h.Info.Label(), where, h.Role, turn, h.Snippet)
 	}
 	sb.WriteString("/resume <id> reopens one (sessions from other directories open there when you cd)")
 	m.transcript.info(sb.String())
@@ -225,8 +230,13 @@ func (m *model) export(path string) {
 }
 
 // resume swaps the conversation for a saved one.
+//
+// "/resume <id> fork" continues in a copy of it instead: the way on when
+// another janetcode is running turns in that session and holds its lease.
 func (m *model) resume(arg string) {
 	dir := dirOf(m.opts.Session)
+	arg, fork := strings.CutSuffix(strings.TrimSpace(arg), " fork")
+	arg = strings.TrimSpace(arg)
 	id := arg
 	if n, err := strconv.Atoi(arg); err == nil {
 		infos, err := session.List(dir, m.opts.Cwd)
@@ -255,6 +265,21 @@ func (m *model) resume(arg string) {
 		m.transcript.errorf("resume %s: %v", id, err)
 		return
 	}
+	if fork {
+		if sess, err = session.Fork(dir, sess, ""); err != nil {
+			m.transcript.errorf("fork %s: %v", id, err)
+			return
+		}
+	}
+	if err := sess.Acquire(); err != nil {
+		var le *session.LeasedError
+		if errors.As(err, &le) {
+			m.transcript.errorf("%v\n/resume %s fork continues in a copy of it", err, id)
+			return
+		}
+		m.transcript.errorf("resume %s: %v", id, err)
+		return
+	}
 	m.opts.Session = sess
 	m.opts.CD.SetSession(sess)
 	m.opts.Agent.Usage = llm.Usage{}
@@ -268,6 +293,7 @@ func (m *model) resume(arg string) {
 	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
+	m.noteInterrupted()
 	m.lastTurn, m.lastTurnTokens = "", ""
 	m.lastVerdict = ""
 	m.repin()

@@ -262,6 +262,43 @@ type Result struct {
 	Decisions DecisionStats `json:"decisions,omitempty"`
 	// Events is the append-only trajectory log when the agent had a Log.
 	Events []session.Event `json:"events,omitempty"`
+	// Infra marks a run that ended for a reason outside the model — the
+	// provider refusing (429, 5xx, an exhausted balance), the network, a
+	// stream that stayed dead through the retries — or that never got a
+	// single answer from it. The model did not fail it, so it counts in
+	// neither the numerator nor the denominator of a pass rate; Reason
+	// says what happened.
+	Infra bool `json:"infra,omitempty"`
+	// Mismatches counts the run's model calls whose response named another
+	// vendor than the requested model's (internal/provenance), and
+	// Mismatch is the first verdict. A run with any measured another
+	// model, and is left out of the scores unless the runner was asked to
+	// fail the whole eval instead.
+	Mismatches int    `json:"mismatches,omitempty"`
+	Mismatch   string `json:"mismatch,omitempty"`
+	// Served is the provenance of the run's last model call: who the
+	// responses said served it.
+	Served *llm.Provenance `json:"served,omitempty"`
+}
+
+// Scored reports whether a run counts toward pass rates and per-task
+// comparisons: it reached the model, and the model that answered was the
+// one asked for.
+func (r Result) Scored() bool { return !r.Infra && r.Mismatches == 0 }
+
+// Outcome is the run's outcome in one word: PASS, FAIL, INFRA (never
+// reached the model or ended outside it) or MISMATCH (another vendor's
+// model answered).
+func (r Result) Outcome() string {
+	switch {
+	case r.Mismatches > 0:
+		return "MISMATCH"
+	case r.Infra:
+		return "INFRA"
+	case r.Passed:
+		return "PASS"
+	}
+	return "FAIL"
 }
 
 // DecisionStats is one run's use of the decision provider.
@@ -414,15 +451,19 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 					// select whose two cases are both ready picks at
 					// random, so a free slot would let a task through a
 					// context that is already dead.
+					// A run cancelled before it started never reached the
+					// model — a --max-cost stop is the usual cause — so it
+					// is infrastructure, not a failure: hero_agent once
+					// turned sixteen tasks into failures with a spend cap.
 					if err := ctx.Err(); err != nil {
-						results[idx] = Result{Name: t.Name, Run: run, Reason: "cancelled: " + err.Error()}
+						results[idx] = Result{Name: t.Name, Run: run, Infra: true, Reason: "cancelled before it started: " + err.Error()}
 						return true
 					}
 					select {
 					case sem <- struct{}{}:
 						return false
 					case <-ctx.Done():
-						results[idx] = Result{Name: t.Name, Run: run, Reason: "cancelled: " + ctx.Err().Error()}
+						results[idx] = Result{Name: t.Name, Run: run, Infra: true, Reason: "cancelled before it started: " + ctx.Err().Error()}
 						return true
 					}
 				}()
@@ -438,8 +479,11 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 				res := r.one(ctx, t, label)
 				res.Run = run
 				results[idx] = res
-				r.logf("%s %s (%s, %d tool calls, %s)", mark(res.Passed), label, res.Duration.Round(100*time.Millisecond), res.ToolCalls, costString(res))
-				if !res.Passed {
+				r.logf("%s %s (%s, %d tool calls, %s)", res.Outcome(), label, res.Duration.Round(100*time.Millisecond), res.ToolCalls, costString(res))
+				switch {
+				case res.Mismatches > 0:
+					r.logf("    %s", res.Mismatch)
+				case !res.Passed:
 					r.logf("    %s", textfmt.FirstLine(res.Reason, 0))
 				}
 			}(i*runs+run, run, t)
@@ -717,11 +761,22 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 		}
 	}
 	res.CostUSD, res.CostKnown = ag.Usage.Cost(ag.Price)
+	res.Mismatches, res.Mismatch = st.Mismatches, st.Mismatch
+	if !st.Served.Empty() {
+		served := st.Served
+		res.Served = &served
+	}
 	if err != nil {
+		// What ended the run decides whether the model failed it. A
+		// provider refusal, a network error or a dead stream is outside
+		// the model; so is a run that timed out before any answer came
+		// back, since nothing the model did can have used the budget.
 		if errors.Is(rctx.Err(), context.DeadlineExceeded) {
 			res.Reason = fmt.Sprintf("timed out after %s", timeout)
+			res.Infra = st.ModelCalls > 0 && st.ModelCalls == st.ModelErrors
 		} else {
 			res.Reason = "run: " + err.Error()
+			res.Infra = llm.Infrastructure(err)
 		}
 		return res
 	}
@@ -786,7 +841,12 @@ func Report(w io.Writer, results []Result) (passed int) {
 				tools += r.ToolCalls
 				cost += r.CostUSD
 				known = known && r.CostKnown
-				if !r.Passed {
+				switch {
+				case r.Mismatches > 0:
+					reasons = append(reasons, "MISMATCH, not scored: "+r.Mismatch)
+				case r.Infra:
+					reasons = append(reasons, "INFRA, not scored: "+textfmt.FirstLine(r.Reason, 0))
+				case !r.Passed:
 					reasons = append(reasons, textfmt.FirstLine(r.Reason, 0))
 				}
 			}
@@ -805,8 +865,11 @@ func Report(w io.Writer, results []Result) (passed int) {
 	defer fmt.Fprintf(w, "context = tokens the model read · cmp = compactions (times the history was summarised) · %s\n", costLegend)
 	fmt.Fprintf(w, "%-4s %-28s %8s %6s %8s %4s %10s\n", "", "task", "time", "tools", "context", "cmp", "cost")
 	for _, r := range results {
-		fmt.Fprintf(w, "%-4s %-28s %8s %6d %8s %4d %10s\n", mark(r.Passed), textfmt.Clip(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, textfmt.Tokens(contextTokens(r.Usage)), r.Compaction.Count, costString(r))
-		if !r.Passed {
+		fmt.Fprintf(w, "%-4s %-28s %8s %6d %8s %4d %10s\n", r.Outcome(), textfmt.Clip(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, textfmt.Tokens(contextTokens(r.Usage)), r.Compaction.Count, costString(r))
+		switch {
+		case r.Mismatches > 0:
+			fmt.Fprintf(w, "     %s\n", textfmt.Clip(r.Mismatch, 140))
+		case !r.Passed:
 			fmt.Fprintf(w, "     %s\n", textfmt.Clip(textfmt.FirstLine(r.Reason, 0), 100))
 		}
 	}
@@ -844,13 +907,6 @@ func contextTokens(u llm.Usage) int {
 // the expensive part, and the one a prefix that keeps breaking inflates.
 func freshTokens(u llm.Usage) int {
 	return u.InputTokens + u.CacheWriteTokens
-}
-
-func mark(ok bool) string {
-	if ok {
-		return "PASS"
-	}
-	return "FAIL"
 }
 
 func costString(r Result) string {

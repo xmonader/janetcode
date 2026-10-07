@@ -5,10 +5,12 @@ package settingsapply
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -28,6 +30,9 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		fileKey, value := key, applied
 		if strings.HasPrefix(key, "decisions.") {
 			fileKey, value = "decisions", cfg.Decisions
+		}
+		if strings.HasPrefix(key, "voice.") {
+			fileKey, value = "voice", cfg.Voice
 		}
 		if err := config.UpdateKey(path, fileKey, value); err != nil {
 			return nil, fmt.Errorf("save config: %w", err)
@@ -75,12 +80,21 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetStrongModel(cfg.StrongModel)
 	case "vision_model":
 		a.SetVisionModel(cfg.VisionModel)
+	case "language":
+		a.SetLanguage(cfg.Language)
+		i18n.SetLanguage(i18n.Resolve(cfg.Language, os.Getenv))
+	case "ask_timeout", "ask_timeout_unattended":
+		ApplyAskWait(cfg, a)
 	case "stale_check_nudge":
 		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":
 		a.SetAdvisorMode(cfg.AdvisorMode, cfg.AdvisorMaxConsults)
+	case "advisor_turn_start_style":
+		a.SetTurnStartStyle(cfg.AdvisorTurnStartStyle)
+	case "verify_baseline":
+		a.SetVerifyBaseline(cfg.VerifyBaselineEnabled())
 	case "sandbox":
 		// The key is the project's default profile, so setting it
 		// changes what a running sandbox enforces but does not turn one
@@ -117,4 +131,30 @@ func SwitchModel(cfg *config.Config, a *agent.Agent, model string, prov llm.Prov
 		return
 	}
 	a.SwitchModel(model, prov, cfg.PriceFor(model), cfg.MetaFor(model).ContextWindow)
+}
+
+// Allowed is whether the managed policy lets the session move to model on
+// the provider named provider (of type typ; "" when the provider is not
+// changing): /model and /connect in every front-end ask before switching.
+// A nil config, or no policy, allows everything.
+func Allowed(cfg *config.Config, provider, typ, model string) error {
+	if cfg == nil || cfg.Managed == nil {
+		return nil
+	}
+	if provider != "" && !cfg.Managed.ProviderAllowed(provider, typ) {
+		return cfg.Managed.Refusal(fmt.Sprintf("provider %q", provider))
+	}
+	if model != "" && !cfg.Managed.ModelAllowed(model) {
+		return cfg.Managed.Refusal(fmt.Sprintf("model %q", model))
+	}
+	return nil
+}
+
+// ApplyAskWait gives the agent the config's two question waits. The
+// config was validated at load and by the setter, so an error here can
+// only be a value that was valid then; it leaves the agent as it was.
+func ApplyAskWait(cfg *config.Config, a *agent.Agent) {
+	if in, un, err := cfg.AskWaits(); err == nil {
+		a.SetAskWait(in, un)
+	}
 }

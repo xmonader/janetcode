@@ -141,6 +141,20 @@ func TestOutputFormatNeedsAHeadlessRun(t *testing.T) {
 	}
 }
 
+// A --recover run is a headless run without -p: it reports like one, so a
+// supervisor that restarts crashed runs can read the result as JSON.
+func TestOutputFormatAcceptsRecover(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Chdir(t.TempDir())
+	err := run([]string{"-c", "--recover", "--output-format", "json"})
+	if err != nil && strings.Contains(err.Error(), "--output-format applies") {
+		t.Fatalf("--recover refused --output-format: %v", err)
+	}
+}
+
 // What the harness had to rescue belongs in the envelope: a benchmark
 // that cannot see it credits the model with the harness's repair work.
 func TestJSONEnvelopeReportsRecoveries(t *testing.T) {

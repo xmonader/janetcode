@@ -39,7 +39,13 @@ type options struct {
 	autoMode     bool
 	sandboxOn    bool
 	readonly     bool
-	continueC    bool
+	dryRun       bool
+	// trustLevel is --trust: the project trust level for this run only.
+	trustLevel string
+	continueC  bool
+	// recoverTurn is --recover: carry on the turn a resumed session
+	// died in (docs/notes/durable-turns.md).
+	recoverTurn  bool
 	resumeR      string
 	autoEdits    bool
 	evalPath     string
@@ -64,21 +70,36 @@ type options struct {
 	evalTimeout  time.Duration
 	evalTurns    int
 	evalNoLimit  bool
+	evalStrict   bool
 	evalGate     bool
 	inspectWhat  string
 	wtBranch     string
 	acpMode      bool
+	mcpServe     bool
+	pluginCmd    string
 	evalFacts    int
 	evalBlind    bool
 	evalCompact  int
 	allow        string
 	deny         string
+	ask          string
 	cont         bool
 	resume       string
 	showVersion  bool
 	plain        bool
+	screenReader bool
 	selfUpdate   bool
+	uninstall    bool
+	purge        bool
 	listSess     bool
+	// fork continues --resume/--continue in a copy of the session.
+	fork bool
+	// showSess prints a session's transcript read-only.
+	showSess string
+	// searchSess searches recorded sessions' transcripts.
+	searchSess string
+	// auditSess verifies a session's audit log.
+	auditSess    string
 	initProject  bool
 	initCfg      bool
 	mcpAuth      string
@@ -121,10 +142,10 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "web", "web-addr", "worktree", "add-dir", "theme", "plain"}},
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "add-dir", "theme", "plain", "screen-reader"}},
 	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
-	{"Permissions", []string{"auto", "auto-edits", "readonly", "yolo", "allow", "deny", "core-tools", "exclude-tools", "safe-mode", "sandbox"}},
-	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "update", "version", "debug", "list-models"}},
+	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "core-tools", "exclude-tools", "safe-mode", "sandbox", "trust"}},
+	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version", "debug", "list-models"}},
 	{"Advanced", nil},
 	{"Eval and benchmark (see docs/manual/evals.md)", nil},
 }
@@ -216,11 +237,13 @@ Usage: janetcode [flags] [prompt]      interactive session in this directory,
 Environment:
   ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
       a key may be a comma-separated list; they are rotated on rate limits
+  ANTHROPIC_AUTH_TOKEN        the Anthropic key as a bearer token, for gateways
   JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
   JANETCODE_OFF=<names>       disables behaviours for a session (see --eval-off)
   JANETCODE_SYSTEM_MD=<file>  replaces the base system prompt
   JANETCODE_DEBUG=<file>      appends a timestamped event log
   JANETCODE_PLAIN=1           ASCII interface, no animation (as --plain)
+  JANETCODE_SCREEN_READER=1   screen-reader line interface (--screen-reader)
   JANETCODE_WEB_TOKEN=<token> the --web access token (default: random)
   JANETCODE_NOTIFY=<command>  run when a --bg run waits for --answer
 
@@ -246,7 +269,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.yolo, "yolo", false, "auto-approve every tool call")
 	fs.BoolVar(&o.autoMode, "auto", false, "auto mode: in-workspace edits and known-safe reads run; other commands ask (/auto toggles it)")
 	fs.BoolVar(&o.sandboxOn, "sandbox", false, "wrap local bash in the workspace sandbox profile (docker, seatbelt or Landlock); the sandbox config key picks another profile; file tools stay on the host")
+	fs.StringVar(&o.trustLevel, "trust", "", "project trust for this run only: untrusted, instructions (skills, agents, commands, rules) or full (also hooks, MCP, verify, allow rules, recipes); JANETCODE_TRUST does the same")
 	fs.BoolVar(&o.readonly, "readonly", false, "read-only: no edits or commands, the model can only inspect")
+	fs.BoolVar(&o.dryRun, "dry-run", false, "dry run: the model plans and edits a preview, and commands that change things are recorded instead of run; nothing reaches the disk until /dryrun apply. With -p the preview (diffs, commands not run) is printed at the end, and is the dry_run field of --output-format json")
 	fs.BoolVar(&o.continueC, "c", false, "short for --continue")
 	fs.StringVar(&o.resumeR, "r", "", "short for --resume <id>")
 	fs.BoolVar(&o.autoEdits, "auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
@@ -273,8 +298,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.evalTurns, "eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 	fs.BoolVar(&o.evalGate, "eval-gate", false, "run eval tasks under a verification gate: the work directory's .janetcode/verify.json, or the checks for its project type, run after a turn that changed something, and the configured decision provider (config \"decisions\", off with --eval-off decisions) may triage a failure. Off by default: a gate changes tool counts, pass rates and cost, so every baseline in this repository was recorded without one")
 	fs.BoolVar(&o.evalNoLimit, "eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+	fs.BoolVar(&o.evalStrict, "eval-strict-provenance", false, "fail the whole eval when any run was answered by another vendor's model than the one requested, instead of leaving those runs out of the scores")
 	fs.StringVar(&o.inspectWhat, "inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; --inspect list names them all")
 	fs.StringVar(&o.wtBranch, "worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
+	fs.StringVar(&o.pluginCmd, "plugin", "", "manage plugins from the shell, then exit: the arguments /plugin takes, e.g. --plugin \"install https://github.com/someone/kit\", --plugin list, --plugin \"trust kit\"")
+	fs.BoolVar(&o.mcpServe, "mcp-serve", false, "serve janetcode as an MCP server on stdin/stdout: one tool, janetcode_task, runs a prompt here and returns the answer, session id, verdict and usage. Read-only unless --auto-edits, --auto or --yolo is given; what the mode would ask about is refused")
 	fs.BoolVar(&o.acpMode, "acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
 	fs.IntVar(&o.evalFacts, "eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
 	fs.BoolVar(&o.evalBlind, "eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
@@ -284,13 +312,21 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.coreTools, "core-tools", "", "comma-separated tools the model is shown, and no others (globs allowed, e.g. 'read_file,grep,mcp__github__*')")
 	fs.StringVar(&o.excludeTools, "exclude-tools", "", "comma-separated tools the model is never shown (globs allowed); unlike --deny, they are not in the request at all")
 	fs.StringVar(&o.deny, "deny", "", "comma-separated permission rules to refuse for this run")
+	fs.StringVar(&o.ask, "ask", "", "comma-separated sensitive-call rules for this run: what they match always asks, in every mode, e.g. '*(touches:**/.env)'")
 	fs.BoolVar(&o.cont, "continue", false, "resume the latest session for this directory")
+	fs.BoolVar(&o.recoverTurn, "recover", false, "with -c or --resume: carry on the turn the session died in (crash, kill, power loss) instead of sending a prompt; works with --bg")
 	fs.StringVar(&o.resume, "resume", "", "resume the session with this id")
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.listModels, "list-models", false, "print the models the configured provider (or --provider) serves, with their context windows, then exit; --output-format json for a script")
 	fs.StringVar(&o.debugFile, "debug", "", "append a timestamped timeline of model calls (duration, stop reason, usage), stream and tool events and MCP traffic to this file (the same as JANETCODE_DEBUG=<file>)")
 	fs.BoolVar(&o.selfUpdate, "update", false, "replace this binary with the latest release, checked against its SHA256SUMS, then exit")
+	fs.BoolVar(&o.uninstall, "uninstall", false, "remove this binary if janetcode installed it (install.sh or a release build), print what was removed, then exit; the config and data directories stay unless --purge is given")
+	fs.BoolVar(&o.purge, "purge", false, "with --uninstall: also remove the config directory (settings, API keys, permission rules, MCP logins) and the data directory (sessions, memory, archives)")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
+	fs.BoolVar(&o.fork, "fork", false, "with --resume or --continue: continue in a copy of the session, leaving the original as it was -- the way on when another janetcode has it open")
+	fs.StringVar(&o.showSess, "show", "", "print a saved session's conversation as Markdown and exit, without opening it: safe while another janetcode has it open")
+	fs.StringVar(&o.auditSess, "audit", "", "check a session's audit log (the hash-chained record of every event: tool calls, what authorized each, the files they changed, model calls) against the session, print what it did turn by turn without running anything, then exit; exits 1 when the two do not agree")
+	fs.StringVar(&o.searchSess, "search", "", "search every saved session's conversation for these words (all of them, any case) and exit: the matching sessions, newest first, with the turn and the line that matched")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
 	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")
 	fs.StringVar(&o.mcpAuth, "mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
@@ -301,12 +337,13 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.sessionProfile, "session-profile", "", "classify the calls of recorded runs offline (an --eval-json result file, a session .jsonl, or a directory of either) as explore/edit/verify/other, report input-token growth and the share of context that is stale tool output, and exit")
 	fs.IntVar(&o.sessionProfileStale, "session-profile-stale", profileStaleAfter, "with --session-profile: how many model calls old an unreferenced tool result has to be before it counts as stale")
 	fs.StringVar(&o.decisionsReplay, "decisions-replay", "", "calibrate the optional verify-triage decisions model against a labeled state corpus (one JSON per line: name, truth, state) and exit")
-	fs.StringVar(&o.answerID, "answer", "", "answer a --bg run waiting for permission: --answer <id> shows the request, --answer <id> allow|session|deny settles it, then exit")
+	fs.StringVar(&o.answerID, "answer", "", "answer a --bg run waiting for permission or with an open question: --answer <id> shows it, --answer <id> allow|session|deny settles a permission request, --answer <id> <choice> answers a question (an option number, its label, or your own words), then exit")
 	fs.StringVar(&o.backupTo, "backup", "", "write the config and data directories (config, permission rules, MCP logins, sessions, memory) to one tar.gz readable only by you, then exit")
 	fs.StringVar(&o.restoreFrom, "restore", "", "put a --backup archive back, then exit. The files it replaces are saved to a tar.gz beside it first, so a restore can be undone")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	fs.BoolVar(&o.runProof, "proof", false, "print the proof note attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed")
 	fs.StringVar(&o.recipeName, "recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails, or the project's verify gate once every step has succeeded, hands over to the model if a provider is configured, otherwise the run exits non-zero")
+	fs.BoolVar(&o.screenReader, "screen-reader", false, "a line interface for a screen reader instead of the full-screen one: every line written once and never redrawn, no animation, colour or box drawing, every state said in words, permission asked as a typed y/a/r/n (JANETCODE_SCREEN_READER=1, or screen_reader in the config; ACCESSIBILITY_ENABLED=1 turns it on too)")
 	fs.BoolVar(&o.plain, "plain", false, "draw the terminal interface in ASCII with no animation, for the Linux console, a font without box drawing, or a quieter screen (JANETCODE_PLAIN=1; on by itself when TERM=linux)")
 	fs.StringVar(&o.themeFlag, "theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 	fs.BoolVar(&o.web, "web", false, "serve the session in a browser instead of the terminal")

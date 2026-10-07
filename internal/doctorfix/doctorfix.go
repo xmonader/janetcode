@@ -334,20 +334,25 @@ func staleTokenFixes(env Env) []Fix {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	var urls []string
-	for u, t := range all {
+	var keys []string
+	for k, t := range all {
 		if t.RefreshToken != "" || t.Expiry.IsZero() || t.Expiry.After(now) {
 			continue
 		}
-		urls = append(urls, u)
+		keys = append(keys, k)
 	}
-	sort.Strings(urls)
+	sort.Strings(keys)
 	var out []Fix
-	for _, u := range urls {
-		url, store := u, env.Tokens
+	for _, k := range keys {
+		key, store := k, env.Tokens
+		name, url := mcp.ParseKey(key)
+		who := url
+		if name != "" {
+			who = name + " (" + url + ")"
+		}
 		out = append(out, Fix{ID: "mcp-token-stale", Path: url,
-			What:  fmt.Sprintf("forget the expired MCP login for %s (it has no refresh token; /mcp auth logs in again)", url),
-			apply: func() error { return store.Delete(url) }})
+			What:  fmt.Sprintf("forget the expired MCP login for %s (it has no refresh token; /mcp auth logs in again)", who),
+			apply: func() error { return store.DeleteKey(key) }})
 	}
 	return out
 }

@@ -185,7 +185,7 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		}
 		if ch.Error != nil {
 			// The server spoke: a structured refusal is not a truncation.
-			return nil, &APIError{Status: 200, Message: llm.BoundErrorMessage(ch.Error.Message)}
+			return nil, streamError(ch.Error)
 		}
 		gotChunk = true
 		st.add(ch)
@@ -223,6 +223,11 @@ type streamState struct {
 	finish   string
 	usage    llm.Usage
 	model    string
+	// served is what the chunks said about who served the call; its
+	// ToolIDs is the format of the first id the server minted (an id
+	// janetcode had to invent for a call that came without one says
+	// nothing about the server).
+	served llm.Provenance
 }
 
 func newStreamState(emit func(llm.Event)) *streamState {
@@ -234,6 +239,20 @@ func newStreamState(emit func(llm.Event)) *streamState {
 func (s *streamState) add(ch wireChunk) {
 	if ch.Model != "" {
 		s.model = ch.Model
+	}
+	if s.served.IDPrefix == "" && ch.ID != "" {
+		s.served.IDPrefix = llm.IDPrefix(ch.ID)
+	}
+	if ch.Provider != "" {
+		s.served.Provider = ch.Provider
+	}
+	if b := ch.XAIBroker; b != nil {
+		if b.Provider != "" {
+			s.served.Provider = b.Provider
+		}
+		if b.ProviderModel != "" {
+			s.served.ProviderModel = b.ProviderModel
+		}
 	}
 	if ch.Usage != nil {
 		s.usage = usageOf(ch.Usage)
@@ -324,6 +343,9 @@ func (s *streamState) addToolCall(pos int, tc wireDeltaToolCall) {
 		s.order = append(s.order, idx)
 	}
 	if tc.ID != "" {
+		if s.served.ToolIDs == "" {
+			s.served.ToolIDs = llm.ToolIDFormat(tc.ID)
+		}
 		acc.id = tc.ID
 		if _, seen := s.byID[tc.ID]; !seen {
 			s.byID[tc.ID] = idx
@@ -402,7 +424,9 @@ func (s *streamState) response() (*llm.Response, error) {
 	if len(msg.Blocks) == 0 {
 		msg.Blocks = []llm.Block{{Type: llm.BlockText, Text: ""}}
 	}
-	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, calls > 0), Usage: s.usage, Model: s.model}, nil
+	served := s.served
+	served.Model = s.model
+	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, calls > 0), Usage: s.usage, Model: s.model, Served: served}, nil
 }
 
 // stopReason maps finish_reason; a response that called tools stops for

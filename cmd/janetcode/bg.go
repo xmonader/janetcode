@@ -59,15 +59,22 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 	cmd.Stderr = log
 	cmd.Stdin = nil
 	cmd.SysProcAttr = bgProcAttr()
+	// The child runs the turns, so it takes the lease: this process
+	// gives it up before starting it.
+	sess.Release()
+	// Written here as well as by the child, so --sessions shows the run
+	// from the moment this returns -- and written before the child
+	// starts, so it cannot land on top of what the child has already
+	// said (a request it is waiting on, above all).
+	started := time.Now()
+	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, Started: started})
 	if err := cmd.Start(); err != nil {
 		log.Close()
+		_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgFailed, Started: started, Ended: time.Now(), Detail: err.Error()})
 		return fmt.Errorf("background: %w", err)
 	}
 	pid := cmd.Process.Pid
 	_ = sess.WritePID(pid)
-	// Written here as well as by the child, so --sessions shows the run
-	// from the moment this returns.
-	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, PID: pid, Started: time.Now()})
 	_ = cmd.Process.Release()
 	_ = log.Close()
 	fmt.Println(sess.Meta.ID)
@@ -77,6 +84,11 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 
 func backgroundChildArgs(id, prompt string, extra, perms []string) []string {
 	args := append([]string{"--resume", id, "-p", prompt}, perms...)
+	if prompt == "" {
+		// No prompt is --recover: the child carries on the turn the
+		// session died in.
+		args = append([]string{"--resume", id, "--recover"}, perms...)
+	}
 	for _, d := range extra {
 		args = append(args, "--add-dir", d)
 	}
@@ -114,8 +126,14 @@ func bgPermissionArgs(o *options) []string {
 	if o.excludeTools != "" {
 		rules = append(rules, "--exclude-tools="+o.excludeTools)
 	}
+	if o.ask != "" {
+		rules = append(rules, "--ask", o.ask)
+	}
 	if o.sandboxOn {
 		rules = append(rules, "--sandbox")
+	}
+	if o.dryRun {
+		rules = append(rules, "--dry-run")
 	}
 	return append(mode, rules...)
 }
@@ -174,19 +192,30 @@ func startBgRun(ag *agent.Agent, sess *session.Session, cwd string) func(error) 
 	if err := session.WriteBgStatus(path, *st); err != nil {
 		fmt.Fprintf(os.Stderr, "[warn] background status: %v\n", err)
 	}
-	if ag.Approver == nil {
-		ag.Approver = &headless.InboxApprover{
-			SessionPath: path, SessionID: sess.Meta.ID, Cwd: cwd, Status: st,
-			Notify: os.Getenv(headless.NotifyEnv), Log: os.Stderr,
-		}
+	inbox := &headless.InboxApprover{
+		SessionPath: path, SessionID: sess.Meta.ID, Cwd: cwd, Status: st,
+		Notify: os.Getenv(headless.NotifyEnv), Log: os.Stderr,
 	}
+	if ag.Approver == nil {
+		ag.Approver = inbox
+	}
+	// Nobody watches a background run, but --answer can reach it: the
+	// model's questions wait in the same sidecar as permission requests,
+	// for the unattended time, then go on with the recommendation and
+	// still take a late answer.
+	if ag.Asker == nil {
+		ag.Asker = &headless.BgAsker{Inbox: inbox}
+	}
+	ag.Unattended = true
 	return func(err error) {
-		st.State, st.Ask, st.Ended = session.BgDone, nil, time.Now()
-		st.Detail = firstLine(lastAnswer(ag.Messages))
-		if err != nil {
-			st.State, st.Detail = session.BgFailed, firstLine(err.Error())
-		}
-		if werr := session.WriteBgStatus(path, *st); werr != nil {
+		werr := inbox.Update(func(st *session.BgStatus) {
+			st.State, st.Ask, st.Question, st.Ended = session.BgDone, nil, nil, time.Now()
+			st.Detail = firstLine(lastAnswer(ag.Messages))
+			if err != nil {
+				st.State, st.Detail = session.BgFailed, firstLine(err.Error())
+			}
+		})
+		if werr != nil {
 			fmt.Fprintf(os.Stderr, "[warn] background status: %v\n", werr)
 		}
 		_ = sess.ClearPID()
@@ -223,7 +252,15 @@ func answerMode(w io.Writer, dir, id, decision string) error {
 	if !ok {
 		return headless.BadInput("session %s has no background run (janetcode --sessions lists them)", id)
 	}
-	if st.State != session.BgWaiting || st.Ask == nil {
+	permission := st.State == session.BgWaiting && st.Ask != nil
+	// The model's open question — waiting, or gone on with its
+	// recommendation and still taking a late answer — is answered here
+	// too, unless a permission request is pending and this is its answer.
+	if q := st.Question; q != nil && (st.State == session.BgWaiting || st.State == session.BgRunning) &&
+		(!permission || (decision != "" && !slices.Contains(session.BgDecisions, decision))) {
+		return answerQuestion(w, path, id, q, decision)
+	}
+	if !permission {
 		return headless.BadInput("session %s is not waiting for an answer: %s", id, st.Line(time.Now()))
 	}
 	ask := st.Ask

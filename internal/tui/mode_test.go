@@ -12,7 +12,7 @@ import (
 
 // allModes is every mode, so a new one added to the enum without a test
 // entry here shows up as a failure rather than as silence.
-var allModes = []uiMode{modePrompt, modeAsk, modeOverlay, modePicker, modeConnect, modeWizard, modeApprove, modeDeny}
+var allModes = []uiMode{modePrompt, modeAsk, modeOverlay, modePicker, modeConnect, modeWizard, modeApprove, modeDeny, modeSearch}
 
 // TestEveryModeHasAKeyHandler: handleKey indexes modeKeys with mode(),
 // so a mode with no entry is a nil call on the next key press.

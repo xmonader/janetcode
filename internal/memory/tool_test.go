@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -45,5 +46,25 @@ func TestToolRememberRecallForget(t *testing.T) {
 	}
 	if _, err = (&Tool{}).Run(context.Background(), json.RawMessage(`{"action":"recall"}`)); err == nil {
 		t.Fatal("nil store accepted")
+	}
+}
+
+// The model's forget removes what the model wrote and refuses what the
+// user saved with /remember: that is theirs to remove, with /forget.
+func TestToolForgetLeavesUserEntries(t *testing.T) {
+	s := Open(t.TempDir(), t.TempDir())
+	if _, _, err := s.Put(Entry{Name: "no-mocks", Description: "Never mock the database in tests", Type: "feedback"}); err != nil {
+		t.Fatal(err)
+	}
+	tl := &Tool{Store: s}
+	out, err := tl.Run(context.Background(), json.RawMessage(`{"action":"forget","name":"no-mocks"}`))
+	if err == nil || !errors.Is(err, ErrUserEntry) || !strings.Contains(err.Error(), "/forget no-mocks") {
+		t.Fatalf("forget of a /remember entry = %q, %v; want a refusal pointing at /forget", out, err)
+	}
+	if _, ok := s.Get("no-mocks"); !ok {
+		t.Fatal("the user's entry was removed by the model")
+	}
+	if _, err := s.Remove("no-mocks"); err != nil {
+		t.Fatalf("the user's own /forget: %v", err)
 	}
 }

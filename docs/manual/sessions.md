@@ -22,8 +22,40 @@ as it was, and `/resume` lists both so you can try two approaches from the
 same point. `/fork stay [title]` makes the same copy but stays on the original
 session; later messages land only on the live one, and the copy is listed
 with a parent link (`fork_of`). `/history <words>` searches every saved session in every
-directory for the words and shows the best matching line with the session
-id to `/resume`.
+directory for the words and shows the best matching line, and the turn it
+is in, with the session id to `/resume`. The same search runs from the
+shell as `janetcode --search "<words>"`, and in the web interface the
+filter above the conversation list searches what was said once it has
+three letters, showing the matching line under each conversation.
+`janetcode --show <id>` prints a saved conversation as Markdown without
+opening it.
+
+## One process per session
+
+A session is run by one janetcode process at a time. The process that
+opens it — the terminal interface, `--web`, a `-p` run, a `--bg` child, an
+editor over `--acp` — takes its lease, a lock on the `<id>.lock` file beside
+the session that the operating system drops when the process ends, however
+it ends: a crash or a `kill -9` never leaves a session locked. A second
+process that tries to run turns in the same session is refused before
+anything is written, and told who has it:
+
+```
+session 20260929-101500-a1b2 is open in another janetcode (the terminal interface, pid 4121, since Sep 29 10:15); only one process can run turns in a session at a time
+  janetcode --resume 20260929-101500-a1b2 --fork   continue in a copy of it
+  janetcode --show 20260929-101500-a1b2           read it without opening it
+```
+
+Inside a session, `/resume <id> fork` is the same way on, in the terminal
+and the web page alike; clicking such a session in the web page's
+conversation list reports the conflict and offers to continue in a copy.
+Without the lease, two processes appending to one file interleaved their
+turns into a history neither of them wrote, and each saved its undo stack,
+`/accept` lock and loops over the other's. `--bg` hands the lease to the
+child it starts, so `--resume` of a background run that is still going is
+refused the same way; `--answer` and `--sessions` read its sidecars and need
+no lease. Within one process the lease is shared, so nothing refuses a
+session the same process already has open.
 
 `janetcode --bg "prompt"` starts that prompt in a detached child, prints
 the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`
@@ -55,6 +87,35 @@ export JANETCODE_NOTIFY='curl -s -d "$JANETCODE_ASK — $JANETCODE_ANSWER" ntfy.
 
 The child's own log is the `.bg.log` beside its session file.
 
+### When the model asks a question
+
+A question from the model (the `ask` tool) waits in the same sidecar.
+The model is asked to give each question a recommended option, and a
+background run waits for an answer only `ask_timeout_unattended` (default
+2m), then goes on with the recommendation and says in its reply which
+choice it assumed. The question stays open after that: answer it late and
+the model gets the answer before its next step, with a note that it went
+on without it, so it can change course.
+
+```sh
+janetcode --answer <id>                       # Which port?  1. 8080  2. 9000 (recommended)
+janetcode --answer <id> 1                     # an option's number, its label, or your own words
+janetcode --answer <id> "8080; alpha"         # several questions: one answer each, separated by ;
+```
+
+A question without a recommendation is never answered for you: it waits
+for `--answer` however long that takes.
+
+The same waiting applies everywhere a turn may have nobody watching it:
+a goal round or a `/loop` firing in the terminal or the browser waits
+`ask_timeout_unattended`, and a turn you typed waits `ask_timeout`
+(default: as long as it takes). The terminal and the page show the
+recommendation, preselected, and the countdown; once the turn has gone
+on, the question stays up and an answer still reaches the model (esc, or
+Dismiss, closes it). A headless `-p` run, an editor over ACP and the SDK
+have nobody to ask: a question with a recommendation goes on with it at
+once, and one without is refused, as before.
+
 ```sh
 janetcode --sessions        # list sessions for this directory
 janetcode --continue        # resume the newest one
@@ -64,6 +125,91 @@ janetcode --bg "fix the tests"
 
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
+
+## A turn the session died in
+
+A janetcode that is killed, crashes or loses its machine in the middle
+of a turn leaves that turn open on the log. Reopening the session says
+so — `turn 4 was interrupted during its tool calls (2 finished, 1
+running, 0 not started); /recover carries it on` — and `/recover` (in
+the terminal and the browser) or `--recover` (with `-c` or `--resume`,
+headless or `--bg`) carries it on as the next turn, with no new message
+from you. What the model gets for the step it was in:
+
+- a call that **finished** keeps its real result (also when you resume
+  without recovering: the result is on the log even though the step's
+  answers never reached the history);
+- a **read** that was running runs again;
+- a **change** that was running (an edit, a write, a command) is never
+  run again: the model is told it may or may not have happened, with
+  the evidence — whether the file now holds what the write would have
+  written, whether the edit's new text is there and its old text gone,
+  or the repository's short status for anything else;
+- a call that **never started** (it was waiting for your approval) most
+  likely did not run, and the model is told to check before issuing it
+  again.
+
+A model call that was streaming is simply made again. A turn you
+stopped yourself, or one that ended on an error, is not "interrupted":
+every way out of a turn but a crash records its end. Sessions written
+before this existed are never offered a recovery. What is not covered,
+and why, is in `docs/notes/durable-turns.md`.
+
+## The audit log
+
+Every event a session records — each model call with the model, provider,
+route, usage and cost it was made with; each tool call and its result;
+what authorized each call that could change something (a permission
+rule, the mode, a hook, or your answer at the prompt) and what refused one;
+and every file a tool changed, with the sha256 of its content before and
+after — also gets a record in `<id>.audit` beside the session. Each record
+carries the hash of the one before it, so the chain cannot be edited in the
+middle without every record after it changing.
+
+```
+janetcode --audit <session>
+```
+
+checks that chain against the session and prints what the session did,
+from the record alone, without running a model, a tool or anything on the
+network. At the bottom it says whether the two agree:
+
+```
+turn 1
+  user       delete the build directory
+  model      deepseek-v4.1-flash [openai, in 1840 out 96, $0.0004]: I will remove it.
+  permission bash allowed by the user: allow
+  call       bash {"command":"rm -rf build"}
+  result     bash ok: (no output)
+
+audit: intact — 5 events vouched for by 6 chained records
+head 3f0c…  (keep it to show later that nothing was cut off the end)
+```
+
+An event changed after it was written, one removed from the session, one
+added to it by anything but janetcode, and a record edited in the audit log
+are each named, and the command exits 1. Both files are in janetcode's data
+directory, which the file tools and the command guard already treat as
+janetcode's own: the model has to ask before it can touch either. What a
+chain cannot show on its own is the end of both files cut off together;
+the head hash `--audit` prints is the thing to keep somewhere else if that
+matters. A session recorded before the audit log existed gets one from its
+next event on, and the report says how many earlier events nothing vouches
+for. `--replay` prints the same verdict before it replays a recording.
+
+A run with no one to ask — `-p` whose stdin is not a terminal — refuses
+what its mode leaves to ask by itself, and the record says so:
+`REFUSED by headless: no one to ask (deny)`, not "the user".
+
+A shell command names no paths, so for bash the work tree is read around
+the call: `git status` before and after, and the sha256 of every file
+either lists. Each file the command created, changed or deleted gets a
+`changed` record against the call, as a file tool's does. The limits: only
+in a git repository (a directory outside git has no index to compare
+with); ignored files are not seen; a background job still writing after
+its call returned is credited to the next bash call; and a work tree with
+more than 500 changed files, or a status slower than five seconds, is
+skipped rather than hashed.
 
 ## Rewinding a session
 

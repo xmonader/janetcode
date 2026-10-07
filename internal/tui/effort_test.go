@@ -49,12 +49,12 @@ func TestEffortCommandSetsTheLiveTier(t *testing.T) {
 	}
 }
 
-// ctrl+r is to the reasoning tier what shift+tab is to the mode: the
+// alt+e is to the reasoning tier what shift+tab is to the mode: the
 // setting you change between one step of a task and the next.
-func TestCtrlRCyclesEffort(t *testing.T) {
+func TestAltECyclesEffort(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
 	h.m.opts.Agent.Effort = "xhigh"
-	ctrlR := tea.KeyMsg{Type: tea.KeyCtrlR}
+	ctrlR := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}, Alt: true}
 	h.update(ctrlR)
 	if got := h.m.opts.Agent.Settings().Effort; got != "max" {
 		t.Fatalf("effort = %q, want max", got)
@@ -69,7 +69,7 @@ func TestCtrlRCyclesEffort(t *testing.T) {
 	}
 	// The key must not have leaked into the prompt as text.
 	if v := h.m.input.Value(); v != "" {
-		t.Fatalf("ctrl+r typed %q into the input", v)
+		t.Fatalf("alt+e typed %q into the input", v)
 	}
 }
 

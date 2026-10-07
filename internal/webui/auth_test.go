@@ -101,3 +101,27 @@ func TestRunAddsAToken(t *testing.T) {
 		<-done
 	}
 }
+
+// An editor's webview frames the page cross-site, where a Strict cookie is
+// never sent: ?embed=1 on loopback trades the token for a SameSite=None;
+// Secure cookie instead. Off loopback the flag changes nothing.
+func TestEmbedCookieOnlyOnLoopback(t *testing.T) {
+	cookieFor := func(addr, host string) *http.Cookie {
+		h := newServer(context.Background(), Options{Addr: addr, Token: "s3cret"}).handler()
+		r := httptest.NewRequest("GET", "/?token=s3cret&embed=1", nil)
+		r.Host = host
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		c := w.Result().Cookies()
+		if w.Code != http.StatusSeeOther || len(c) != 1 {
+			t.Fatalf("%s: %d %+v", host, w.Code, c)
+		}
+		return c[0]
+	}
+	if c := cookieFor("127.0.0.1:8787", "127.0.0.1:8787"); c.SameSite != http.SameSiteNoneMode || !c.Secure || !c.HttpOnly {
+		t.Errorf("loopback embed cookie = %+v", c)
+	}
+	if c := cookieFor("0.0.0.0:8787", "devbox.lan:8787"); c.SameSite != http.SameSiteStrictMode {
+		t.Errorf("off loopback, embed must not loosen the cookie: %+v", c)
+	}
+}

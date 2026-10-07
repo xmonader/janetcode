@@ -92,7 +92,12 @@ func runsIn(rs []Result) int {
 type Summary struct {
 	Tasks, Runs   int
 	Passed, Total int
-	PassRate      float64
+	// Infra and Mismatched count the runs left out of Passed and Total:
+	// runs that never reached the model or ended outside it, and runs a
+	// model of another vendor answered. ExcludedCost is what they cost.
+	Infra, Mismatched int
+	ExcludedCost      float64
+	PassRate          float64
 	// Lo and Hi bound the pass rate (Wilson 95% interval over all runs).
 	Lo, Hi        float64
 	CostUSD       float64
@@ -152,9 +157,26 @@ type TaskRate struct {
 	Rate         float64
 }
 
-// Summarize computes the totals and per-task rates.
-func Summarize(rs []Result) Summary {
+// Summarize computes the totals and per-task rates over the scored runs
+// (Result.Scored). Runs that never reached the model or were answered by
+// another vendor's model are counted apart — Infra, Mismatched and their
+// cost — and are in neither side of a pass rate: a gateway's outage is
+// not the model's failure, and another model's pass is not this one's.
+func Summarize(all []Result) Summary {
 	s := Summary{CostKnown: true}
+	var rs []Result
+	for _, r := range all {
+		switch {
+		case r.Mismatches > 0:
+			s.Mismatched++
+			s.ExcludedCost += r.CostUSD
+		case r.Infra:
+			s.Infra++
+			s.ExcludedCost += r.CostUSD
+		default:
+			rs = append(rs, r)
+		}
+	}
 	byTask := map[string]*TaskRate{}
 	for _, r := range rs {
 		s.Total++
@@ -200,7 +222,7 @@ func Summarize(rs []Result) Summary {
 	sort.Slice(s.ByTask, func(i, j int) bool { return s.ByTask[i].Name < s.ByTask[j].Name })
 	s.ByTool = toolUse(rs)
 	s.Tasks = len(s.ByTask)
-	s.Runs = runsIn(rs)
+	s.Runs = runsIn(all)
 	if s.Total > 0 {
 		s.PassRate = float64(s.Passed) / float64(s.Total)
 		s.Lo, s.Hi = wilson(s.Passed, s.Total)
@@ -566,6 +588,12 @@ func perTask(rs []Result) (cost, ctx, out map[string]float64, costKnown bool) {
 	n := map[string]int{}
 	costKnown = true
 	for _, r := range rs {
+		// Only runs that reached the requested model: a task whose every
+		// run was lost to the gateway has no cost of its own and drops out
+		// of the pairing instead of pairing an outage against a run.
+		if !r.Scored() {
+			continue
+		}
 		cost[r.Name] += r.CostUSD
 		ctx[r.Name] += float64(contextTokens(r.Usage))
 		out[r.Name] += float64(r.Usage.OutputTokens)
@@ -842,6 +870,24 @@ func summaryLine(s Summary) string {
 		ctx += fmt.Sprintf("\nfacts after compaction: %d/%d recalled (%.0f%%) · %d still in the archive · %d actually retrieved · %d grounded · %d unknown · %d searched",
 			s.FactsCorrect, s.FactsAsked, 100*float64(s.FactsCorrect)/float64(s.FactsAsked), s.FactsInArchive, s.FactsRetrieved, s.FactsGrounded, s.FactsUnknown, s.FactsFetched)
 	}
-	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s%s · %s\n%s",
-		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), timing, cost, ctx)
+	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s%s · %s\n%s%s",
+		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), timing, cost, ctx, excludedLine(s))
+}
+
+// excludedLine is the loud line under a summary that left runs out: how
+// many never reached the model and how many another vendor's model
+// answered. Empty when every run was scored.
+func excludedLine(s Summary) string {
+	if s.Infra == 0 && s.Mismatched == 0 {
+		return ""
+	}
+	var parts []string
+	if s.Mismatched > 0 {
+		parts = append(parts, fmt.Sprintf("%d answered by ANOTHER VENDOR'S MODEL than the one requested (provenance mismatch)", s.Mismatched))
+	}
+	if s.Infra > 0 {
+		parts = append(parts, fmt.Sprintf("%d lost to the provider or the network before the model could fail them", s.Infra))
+	}
+	return fmt.Sprintf("\n!! not scored: %s — left out of the pass rate, the CI and the per-task comparison (%s spent on them)",
+		strings.Join(parts, " · "), llm.FormatUSDPrecise(s.ExcludedCost))
 }

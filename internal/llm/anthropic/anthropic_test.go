@@ -35,6 +35,38 @@ func TestNewValidation(t *testing.T) {
 	}
 }
 
+// A gateway that speaks the Messages API but wants Authorization: Bearer
+// (the Hero AI broker refuses x-api-key with 401). Bearer sends only that
+// header, and an ANTHROPIC_API_KEY in the environment adds no second one.
+func TestBearerAuthSendsOnlyTheBearerHeader(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "from-env")
+	t.Setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:1")
+	var got http.Header
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+		io.WriteString(w, event("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}`))
+		io.WriteString(w, event("message_stop", `{"type":"message_stop"}`))
+	}))
+	t.Cleanup(srv.Close)
+	for _, bearer := range []bool{true, false} {
+		p, err := New(Config{APIKey: "tok", BaseURL: srv.URL, Bearer: bearer})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Stream(context.Background(), llm.Request{Model: "m", MaxTokens: 10, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if bearer && (got.Get("Authorization") != "Bearer tok" || got.Get("X-Api-Key") != "") {
+			t.Fatalf("bearer: headers = %v", got)
+		}
+		if !bearer && (got.Get("X-Api-Key") != "tok" || got.Get("Authorization") != "") {
+			t.Fatalf("api key: headers = %v", got)
+		}
+	}
+}
+
 func TestStreamMapsRequestAndResponse(t *testing.T) {
 	var body map[string]any
 	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {

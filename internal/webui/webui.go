@@ -19,8 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/xmonader/janetcode/internal/perm"
-
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
@@ -28,11 +26,13 @@ import (
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -86,6 +86,12 @@ type Options struct {
 	// live model call, so it takes the server's context and stops when
 	// the server does.
 	Doctor func(context.Context, io.Writer) error
+	// TrustGate decides how far the project's own capability files are
+	// let in (/trust). Nil leaves everything as before the levels.
+	TrustGate *trust.Gate
+	// Transcribe turns a recording the page made into text (the voice
+	// button). Nil hides the button.
+	Transcribe func(ctx context.Context, audioPath string) (string, error)
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -167,6 +173,10 @@ func Run(ctx context.Context, opts Options) error {
 	// the guard took it for every interface and let a rebound DNS name in.
 	opts.Addr = ln.Addr().String()
 	s := newServer(ctx, opts)
+	s.askTrust()
+	if opts.MCP != nil && opts.MCP.Manager != nil {
+		opts.MCP.Manager.SetNotify(s.notice)
+	}
 	hs := &http.Server{Handler: s.handler()}
 	served := make(chan struct{})
 	go func() {
@@ -339,6 +349,9 @@ type envelope struct {
 	Notice    string           `json:"notice,omitempty"`
 	Error     string           `json:"error,omitempty"`
 	Questions []agent.Question `json:"questions,omitempty"`
+	// Compose is a draft for the composer: /commit and /pr put the
+	// command that commits or pushes there for the user to edit and send.
+	Compose string `json:"compose,omitempty"`
 }
 
 type helloPayload struct {
@@ -372,6 +385,7 @@ type statusPayload struct {
 	Edits    bool   `json:"edits"`
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
+	DryRun   bool   `json:"dry_run"`
 	Mode     string `json:"mode"`
 	// Effort is the reasoning tier the session asks for, empty when it
 	// is the provider's own default — the chip beside the mode.
@@ -444,6 +458,7 @@ func newServer(life context.Context, opts Options) *server {
 			s.replayHistory(msgs)
 		}
 	}
+	s.noteInterrupted()
 	if opts.Agent != nil {
 		opts.Agent.Approver = s
 		opts.Agent.Asker = s
@@ -465,7 +480,7 @@ func (s *server) cronFire(id, prompt string) {
 		return
 	}
 	s.notice("loop " + id)
-	s.startTurn(prompt)
+	s.startHarnessTurn(prompt)
 }
 
 func (s *server) handler() http.Handler {
@@ -516,6 +531,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/new", s.newChat)
 	mux.HandleFunc("/api/load", s.loadSession)
 	mux.HandleFunc("/api/upload", s.upload)
+	mux.HandleFunc("/api/voice", s.voiceAPI)
+	mux.HandleFunc("/api/ui", s.uiAPI)
 	mux.HandleFunc("/api/complete", s.completeAPI)
 	mux.HandleFunc("/api/suggest", s.suggestAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
@@ -660,7 +677,9 @@ func (s *server) emit(e envelope) {
 	// state: kept in the log it was replayed to every page that loaded or
 	// reconnected afterwards, and the form popped open again long after
 	// the provider was connected.
-	if e.Type != "connect" {
+	// "compose" likewise: a replayed draft would overwrite what the user
+	// has typed since.
+	if e.Type != "connect" && e.Type != "compose" {
 		s.log = append(s.log, e)
 		if len(s.log) > 2000 {
 			s.log = s.log[len(s.log)-1500:]
@@ -797,6 +816,16 @@ func (s *server) idleLocked() time.Duration {
 	return time.Since(s.started)
 }
 
+// startHarnessTurn starts a turn the harness sent on its own — a goal
+// round, a /loop firing — which nobody need be watching: a question in it
+// waits only the unattended time (agent.MarkUnattendedTurn).
+func (s *server) startHarnessTurn(text string) {
+	if s.opts.Agent != nil {
+		s.opts.Agent.MarkUnattendedTurn()
+	}
+	s.startTurn(text)
+}
+
 func (s *server) startTurn(text string) {
 	ctx, ok := s.begin("thinking")
 	if !ok {
@@ -884,7 +913,7 @@ func (s *server) finish(err error) {
 	if err == nil && s.opts.Agent != nil {
 		if cont := s.opts.Agent.GoalContinuation(s.life); cont != "" {
 			s.notice("◉ goal round: " + cont)
-			s.startTurn(cont)
+			s.startHarnessTurn(cont)
 		}
 	}
 }
@@ -1070,6 +1099,7 @@ func (s *server) statusOf(f sessionState) statusPayload {
 		st.Edits = modes.AutoEdits
 		st.Plan = modes.PlanMode
 		st.ReadOnly = modes.ReadOnly
+		st.DryRun = s.opts.Agent.DryRunOn()
 		st.Mode = sessionMode(s.opts.Agent)
 		st.Effort = modes.Effort
 		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(modes.Price); ok {
