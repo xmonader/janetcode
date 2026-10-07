@@ -29,9 +29,16 @@ const MaxParallelTools = 8
 // never reached gets, in the history and in its result event alike.
 const cancelledResult = "Cancelled by user before the tool finished."
 
+// dedupedResult is the answer a repeated read-only call in one batch
+// gets: the identical call above it already produced this output, so
+// running it again would bill the model for the same bytes twice.
+const dedupedResult = "[deduped: identical call above returned this output]"
+
 // executeAll runs the turn's tool calls: the read-only calls that come
 // before the first call that cannot run in parallel run concurrently, and
-// everything from that call on runs one at a time in the model's order. It always
+// everything from that call on runs one at a time in the model's order. A
+// read-only call identical to one already answered in the same batch is
+// not run again (see dedupedResult). It always
 // returns one result per call so the history stays valid, even when the
 // batch stops part-way — cancelled, or with an approver that could not
 // answer — and the error that stopped it is returned rather than dropped.
@@ -54,6 +61,27 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	parallel := func(u llm.Block) bool {
 		t, ok := a.Tools.Get(u.Name)
 		return ok && !tool.MutatingCall(t, u.Input)
+	}
+
+	// In-step dedup: a model sometimes issues the same read-only call
+	// several times in one batch (one measured session burned 1.08M
+	// tokens on repeated reads in a single step). A non-mutating call
+	// identical to one already answered in the batch — same tool,
+	// semantically same input — is not run again; its result points at
+	// the first answer. A mutating or unknown call is a barrier: it may
+	// have moved the world, so the keys seen before it are dropped and
+	// reads after it dedup only among themselves.
+	dedup := map[string]bool{}
+	dedupKey := func(u llm.Block) string { return u.Name + "\x00" + canonical(u.Input) }
+	// The synthetic result surfaces the way answerUnrun's do: a result
+	// event and a log record, so a front-end and a resumed session see
+	// the same answer the history holds.
+	answerDeduped := func(i int, u llm.Block) {
+		results[i] = llm.ToolResult(replyID(u), dedupedResult, false)
+		filled[i] = true
+		call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+		emit(Event{Kind: EvToolResult, Call: &call, Output: dedupedResult})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: dedupedResult})
 	}
 
 	// The first error any call returned. execute only errors for
@@ -86,9 +114,25 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	for lead < len(uses) && parallel(uses[lead]) {
 		lead++
 	}
+	// Duplicates in the lead are marked before any goroutine starts, so
+	// the once-per-key decision needs no lock: the first of a key runs,
+	// the rest are answered from it.
+	dup := make([]bool, lead)
+	for i, u := range uses[:lead] {
+		k := dedupKey(u)
+		if dedup[k] {
+			dup[i] = true
+		} else {
+			dedup[k] = true
+		}
+	}
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, MaxParallelTools)
 	for i, u := range uses[:lead] {
+		if dup[i] {
+			answerDeduped(i, u)
+			continue
+		}
 		wg.Add(1)
 		go func(i int, u llm.Block) {
 			defer wg.Done()
@@ -146,6 +190,16 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		if err := ctx.Err(); err != nil {
 			return stop(err)
 		}
+		ro := parallel(u)
+		if !ro {
+			// The barrier: a mutating or unknown call may have moved
+			// the world, so a read after it cannot reuse what a read
+			// before it saw. This also drops the lead's keys.
+			dedup = map[string]bool{}
+		} else if dedup[dedupKey(u)] {
+			answerDeduped(i, u)
+			continue
+		}
 		out, imgs, isErr, err := a.execute(ctx, u, emit)
 		if err != nil {
 			return stop(err)
@@ -153,6 +207,11 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		results[i] = llm.ToolResult(replyID(u), out, isErr)
 		filled[i] = true
 		addImages(imgs)
+		if ro && !isErr {
+			// Only a successful read is worth pointing a duplicate at:
+			// a refusal or a failure is not "this output".
+			dedup[dedupKey(u)] = true
+		}
 	}
 	return results, images, nil
 }
