@@ -24,6 +24,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   every time. Findings join the next step's results; errors still out
   when the model says it is done send it back, at most twice a turn
   (`JANETCODE_OFF=asyncdiag`).
+- Loading a deferred tool no longer rewrites the cached prompt prefix:
+  loaded tools go after every other tool in the order they were loaded,
+  and `tool_search` lists every loadable tool rather than only the ones
+  still deferred. A query that names a tool exactly loads only that tool,
+  and asking for a loaded one loads nothing.
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

@@ -28,8 +28,9 @@ func TestDeferredToolsHiddenUntilSearched(t *testing.T) {
 	if defs := r.Defs(); len(defs) != 2 || defs[0].Name != "read_file" || defs[1].Name != "tool_search" {
 		t.Fatalf("defs = %+v", defs)
 	}
-	if !strings.Contains(ts.Description(), "3 deferred") || !strings.Contains(ts.Description(), "mcp__jira__search") {
-		t.Fatalf("description = %q", ts.Description())
+	before := ts.Description()
+	if !strings.Contains(before, "(3)") || !strings.Contains(before, "mcp__jira__search") {
+		t.Fatalf("description = %q", before)
 	}
 	if _, ok := r.Get("mcp__jira__search"); !ok {
 		t.Fatal("deferred tool must still be callable by name")
@@ -44,6 +45,14 @@ func TestDeferredToolsHiddenUntilSearched(t *testing.T) {
 	if defs := r.Defs(); len(defs) != 4 || len(r.Deferred()) != 1 {
 		t.Fatalf("after activation defs=%d deferred=%d", len(defs), len(r.Deferred()))
 	}
+	// Loading changes neither tool_search's description nor the order of
+	// what was already listed: the loaded tools are appended.
+	if ts.Description() != before {
+		t.Fatalf("description changed on load:\n%q\n%q", before, ts.Description())
+	}
+	if defs := r.Defs(); defs[0].Name != "read_file" || defs[1].Name != "tool_search" {
+		t.Fatalf("loaded tools did not go last: %v", []string{defs[0].Name, defs[1].Name, defs[2].Name, defs[3].Name})
+	}
 	out, _ = ts.Run(context.Background(), nil)
 	if !strings.Contains(out, "1 deferred tools") || !strings.Contains(out, "mcp__slack__post\tPost a message") {
 		t.Fatalf("list = %q", out)
@@ -53,7 +62,7 @@ func TestDeferredToolsHiddenUntilSearched(t *testing.T) {
 		t.Fatalf("miss = %q", out)
 	}
 	r.Remove("mcp__slack__post")
-	if len(r.Deferred()) != 0 || !strings.Contains(ts.Description(), "Nothing is deferred") {
+	if len(r.Deferred()) != 0 || strings.Contains(ts.Description(), "slack") {
 		t.Fatal("remove did not clear deferred entry")
 	}
 }
@@ -116,5 +125,35 @@ func TestBatchRevealIsBoundedAndHappensOnce(t *testing.T) {
 	}
 	if slices.Contains(names, "mcp__b__two") || !slices.Contains(names, "mcp__c__three") {
 		t.Fatalf("the wrong tool was revealed, deferred = %v", names)
+	}
+}
+
+// A query naming a tool exactly loads that tool alone, and asking for one
+// that is loaded already loads nothing.
+func TestExactNameLoadsOnlyThatTool(t *testing.T) {
+	r := NewRegistry(namedTool{"read_file", "Read a file"})
+	r.AddDeferred(namedTool{"glob", "Find files by pattern; like grep, but for names"})
+	r.AddDeferred(namedTool{"grep", "Search file contents"})
+	r.AddDeferred(namedTool{"list_dir", "List a directory, a cheaper glob"})
+	ts := &ToolSearch{Registry: r}
+	r.Add(ts)
+	out, _ := ts.Run(context.Background(), json.RawMessage(`{"query":"glob"}`))
+	if !strings.Contains(out, "## glob") || strings.Contains(out, "## list_dir") {
+		t.Fatalf("out = %q", out)
+	}
+	out, _ = ts.Run(context.Background(), json.RawMessage(`{"query":"grep"}`))
+	if !strings.Contains(out, "## grep") || strings.Contains(out, "## glob") {
+		t.Fatalf("out = %q", out)
+	}
+	var names []string
+	for _, d := range r.Defs() {
+		names = append(names, d.Name)
+	}
+	if want := []string{"read_file", "tool_search", "glob", "grep"}; !slices.Equal(names, want) {
+		t.Fatalf("defs = %v, want %v", names, want)
+	}
+	out, _ = ts.Run(context.Background(), json.RawMessage(`{"query":"glob"}`))
+	if !strings.Contains(out, "already loaded") {
+		t.Fatalf("out = %q", out)
 	}
 }

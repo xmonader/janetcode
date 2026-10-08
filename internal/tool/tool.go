@@ -75,6 +75,15 @@ type Registry struct {
 	// from; see Defs.
 	cached    []llm.ToolDef
 	cachedVer uint64
+	// activated lists the deferred tools tool_search loaded, in the order
+	// it loaded them. They go after every other tool in Defs, so loading
+	// one appends to the cached tool list instead of landing in the
+	// middle of it and re-billing everything after.
+	activated []string
+	// loadable names every tool that was registered deferred, loaded or
+	// not: tool_search's description lists these, so loading one does not
+	// change the description either.
+	loadable map[string]bool
 }
 
 // SetIntent switches the intent field on or off, safe while another
@@ -151,6 +160,10 @@ func (r *Registry) AddDeferred(t Tool) {
 		r.deferred = map[string]bool{}
 	}
 	r.deferred[t.Name()] = true
+	if r.loadable == nil {
+		r.loadable = map[string]bool{}
+	}
+	r.loadable[t.Name()] = true
 	r.version++
 }
 
@@ -163,8 +176,32 @@ func (r *Registry) Activate(name string) bool {
 		return false
 	}
 	delete(r.deferred, name)
+	r.activated = append(r.activated, name)
 	r.version++
 	return true
+}
+
+// Loadable returns the names of every registered tool that was deferred,
+// whether or not it has been loaded since, sorted.
+func (r *Registry) Loadable() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	names := make([]string, 0, len(r.loadable))
+	for n := range r.loadable {
+		if _, ok := r.tools[n]; ok {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// Loaded reports whether name is a deferred tool tool_search has loaded.
+func (r *Registry) Loaded(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.tools[name]
+	return ok && r.loadable[name] && !r.deferred[name]
 }
 
 // Deferred returns the definitions of tools that are registered but not
@@ -338,8 +375,19 @@ func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
 		}
 	}
 	intent := r.Intent
+	order := make(map[string]int, len(r.activated))
+	for i, n := range r.activated {
+		order[n] = i + 1
+	}
 	r.mu.RUnlock()
-	sort.Slice(kept, func(i, j int) bool { return kept[i].Name() < kept[j].Name() })
+	// Tools by name, then the loaded ones in the order they were loaded.
+	sort.Slice(kept, func(i, j int) bool {
+		oi, oj := order[kept[i].Name()], order[kept[j].Name()]
+		if oi != oj {
+			return oi < oj
+		}
+		return kept[i].Name() < kept[j].Name()
+	})
 	defs := make([]llm.ToolDef, 0, len(kept))
 	for _, t := range kept {
 		schema := t.Schema()

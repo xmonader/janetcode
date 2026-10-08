@@ -36,12 +36,15 @@ const toolSearchMax = 8
 
 func (*ToolSearch) Name() string { return "tool_search" }
 func (t *ToolSearch) Description() string {
-	names := t.deferredNames()
+	// Every tool that can be loaded, loaded already or not: a description
+	// that shrank as tools were loaded rewrote the cached tool list on
+	// every load.
+	names := t.loadableNames()
 	if len(names) == 0 {
 		return "Find and load tools that are not listed by default. Nothing is deferred right now."
 	}
 	list := textfmt.ClipBytes(strings.Join(names, ", "), 1500)
-	return fmt.Sprintf("Find and load tools that are not listed by default (%d deferred). Search by keyword; matching tools are returned with their schemas and become callable. Deferred now: %s", len(names), list)
+	return fmt.Sprintf("Find and load tools that are not listed by default (%d). Search by keyword, or name one exactly to load just that tool; matching tools are returned with their schemas and become callable. Loadable: %s", len(names), list)
 }
 func (*ToolSearch) Mutating() bool { return false }
 func (*ToolSearch) Schema() json.RawMessage {
@@ -50,16 +53,11 @@ func (*ToolSearch) Schema() json.RawMessage {
 "additionalProperties":false}`)
 }
 
-func (t *ToolSearch) deferredNames() []string {
+func (t *ToolSearch) loadableNames() []string {
 	if t.Registry == nil {
 		return nil
 	}
-	defs := t.Registry.Deferred()
-	names := make([]string, len(defs))
-	for i, d := range defs {
-		names[i] = d.Name
-	}
-	return names
+	return t.Registry.Loadable()
 }
 
 func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, error) {
@@ -74,11 +72,22 @@ func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, er
 	if t.Registry == nil {
 		return "", fmt.Errorf("tool_search has no registry")
 	}
+	words := strings.Fields(strings.ToLower(in.Query))
+	// A tool that is loaded already is in the list; loading it again
+	// would change nothing but the answer's length.
+	var loaded []string
+	for _, w := range words {
+		if t.Registry.Loaded(w) {
+			loaded = append(loaded, w)
+		}
+	}
+	if len(loaded) > 0 && len(loaded) == len(words) {
+		return fmt.Sprintf("%s: already loaded and callable; its schema is in your tool list.", strings.Join(loaded, ", ")), nil
+	}
 	defs := t.Registry.Deferred()
 	if len(defs) == 0 {
 		return "No tools are deferred; everything available is already listed.", nil
 	}
-	words := strings.Fields(strings.ToLower(in.Query))
 	if len(words) == 0 {
 		var sb strings.Builder
 		fmt.Fprintf(&sb, "%d deferred tools (search to load any of them):\n", len(defs))
@@ -114,6 +123,23 @@ func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, er
 		return fmt.Sprintf("No deferred tool matches %q. Call tool_search with an empty query to list them all.", in.Query), nil
 	}
 	sort.SliceStable(hits, func(a, b int) bool { return hits[a].score > hits[b].score })
+	// A query that names tools exactly loads those and nothing else: every
+	// tool loaded rides on every later request, and a word of the name
+	// that also appears in other tools' descriptions should not bring
+	// them along.
+	exact := hits[:0:0]
+	for _, h := range hits {
+		name := strings.ToLower(defs[h.i].Name)
+		for _, w := range words {
+			if name == w || strings.HasSuffix(name, "__"+w) {
+				exact = append(exact, h)
+				break
+			}
+		}
+	}
+	if len(exact) > 0 {
+		hits = exact
+	}
 	if len(hits) > toolSearchMax {
 		hits = hits[:toolSearchMax]
 	}
