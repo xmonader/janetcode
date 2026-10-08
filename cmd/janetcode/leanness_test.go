@@ -108,7 +108,12 @@ const (
 	// every session pays before a single file is read. Measured 5,777
 	// bytes on 2026-09-15 (feat/measurement); the ceiling is 6,000 so a
 	// new feature cannot quietly eat the leanness advantage.
-	emptyProjectSystemCeiling = 6000
+	// 6,198 on 2026-10-09: the post-green rule (no harness of your own,
+	// fix a wrong check once). On effbench a-build-incremental the model
+	// spent 10 of 27 calls debugging a 305-line scratch harness after the
+	// public tests passed; hero_agent measured the same class at up to 61
+	// calls a campaign. 198 bytes, cached, against those calls.
+	emptyProjectSystemCeiling = 6220
 	// toolSchemaCeiling is name + description + schema over every tool a
 	// full session offers: 13,862 bytes for seventeen, after the
 	// duplicated edit_file locator came out. 14,707 on 2026-09-29, when

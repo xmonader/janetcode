@@ -641,6 +641,22 @@ func TestARewrittenScratchCheckRetiresTheRedOne(t *testing.T) {
 	}
 }
 
+// A script the turn wrote for itself, or one outside the project, is a
+// scratch check too: a red run of it is retired by a later green scratch
+// check, as the model rewrote its own expectations.
+func TestARedScratchFileIsRetiredByALaterGreenOne(t *testing.T) {
+	ev := []session.Event{
+		result(1, "edit_file", `{"path":"pkg/exec.py"}`, "Edited pkg/exec.py", false),
+		result(1, "bash", `{"command":"python /tmp/check_incremental.py"}`, "ModuleNotFoundError\n[exit code 1]", false),
+		result(1, "write_file", `{"path":"scratch_check.py"}`, "Created scratch_check.py (300 lines)", false),
+		result(1, "bash", `{"command":"python scratch_check.py && python -m pytest -q"}`, "ALL PASSED\n6 passed\n[exit code 0]", false),
+	}
+	got := FoldOutcomeIn(ev, 1, "/ws")
+	if got.Failed != 0 || got.Verdict == VerdictCheckFailed {
+		t.Fatalf("verdict = %q, failed %d, checks %v", got.Verdict, got.Failed, got.Checks)
+	}
+}
+
 // A build failure is not retired by a test run over the same target: the
 // two ask different questions, and the red one still has its answer.
 func TestADifferentKindOfCheckDoesNotRetireARedOne(t *testing.T) {

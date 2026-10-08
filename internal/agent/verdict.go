@@ -332,17 +332,17 @@ func checkTarget(cmd string) string {
 // green, not one red check and one green one. A different kind of check
 // over the same target — `go build ./...` then `go test ./...` — is not,
 // because the build failure is its own answer.
-func supersededBy(cmd, later string) bool {
+func supersededBy(cmd, later string, scratch func(string) bool) bool {
 	if cmd == later {
 		return false
 	}
-	// A scratch script the model wrote for itself (a heredoc into an
-	// interpreter, or `-c`) that came back red, followed by another one
-	// that came back green, is the model fixing its own check: its wrong
-	// expectation, not the code. Holding the red one against the turn sent
-	// a finished turn back for a round of re-checking (effbench
-	// b-report-paging: two extra calls after every test had passed).
-	if scratchScript(cmd) && scratchScript(later) && shell.IsTestRun(cmd) == shell.IsTestRun(later) {
+	// A scratch check the model wrote for itself (see the scratch
+	// predicate) that came back red, followed by one that came back green,
+	// is the model fixing its own check: its wrong expectation, not the
+	// code. Holding the red one against the turn sent a finished turn back
+	// for a round of re-checking (effbench b-report-paging: two extra
+	// calls after every test had passed; a-build-incremental: four).
+	if scratch != nil && scratch(cmd) && scratch(later) {
 		return true
 	}
 	t := checkTarget(cmd)
@@ -352,6 +352,20 @@ func supersededBy(cmd, later string) bool {
 // scratchRe is an interpreter fed a script inline: `python3 - <<'EOF'`,
 // `node -e '...'`, `python -c "..."`.
 var scratchRe = regexp.MustCompile(`\b(python3?|node|ruby|perl|bash|sh|deno|bun)\b(\s+-\s*)?\s*(<<-?\s*['"]?\w+|-[ce]\s)`)
+
+// scriptExtRe is a file an interpreter runs.
+var scriptExtRe = regexp.MustCompile(`\.(py|js|mjs|cjs|ts|rb|sh|pl)$`)
+
+// runsScript reports whether some word of cmd names a script file for
+// which is returns true.
+func runsScript(cmd string, is func(word string) bool) bool {
+	for _, w := range shell.Words(cmd) {
+		if scriptExtRe.MatchString(w) && is(w) {
+			return true
+		}
+	}
+	return false
+}
 
 // scratchScript reports whether a command runs a script written inline.
 func scratchScript(cmd string) bool { return scratchRe.MatchString(cmd) }
@@ -518,13 +532,23 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	// after the last edit. A turn that edits, tests, edits again and stops
 	// has a green check and a stale one.
 	o.EditedAfterCheck = lastEditSeq > 0 && lastEditSeq > lastCheckSeq
+	// Scratch: a script written inline, one this turn created, or one
+	// outside the project — the model's own check, not the project's.
+	scratch := func(cmd string) bool {
+		return scratchScript(cmd) || runsScript(cmd, func(w string) bool {
+			if createdHere[strings.TrimPrefix(w, "./")] {
+				return true
+			}
+			return filepath.IsAbs(w) && root != "" && !strings.HasPrefix(w, root+string(filepath.Separator))
+		})
+	}
 	retired := map[string]bool{}
 	for i, cmd := range order {
 		if !latest[cmd].isErr {
 			continue
 		}
 		for _, later := range order[i+1:] {
-			if !latest[later].isErr && supersededBy(cmd, later) {
+			if !latest[later].isErr && supersededBy(cmd, later, scratch) {
 				retired[cmd] = true
 				break
 			}

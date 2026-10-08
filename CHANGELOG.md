@@ -44,7 +44,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   whole with the first message counts as read for the "edited without
   reading" note; the plan check knows `cache.py` is `reports/cache.py`;
   and a scratch check script rewritten from red to green no longer holds
-  a finished turn back as "a check came back red".
+  a finished turn back as "a check came back red". The same holds for a
+  script the turn wrote for itself or one outside the project.
+- The system prompt says to stop once the project's tests pass, after a
+  short check of any stated rule they miss: no test harness of the
+  model's own, and a wrong check is fixed once or dropped.
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The
