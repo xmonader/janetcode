@@ -44,6 +44,17 @@ func (ix *Index) Known(name string) bool {
 	return false
 }
 
+// hasPathSuffix reports whether some indexed file is p or ends in /p.
+func (ix *Index) hasPathSuffix(p string) bool {
+	p = strings.TrimPrefix(p, "/")
+	for _, f := range ix.Files {
+		if f.Path == p || strings.HasSuffix(f.Path, "/"+p) {
+			return true
+		}
+	}
+	return false
+}
+
 // CheckPlan reads the backticked names in text and returns a note about
 // the ones the repository does not have, or "" when every name checks
 // out. Sentences that say the name is to be added, created or written
@@ -89,6 +100,12 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 					abs = filepath.Join(ix.Root, p)
 				}
 				if _, err := os.Stat(abs); err == nil {
+					continue
+				}
+				// A name written without its directory ("cache.py" for
+				// reports/cache.py) is how plans name files; it is a
+				// file the repository has, not a missing one.
+				if ix.hasPathSuffix(filepath.ToSlash(p)) {
 					continue
 				}
 				seen[span] = true

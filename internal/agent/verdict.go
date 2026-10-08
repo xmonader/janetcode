@@ -336,9 +336,25 @@ func supersededBy(cmd, later string) bool {
 	if cmd == later {
 		return false
 	}
+	// A scratch script the model wrote for itself (a heredoc into an
+	// interpreter, or `-c`) that came back red, followed by another one
+	// that came back green, is the model fixing its own check: its wrong
+	// expectation, not the code. Holding the red one against the turn sent
+	// a finished turn back for a round of re-checking (effbench
+	// b-report-paging: two extra calls after every test had passed).
+	if scratchScript(cmd) && scratchScript(later) && shell.IsTestRun(cmd) == shell.IsTestRun(later) {
+		return true
+	}
 	t := checkTarget(cmd)
 	return t != "" && t == checkTarget(later) && shell.IsTestRun(cmd) == shell.IsTestRun(later)
 }
+
+// scratchRe is an interpreter fed a script inline: `python3 - <<'EOF'`,
+// `node -e '...'`, `python -c "..."`.
+var scratchRe = regexp.MustCompile(`\b(python3?|node|ruby|perl|bash|sh|deno|bun)\b(\s+-\s*)?\s*(<<-?\s*['"]?\w+|-[ce]\s)`)
+
+// scratchScript reports whether a command runs a script written inline.
+func scratchScript(cmd string) bool { return scratchRe.MatchString(cmd) }
 
 func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	return FoldOutcomeIn(events, turn, "")

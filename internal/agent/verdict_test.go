@@ -627,6 +627,20 @@ func TestACheckReRunAnotherWayRetiresTheRedOne(t *testing.T) {
 	}
 }
 
+// A scratch script that came back red and was rewritten into one that
+// came back green is the model fixing its own check, not a red check.
+func TestARewrittenScratchCheckRetiresTheRedOne(t *testing.T) {
+	ev := []session.Event{
+		result(1, "edit_file", `{"path":"reports/paging.py"}`, "Edited reports/paging.py", false),
+		result(1, "bash", `{"command":"python -m pytest -q && python3 - <<'EOF'\nassert page(1) == 2\nEOF"}`, "4 passed\nAssertionError\n[exit code 1]", false),
+		result(1, "bash", `{"command":"python3 - <<'EOF'\nassert page(1) == 1\nprint('ok')\nEOF\npython -m pytest -q"}`, "ok\n4 passed\n[exit code 0]", false),
+	}
+	got := FoldOutcomeIn(ev, 1, "")
+	if got.Failed != 0 || got.Verdict == VerdictCheckFailed {
+		t.Fatalf("verdict = %q, failed %d, checks %v", got.Verdict, got.Failed, got.Checks)
+	}
+}
+
 // A build failure is not retired by a test run over the same target: the
 // two ask different questions, and the red one still has its answer.
 func TestADifferentKindOfCheckDoesNotRetireARedOne(t *testing.T) {

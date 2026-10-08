@@ -115,6 +115,28 @@ func (e oneEdit) byLine() bool {
 	return e.From > 0 || e.To > 0 || e.FromAnchor != "" || e.ToAnchor != ""
 }
 
+// settleLocators decides, for an edit that gave both old_string and a
+// position, which of the two it goes by. Models do send both — the line
+// numbers they read and the text they are replacing — and refusing that
+// cost a whole round trip to be told to drop one, for an edit whose intent
+// was never in doubt. The text wins when it occurs exactly once in the
+// file (or replace_all asks for every occurrence): it is the stricter of
+// the two. Otherwise the position stands, and the text is dropped.
+func settleLocators(before string, edits []oneEdit, noLines bool) []oneEdit {
+	for i, e := range edits {
+		if e.Old == "" || !e.byLine() {
+			continue
+		}
+		if noLines || e.ReplaceAll || strings.Count(before, e.Old) == 1 {
+			e.From, e.To, e.FromAnchor, e.ToAnchor = 0, 0, "", ""
+		} else {
+			e.Old = ""
+		}
+		edits[i] = e
+	}
+	return edits
+}
+
 // resolve turns an edit's anchors into line numbers against the file as it
 // is now, leaving a plain line range alone.
 func (e oneEdit) resolve(lines []string) (oneEdit, error) {
@@ -266,6 +288,19 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 	if len(edits) == 0 {
 		return nil, fmt.Errorf("no edits: give old_string and new_string, or from_line and to_line, or a list in edits")
 	}
+	p, err := resolveOn(t.WS, t.Root, in.Path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readFileOf(ctx, t.WS, p)
+	if err != nil {
+		return nil, err
+	}
+	if isBinary(data) {
+		return nil, &ErrPriorRead{Path: displayPath(rootOf(t.Root, t.WS), in.Path), Verb: "edit", Cause: CauseBinary}
+	}
+	before, shape := decodeText(data)
+	edits = settleLocators(before, edits, t.NoLines)
 	lines := 0
 	for _, e := range edits {
 		if e.byLine() {
@@ -280,18 +315,6 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 		// the string edits shifted it? Refusing is clearer than choosing.
 		return nil, fmt.Errorf("every edit in one call must locate itself the same way: %d of %d give a line range", lines, len(edits))
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
-	if err != nil {
-		return nil, err
-	}
-	data, err := readFileOf(ctx, t.WS, p)
-	if err != nil {
-		return nil, err
-	}
-	if isBinary(data) {
-		return nil, &ErrPriorRead{Path: displayPath(rootOf(t.Root, t.WS), in.Path), Verb: "edit", Cause: CauseBinary}
-	}
-	before, shape := decodeText(data)
 	if lines > 0 {
 		// Anchors are resolved against the file as it is now, before any
 		// of this batch is applied, so a list of them is written against

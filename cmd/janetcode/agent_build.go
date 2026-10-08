@@ -58,8 +58,9 @@ func chainPrep(hooks ...func(context.Context, []llm.Block) ([]llm.Block, string)
 func firstTurnRepo(ag *agent.Agent, cd *agent.CD, ws *tool.Workspace, seen *tool.Seen, off bool, next func(context.Context, []llm.Block) ([]llm.Block, string)) func(context.Context, []llm.Block) ([]llm.Block, string) {
 	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		if !off && len(ag.Messages) == 0 && cd != nil && strings.TrimSpace(firstTextOf(blocks)) != "" {
-			if text, n := tool.SmallRepo(ctx, ws, cd.Dir(), seen); text != "" {
-				return append(blocks, llm.Block{Type: llm.BlockText, Text: text, Synthetic: true}), fmt.Sprintf("repository attached whole: %d files", n)
+			if text, files := tool.SmallRepo(ctx, ws, cd.Dir(), seen); text != "" {
+				ag.NoteRead(files...)
+				return append(blocks, llm.Block{Type: llm.BlockText, Text: text, Synthetic: true}), fmt.Sprintf("repository attached whole: %d files", len(files))
 			}
 		}
 		return next(ctx, blocks)

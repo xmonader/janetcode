@@ -50,6 +50,21 @@ func inputPath(input json.RawMessage) string {
 	return filepath.Clean(in.Path)
 }
 
+// NoteRead tells the agent the model has seen these files whole without a
+// read_file call (a small repository sent with the first message), so a
+// failed edit to one is not answered with "you edited it without reading
+// it first" and a copy of the file the model already has.
+func (a *Agent) NoteRead(paths ...string) {
+	a.coachMu.Lock()
+	defer a.coachMu.Unlock()
+	if a.coach.read == nil {
+		a.coach.fails, a.coach.read = map[string]int{}, map[string]bool{}
+	}
+	for _, p := range paths {
+		a.coach.read[filepath.Clean(p)] = true
+	}
+}
+
 // after inspects a finished tool call and returns text to append to its
 // result. An empty abs path (no Toucher) skips the per-edit feedback.
 func (c *coach) after(ctx context.Context, tools *tool.Registry, t tool.Tool, name string, input json.RawMessage, isErr bool) string {

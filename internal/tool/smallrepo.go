@@ -21,18 +21,19 @@ const (
 )
 
 // SmallRepo returns the whole repository under root as one block of text,
-// with every file in it recorded in seen as read, or "" when the
+// and the paths it holds (relative to root), with every file in it recorded
+// in seen as read, or "" when the
 // repository is over the limits, empty, or not on the local disk. Files
 // git ignores and files the AI ignore files exclude are left out, binary
 // files are named without their bytes, and nothing is read from outside
 // root.
-func SmallRepo(ctx context.Context, ws *Workspace, root string, seen *Seen) (text string, files int) {
+func SmallRepo(ctx context.Context, ws *Workspace, root string, seen *Seen) (text string, files []string) {
 	if root == "" || (ws != nil && !ws.Local()) {
-		return "", 0
+		return "", nil
 	}
 	rels, err := repoFiles(ctx, root)
 	if err != nil || len(rels) == 0 || len(rels) > SmallRepoMaxFiles {
-		return "", 0
+		return "", nil
 	}
 	type entry struct {
 		rel, abs string
@@ -53,11 +54,11 @@ func SmallRepo(ctx context.Context, ws *Workspace, root string, seen *Seen) (tex
 			continue
 		}
 		if total += int(st.Size()); total > SmallRepoMaxBytes {
-			return "", 0
+			return "", nil
 		}
 		data, err := os.ReadFile(abs)
 		if err != nil {
-			return "", 0
+			return "", nil
 		}
 		if isBinary(data) {
 			binary = append(binary, rel)
@@ -66,7 +67,7 @@ func SmallRepo(ctx context.Context, ws *Workspace, root string, seen *Seen) (tex
 		entries = append(entries, entry{rel, abs, data})
 	}
 	if len(entries) == 0 {
-		return "", 0
+		return "", nil
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "<repository files=\"%d\">\nThe whole repository, as it is now. These are the files' current contents: do not read them again.\n", len(entries))
@@ -81,10 +82,12 @@ func SmallRepo(ctx context.Context, ws *Workspace, root string, seen *Seen) (tex
 		fmt.Fprintf(&b, "Binary, not shown: %s\n", strings.Join(binary, ", "))
 	}
 	b.WriteString("</repository>")
-	for _, e := range entries {
+	paths := make([]string, len(entries))
+	for i, e := range entries {
 		seen.Record(e.abs, e.data)
+		paths[i] = e.rel
 	}
-	return b.String(), len(entries)
+	return b.String(), paths
 }
 
 // repoFiles lists the files under root that git does not ignore, or walks

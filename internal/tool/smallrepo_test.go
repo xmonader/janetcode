@@ -34,7 +34,7 @@ func TestSmallRepoInlinesAndRecordsReads(t *testing.T) {
 		"node_modules/x": "dep",
 	})
 	seen := &Seen{}
-	text, n := SmallRepo(context.Background(), nil, root, seen)
+	text, files := SmallRepo(context.Background(), nil, root, seen)
 	if text == "" {
 		t.Fatal("small tree not inlined")
 	}
@@ -52,7 +52,7 @@ func TestSmallRepoInlinesAndRecordsReads(t *testing.T) {
 	if !seen.Read(abs) {
 		t.Error("pkg/a.py not recorded as read")
 	}
-	if n != 2 { // task.md, pkg/a.py: the walk without git skips dot-files
+	if n := len(files); n != 2 { // task.md, pkg/a.py: the walk without git skips dot-files
 		t.Errorf("files = %d", n)
 	}
 }

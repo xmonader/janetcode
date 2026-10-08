@@ -38,6 +38,13 @@ and measurements behind each round are in `docs/notes/history.md`.
 - A reply cut off at the output token limit before it called a tool no
   longer ends the turn as done with an empty answer: the model is told and
   asked to act, at most twice a turn.
+- Four round trips found in janetcode's first effbench transcript:
+  `edit_file` given both a line range and `old_string` uses the text when
+  it is unique and the range otherwise, instead of refusing; a file sent
+  whole with the first message counts as read for the "edited without
+  reading" note; the plan check knows `cache.py` is `reports/cache.py`;
+  and a scratch check script rewritten from red to green no longer holds
+  a finished turn back as "a check came back red".
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

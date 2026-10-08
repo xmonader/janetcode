@@ -288,7 +288,6 @@ func TestEditFileByLine(t *testing.T) {
 		{`{"path":"f.go","from_line":9,"to_line":9,"new_string":"x"}`, "past the end"},
 		{`{"path":"f.go","from_line":4,"to_line":2,"new_string":"x"}`, "before from_line"},
 		{`{"path":"f.go","from_line":0,"to_line":0,"old_string":"nothing here","new_string":"x"}`, "not found"},
-		{`{"path":"f.go","from_line":3,"to_line":3,"old_string":"func A() {}","new_string":"x"}`, "not both"},
 		{`{"path":"f.go","edits":[{"from_line":3,"to_line":4,"new_string":"x"},{"from_line":4,"to_line":5,"new_string":"y"}]}`, "both cover line 4"},
 		{`{"path":"f.go","edits":[{"from_line":3,"to_line":3,"new_string":"x"},{"old_string":"func C","new_string":"y"}]}`, "locate itself the same way"},
 	} {
@@ -298,6 +297,25 @@ func TestEditFileByLine(t *testing.T) {
 	}
 	if got, _ = os.ReadFile(path); string(got) != orig {
 		t.Fatalf("a refused edit must not write: %q", got)
+	}
+
+	// Both a position and old_string: the text wins when it is unique,
+	// whatever line the model thought it was on.
+	write()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.go","from_line":5,"to_line":5,"old_string":"func A() {}","new_string":"func Alpha() {}"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = os.ReadFile(path); !strings.Contains(string(got), "func Alpha() {}\nfunc B() {}") {
+		t.Fatalf("unique text: got %q", got)
+	}
+	// ... and the position wins when the text is not unique.
+	write()
+	os.WriteFile(path, []byte("package x\n\nx := 1\nx := 1\n"), 0o644)
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.go","from_line":4,"to_line":4,"old_string":"x := 1","new_string":"y := 2"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = os.ReadFile(path); string(got) != "package x\n\nx := 1\ny := 2\n" {
+		t.Fatalf("position: got %q", got)
 	}
 
 	// A file with no trailing newline keeps not having one.
