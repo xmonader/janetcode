@@ -153,6 +153,9 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 type agentDeps struct {
 	// tools hides tools from the model (--core-tools, --exclude-tools).
 	tools toolFilter
+	// headless is a run with no one at the terminal (-p, stream-json
+	// input): it starts with the coding core only (see stepHeadlessCore).
+	headless bool
 	// safe is --safe-mode: skills, rules and agent profiles come from the
 	// user's configuration directory only, never the project.
 	safe    bool
@@ -343,6 +346,7 @@ func (b *agentBuilder) buildSteps() []struct {
 		{"knowledge", b.stepKnowledge},
 		{"diagnostics", b.stepDiagnostics},
 		{"search tools", b.stepSearchTools},
+		{"headless core", b.stepHeadlessCore},
 		{"turn hooks", b.stepTurnHooks},
 		{"decisions", b.stepDecisions},
 		{"undo", b.stepUndo},
@@ -640,6 +644,29 @@ func (b *agentBuilder) stepSearchTools() error {
 	}
 	ag.Tools.Intent = d.cfg.IntentEnabled() && !b.off["intent"]
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
+	return nil
+}
+
+// headlessCore is what a headless run's requests carry: the coding loop.
+// Everything else stays loadable through tool_search.
+var headlessCore = map[string]bool{"read_file": true, "write_file": true, "edit_file": true, "bash": true, "tool_search": true}
+
+// stepHeadlessCore defers every tool but the coding core in a headless
+// run. Every request carries the tool list, and a full one is 25 KB —
+// four times the system prompt and eight times pi's four tools — for
+// tools a run with nobody at the terminal rarely wants (ask, cron,
+// workflow, memory, terminal, todo, task, symbols). On hero_agent's
+// effbench that was ~6k tokens of input on every call. A deferred tool is
+// one tool_search away, and a call to it by name still runs.
+// JANETCODE_OFF=headlesscore keeps the full list.
+func (b *agentBuilder) stepHeadlessCore() error {
+	if !b.d.headless || b.off["headlesscore"] {
+		return nil
+	}
+	advisor := b.d.cfg.AdvisorModel != ""
+	b.ag.Tools.DeferAllBut(func(name string) bool {
+		return headlessCore[name] || (advisor && name == "advisor")
+	})
 	return nil
 }
 

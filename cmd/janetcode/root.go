@@ -160,7 +160,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		return r, err
 	}
 	r.gate = gate
-	deps := agentDeps{safe: o.safeMode, tools: filter, gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
+	deps := agentDeps{safe: o.safeMode, tools: filter, headless: o.promptText != "" || o.inFormat == "stream-json", gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err
@@ -309,7 +309,12 @@ func (r *root) wireProject() error {
 		archive: archive, mem: mem, repo: repo, diag: diag, mcp: servers, jobs: jobs,
 		task: task, skills: skills, rules: built.rules, ruleInjector: built.ruleInjector,
 	})
-	ag.Tools.Add(inspect.Tool{Registry: subjects})
+	if (r.opts.promptText != "" || r.opts.inFormat == "stream-json") && !envOff()["headlesscore"] {
+		// After the build, so stepHeadlessCore did not see it.
+		ag.Tools.AddDeferred(inspect.Tool{Registry: subjects})
+	} else {
+		ag.Tools.Add(inspect.Tool{Registry: subjects})
+	}
 	// The feature catalogue is built from the tables this run is already
 	// holding: the flag set, the tool registry, the command table and the
 	// Config struct. It costs a few hundred small structs and no I/O.

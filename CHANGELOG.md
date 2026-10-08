@@ -54,6 +54,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   written again. An OpenAI-compatible server that refuses the larger
   limit is asked for the one its refusal names from then on; any other
   refusal of a raised limit falls back to the configured one.
+- A headless run (`-p`, stream-json input) sends the coding core only —
+  `read_file`, `write_file`, `edit_file`, `bash`, `tool_search` — and
+  lists the rest as loadable: 25 KB of tool schemas a request down to
+  6.5 KB (`JANETCODE_OFF=headlesscore` keeps the full list).
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

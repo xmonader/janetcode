@@ -181,6 +181,27 @@ func (r *Registry) Activate(name string) bool {
 	return true
 }
 
+// DeferAllBut defers every visible tool keep does not name: its schema
+// leaves the request and tool_search lists it as loadable. A call to it by
+// name still runs; only the request stops carrying its description.
+func (r *Registry) DeferAllBut(keep func(name string) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for name := range r.tools {
+		if r.deferred[name] || keep(name) {
+			continue
+		}
+		if r.deferred == nil {
+			r.deferred = map[string]bool{}
+		}
+		if r.loadable == nil {
+			r.loadable = map[string]bool{}
+		}
+		r.deferred[name], r.loadable[name] = true, true
+		r.version++
+	}
+}
+
 // Loadable returns the names of every registered tool that was deferred,
 // whether or not it has been loaded since, sorted.
 func (r *Registry) Loadable() []string {

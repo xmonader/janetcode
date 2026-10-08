@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,5 +47,52 @@ func TestHeadlessSkipsMemoryByDefault(t *testing.T) {
 	}
 	if calls != 2 { // write, answer
 		t.Fatalf("model calls = %d, want 2\nstderr: %s", calls, errOut)
+	}
+}
+
+// A headless run's requests carry the coding core and nothing else; the
+// rest is listed by tool_search and loadable through it.
+func TestHeadlessSendsTheCodingCore(t *testing.T) {
+	work := t.TempDir()
+	home := t.TempDir()
+	var first map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		if first == nil {
+			json.Unmarshal(raw, &first)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, `data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}`+"\n\ndata: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Chdir(work)
+	stdout, stderr := captureStd(t)
+	err := run([]string{"-p", "hi", "--provider", "openai", "--model", "test-model", "--yolo"})
+	stdout()
+	if errOut := stderr(); err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, errOut)
+	}
+	var names []string
+	var search string
+	for _, raw := range first["tools"].([]any) {
+		fn := raw.(map[string]any)["function"].(map[string]any)
+		names = append(names, fn["name"].(string))
+		if fn["name"] == "tool_search" {
+			search = fn["description"].(string)
+		}
+	}
+	if strings.Join(names, ",") != "bash,edit_file,read_file,tool_search,write_file" {
+		t.Fatalf("tools = %v", names)
+	}
+	for _, loadable := range []string{"todo", "task", "glob", "grep"} {
+		if !strings.Contains(search, loadable) {
+			t.Fatalf("tool_search does not list %s: %q", loadable, search)
+		}
 	}
 }
