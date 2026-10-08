@@ -15,6 +15,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   result. It is approved, sandboxed and hooked as its own `bash` call. The
   edit and its check cost one round trip instead of two
   (`JANETCODE_OFF=thenrun` withdraws it).
+- A small repository (at most 40 files and 32 KB, minus what git and
+  `.aiignore` exclude) rides whole in a new session's first message
+  instead of the repository map, every file counted as read. The reads a
+  coding turn opens with are gone (`JANETCODE_OFF=inline`).
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

@@ -50,6 +50,31 @@ func chainPrep(hooks ...func(context.Context, []llm.Block) ([]llm.Block, string)
 	}
 }
 
+// firstTurnRepo sends a small repository whole with a fresh session's
+// first message (see tool.SmallRepo), every file recorded as read, and
+// otherwise leaves the turn to next, the repository map. Only the first
+// turn: later ones would carry contents the session has since changed,
+// and a resumed session has its reads in its history already.
+func firstTurnRepo(ag *agent.Agent, cd *agent.CD, ws *tool.Workspace, seen *tool.Seen, off bool, next func(context.Context, []llm.Block) ([]llm.Block, string)) func(context.Context, []llm.Block) ([]llm.Block, string) {
+	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
+		if !off && len(ag.Messages) == 0 && cd != nil && strings.TrimSpace(firstTextOf(blocks)) != "" {
+			if text, n := tool.SmallRepo(ctx, ws, cd.Dir(), seen); text != "" {
+				return append(blocks, llm.Block{Type: llm.BlockText, Text: text, Synthetic: true}), fmt.Sprintf("repository attached whole: %d files", n)
+			}
+		}
+		return next(ctx, blocks)
+	}
+}
+
+func firstTextOf(blocks []llm.Block) string {
+	for _, b := range blocks {
+		if b.Type == llm.BlockText && strings.TrimSpace(b.Text) != "" {
+			return b.Text
+		}
+	}
+	return ""
+}
+
 // envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
 // disable for this session. An unknown name is dropped: it would switch
 // nothing off anyway, and a misspelling in an environment variable should
@@ -638,7 +663,8 @@ func (b *agentBuilder) stepTurnHooks() error {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
 	ag.Predictor = predictor
-	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem), repomap.TurnPrep(b.repo, 0))
+	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem),
+		firstTurnRepo(ag, b.cd, b.ws, b.seen, b.off["inline"], repomap.TurnPrep(b.repo, 0)))
 	return nil
 }
 

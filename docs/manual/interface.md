@@ -1644,6 +1644,13 @@ radius: what defines it, every file that uses it, and with
 `transitive` the users of those. The index rebuilds when the tree
 changes (git status or mtimes) and caps at 5000 files.
 
+A repository small enough to read whole — at most 40 files and 32 KB,
+leaving out what git ignores and what `.aiignore` excludes — is sent
+whole instead, with a new session's first message, and every file in it
+counts as read, so an edit needs no `read_file` first. The turn note says
+`repository attached whole: N files`. Later turns, larger trees and
+resumed sessions get the map. `JANETCODE_OFF=inline` turns it off.
+
 #### Real grammars, optionally
 
 The map reads Go with the standard library's parser and every other
