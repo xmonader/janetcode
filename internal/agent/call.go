@@ -124,7 +124,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		System:    system,
 		Messages:  a.bridgeImages(ctx, a.Messages, model, emit),
 		Tools:     defs,
-		MaxTokens: a.Settings().MaxTokens,
+		MaxTokens: a.maxTokens(),
 		Effort:    a.Settings().Effort,
 	}, func(e llm.Event) {
 		if e.Type == llm.EventRetried && e.Retry != nil {

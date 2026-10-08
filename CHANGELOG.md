@@ -49,6 +49,11 @@ and measurements behind each round are in `docs/notes/history.md`.
 - The system prompt says to stop once the project's tests pass, after a
   short check of any stated rule they miss: no test harness of the
   model's own, and a wrong check is fixed once or dropped.
+- A reply cut at the output limit doubles the limit for the rest of the
+  turn (16k, 32k, up to 64k), since the cut reply is thrown away and
+  written again. An OpenAI-compatible server that refuses the larger
+  limit is asked for the one its refusal names from then on; any other
+  refusal of a raised limit falls back to the configured one.
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

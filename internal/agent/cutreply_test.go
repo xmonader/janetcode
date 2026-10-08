@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,5 +40,26 @@ func TestCutRepliesAreBounded(t *testing.T) {
 	}
 	if len(f.requests) != 1+maxCutReplies {
 		t.Fatalf("model calls = %d, want %d", len(f.requests), 1+maxCutReplies)
+	}
+}
+
+// A reply cut at the output limit doubles the limit for the rest of the
+// turn; the next turn starts from the configured one again.
+func TestCutReplyRaisesTheOutputLimitForTheTurn(t *testing.T) {
+	f := &fake{responses: []*llm.Response{cutOff(""), text("done"), text("again")}}
+	a, _ := newAgent(t, f, nil)
+	a.UpdateSettings(func(s *Settings) { s.MaxTokens = 16000 })
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run(context.Background(), "more", nil); err != nil {
+		t.Fatal(err)
+	}
+	var got []int
+	for _, r := range f.requests {
+		got = append(got, r.MaxTokens)
+	}
+	if want := []int{16000, 32000, 16000}; !slices.Equal(got, want) {
+		t.Fatalf("max tokens per call = %v, want %v", got, want)
 	}
 }

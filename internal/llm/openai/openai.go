@@ -13,6 +13,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -76,6 +78,10 @@ type dialect struct {
 	noCacheControl   bool // server rejects cache_control / array content
 	noCacheKey       bool // server rejects prompt_cache_key
 	noJSONSchema     bool // server rejects response_format json_schema
+	// maxOut is the largest output limit the server accepts, learned from a
+	// 400 that refused a larger one; 0 until then. lastMax is the limit the
+	// last request asked for, the fallback when the refusal names none.
+	maxOut, lastMax int
 }
 
 // New validates cfg and builds a provider.
@@ -389,6 +395,10 @@ attempts:
 func (p *Provider) applyDialect(w wireRequest) wireRequest {
 	p.dialect.mu.Lock()
 	defer p.dialect.mu.Unlock()
+	if p.dialect.maxOut > 0 && w.MaxTokens > p.dialect.maxOut {
+		w.MaxTokens = p.dialect.maxOut
+	}
+	p.dialect.lastMax = w.MaxTokens
 	if p.dialect.useMaxCompletion {
 		w.MaxCompletionTokens, w.MaxTokens = w.MaxTokens, 0
 	}
@@ -438,6 +448,37 @@ func (p *Provider) learnDialect(err error) bool {
 	case !p.dialect.noJSONSchema && (strings.Contains(msg, "response_format") || strings.Contains(msg, "json_schema")):
 		p.dialect.noJSONSchema = true
 		return true
+	case p.dialect.lastMax > 1024 && outputLimitRefusal(msg):
+		// The output limit asked for is more than this model serves. The
+		// largest number the refusal names below what was asked is taken
+		// as the server's limit; with none, half is tried.
+		limit := 0
+		for _, m := range numberRe.FindAllString(msg, -1) {
+			if n, err := strconv.Atoi(m); err == nil && n >= 1024 && n < p.dialect.lastMax && n > limit {
+				limit = n
+			}
+		}
+		if limit == 0 {
+			limit = p.dialect.lastMax / 2
+		}
+		p.dialect.maxOut = limit
+		return true
+	}
+	return false
+}
+
+var numberRe = regexp.MustCompile(`\d{4,7}`)
+
+// outputLimitRefusal reports whether a 400's message is about the output
+// token limit being too large.
+func outputLimitRefusal(msg string) bool {
+	if !strings.Contains(msg, "max_tokens") && !strings.Contains(msg, "max_completion_tokens") && !strings.Contains(msg, "max_output_tokens") && !strings.Contains(msg, "maximum output") {
+		return false
+	}
+	for _, w := range []string{"too large", "exceed", "must be less", "less than or equal", "at most", "maximum", "<=", "range", "greater than"} {
+		if strings.Contains(msg, w) {
+			return true
+		}
 	}
 	return false
 }

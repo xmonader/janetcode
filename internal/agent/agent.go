@@ -554,6 +554,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		if err != nil {
 			return err
 		}
+		a.noteCut(resp)
 		if a.refuseTruncatedCalls(resp, emit) {
 			continue
 		}
@@ -599,6 +600,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	// turn; nothing has changed the tree yet.
 	a.startBaseline(ctx)
 	a.resetDiagnostics()
+	a.outBoost = 0
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -674,6 +676,13 @@ func (a *Agent) prepareBlocks(ctx context.Context, blocks []llm.Block, emit func
 // session.
 func (a *Agent) callStep(ctx context.Context, compactAt *int, emit func(Event)) (*llm.Response, error) {
 	resp, err := a.call(ctx, emit)
+	// A raised output limit the server refuses goes back to the configured
+	// one, which it has always accepted, rather than ending the turn.
+	var se llm.StatusError
+	if err != nil && a.outBoost > 0 && errors.As(err, &se) && se.HTTPStatus() == 400 {
+		a.outBoost = 0
+		resp, err = a.call(ctx, emit)
+	}
 	if err == nil || !isContextOverflow(err) || *compactAt <= 0 {
 		return resp, err
 	}
@@ -780,6 +789,33 @@ func (a *Agent) refuseTruncatedCalls(resp *llm.Response, emit func(Event)) bool 
 	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 	a.stepRoute.prevMechanical = false
 	return true
+}
+
+// maxOutputBoost is the most the output limit grows to within a turn.
+const maxOutputBoost = 65536
+
+// maxTokens is the output limit for the next call: the configured one,
+// doubled for each reply of this turn that hit it, up to maxOutputBoost. A
+// reply cut at the limit is thrown away — its tool calls are refused as
+// possibly truncated, its plan is written again — so the call after it
+// gets room to finish. The provider clamps to what the model serves.
+func (a *Agent) maxTokens() int {
+	m := a.Settings().MaxTokens
+	if m <= 0 {
+		return m
+	}
+	for i := 0; i < a.outBoost && m < maxOutputBoost; i++ {
+		m *= 2
+	}
+	return min(m, max(maxOutputBoost, a.Settings().MaxTokens))
+}
+
+// noteCut grows the output limit for the rest of the turn after a reply
+// that hit it.
+func (a *Agent) noteCut(resp *llm.Response) {
+	if resp.StopReason == llm.StopMaxTokens && a.maxTokens() < maxOutputBoost {
+		a.outBoost++
+	}
 }
 
 // maxCutReplies bounds how often one turn is sent back for a reply the

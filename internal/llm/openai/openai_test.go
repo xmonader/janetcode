@@ -1372,3 +1372,33 @@ func TestLenientChunkShapes(t *testing.T) {
 		t.Errorf("usage = %+v", resp.Usage)
 	}
 }
+
+// An output limit larger than the model serves is lowered to the one the
+// refusal names, and the next call asks for that straight away.
+func TestDialectLearnsTheOutputLimit(t *testing.T) {
+	var asked []float64
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var b map[string]any
+		json.Unmarshal(raw, &b)
+		n, _ := b["max_tokens"].(float64)
+		asked = append(asked, n)
+		if n > 16384 {
+			w.WriteHeader(400)
+			io.WriteString(w, `{"error":{"message":"max_tokens (32768) must be less than or equal to 16384"}}`)
+			return
+		}
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	})
+	req := llm.Request{Model: "m", MaxTokens: 32768, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	if resp, err := p.Stream(context.Background(), req, nil); err != nil || resp.Message.Text() != "ok" {
+		t.Fatalf("err=%v", err)
+	}
+	if len(asked) != 2 || asked[1] != 16384 {
+		t.Fatalf("asked = %v", asked)
+	}
+	asked = nil
+	if _, err := p.Stream(context.Background(), req, nil); err != nil || len(asked) != 1 || asked[0] != 16384 {
+		t.Fatalf("err=%v asked=%v", err, asked)
+	}
+}
