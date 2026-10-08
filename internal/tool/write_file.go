@@ -19,6 +19,8 @@ type WriteFile struct {
 	// agent last read or wrote it.
 	Seen  *Seen
 	Cache *IOCache
+	// ThenRun advertises then_run (see ThenRunKey).
+	ThenRun bool
 }
 
 func (WriteFile) Name() string { return "write_file" }
@@ -26,10 +28,14 @@ func (WriteFile) Description() string {
 	return "Create or overwrite a file with the given content. Parent directories are created. Prefer edit_file for changes to existing files."
 }
 func (WriteFile) Mutating() bool { return true }
-func (WriteFile) Schema() json.RawMessage {
+func (t WriteFile) Schema() json.RawMessage {
+	thenRun := ""
+	if t.ThenRun {
+		thenRun = thenRunProp
+	}
 	return json.RawMessage(`{"type":"object","properties":{
 "path":{"type":"string","description":"File path, relative to the working directory or absolute"},
-"content":{"type":"string","description":"Full file content"}},
+` + thenRun + `"content":{"type":"string","description":"Full file content"}},
 "required":["path","content"],"additionalProperties":false}`)
 }
 

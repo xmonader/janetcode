@@ -114,7 +114,10 @@ const (
 	// duplicated edit_file locator came out. 14,707 on 2026-09-29, when
 	// bash took stdin and interactive and the job tool's stdin learned
 	// eof: commands that ask questions stopped failing or hanging.
-	toolSchemaCeiling = 14720
+	// 14,941 on 2026-10-08, when write_file and edit_file took then_run:
+	// 221 bytes a request (mostly cached) against a whole round trip
+	// saved on every edit that is followed by its test run.
+	toolSchemaCeiling = 14960
 )
 
 // TestFirstRequestSystemPromptCeiling: an empty directory is the floor of
@@ -184,8 +187,8 @@ func toolDefs(dir string, repo *repomap.Cache) []llm.ToolDef {
 	expand := &agent.ExpandOutput{}
 	r := tool.NewRegistry(
 		tool.ReadFile{Root: dir, Seen: seen},
-		tool.WriteFile{Root: dir, Seen: seen},
-		tool.EditFile{Root: dir, Seen: seen},
+		tool.WriteFile{Root: dir, Seen: seen, ThenRun: true},
+		tool.EditFile{Root: dir, Seen: seen, ThenRun: true},
 		tool.Bash{Root: dir, Cache: &tool.ShellCache{}, Jobs: jobs},
 		tool.JobTool{Jobs: jobs},
 		tool.FetchURL{},

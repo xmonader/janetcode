@@ -10,6 +10,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   session at the end unless the config says `"memory": true`. Those were
   two full-history model calls after the answer, on every run that changed
   a file, and the caller waited for both.
+- `write_file` and `edit_file` take `then_run`: a command, usually the
+  tests, run once the edit lands, with its output appended to the edit's
+  result. It is approved, sandboxed and hooked as its own `bash` call. The
+  edit and its check cost one round trip instead of two
+  (`JANETCODE_OFF=thenrun` withdraws it).
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

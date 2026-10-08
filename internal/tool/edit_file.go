@@ -23,6 +23,8 @@ type EditFile struct {
 	// matching. It exists so the two can be measured against each other.
 	NoLines bool
 	Cache   *IOCache
+	// ThenRun advertises then_run (see ThenRunKey).
+	ThenRun bool
 }
 
 func (EditFile) Name() string { return "edit_file" }
@@ -61,13 +63,20 @@ func (t EditFile) Schema() json.RawMessage {
 ` + locator + `
 "new_string":{"type":"string","description":"The text to write. Pair it with old_string (or from_line/to_line) saying where it goes; new_string on its own is rejected"},
 "replace_all":{"type":"boolean","description":"Replace every occurrence (default false); only with old_string"},
-"edits":{"type":"array","description":"Several edits to this one file; use instead of a single edit when you have more than one change to make. Each item takes the same fields as above, and every edit must locate itself the same way — all by old_string, or all by line range","items":{
+` + t.thenRun() + `"edits":{"type":"array","description":"Several edits to this one file; use instead of a single edit when you have more than one change to make. Each item takes the same fields as above, and every edit must locate itself the same way — all by old_string, or all by line range","items":{
 "type":"object","properties":{
 ` + bare + `
 "new_string":{"type":"string"},
 "replace_all":{"type":"boolean"}},
 "required":["new_string"],"additionalProperties":false}}},
 "required":["path"],"additionalProperties":false}`)
+}
+
+func (t EditFile) thenRun() string {
+	if t.ThenRun {
+		return thenRunProp
+	}
+	return ""
 }
 
 type editPlan struct {

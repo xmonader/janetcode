@@ -403,8 +403,8 @@ func (b *agentBuilder) stepCore() error {
 		Log:      b.sess,
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
-			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
-			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files},
+			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"]},
+			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"]},
 			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb},
 			tool.JobTool{Jobs: d.jobs},
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},

@@ -224,9 +224,41 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	// took to answer would otherwise be charged to the tool. The meter
 	// rides on the context because tool calls can run concurrently.
 	ctx, wait := meterWaits(ctx)
+	var thenRun string
+	if editTool(u.Name) && !a.Off["thenrun"] {
+		thenRun, u.Input = tool.TakeThenRun(u.Input)
+	}
 	out, images, isErr, err := a.executeTool(ctx, u, emit)
 	a.stats.tool(u.Name, time.Since(start)-wait.total(), isErr || err != nil)
+	if thenRun != "" && err == nil {
+		out, err = a.runThenRun(ctx, u, thenRun, out, isErr, emit)
+	}
 	return out, images, isErr, err
+}
+
+// runThenRun runs an edit's then_run command (see tool.ThenRunKey) as a
+// bash call of its own, under a derived id, so it passes every gate a bash
+// call the model made directly would: the hooks, the permission rules and
+// the prompt, the sandbox, the shell cache. Its result is appended to the
+// edit's. An edit that failed runs nothing: the command was meant to check
+// a change that did not happen.
+func (a *Agent) runThenRun(ctx context.Context, u llm.Block, cmd, out string, editFailed bool, emit func(Event)) (string, error) {
+	if editFailed {
+		return out + "\n\n[then_run not run: the edit failed]", nil
+	}
+	if _, ok := a.Tools.Get("bash"); !ok {
+		return out + "\n\n[then_run not run: bash is not available in this session]", nil
+	}
+	input, _ := json.Marshal(map[string]string{"command": cmd})
+	run := llm.Block{Type: llm.BlockToolUse, ID: u.ID + "~then_run", Name: "bash", Input: input}
+	start := time.Now()
+	ctx, wait := meterWaits(ctx)
+	res, _, isErr, err := a.executeTool(ctx, run, emit)
+	a.stats.tool(run.Name, time.Since(start)-wait.total(), isErr || err != nil)
+	if err != nil {
+		return out, err
+	}
+	return out + "\n\n[then_run] $ " + cmd + "\n" + res, nil
 }
 
 // authorize is everything that has to happen before a tool call may run:

@@ -79,7 +79,7 @@ The names are the list `--eval-off` prints on a misspelling (and the
 usage string of the flag): `accept`, `coach`, `critic`, `extratools`,
 `faults`, `impact`, `intent`, `keeprevert`, `ladder`, `lineedit`, `loops`,
 `memoryrank`, `mermaid`, `opentodos`, `oversized`, `plan`, `proof`, `protected`, `prune`, `recipe`,
-`repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `syntax`, `todo`, `undoabout`,
+`repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `syntax`, `thenrun`, `todo`, `undoabout`,
 `verdict`, `verify`, `working`. The variant name is recorded in the results file so
 a comparison says what it compared. The same names work as
 `JANETCODE_OFF=script` for a real session.

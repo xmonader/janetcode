@@ -464,6 +464,13 @@ second line: the reach of the change, such as
 `changes Parse (func) · used 14 times in 6 files · tests: parse_test.go, cli_test.go · checks: go test ./...`
 (see [The reach of an edit](#the-reach-of-an-edit)).
 
+An edit can carry a `then_run` command — usually the tests — that runs
+once the edit has landed, so the change and its check take one round trip
+instead of two. The command is put to you as an ordinary `bash` call with
+its own prompt, rules, sandbox and hooks; approving the edit does not
+approve it. A failed edit runs nothing. `JANETCODE_OFF=thenrun` withdraws
+the field.
+
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. `ctrl+s` instead hands what you typed to the turn that is
 running — the model reads it before its next step. The prompt names both
