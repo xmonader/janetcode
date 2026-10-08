@@ -299,3 +299,25 @@ func TestAnOpenPlanSendsTheTurnBackOnce(t *testing.T) {
 		t.Fatal("a finished plan held the turn")
 	}
 }
+
+// A turn that edited and then saw its checks pass has done the work; open
+// steps left in its plan are bookkeeping, and the turn is not sent back.
+func TestAnOpenPlanDoesNotHoldAGreenTurn(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	a.turnN = 1
+	todo := &TodoTool{Parent: a}
+	plan := `{"todos":[{"text":"add the parser","status":"completed"},{"text":"wire the CLI flag","status":"in_progress"}]}`
+	if _, err := todo.Run(context.Background(), json.RawMessage(plan)); err != nil {
+		t.Fatal(err)
+	}
+	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: 1, CallID: "c1", Name: "edit_file", Arguments: `{"path":"cli.go"}`, Output: "Edited cli.go"})
+	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: 1, CallID: "c2", Name: "bash", Arguments: `{"command":"go test ./..."}`, Output: "ok  pkg 0.1s\n[exit code 0]"})
+	if a.openTodoGate("Done: the flag is wired and the tests pass.", new(bool), func(Event) {}) {
+		t.Fatal("a green turn was sent back over its plan's bookkeeping")
+	}
+	// Edited again after the check: the plan holds it once more.
+	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: 1, CallID: "c3", Name: "edit_file", Arguments: `{"path":"cli.go"}`, Output: "Edited cli.go"})
+	if !a.openTodoGate("Done.", new(bool), func(Event) {}) {
+		t.Fatal("an edit after the last check let the open plan through")
+	}
+}

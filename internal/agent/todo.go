@@ -390,6 +390,13 @@ func (a *Agent) openTodoGate(text string, nudged *bool, emit func(Event)) bool {
 	if len(open) == 0 {
 		return false
 	}
+	// A turn that edited, ran its checks after the last edit and saw every
+	// one pass has finished the work; steps still open are the plan's
+	// bookkeeping lagging behind it. Sending that back cost two calls to
+	// tick boxes (effbench a-build-incremental).
+	if o := a.Outcome(); o.Edited > 0 && o.Ran > 0 && o.Failed == 0 && !o.EditedAfterCheck {
+		return false
+	}
 	*nudged = true
 	steps := make([]string, 0, len(open))
 	for _, t := range open {
