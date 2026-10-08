@@ -35,6 +35,9 @@ and measurements behind each round are in `docs/notes/history.md`.
 - A model's shell commands no longer inherit `OLDPWD`, the directory
   janetcode was started from: `cd "$OLDPWD"` was one step out of the
   workspace.
+- A reply cut off at the output token limit before it called a tool no
+  longer ends the turn as done with an empty answer: the model is told and
+  asked to act, at most twice a turn.
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

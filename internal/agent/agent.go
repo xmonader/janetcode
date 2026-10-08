@@ -563,6 +563,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			// run, but they are in the history and must be answered, or
 			// the next request is refused for an unpaired tool_use.
 			a.answerUnrun(resp.Message.ToolUses(), fmt.Sprintf("the reply stopped (%s) instead of asking for tools", resp.StopReason), emit)
+			if a.continueCutReply(resp, &gates, emit) {
+				continue
+			}
 			if a.finishTurn(ctx, resp, &gates, emit) {
 				return nil
 			}
@@ -582,7 +585,7 @@ type turnGates struct {
 	stops, needs, corrections int
 	verify, accept            gateState
 	acceptNudged, todoNudged  bool
-	diagRounds                int
+	diagRounds, cutReplies    int
 }
 
 // openTurn is everything that has to happen once, before the first model
@@ -776,6 +779,26 @@ func (a *Agent) refuseTruncatedCalls(resp *llm.Response, emit func(Event)) bool 
 	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
 	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 	a.stepRoute.prevMechanical = false
+	return true
+}
+
+// maxCutReplies bounds how often one turn is sent back for a reply the
+// output limit cut off.
+const maxCutReplies = 2
+
+// continueCutReply sends the model back when its reply hit the output
+// limit without calling a tool. Such a reply is not an answer: usually the
+// model spent the whole budget planning in its reasoning (a whole small
+// repository in view invites designing everything up front), and ending
+// the turn there reported an empty result as a success. It reports whether
+// the turn goes on.
+func (a *Agent) continueCutReply(resp *llm.Response, g *turnGates, emit func(Event)) bool {
+	if resp.StopReason != llm.StopMaxTokens || len(resp.Message.ToolUses()) > 0 || g.cutReplies >= maxCutReplies {
+		return false
+	}
+	g.cutReplies++
+	emit(Event{Kind: EvNotice, Text: "the reply hit the output limit before it acted; asking the model to go on"})
+	a.appendHarnessText("[harness] Your last reply was cut off at the output token limit before it called a tool or finished. If you were planning, stop: take the next step now with a tool call and keep your reasoning short. If you were writing the answer, continue from where it stopped.")
 	return true
 }
 
