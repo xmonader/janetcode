@@ -76,3 +76,12 @@ func TestScrubEnvDropsEveryProviderKey(t *testing.T) {
 		}
 	}
 }
+
+// A model's command is not handed the directory janetcode started in.
+func TestScrubEnvDropsOLDPWD(t *testing.T) {
+	for _, kv := range ScrubEnv([]string{"OLDPWD=/home/u/elsewhere", "HOME=/home/u"}) {
+		if strings.HasPrefix(kv, "OLDPWD=") {
+			t.Fatalf("OLDPWD passed through: %q", kv)
+		}
+	}
+}

@@ -101,7 +101,11 @@ func ScrubEnv(env []string) []string {
 	}
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
-		if isSecretName(name) || forced[name] {
+		// OLDPWD is the directory janetcode was started from, which is
+		// not the workspace: "cd $OLDPWD" took a model's command out of
+		// the project in one step (hero_agent's effbench caught one
+		// running pytest over a whole checkout that way).
+		if isSecretName(name) || forced[name] || name == "OLDPWD" {
 			continue
 		}
 		if dropLCAll && (name == "LC_ALL" || name == "LC_CTYPE") {

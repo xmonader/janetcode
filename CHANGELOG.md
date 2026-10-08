@@ -32,6 +32,9 @@ and measurements behind each round are in `docs/notes/history.md`.
 - The system prompt asks for short reasoning with no code drafted in it:
   code written once in thought and again in the tool call is paid for
   twice.
+- A model's shell commands no longer inherit `OLDPWD`, the directory
+  janetcode was started from: `cd "$OLDPWD"` was one step out of the
+  workspace.
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The
