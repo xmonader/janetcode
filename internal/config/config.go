@@ -574,8 +574,8 @@ type Overrides struct {
 }
 
 const (
-	DefaultProvider  = "anthropic"
-	DefaultModel     = "claude-opus-5"
+	DefaultProvider = "anthropic"
+	DefaultModel    = "claude-opus-5"
 	// DefaultMaxTokens is a ceiling, not a target: a reply is billed for
 	// what it writes. 16,000 cut a reasoning model's first reply over a
 	// whole small repository (effbench, MiMo V2.6 Flash: 190 s of
