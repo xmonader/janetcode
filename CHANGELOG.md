@@ -29,6 +29,9 @@ and measurements behind each round are in `docs/notes/history.md`.
   and `tool_search` lists every loadable tool rather than only the ones
   still deferred. A query that names a tool exactly loads only that tool,
   and asking for a loaded one loads nothing.
+- The system prompt asks for short reasoning with no code drafted in it:
+  code written once in thought and again in the tool call is paid for
+  twice.
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The
