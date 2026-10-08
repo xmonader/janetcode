@@ -1,0 +1,331 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "21-go-data-race",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 82400,
+    "input_tokens": {
+      "value": 4080,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 727,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41600,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00089956,
+      "set": true
+    },
+    "command": "janetcode-old -p `go test -race ./...` fails in this repository. Fix package counter so the race detector is happy and all tests pass. Do not modify counter_test.go. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] remembered counter-mutex-guarded-map (decision, project): Counter synchronizes its map with a mutex; Snapshot must return a copy, not the internal map.\n[memory] sleep remembered go-test-race-gate: Acceptance check in this repo is `go test -race ./...`; counter package must be race-free under it.",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "GMICloud",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "25-pagination-bugs",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 79156,
+    "input_tokens": {
+      "value": 4903,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1789,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001311948,
+      "set": true
+    },
+    "command": "janetcode-old -p `go test ./...` fails in this repository. Fix pager.go so every test passes. Do not modify pager_test.go. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] sleep remembered pager-test-constraint: pager_test.go must never be modified; fix pager.go to satisfy its expectations",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "GMICloud",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "51-price-chain-bug",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 113901,
+    "input_tokens": {
+      "value": 8541,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 5337,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 69888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 10,
+      "set": true
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0028857863999999997,
+      "set": true
+    },
+    "command": "janetcode-old -p `go test ./...` fails in package pricing. Two of the three tests are wrong and one already passes. Find the real causes and fix them so every test passes. Do not modify invoice_test.go, and keep gofmt happy. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] sleep remembered pricing-package-test-fix: Pricing package tests: fix real causes in discount.go/rates.go, never touch invoice_test.go",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "Novita",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "52-options-refactor",
+    "batch": 1,
+    "passed": false,
+    "reason": "check failed: exit status 1: # example.com/textpipe/hidden\n# [example.com/textpipe/hidden]\nvet: hidden/zz_hidden_test.go:12:12: undefined: norm.Default",
+    "wall_time_ms": 260558,
+    "input_tokens": {
+      "value": 2780,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 16200,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 21760,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.004986128,
+      "set": true
+    },
+    "command": "janetcode-old -p In this module `norm.Normalize(s string) string` lowercases, collapses runs of whitespace and trims. Refactor it to `norm.Normalize(s string, opt norm.Options) string`, where `Options` is a struct with exported bool fields `Lower`, `Collapse` and `StripPunct`, and add `norm.Default() norm.Options` returning Lower and Collapse true and StripPunct false. Apply the steps in this order: StripPunct deletes every ASCII punctuation byte (the 32 in !\"#$%\u0026'()*+,-./:;\u003c=\u003e?@[\\\\]^_`{|}~), then Collapse turns each run of whitespace into a single space, then Lower ASCII-lowercases; the ends are always trimmed, whatever the options. A zero Options therefore only trims. Then update every caller and every test in the module so `go vet ./...` and `go test ./...` pass and the existing call sites behave exactly as they do today. Keep the existing test functions; do not delete tests. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] sleep remembered norm-options-refactor-unrecorded: Requested norm.Options refactor left no code changes in this session's files",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "Novita",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "55-config-provenance",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 85866,
+    "input_tokens": {
+      "value": 8770,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 4162,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 82432,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0026239695999999996,
+      "set": true
+    },
+    "command": "janetcode-old -p `sh run.sh` runs this service with the staging profile and prints a timeout of 4500ms, but staging is supposed to run at 3000ms. Nothing in the repository contains the number 4500: work out where it comes from and make staging print `timeout_ms=3000` instead. Constraints: do not modify config/defaults.go; `APP_PROFILE=prod` must keep printing 3000; a profile that sets its own timeout_ms must still win (a profile file with only `{\"timeout_ms\": 1234}` must produce 1234); the scaling mechanism must survive, so a profile of `{\"timeout_ms\": 1000, \"timeout_scale\": 2}` must still produce 2000; `APP_TIMEOUT_MS` must still override everything; staging must keep region `eu` and retries must stay 3 everywhere. Then write into ANSWER.txt one single line, and nothing else, naming the config file and the key that multiplied the timeout, in the form `\u003cpath\u003e:\u003ckey\u003e` with the path relative to this directory. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] remembered staging-timeout-scale-layering (project, project): Effective staging timeout_ms = base.json 1500 × staging.json timeout_scale (now 2)\n[memory] sleep remembered staging-timeout-fix-unverified: Staging timeout fix (timeout_scale 3→2) was never runtime-verified; run.sh must print 3000ms",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "Novita",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "56-two-failures",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 49186,
+    "input_tokens": {
+      "value": 3809,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1113,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 40192,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 9,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000965476,
+      "set": true
+    },
+    "command": "janetcode-old -p `go test ./...` fails in package shop. Exactly two tests fail and their causes are unrelated to each other — fixing one will not fix the other, so find and fix both. Do not modify shop_test.go, keep the tests that already pass passing, and keep gofmt happy. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] sleep remembered shop-package-test-fixtures: Two independent failing tests in package shop; fix both, don't touch shop_test.go",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "GMICloud",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "59-memo-race",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 152881,
+    "input_tokens": {
+      "value": 5168,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2158,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 53504,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0014775712,
+      "set": true
+    },
+    "command": "janetcode-old -p `go test -race ./...` fails in package fetch. Make it pass: no data race, and the compute function must run exactly once per distinct key however many goroutines ask for it at the same time. The compute function is slow, and two different keys must still be computed at the same time: one lock held across the computation would be race-free and would compute once per key, and it is not good enough — a hidden test times eight distinct keys and fails a cache that serialises them. Keep the exported API (New, Get, Calls, All) as it is, keep All concurrent, and do not modify fetch_test.go. Keep gofmt happy. Run the race detector yourself before you finish; the tests are run twice, so an intermittent fix is not a fix. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] sleep remembered fetch-race-free-once-per-key: fetch package tests run with -race and require compute to run exactly once per key",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "Novita",
+      "id": "gen-"
+    }
+  },
+  {
+    "harness": "janetcode",
+    "task": "60-fence-aware-trim",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 78052,
+    "input_tokens": {
+      "value": 6286,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1157,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 55808,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0013670079999999999,
+      "set": true
+    },
+    "command": "janetcode-old -p `go test ./...` fails in package md: Clean does not yet do its job. Make every test pass without modifying md_test.go, and keep gofmt happy.\nClean's contract: it returns a slice of the same length, it never changes leading whitespace, and it removes trailing spaces and tabs from each line — except inside fenced code blocks. A line whose whitespace-trimmed form starts with ``` opens a fenced block and the next such line closes it; the opening fence line, the closing fence line and every line between them are returned byte for byte as they came in. A block that is never closed runs to the end of the document. Run the tests after your change: this contract has more than one part and the first thing that makes the failing test pass will not satisfy the rest. --yolo --output-format json --provider openai --model xiaomi/mimo-v2.6-flash --max-turns 40",
+    "stderr_excerpt": "[memory] sleep remembered md-tests-are-spec: In package md, md_test.go is the spec: satisfy it, never edit it, and keep gofmt clean",
+    "served": {
+      "model": "xiaomi/mimo-v2.6-flash",
+      "provider": "GMICloud",
+      "id": "gen-"
+    }
+  }
+]

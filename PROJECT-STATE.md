@@ -78,6 +78,12 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   broker's self-hosted routes (`deepseek-ai/DeepSeek-V4.1-Flash`,
   `XiaomiMiMo/MiMo-V2.6-Flash-RL`, `Qwen/Qwen3.8-27B-FP8`), one task at
   a time; ~45% of runs drop as INFRA (504 over mycelium).
+- Lean execution round 2026-10-08 (docs/benchmarks/lean-ab, ideas from
+  hero_agent's effbench): small repo inlined in turn 1, then_run, background
+  LSP checks, cache-stable tool loading, headless memory opt-in, cut-off
+  replies sent back. MiMo V2.6 Flash, Novita-only: calls −41%, wall −28%,
+  cost −12%, passes level. Inlining carries most of it. The broker mixes
+  upstreams (GMICloud writes ~3x less): compare on one `served.provider`.
 - A compiled agent loop (`run_plan`, explore-then-compile) was measured and
   rejected 2026-10-02 (docs/benchmarks/jit): models barely use it and it
   saves nothing; the code stays on branch development_jit. Before any live
