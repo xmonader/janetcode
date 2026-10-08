@@ -576,7 +576,12 @@ type Overrides struct {
 const (
 	DefaultProvider  = "anthropic"
 	DefaultModel     = "claude-opus-5"
-	DefaultMaxTokens = 16000
+	// DefaultMaxTokens is a ceiling, not a target: a reply is billed for
+	// what it writes. 16,000 cut a reasoning model's first reply over a
+	// whole small repository (effbench, MiMo V2.6 Flash: 190 s of
+	// reasoning thrown away), where pi runs at 32,768 and hero_agent at
+	// 40,960. A reply that hits it still raises it for the turn.
+	DefaultMaxTokens = 32768
 	DefaultMaxIter   = 50
 )
 
@@ -593,7 +598,7 @@ func Path() (string, error) {
 const Example = `{
   "provider": "anthropic",
   "model": "claude-opus-5",
-  "max_tokens": 16000,
+  "max_tokens": 32768,
   "effort": "high",
   "auto_approve": false,
   "max_iterations": 50,

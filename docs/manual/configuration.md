@@ -12,7 +12,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
 {
   "provider": "anthropic",
   "model": "claude-opus-5",
-  "max_tokens": 16000,
+  "max_tokens": 32768,
   "effort": "high",
   "auto_approve": false,
   "max_iterations": 50,

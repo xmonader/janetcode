@@ -219,7 +219,7 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 		CacheControl: sdk.NewCacheControlEphemeralParam(),
 	}
 	if params.MaxTokens <= 0 {
-		params.MaxTokens = 16000
+		params.MaxTokens = 32768
 	}
 	if req.System != "" {
 		params.System = systemBlocks(req.System)

@@ -58,6 +58,9 @@ and measurements behind each round are in `docs/notes/history.md`.
   `read_file`, `write_file`, `edit_file`, `bash`, `tool_search` — and
   lists the rest as loadable: 25 KB of tool schemas a request down to
   6.5 KB (`JANETCODE_OFF=headlesscore` keeps the full list).
+- The default output limit is 32,768 tokens (was 16,000), as pi's is: a
+  reasoning model's first reply over a small repository no longer runs
+  into it and is thrown away. It is a ceiling, billed only as used.
 - The open-plan gate lets a turn end whose checks all passed after its
   last edit: open steps then are the plan's bookkeeping, not unfinished
   work.
