@@ -65,6 +65,9 @@ type turnMonitor struct {
 	loopMu  sync.Mutex
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
+	// postDiag holds the language-server checks of this turn's edits
+	// that run beside it (see postdiag.go).
+	postDiag postDiag
 
 	advisorUses int32
 	// advisorForced counts the consults the harness bought this turn, as

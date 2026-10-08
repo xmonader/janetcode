@@ -582,6 +582,7 @@ type turnGates struct {
 	stops, needs, corrections int
 	verify, accept            gateState
 	acceptNudged, todoNudged  bool
+	diagRounds                int
 }
 
 // openTurn is everything that has to happen once, before the first model
@@ -594,6 +595,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	// First, so the checks run beside everything else that prepares the
 	// turn; nothing has changed the tree yet.
 	a.startBaseline(ctx)
+	a.resetDiagnostics()
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -800,6 +802,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	if a.openTodoGate(resp.Message.Text(), &g.todoNudged, emit) {
 		return false
 	}
+	if a.diagnosticsGate(&g.diagRounds, emit) {
+		return false
+	}
 	if !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
 		a.stepRoute.taint("a verification check failed and was sent back")
 		return false
@@ -873,6 +878,10 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	}
 	results, images, runErr := a.executeAll(ctx, uses, emit)
 	a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
+	if note, _ := a.collectDiagnostics(0); note != "" && len(results) > 0 {
+		results[len(results)-1].Text += "\n\n" + note
+		emit(Event{Kind: EvNotice, Text: "diagnostics: " + firstLine(note)})
+	}
 	if repeatNote != "" && len(results) > 0 {
 		results[len(results)-1].Text += repeatNote
 		emit(Event{Kind: EvNotice, Text: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(repeatNote), "[harness]"))})

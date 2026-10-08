@@ -267,6 +267,8 @@ func TestDiagnoseNoteFollowsFileEdits(t *testing.T) {
 	}}
 	a, _ := newAgent(t, f, nil)
 	a.AutoApprove = true
+	// The check inside the edit; postdiag_test.go covers the background one.
+	a.Off = map[string]bool{"asyncdiag": true}
 	var asked []string
 	a.Diagnose = func(_ context.Context, path string) string {
 		asked = append(asked, path)

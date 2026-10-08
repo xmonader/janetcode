@@ -19,6 +19,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   `.aiignore` exclude) rides whole in a new session's first message
   instead of the repository map, every file counted as read. The reads a
   coding turn opens with are gone (`JANETCODE_OFF=inline`).
+- Language-server checks after an edit run beside the turn instead of
+  inside the edit, which used to wait up to the server's timeout (8 s)
+  every time. Findings join the next step's results; errors still out
+  when the model says it is done send it back, at most twice a turn
+  (`JANETCODE_OFF=asyncdiag`).
 
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The

@@ -3085,13 +3085,21 @@ testing. Off by default until measured (`docs/benchmarks/orient-baseline`);
 ### Diagnostics from language servers
 
 When a language server for the file is on PATH, every `write_file` or
-`edit_file` result carries its diagnostics, so the model sees a type error
-in the same step that caused it rather than at the next build:
+`edit_file` is checked by it, so the model sees a type error a step after
+the edit that caused it rather than at the next build. The check runs
+beside the turn — the edit returns at once instead of waiting up to the
+server's timeout — and its findings join the tool results of the first
+step that finds it finished:
 
 ```
-[diagnostics]
+[diagnostics for internal/x/x.go, from the edit's background check]
 internal/x/x.go:14:9: error: cannot use "no" (untyped string constant) as int value in return statement (compile)
 ```
+
+A clean result is said only for a file whose last check had problems.
+When the model says it is done, checks still running are waited for (up
+to ten seconds), and errors they found send it back, at most twice a turn.
+`JANETCODE_OFF=asyncdiag` puts the check back inside the edit's result.
 
 gopls, pyright-langserver, typescript-language-server, rust-analyzer and
 clangd are used by extension; each starts on the first edit of a matching
