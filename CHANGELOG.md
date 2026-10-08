@@ -5,6 +5,12 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Lean execution (2026-10-08)
+- A headless `-p` run no longer extracts memory or consolidates the
+  session at the end unless the config says `"memory": true`. Those were
+  two full-history model calls after the answer, on every run that changed
+  a file, and the caller waited for both.
+
 ### Parity with qwengo (2026-10-06)
 - `--json-schema <json|@file>`: a headless answer as validated JSON. The
   model delivers it through a `structured_output` tool that janetcode

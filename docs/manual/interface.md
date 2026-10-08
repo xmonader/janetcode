@@ -1016,7 +1016,9 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   that may also replace an entry that became wrong. Duplicates and
   near-duplicates merge instead of piling up. It records a preference only
   when you stated it as lasting, not an instruction for the task at hand. `"memory": false` turns it
-  off; `/remember` and the tool still work.
+  off; `/remember` and the tool still work. A headless `-p` run skips it
+  (and the session-end consolidation) unless the config says
+  `"memory": true`: both are model calls the caller would wait for.
 - **A credential is never remembered.** An entry whose text holds
   something API-key-shaped — a vendor key, a private-key block, a JWT, a
   long opaque value assigned to something called a secret — is refused

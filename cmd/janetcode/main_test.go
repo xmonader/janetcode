@@ -68,6 +68,10 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	t.Chdir(work)
+	// A headless run extracts memory only when the config turns it on.
+	cfgDir := filepath.Join(home, ".config", "janetcode")
+	os.MkdirAll(cfgDir, 0o755)
+	os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{"memory": true}`), 0o600)
 
 	stdout, stderr := captureStd(t)
 	// --trust instructions: the project's skill below is let in only

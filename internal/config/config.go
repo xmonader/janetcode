@@ -188,7 +188,10 @@ type Config struct {
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
-	// that changed something; nil means on. /remember always works.
+	// that changed something; nil means on in interactive sessions and off
+	// in a headless -p run, where the extraction and the session-end
+	// consolidation are two full-history model calls the caller waits for.
+	// /remember always works.
 	Memory *bool `json:"memory,omitempty"`
 	// MemoryConfirm holds every memory the model or the extractor writes
 	// as pending until the user approves it (/memory pending); what the
@@ -434,6 +437,10 @@ func (c *Config) StreamLimits() llm.StreamLimits {
 
 // AutoMemory reports whether memory is extracted automatically.
 func (c *Config) AutoMemory() bool { return c.Memory == nil || *c.Memory }
+
+// AutoMemoryHeadless reports whether a headless -p run extracts memory:
+// only when the config turns it on explicitly.
+func (c *Config) AutoMemoryHeadless() bool { return c.Memory != nil && *c.Memory }
 
 // ShowHints reports whether one-time feature hints are enabled.
 func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }

@@ -291,7 +291,7 @@ func (r *root) headlessMode() error {
 	err := headless.Run(ctx, headless.Options{
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
-		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
+		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemoryHeadless(),
 		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, JSONSchema: schema, Recover: o.recoverTurn,
 	})
 	finish(err)
