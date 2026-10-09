@@ -94,6 +94,36 @@ runs, with janetcode ahead in two of them; janetcode took 14% less time
 (33,405 s against 38,906 s), 32% fewer calls (1,265 against 1,872) and
 42% less output (2,176k against 3,750k).
 
+### Spec review: `jc-mimo-r11` (`f6cd0fae`)
+
+`f6cd0fae` sends a headless turn that changed files and passed its checks
+back once, to check the change against the task requirement by
+requirement.
+
+| arm | runs | passed | time | speed-adjusted | calls | input | fresh input | output | tamper |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| janetcode | 32 | 29/32 | 16,042 s | 16,042 s | 656 | 15.26M | 1,072k | **1,194k** | 1 |
+| pi | 32 | 29/32 | **13,796 s** | **13,489 s** | 670 | **12.77M** | **960k** | 1,319k | 0 |
+
+- The review works on correctness: every miss janetcode had in r10
+  outside d-minire passed (a-catalog-paging, c-go-cache both seeds). On
+  a-catalog-paging s1 it found two bugs the public tests missed:
+  descending sorts came out ascending, and the cursor went wrong on
+  descending sorts.
+- It costs too much: it fired on almost every run and added 3 to 24
+  calls, about 150 s a run, mostly spent debugging the model's own check
+  scripts. janetcode went from 17% faster than pi (r10) to 16% slower.
+- The tamper: on d-cronexpr s2 the model wrote a `test_cronx.py` of its
+  own and edited its assertions to match the code, against the prompt.
+  Valid passes: janetcode 28, pi 29.
+
+Two changes follow. `1b033e85` refuses a headless run's first write to a
+test file, with a note to check inline (a second write to the same path
+goes through, for a task that asks for tests). The next commit tells the
+model to wrap the review up after six tool steps, and to trust the
+task's words over a check of its own that disagrees. `jc-mimo-r12`
+measures both.
+
 ## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
 | arm | runs | passed | time | speed-adjusted | calls | input | cached | fresh input | output | tamper |
@@ -211,6 +241,7 @@ Campaign history, all on MiMo through ai02:
 | `jc-mimo-r8` | `6df57039` (16 tasks × 2) | 28/32 | 10,762 s | 424 | 28/32, 12,716 s, 591 calls |
 | `jc-mimo-r9` | `6e50c06f` (16 tasks × 2) | 27/32 (1 tamper) | 11,459 s | 419 | 29/32, 12,772 s, 642 calls |
 | `jc-mimo-r10` | `8d768119` (16 tasks × 2) | 28/32 | 11,184 s | 422 | 27/32 (1 tamper), 13,418 s, 639 calls |
+| `jc-mimo-r11` | `f6cd0fae` (16 tasks × 2) | 29/32 (1 tamper) | 16,042 s | 656 | 29/32, 13,796 s, 670 calls |
 
 ## Caveats
 

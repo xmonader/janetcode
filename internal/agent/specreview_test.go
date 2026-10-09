@@ -54,3 +54,22 @@ func TestSpecReviewSkipsUncheckedTurns(t *testing.T) {
 		}
 	}
 }
+
+// The review's sixth tool step carries the note to wrap up.
+func TestSpecReviewWrapsUpAfterItsSteps(t *testing.T) {
+	a := &Agent{SpecReview: true}
+	a.reviewSteps = -1
+	if a.reviewStepNote() != "" || a.reviewSteps != -1 {
+		t.Fatal("counted a step before the review")
+	}
+	var reviewed bool
+	if !a.specReview(TurnOutcome{Verdict: VerdictVerified}, &reviewed, func(Event) {}) {
+		t.Fatal("a verified turn was not reviewed")
+	}
+	for i := 1; i <= maxReviewSteps+2; i++ {
+		got := a.reviewStepNote()
+		if (got != "") != (i == maxReviewSteps) {
+			t.Fatalf("step %d note = %q", i, got)
+		}
+	}
+}

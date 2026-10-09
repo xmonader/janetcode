@@ -77,6 +77,9 @@ type turnMonitor struct {
 	// run, until the note saying so goes out with their results.
 	burstRan    int
 	burstRepeat bool
+	// reviewSteps counts the tool steps since the spec review sent the
+	// turn back, -1 before it does (see specreview.go).
+	reviewSteps int
 	// postDiag holds the language-server checks of this turn's edits
 	// that run beside it (see postdiag.go).
 	postDiag postDiag
