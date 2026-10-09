@@ -65,10 +65,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   `JANETCODE_SYSTEM_MD` still replaces either).
 - A headless reply that has reasoned past ~10k tokens (32,000
   characters) without writing text or calling a tool is ended and the
-  model told to act, up to three times a turn. Over a whole small repository MiMo
-  planned the entire change first, 23–33k reasoning tokens on most first
-  replies, and two such replies used up b-shift-dst's 20-minute cap
-  (`JANETCODE_OFF=planbudget` turns it off).
+  model told to act, up to three times a turn. Over a whole small
+  repository MiMo planned the entire change first, 23–33k reasoning
+  tokens on most first replies, and two such replies used up
+  b-shift-dst's 20-minute cap (`JANETCODE_OFF=planbudget` turns it off).
 - The default output limit is 32,768 tokens (was 16,000), as pi's is: a
   reasoning model's first reply over a small repository no longer runs
   into it and is thrown away. It is a ceiling, billed only as used.
