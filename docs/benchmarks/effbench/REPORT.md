@@ -45,6 +45,52 @@ cheating, and metered by the same code that measured herox and pi.
   herox missed that same rule on several models. `95dc3f87` adds one line
   for that class to the headless base; campaign `jc-mimo-r6` measures it.
 
+## After r4: held-out tasks and the plan budget (2026-10-09)
+
+Three campaigns, all MiMo through ai02, run partly in parallel (arms of
+one campaign always share the window; campaigns do not, so compare rows
+within a table, not across).
+
+**r6: the edge-rule line (`95dc3f87`), 8 tuning tasks × 2 seeds.**
+
+| arm | passed | time | calls | input | output |
+|---|--:|--:|--:|--:|--:|
+| janetcode | **15/16** | 9,051 s | **196** | **3.25M** | 534k |
+| pi | 14/16 | **8,519 s** | 316 | 5.31M | **487k** |
+
+**r5: held-out tasks, never looked at before (build `dedc0555`), 8 × 2.**
+
+| arm | passed | time | calls | input | output |
+|---|--:|--:|--:|--:|--:|
+| janetcode | 10/16 | **11,566 s** | **165** | **2.44M** | **623k** |
+| pi | **11/16** | 12,054 s | 327 | 5.14M | 669k |
+
+The calls and input advantage holds on unseen tasks: half of pi's. Passes
+and time do not separate the two. Both janetcode d-minire runs, and one
+b-shift-dst run, ended at the 20-minute cap after one to three calls: the
+first reply reasoned 23–33k tokens planning the whole change, a second
+reply planned again, and nothing was written. Every such reply in r4–r6
+was janetcode's first, the reply to the inlined repository; pi's median
+reply reasons about 100 tokens.
+
+**r7: the plan budget (`daf2d337`) on and off, same binary, 16 tasks × 1.**
+A headless reply that has reasoned past 32,000 characters (~10k tokens)
+without text or a tool call is ended and the model told to act.
+
+| arm | passed | time | calls | input | output |
+|---|--:|--:|--:|--:|--:|
+| janetcode, budget | **14/16** | 9,065 s | 198 | 3.32M | 456k |
+| janetcode, no budget | 13/16 | 9,093 s | 197 | 3.57M | 574k |
+| pi | 13/16 | **7,917 s** | 273 | 3.93M | **451k** |
+
+The budget cuts output 21% at no cost in passes. pi is faster in this
+window; 1,000 s of the gap is d-linediff and d-minire, where pi gave up in
+eight minutes (both failed) and janetcode ran to the cap (it passed
+d-linediff). In r7 the budget fired once a turn, and one d-minire reply
+told to act planned for ten minutes again, so `1d4d3e56` lets it fire up
+to three times a turn. Campaign `jc-mimo-r8` measures that build
+(`6df57039`) against pi on all 16 tasks × 2 seeds.
+
 ## What got janetcode there
 
 The first janetcode-against-pi run (`jc-mimo-r1`, build `13fd1857`):
@@ -68,6 +114,7 @@ In commit order:
 | `b634a73e` | default output limit 32,768 (was 16,000), as pi's | r3: 9 cut replies, 1,971 s and 144k output tokens thrown away |
 | `dedc0555` | a headless run starts from `prompt.Headless` | the full prompt reasoned 123k tokens against 83k on the same 7 runs |
 | `95dc3f87` | the headless base names ordered and "even if" rules | the one r4 miss |
+| `daf2d337`, `1d4d3e56` | a headless reply that reasons past ~10k tokens without acting is sent back to act | 23–33k-token first replies; three held-out runs ended at the cap without an edit |
 
 The round before it (`docs/benchmarks/lean-ab`) supplied the base:
 - small repositories inlined in the first message;
