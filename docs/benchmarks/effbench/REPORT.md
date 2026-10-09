@@ -44,6 +44,33 @@ tuning, × 2 seeds, janetcode `6df57039` and pi side by side:
   started 392 tool calls. `6e50c06f` caps a reply at 24 calls;
   `jc-mimo-r9` measures it.
 
+### The repeat run: `jc-mimo-r9` (`6e50c06f`, burst cap added)
+
+| arm | runs | passed | time | speed-adjusted | calls | input | fresh input | output | tamper |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| janetcode | 32 | 27/32 | **11,459 s** | **11,459 s** | **419** | **7.86M** | **688k** | **744k** | 1 |
+| pi | 32 | **29/32** | 12,772 s | 13,073 s | 642 | 10.27M | 893k | 1,241k | 0 |
+
+The efficiency result repeats (10% faster, 35% fewer calls, 40% less
+output), but pi passed two more, and janetcode's tamper flag makes its
+count 26/32 valid. Over r8 and r9 together: janetcode 55/64 (54 valid),
+pi 57/64 (56 valid), janetcode 13% faster. So the two are within noise
+on passes, not ahead.
+
+- The tamper: on b-invoice-totals s2 the model rewrote `test_public.py`
+  with `write_file` (same content, final newline lost) and wrote a test
+  file of its own. `58479681` tells a headless run to leave tests and the
+  brief alone and keep its own checks inline.
+- d-cronexpr s2 ended with no call completed: five replies in a row each
+  carried 24 calls, only 3–9 of them distinct, one group of edits and
+  checks written over and over, until the turn's 120-call ceiling.
+  `8d768119` ends a reply at its first exact repeat.
+- c-go-cache (both seeds) and d-cronexpr s1 each missed one hidden test.
+- janetcode passed d-minire once, the first pass of that task by either
+  agent in any campaign.
+
+`jc-mimo-r10` measures `8d768119` against pi on the same 16 × 2.
+
 ## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
 | arm | runs | passed | time | speed-adjusted | calls | input | cached | fresh input | output | tamper |
@@ -138,6 +165,8 @@ In commit order:
 | `95dc3f87` | the headless base names ordered and "even if" rules | the one r4 miss |
 | `daf2d337`, `1d4d3e56` | a headless reply that reasons past ~10k tokens without acting is sent back to act | 23–33k-token first replies; three held-out runs ended at the cap without an edit |
 | `6e50c06f` | a reply that keeps starting tool calls runs its first 24 | bursts of 37–392 calls, all refused at the limit, up to twelve minutes each |
+| `58479681` | the headless base says to leave tests and the brief alone | r9's tamper flag |
+| `8d768119` | a reply is ended at its first exact repeat of a call | r9 d-cronexpr: 120 calls, 3–9 distinct per reply, nothing passing |
 
 The round before it (`docs/benchmarks/lean-ab`) supplied the base:
 - small repositories inlined in the first message;
@@ -157,6 +186,7 @@ Campaign history, all on MiMo through ai02:
 | `jc-mimo-heldout-r5` | `dedc0555` (held-out tasks) | 10/16 | 11,566 s | 165 | 11/16, 12,054 s, 327 calls |
 | `jc-mimo-r7` | `daf2d337` budget / no budget (16 tasks × 1) | 14/16, 13/16 | 9,065 s, 9,093 s | 198, 197 | 13/16, 7,917 s, 273 calls |
 | `jc-mimo-r8` | `6df57039` (16 tasks × 2) | 28/32 | 10,762 s | 424 | 28/32, 12,716 s, 591 calls |
+| `jc-mimo-r9` | `6e50c06f` (16 tasks × 2) | 27/32 (1 tamper) | 11,459 s | 419 | 29/32, 12,772 s, 642 calls |
 
 ## Caveats
 
