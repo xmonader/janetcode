@@ -73,6 +73,9 @@ type turnMonitor struct {
 	// continueCutReply has answered it.
 	planCuts   int
 	planCutNow bool
+	// burstRan is how many calls of a reply the burst cap cut down were
+	// run, until the note saying so goes out with their results.
+	burstRan int
 	// postDiag holds the language-server checks of this turn's edits
 	// that run beside it (see postdiag.go).
 	postDiag postDiag

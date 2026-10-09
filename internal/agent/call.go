@@ -120,6 +120,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	a.prefix.note(a.turnN, system, a.Messages, defs)
 	a.usageMu.Unlock()
 	plan := a.newPlanWatch()
+	burst := a.newBurstWatch()
 	callCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	resp, err := prov.Stream(callCtx, llm.Request{
@@ -140,11 +141,18 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		if plan.note(e) {
 			cancel(errPlanBudget)
 		}
+		if burst.note(e) {
+			cancel(errBurstCap)
+		}
 	})
 	if ctx.Err() == nil && planBudgetCut(callCtx, err) {
 		a.planCuts++
 		a.planCutNow = true
 		resp, err = plan.cutReply(model), nil
+	}
+	if ctx.Err() == nil && err != nil && errors.Is(context.Cause(callCtx), errBurstCap) {
+		resp, err = burst.reply(model), nil
+		a.burstRan = len(resp.Message.ToolUses())
 	}
 	var u llm.Usage
 	if resp != nil {
