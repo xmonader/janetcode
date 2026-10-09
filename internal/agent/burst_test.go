@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -9,10 +10,12 @@ import (
 )
 
 // burster streams its first reply as n read_file calls, one after another,
-// and stops when the call is cancelled; later replies come from fake.
+// and stops when the call is cancelled; later replies come from fake. Call
+// i reads path(i).
 type burster struct {
 	fake
 	n       int
+	path    func(i int) string
 	started int
 }
 
@@ -26,7 +29,7 @@ func (f *burster) Stream(ctx context.Context, req llm.Request, emit func(llm.Eve
 		id := "c" + strings.Repeat("x", i)
 		emit(llm.Event{Type: llm.EventToolUseStart, Block: &llm.Block{Type: llm.BlockToolUse, ID: id, Name: "read_file"}})
 		emit(llm.Event{Type: llm.EventToolUseDelta, Text: `{"path":`})
-		emit(llm.Event{Type: llm.EventToolUseDelta, Text: `"a.txt"}`})
+		emit(llm.Event{Type: llm.EventToolUseDelta, Text: `"` + f.path(i) + `"}`})
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -38,7 +41,12 @@ func (f *burster) Stream(ctx context.Context, req llm.Request, emit func(llm.Eve
 // the calls that arrived whole are run and the model is told the rest was
 // dropped.
 func TestBurstCapRunsTheFirstCalls(t *testing.T) {
-	f := &burster{fake: fake{responses: []*llm.Response{nil, text("done")}}, n: 400}
+	f := &burster{fake: fake{responses: []*llm.Response{nil, text("done")}}, n: 400, path: func(i int) string {
+		if i == 0 {
+			return "a.txt"
+		}
+		return fmt.Sprintf("f%d.txt", i)
+	}}
 	a, _ := newAgent(t, &f.fake, nil)
 	a.Provider = f
 	if err := a.Run(context.Background(), "go", nil); err != nil {
@@ -80,5 +88,27 @@ func TestBurstReplyDropsACutCall(t *testing.T) {
 	}
 	if r := (&burstWatch{}).reply("m"); r.StopReason != llm.StopMaxTokens {
 		t.Fatalf("an empty cut reply stops with %s, want max tokens", r.StopReason)
+	}
+}
+
+// A reply that writes the same group of calls over and over is ended at
+// the first repeat, and each call of the group runs once.
+func TestBurstEndsAtTheFirstRepeat(t *testing.T) {
+	group := []string{"a.txt", "b.txt", "c.txt"}
+	f := &burster{fake: fake{responses: []*llm.Response{nil, text("done")}}, n: 400, path: func(i int) string { return group[i%3] }}
+	a, _ := newAgent(t, &f.fake, nil)
+	a.Provider = f
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.started != 5 {
+		t.Fatalf("the stream went on to call %d, want it ended when call 5 showed call 4 repeated call 1", f.started)
+	}
+	last := f.requests[1].Messages[len(f.requests[1].Messages)-1]
+	if n := len(last.Blocks); n != 3 {
+		t.Fatalf("tool results = %d, want the 3 distinct calls", n)
+	}
+	if got := last.Blocks[2].Text; !strings.Contains(got, "started repeating calls") {
+		t.Fatalf("last result = %q, want the repeat note", got)
 	}
 }

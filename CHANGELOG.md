@@ -73,8 +73,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   24 that arrived whole are run, with a note that the rest was dropped.
   Healthy replies on effbench made at most 15 calls; MiMo sometimes fell
   into bursts of 37 to 392 one-off checks that ran until the output limit
-  or the task's time cap, every call then refused as possibly cut short
-  (`JANETCODE_OFF=burstcap` turns it off).
+  or the task's time cap, every call then refused as possibly cut short.
+  A burst is usually one group of calls written over and over, so the
+  reply is also ended at its first exact repeat, and the group runs once
+  (`JANETCODE_OFF=burstcap` turns both off).
 - The default output limit is 32,768 tokens (was 16,000), as pi's is: a
   reasoning model's first reply over a small repository no longer runs
   into it and is thrown away. It is a ceiling, billed only as used.

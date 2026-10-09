@@ -966,10 +966,10 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		emit(Event{Kind: EvNotice, Text: planNote})
 	}
 	if a.burstRan > 0 && len(results) > 0 {
-		results[len(results)-1].Text += "\n\n" + burstNote(a.burstRan)
+		results[len(results)-1].Text += "\n\n" + burstNote(a.burstRan, a.burstRepeat)
 		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("the reply kept starting tool calls; ran its first %d and dropped the rest", a.burstRan)})
 	}
-	a.burstRan = 0
+	a.burstRan, a.burstRepeat = 0, false
 	tr := llm.ToolResultMessage(results...)
 	tr.Blocks = append(tr.Blocks, images...)
 	a.appendMessage(tr)

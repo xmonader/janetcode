@@ -152,7 +152,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	}
 	if ctx.Err() == nil && err != nil && errors.Is(context.Cause(callCtx), errBurstCap) {
 		resp, err = burst.reply(model), nil
-		a.burstRan = len(resp.Message.ToolUses())
+		a.burstRan, a.burstRepeat = len(resp.Message.ToolUses()), burst.repeat
 	}
 	var u llm.Usage
 	if resp != nil {
