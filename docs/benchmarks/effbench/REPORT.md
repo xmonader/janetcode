@@ -92,7 +92,7 @@ Over r8, r9 and r10 together (96 runs each): janetcode 83 passed, 82
 valid; pi 84 passed, 82 valid. Equal on valid passes over the three
 runs, with janetcode ahead in two of them; janetcode took 14% less time
 (33,405 s against 38,906 s), 32% fewer calls (1,265 against 1,872) and
-42% less output (2,180k against 3,750k).
+42% less output (2,176k against 3,750k).
 
 ## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
