@@ -58,6 +58,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   `read_file`, `write_file`, `edit_file`, `bash`, `tool_search` — and
   lists the rest as loadable: 25 KB of tool schemas a request down to
   6.5 KB (`JANETCODE_OFF=headlesscore` keeps the full list).
+- A headless run starts from a short base prompt (prompt.Headless, ~1 KB)
+  instead of the interactive instructions and the harness section, which
+  describe slash commands, plans, memory and approvals a run with nobody
+  at the terminal does not use (`JANETCODE_OFF=leanprompt` restores them;
+  `JANETCODE_SYSTEM_MD` still replaces either).
 - The default output limit is 32,768 tokens (was 16,000), as pi's is: a
   reasoning model's first reply over a small repository no longer runs
   into it and is thrown away. It is a ceiling, billed only as used.

@@ -90,6 +90,10 @@ func TestHeadlessSendsTheCodingCore(t *testing.T) {
 	if strings.Join(names, ",") != "bash,edit_file,read_file,tool_search,write_file" {
 		t.Fatalf("tools = %v", names)
 	}
+	sys := first["messages"].([]any)[0].(map[string]any)["content"].(string)
+	if !strings.HasPrefix(sys, "You are janetcode, a coding agent working in the user's repository.") || strings.Contains(sys, "# The harness you are running in") || !strings.Contains(sys, "# Environment") {
+		t.Fatalf("headless system prompt:\n%s", sys)
+	}
 	for _, loadable := range []string{"todo", "task", "glob", "grep"} {
 		if !strings.Contains(search, loadable) {
 			t.Fatalf("tool_search does not list %s: %q", loadable, search)

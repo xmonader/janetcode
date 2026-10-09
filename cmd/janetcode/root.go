@@ -144,6 +144,12 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		return r, err
 	}
 	promptOv.NoProject = o.safeMode
+	unattended := o.promptText != "" || o.inFormat == "stream-json"
+	if unattended && promptOv.Base == "" && !envOff()["leanprompt"] {
+		// A run with nobody at the terminal starts from the headless base
+		// (see prompt.Headless); JANETCODE_SYSTEM_MD still replaces it.
+		promptOv.Base = prompt.Headless
+	}
 	// A mode the managed policy disables is a usage error when asked for
 	// on the command line: quietly running with it off would be a run
 	// the caller did not ask for either.
@@ -160,7 +166,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		return r, err
 	}
 	r.gate = gate
-	deps := agentDeps{safe: o.safeMode, tools: filter, headless: o.promptText != "" || o.inFormat == "stream-json", gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
+	deps := agentDeps{safe: o.safeMode, tools: filter, headless: unattended, gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err
