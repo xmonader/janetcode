@@ -238,8 +238,12 @@ type Agent struct {
 	Off map[string]bool
 	// PlanBudget, when positive, is how many characters of reasoning a
 	// reply may stream before it writes text or calls a tool; past it the
-	// call ends and the model is told to act, once a turn (planbudget.go).
+	// call ends and the model is told to act, up to maxPlanCuts times a
+	// turn (planbudget.go).
 	PlanBudget int
+	// SpecReview, when set, sends a turn that changed files and passed its
+	// checks back once to hold the change against the task (specreview.go).
+	SpecReview bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -591,6 +595,7 @@ type turnGates struct {
 	verify, accept            gateState
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
+	specReviewed              bool
 }
 
 // openTurn is everything that has to happen once, before the first model
@@ -908,6 +913,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
 		a.appendHarnessText(outcome.StaleCheckNote())
+		return false
+	}
+	if a.specReview(outcome, &g.specReviewed, emit) {
 		return false
 	}
 	a.logOutcome(outcome)

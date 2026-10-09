@@ -77,6 +77,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   A burst is usually one group of calls written over and over, so the
   reply is also ended at its first exact repeat, and the group runs once
   (`JANETCODE_OFF=burstcap` turns both off).
+- A headless turn that changed files and passed its checks is sent back
+  once, to check the change against the task requirement by requirement
+  before it ends. effbench's remaining misses were stated rules the
+  public tests did not reach, such as price filters validated and never
+  applied (`JANETCODE_OFF=specreview` turns it off).
 - The default output limit is 32,768 tokens (was 16,000), as pi's is: a
   reasoning model's first reply over a small repository no longer runs
   into it and is thrown away. It is a ceiling, billed only as used.

@@ -500,6 +500,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Off = b.off
 	if b.d.headless {
 		ag.PlanBudget = planBudgetChars
+		ag.SpecReview = true
 	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = b.sb
