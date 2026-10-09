@@ -69,7 +69,30 @@ on passes, not ahead.
 - janetcode passed d-minire once, the first pass of that task by either
   agent in any campaign.
 
-`jc-mimo-r10` measures `8d768119` against pi on the same 16 × 2.
+### The third run: `jc-mimo-r10` (`8d768119`, repeat cut and the tests rule)
+
+| arm | runs | passed | time | speed-adjusted | calls | input | fresh input | output | tamper |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| janetcode | 32 | **28/32** | **11,184 s** | **11,184 s** | **422** | **8.02M** | **683k** | **708k** | **0** |
+| pi | 32 | 27/32 | 13,418 s | 13,892 s | 639 | 11.01M | 1,129k | 1,319k | 1 |
+
+- janetcode passes one more, and pi's tamper flag (d-cronexpr s1, graded
+  PASS) makes pi's count 26/32 valid: janetcode 28 valid against 26.
+- janetcode is 17% faster (19% speed-adjusted), makes 34% fewer calls,
+  sends 27% less input and 40% less fresh input, and writes 46% less
+  output.
+- Misses: janetcode a-catalog-paging s2 and c-go-cache s2 (hidden tests
+  after the public ones passed) and both d-minire runs; pi
+  b-invoice-totals s2, c-ts-jsonpatch s1 (at the cap), d-linediff s2 and
+  both d-minire runs.
+- No janetcode reply hit the 120-call turn ceiling; d-cronexpr passed on
+  both seeds.
+
+Over r8, r9 and r10 together (96 runs each): janetcode 83 passed, 82
+valid; pi 84 passed, 82 valid. Equal on valid passes over the three
+runs, with janetcode ahead in two of them; janetcode took 14% less time
+(33,405 s against 38,906 s), 32% fewer calls (1,265 against 1,872) and
+42% less output (2,180k against 3,750k).
 
 ## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
@@ -187,6 +210,7 @@ Campaign history, all on MiMo through ai02:
 | `jc-mimo-r7` | `daf2d337` budget / no budget (16 tasks × 1) | 14/16, 13/16 | 9,065 s, 9,093 s | 198, 197 | 13/16, 7,917 s, 273 calls |
 | `jc-mimo-r8` | `6df57039` (16 tasks × 2) | 28/32 | 10,762 s | 424 | 28/32, 12,716 s, 591 calls |
 | `jc-mimo-r9` | `6e50c06f` (16 tasks × 2) | 27/32 (1 tamper) | 11,459 s | 419 | 29/32, 12,772 s, 642 calls |
+| `jc-mimo-r10` | `8d768119` (16 tasks × 2) | 28/32 | 11,184 s | 422 | 27/32 (1 tamper), 13,418 s, 639 calls |
 
 ## Caveats
 
