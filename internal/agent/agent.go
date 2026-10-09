@@ -605,7 +605,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.startBaseline(ctx)
 	a.resetDiagnostics()
 	a.outBoost = 0
-	a.planCut = false
+	a.planCuts, a.planCutNow = 0, false
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -820,7 +820,6 @@ func (a *Agent) maxTokens() int {
 func (a *Agent) noteCut(resp *llm.Response) {
 	if a.planCutNow {
 		// Not the output limit: the plan budget ended it (planbudget.go).
-		a.planCutNow = false
 		return
 	}
 	if resp.StopReason == llm.StopMaxTokens && a.maxTokens() < maxOutputBoost {
@@ -839,6 +838,13 @@ const maxCutReplies = 2
 // the turn there reported an empty result as a success. It reports whether
 // the turn goes on.
 func (a *Agent) continueCutReply(resp *llm.Response, g *turnGates, emit func(Event)) bool {
+	if a.planCutNow {
+		// The plan budget's cuts have a bound of their own.
+		a.planCutNow = false
+		emit(Event{Kind: EvNotice, Text: "the reply reasoned past the plan budget before it acted; asking the model to act"})
+		a.appendHarnessText(planBudgetNudge)
+		return true
+	}
 	if resp.StopReason != llm.StopMaxTokens || len(resp.Message.ToolUses()) > 0 || g.cutReplies >= maxCutReplies {
 		return false
 	}

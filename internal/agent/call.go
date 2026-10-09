@@ -142,9 +142,9 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		}
 	})
 	if ctx.Err() == nil && planBudgetCut(callCtx, err) {
-		a.planCut, a.planCutNow = true, true
+		a.planCuts++
+		a.planCutNow = true
 		resp, err = plan.cutReply(model), nil
-		emit(Event{Kind: EvNotice, Text: "the reply reasoned past the plan budget before it acted; asking the model to act"})
 	}
 	var u llm.Usage
 	if resp != nil {

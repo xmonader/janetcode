@@ -37,12 +37,13 @@ func (f *thinker) Stream(ctx context.Context, req llm.Request, emit func(llm.Eve
 }
 
 // A reply that reasons past the budget without acting is ended and the
-// model is told to act; the output limit is not raised for it, and the
-// budget is spent for the turn, so a second long plan runs to the end.
-func TestPlanBudgetEndsALongPlanOnce(t *testing.T) {
+// model is told to act, up to maxPlanCuts times a turn; the output limit
+// is not raised for it and the cut-reply bound is not spent on it. The
+// next turn has its budget back.
+func TestPlanBudgetEndsLongPlans(t *testing.T) {
 	f := &thinker{
-		fake:      fake{responses: []*llm.Response{nil, text("planned again"), nil, text("next turn")}},
-		reasoning: []int{50_000, 50_000, 50_000},
+		fake:      fake{responses: []*llm.Response{nil, nil, nil, text("planned at last"), nil, text("next turn")}},
+		reasoning: []int{50_000, 50_000, 50_000, 50_000, 50_000, 0},
 	}
 	a, _ := newAgent(t, &f.fake, nil)
 	a.Provider = f
@@ -50,24 +51,28 @@ func TestPlanBudgetEndsALongPlanOnce(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.requests) != 2 {
-		t.Fatalf("model calls = %d, want 2", len(f.requests))
+	if len(f.requests) != maxPlanCuts+1 {
+		t.Fatalf("model calls = %d, want %d", len(f.requests), maxPlanCuts+1)
 	}
-	if f.streamed[0] > 1_100 || f.streamed[1] != 50_000 {
-		t.Fatalf("reasoning streamed per call = %v, want the first ended near 1000 and the second whole", f.streamed)
+	for i := range maxPlanCuts {
+		if f.streamed[i] > 1_100 {
+			t.Fatalf("call %d streamed %d characters of reasoning, want it ended near 1000", i+1, f.streamed[i])
+		}
 	}
-	if got := diagLastText(f.requests[1]); !strings.Contains(got, "take the next step now") {
+	if f.streamed[maxPlanCuts] != 50_000 {
+		t.Fatalf("the call after %d cuts streamed %d, want it whole", maxPlanCuts, f.streamed[maxPlanCuts])
+	}
+	if got := diagLastText(f.requests[1]); !strings.Contains(got, "Stop planning") {
 		t.Fatalf("second request ends with %q", got)
 	}
 	if f.requests[1].MaxTokens != f.requests[0].MaxTokens {
 		t.Fatalf("output limit went %d -> %d; the budget is not the output limit", f.requests[0].MaxTokens, f.requests[1].MaxTokens)
 	}
-	// The next turn has a budget of its own.
 	if err := a.Run(context.Background(), "more", nil); err != nil {
 		t.Fatal(err)
 	}
-	if f.streamed[2] > 1_100 {
-		t.Fatalf("the next turn's first call streamed %d characters of reasoning, want it ended at the budget", f.streamed[2])
+	if f.streamed[4] > 1_100 {
+		t.Fatalf("the next turn's first call streamed %d characters of reasoning, want it ended at the budget", f.streamed[4])
 	}
 }
 

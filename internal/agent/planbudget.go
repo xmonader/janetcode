@@ -14,9 +14,16 @@ import (
 // message, a reasoning model tends to design the entire change before its
 // first tool call: on effbench MiMo spent 23–33k reasoning tokens, six to
 // eight minutes, on such a reply, and when one ran into the output limit
-// the next call wrote the code after a few hundred tokens of thought. The
-// budget applies once a turn: a model that plans long again after being
-// told to act gets to finish.
+// the next call wrote the code after a few hundred tokens of thought. Told
+// to act, MiMo sometimes planned for ten minutes again (d-minire), so the
+// budget holds for maxPlanCuts replies a turn; after that a reply plans as
+// long as the output limit lets it.
+
+// maxPlanCuts bounds how many replies of one turn the budget ends.
+const maxPlanCuts = 3
+
+// planBudgetNudge is what the model is told after a reply the budget ended.
+const planBudgetNudge = "[harness] You have been reasoning for a long time without acting, so that reply was stopped. Stop planning: make your first change now with a tool call, writing the code in the call rather than in your reasoning, and work out the rest from what the change and the tests show."
 
 // errPlanBudget is the cause a call is cancelled with when its reasoning
 // ran past the plan budget.
@@ -31,9 +38,9 @@ type planWatch struct {
 }
 
 // newPlanWatch returns the watch for the next call, or nil when the
-// budget is off or this turn has already used it.
+// budget is off or this turn has used up its cuts.
 func (a *Agent) newPlanWatch() *planWatch {
-	if a.PlanBudget <= 0 || a.planCut || a.Off["planbudget"] {
+	if a.PlanBudget <= 0 || a.planCuts >= maxPlanCuts || a.Off["planbudget"] {
 		return nil
 	}
 	return &planWatch{budget: a.PlanBudget}
