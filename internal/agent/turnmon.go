@@ -68,6 +68,9 @@ type turnMonitor struct {
 	// outBoost doubles the output limit for the rest of a turn each time a
 	// reply in it hit the limit (see maxTokens).
 	outBoost int
+	// planCut is set once the plan budget has ended a reply this turn;
+	// planCutNow until noteCut has seen that reply.
+	planCut, planCutNow bool
 	// postDiag holds the language-server checks of this turn's edits
 	// that run beside it (see postdiag.go).
 	postDiag postDiag

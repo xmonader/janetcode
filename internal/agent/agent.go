@@ -236,6 +236,10 @@ type Agent struct {
 	// routing never leaves Model, undo-about uses keyword overlap
 	// instead of the model, and mermaid is drawn as source.
 	Off map[string]bool
+	// PlanBudget, when positive, is how many characters of reasoning a
+	// reply may stream before it writes text or calls a tool; past it the
+	// call ends and the model is told to act, once a turn (planbudget.go).
+	PlanBudget int
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -601,6 +605,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.startBaseline(ctx)
 	a.resetDiagnostics()
 	a.outBoost = 0
+	a.planCut = false
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -813,6 +818,11 @@ func (a *Agent) maxTokens() int {
 // noteCut grows the output limit for the rest of the turn after a reply
 // that hit it.
 func (a *Agent) noteCut(resp *llm.Response) {
+	if a.planCutNow {
+		// Not the output limit: the plan budget ended it (planbudget.go).
+		a.planCutNow = false
+		return
+	}
 	if resp.StopReason == llm.StopMaxTokens && a.maxTokens() < maxOutputBoost {
 		a.outBoost++
 	}

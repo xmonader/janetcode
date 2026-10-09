@@ -498,6 +498,9 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
+	if b.d.headless {
+		ag.PlanBudget = planBudgetChars
+	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = b.sb
 	ag.Cron = b.cron
@@ -646,6 +649,11 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
 	return nil
 }
+
+// planBudgetChars is how much reasoning a headless reply may stream
+// before it acts: about 10k tokens, two to three minutes on MiMo. Past it
+// the reply is ended and the model told to act (agent/planbudget.go).
+const planBudgetChars = 32_000
 
 // headlessCore is what a headless run's requests carry: the coding loop.
 // Everything else stays loadable through tool_search.

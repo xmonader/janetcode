@@ -119,7 +119,10 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	a.usageMu.Lock()
 	a.prefix.note(a.turnN, system, a.Messages, defs)
 	a.usageMu.Unlock()
-	resp, err := prov.Stream(ctx, llm.Request{
+	plan := a.newPlanWatch()
+	callCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	resp, err := prov.Stream(callCtx, llm.Request{
 		Model:     model,
 		System:    system,
 		Messages:  a.bridgeImages(ctx, a.Messages, model, emit),
@@ -134,7 +137,15 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 			firstToken = time.Now()
 		}
 		forward(e, emit)
+		if plan.note(e) {
+			cancel(errPlanBudget)
+		}
 	})
+	if ctx.Err() == nil && planBudgetCut(callCtx, err) {
+		a.planCut, a.planCutNow = true, true
+		resp, err = plan.cutReply(model), nil
+		emit(Event{Kind: EvNotice, Text: "the reply reasoned past the plan budget before it acted; asking the model to act"})
+	}
 	var u llm.Usage
 	if resp != nil {
 		u = resp.Usage
