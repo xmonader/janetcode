@@ -82,6 +82,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   before it ends. effbench's remaining misses were stated rules the
   public tests did not reach, such as price filters validated and never
   applied (`JANETCODE_OFF=specreview` turns it off).
+- A headless run's first write to a test file is refused with a note to
+  keep its own checks inline; the same write again goes through, for a
+  task that asks for tests. MiMo rewrote an existing test file once and
+  wrote and loosened a test file of its own once, each a tamper flag on
+  a run that passed (`JANETCODE_OFF=testguard` turns it off).
 - The default output limit is 32,768 tokens (was 16,000), as pi's is: a
   reasoning model's first reply over a small repository no longer runs
   into it and is thrown away. It is a ceiling, billed only as used.

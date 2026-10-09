@@ -334,6 +334,10 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			return nil, reason, nil
 		}
 	}
+	if reason := a.testFileDenial(*u); reason != "" {
+		basis = "test guard"
+		return nil, reason, nil
+	}
 	subject, verdict, rule, hard := a.ruleDecision(u)
 	// The hard deny tier: a command that destroys the machine is refused
 	// before the rules are consulted at all, so no allow rule and no mode

@@ -244,6 +244,10 @@ type Agent struct {
 	// SpecReview, when set, sends a turn that changed files and passed its
 	// checks back once to hold the change against the task (specreview.go).
 	SpecReview bool
+	// TestGuard, when set, refuses the first write to each test file
+	// (testguard.go).
+	TestGuard   bool
+	testGuarded map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
