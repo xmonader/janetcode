@@ -22,7 +22,29 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
-## Result (campaign `jc-mimo-r4`, 2026-10-09)
+## Result (campaign `jc-mimo-r8`, 2026-10-09)
+
+All 16 tasks, the default subset and 8 held-out tasks never used for
+tuning, × 2 seeds, janetcode `6df57039` and pi side by side:
+
+| arm | runs | passed | time | speed-adjusted | calls | input | cached | fresh input | output | tamper |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| janetcode | 32 | **28/32** | **10,762 s** | **10,762 s** | **424** | **7.71M** | 91% | **702k** | **724k** | **0** |
+| pi | 32 | **28/32** | 12,716 s | 12,864 s | 591 | 8.06M | 90% | 767k | 1,190k | 1 |
+
+- Same passes; janetcode is 15% faster (16% speed-adjusted), makes 28%
+  fewer calls, sends 4% less input and 8% less fresh input, and writes
+  39% less output.
+- pi's one tamper flag is on a-http-ratelimit s1, graded PASS; counted
+  as invalid, pi has 27/32.
+- Misses: janetcode a-catalog-paging s1 and d-cronexpr s2 (one hidden
+  test each) and both d-minire runs; pi a-doc-undo s1, c-ts-jsonpatch s2
+  and both d-minire runs. Nobody has passed d-minire on MiMo here.
+- One janetcode d-minire run spent twelve minutes on a reply that
+  started 392 tool calls. `6e50c06f` caps a reply at 24 calls;
+  `jc-mimo-r9` measures it.
+
+## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
 | arm | runs | passed | time | speed-adjusted | calls | input | cached | fresh input | output | tamper |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
@@ -115,6 +137,7 @@ In commit order:
 | `dedc0555` | a headless run starts from `prompt.Headless` | the full prompt reasoned 123k tokens against 83k on the same 7 runs |
 | `95dc3f87` | the headless base names ordered and "even if" rules | the one r4 miss |
 | `daf2d337`, `1d4d3e56` | a headless reply that reasons past ~10k tokens without acting is sent back to act | 23–33k-token first replies; three held-out runs ended at the cap without an edit |
+| `6e50c06f` | a reply that keeps starting tool calls runs its first 24 | bursts of 37–392 calls, all refused at the limit, up to twelve minutes each |
 
 The round before it (`docs/benchmarks/lean-ab`) supplied the base:
 - small repositories inlined in the first message;
@@ -130,11 +153,16 @@ Campaign history, all on MiMo through ai02:
 | `jc-mimo-r1` | `13fd1857` | 13/15 | 6,843 s | 219 | 16/16, 6,570 s, 282 calls |
 | `jc-mimo-r3` | `f1226498` | 16/16 | 6,696 s | 188 | (pi from r1) |
 | `jc-mimo-r4` | `0f223ab3`, full / headless base | 16/16, 15/16 | 5,877 s, 5,520 s | 202, 166 | 16/16, 6,489 s, 336 calls |
+| `jc-mimo-r6` | `95dc3f87` | 15/16 | 9,051 s | 196 | 14/16, 8,519 s, 316 calls |
+| `jc-mimo-heldout-r5` | `dedc0555` (held-out tasks) | 10/16 | 11,566 s | 165 | 11/16, 12,054 s, 327 calls |
+| `jc-mimo-r7` | `daf2d337` budget / no budget (16 tasks × 1) | 14/16, 13/16 | 9,065 s, 9,093 s | 198, 197 | 13/16, 7,917 s, 273 calls |
+| `jc-mimo-r8` | `6df57039` (16 tasks × 2) | 28/32 | 10,762 s | 424 | 28/32, 12,716 s, 591 calls |
 
 ## Caveats
 
-- **Tuned on these tasks.** Every change was found in transcripts of these 8
-  tasks. The changes are general (edit handling, gates, tool list, output
+- **Tuned on these tasks.** Every change up to r4 was found in transcripts
+  of the 8 default tasks; r8 includes 8 held-out ones, though the plan
+  budget was itself found in held-out transcripts (r5). The changes are general (edit handling, gates, tool list, output
   limit, prompt length), but that is the same objection raised against
   herox's result. Campaign `jc-mimo-heldout-r5` runs janetcode against pi on 8
   other effbench tasks, two per group, that were never looked at: a-doc-undo,
