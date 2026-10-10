@@ -305,6 +305,24 @@ the record does not drift from compaction to compaction, and a model
 that answers in prose anyway has its text kept as notes. The eval
 switch `working` restores the old prose handoff note for comparison.
 
+The facts in that record are then held to the calls the harness watched,
+the way a turn's verdict holds the final answer. A fact that says the
+tests pass is judged by the last check that ran; one that says
+`parse_row is defined in ledger/parse.py` by the file as it is now; one
+that names a command in backticks by that command's last run. A fact
+with evidence ends with a pointer, `(evidence: ctx-14, call 7)`, that
+`expand_output {"id":"ctx-14","grep":"7"}` resolves; one nothing showed
+becomes `unverified: …`; one the evidence contradicts (tests said to pass
+whose last run was red, a name no longer in the file) is dropped, with a
+notice. Facts of any other shape (judgements, descriptions) pass through
+as written. A subagent's report gets the same check against the
+subagent's own calls before the parent reads it (its transcript is
+archived so the pointers resolve, and only when the report claims
+something checkable), and the summary a spec review ends on gets a
+notice for what it claims that no call showed. None of this calls a
+model, and none of it runs in a session that never compacts or delegates.
+`JANETCODE_OFF=claimcheck` turns it off.
+
 Edits are refused when a file changed on disk since the agent last read
 or wrote it (you edited it, a formatter ran, another session touched it):
 the model is told to read it again. Files it has never read are not

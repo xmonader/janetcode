@@ -656,6 +656,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if strings.TrimSpace(report) == "" {
 		report = "(the subagent finished without a report)"
 	}
+	report = t.Parent.checkSubagentReport(report, childID, child)
 	if wt != nil {
 		patch, stat, derr := wt.diff(context.WithoutCancel(ctx))
 		switch {

@@ -35,7 +35,7 @@ func elideAgent(t *testing.T, f *fake, gate ...string) (*Agent, string) {
 }
 
 // stepResults are the tool results of the nth tool step (0-based).
-func stepResults(t *testing.T, a *Agent, n int) []llm.Block {
+func elideStepResults(t *testing.T, a *Agent, n int) []llm.Block {
 	t.Helper()
 	for _, m := range a.Messages {
 		var res []llm.Block
@@ -56,9 +56,9 @@ func stepResults(t *testing.T, a *Agent, n int) []llm.Block {
 	return nil
 }
 
-func lastResult(res []llm.Block) string { return res[len(res)-1].Text }
+func elideLastResult(res []llm.Block) string { return res[len(res)-1].Text }
 
-func calls(blocks ...llm.Block) *llm.Response {
+func elideCalls(blocks ...llm.Block) *llm.Response {
 	return &llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: blocks}, StopReason: llm.StopToolUse}
 }
 
@@ -66,12 +66,12 @@ func elideUse(id, name, in string) llm.Block {
 	return llm.Block{Type: llm.BlockToolUse, ID: id, Name: name, Input: json.RawMessage(in)}
 }
 
-func bashIn(cmd string) string {
+func elideBashIn(cmd string) string {
 	b, _ := json.Marshal(map[string]string{"command": cmd})
 	return string(b)
 }
 
-func lines(t *testing.T, path string) int {
+func elideLines(t *testing.T, path string) int {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestElideRunsTheCheckAfterAnUncheckedEdit(t *testing.T) {
 	if err := a.Run(context.Background(), "go", emit); err != nil {
 		t.Fatal(err)
 	}
-	got := lastResult(stepResults(t, a, 0))
+	got := elideLastResult(elideStepResults(t, a, 0))
 	if !strings.Contains(got, "[harness] Checked after your edit") || !strings.Contains(got, "$ test -f x.txt — passed") {
 		t.Fatalf("result = %q", got)
 	}
@@ -115,11 +115,11 @@ func TestElideIsOffByDefault(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := lastResult(stepResults(t, a, 0)); strings.Contains(got, "[harness] Checked") {
+	if got := elideLastResult(elideStepResults(t, a, 0)); strings.Contains(got, "[harness] Checked") {
 		t.Fatalf("result = %q", got)
 	}
 	// The end-of-turn gate ran once; nothing else did.
-	if n := lines(t, filepath.Join(root, "runs.log")); n != 1 {
+	if n := elideLines(t, filepath.Join(root, "runs.log")); n != 1 {
 		t.Fatalf("check ran %d times, want 1 (the gate)", n)
 	}
 }
@@ -138,7 +138,7 @@ func TestElideShowsAFailureWithinItsBudget(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	got := lastResult(stepResults(t, a, 0))
+	got := elideLastResult(elideStepResults(t, a, 0))
 	note := got[strings.Index(got, "[harness] Checked"):]
 	if !strings.Contains(note, "failed (exit 1)") || !strings.Contains(note, "FAIL: TestX") || !strings.Contains(note, "bytes omitted") {
 		t.Fatalf("note = %q", note)
@@ -152,14 +152,14 @@ func TestElideShowsAFailureWithinItsBudget(t *testing.T) {
 // that failed, and a reply whose last change was not an edit.
 func TestElideLeavesOtherStepsAlone(t *testing.T) {
 	for name, step := range map[string]*llm.Response{
-		"checked in the same reply": calls(
+		"checked in the same reply": elideCalls(
 			elideUse("1", "write_file", `{"path":"x.txt","content":"v1"}`),
-			elideUse("2", "bash", bashIn("test -f x.txt")),
+			elideUse("2", "bash", elideBashIn("test -f x.txt")),
 		),
 		"edit failed": toolCall("1", "edit_file", `{"path":"a.txt","old_string":"not there","new_string":"x"}`),
-		"last change was the shell": calls(
+		"last change was the shell": elideCalls(
 			elideUse("1", "write_file", `{"path":"x.txt","content":"v1"}`),
-			elideUse("2", "bash", bashIn("mkdir -p sub")),
+			elideUse("2", "bash", elideBashIn("mkdir -p sub")),
 		),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -168,10 +168,10 @@ func TestElideLeavesOtherStepsAlone(t *testing.T) {
 			if err := a.Run(context.Background(), "go", nil); err != nil {
 				t.Fatal(err)
 			}
-			if got := lastResult(stepResults(t, a, 0)); strings.Contains(got, "[harness] Checked") {
+			if got := elideLastResult(elideStepResults(t, a, 0)); strings.Contains(got, "[harness] Checked") {
 				t.Fatalf("result = %q", got)
 			}
-			if n := lines(t, filepath.Join(root, "runs.log")); n > 1 {
+			if n := elideLines(t, filepath.Join(root, "runs.log")); n > 1 {
 				t.Fatalf("check ran %d times, want at most the gate's", n)
 			}
 		})
@@ -192,11 +192,11 @@ func TestElideNeverRunsAHeldOutCommand(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	got := lastResult(stepResults(t, a, 0))
+	got := elideLastResult(elideStepResults(t, a, 0))
 	if !strings.Contains(got, "$ test -f x.txt — passed") || strings.Contains(got, "hidden") || strings.Contains(got, "held-out") {
 		t.Fatalf("result = %q", got)
 	}
-	if n := lines(t, filepath.Join(root, "hidden.log")); n != 1 {
+	if n := elideLines(t, filepath.Join(root, "hidden.log")); n != 1 {
 		t.Fatalf("held-out command ran %d times, want 1 (the end-of-turn gate)", n)
 	}
 }
@@ -213,7 +213,7 @@ func TestElideWithOnlyHeldOutCommandsRunsNothing(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := lastResult(stepResults(t, a, 0)); strings.Contains(got, "[harness] Checked") {
+	if got := elideLastResult(elideStepResults(t, a, 0)); strings.Contains(got, "[harness] Checked") {
 		t.Fatalf("result = %q", got)
 	}
 }
@@ -228,18 +228,18 @@ func TestElideAnswersAnIdenticalRepeat(t *testing.T) {
 		text("done"),
 	}}
 	a, root := elideAgent(t, f, gate)
-	f.responses[1] = calls(elideUse("t2", "read_file", `{"path":"x.txt"}`), elideUse("t3", "bash", bashIn("cd "+root+" && "+gate+" 2>&1")))
+	f.responses[1] = elideCalls(elideUse("t2", "read_file", `{"path":"x.txt"}`), elideUse("t3", "bash", elideBashIn("cd "+root+" && "+gate+" 2>&1")))
 	log := &session.Memory{}
 	a.Log = log
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	res := stepResults(t, a, 1)
+	res := elideStepResults(t, a, 1)
 	if got := res[1].Text; !strings.HasPrefix(got, "[harness] Not run again") || !strings.Contains(got, "passed") {
 		t.Fatalf("repeat answered with %q", got)
 	}
 	// Elision once and the end-of-turn gate once: the repeat never ran.
-	if n := lines(t, filepath.Join(root, "runs.log")); n != 2 {
+	if n := elideLines(t, filepath.Join(root, "runs.log")); n != 2 {
 		t.Fatalf("check ran %d times, want 2", n)
 	}
 	var hit bool
@@ -258,17 +258,17 @@ func TestElideRepeatRunsAfterTheTreeMoved(t *testing.T) {
 	t.Run("an edit before it", func(t *testing.T) {
 		f := &fake{responses: []*llm.Response{
 			toolCall("t1", "write_file", `{"path":"x.txt","content":"v1"}`),
-			calls(elideUse("t2", "write_file", `{"path":"x.txt","content":"v2"}`), elideUse("t3", "bash", bashIn(gate))),
+			elideCalls(elideUse("t2", "write_file", `{"path":"x.txt","content":"v2"}`), elideUse("t3", "bash", elideBashIn(gate))),
 			text("done"),
 		}}
 		a, root := elideAgent(t, f, gate)
 		if err := a.Run(context.Background(), "go", nil); err != nil {
 			t.Fatal(err)
 		}
-		if got := stepResults(t, a, 1)[1].Text; strings.Contains(got, "Not run again") {
+		if got := elideStepResults(t, a, 1)[1].Text; strings.Contains(got, "Not run again") {
 			t.Fatalf("repeat after an edit answered from the cache: %q", got)
 		}
-		if n := lines(t, filepath.Join(root, "runs.log")); n != 3 {
+		if n := elideLines(t, filepath.Join(root, "runs.log")); n != 3 {
 			t.Fatalf("check ran %d times, want 3", n)
 		}
 	})
@@ -281,7 +281,7 @@ func TestElideRepeatRunsAfterTheTreeMoved(t *testing.T) {
 		}}
 		f := &fake{responses: []*llm.Response{
 			toolCall("t1", "write_file", `{"path":"x.txt","content":"v1"}`),
-			calls(elideUse("t2", "peek", `{}`), elideUse("t3", "bash", bashIn(gate))),
+			elideCalls(elideUse("t2", "peek", `{}`), elideUse("t3", "bash", elideBashIn(gate))),
 			text("done"),
 		}}
 		var a *Agent
@@ -290,21 +290,21 @@ func TestElideRepeatRunsAfterTheTreeMoved(t *testing.T) {
 		if err := a.Run(context.Background(), "go", nil); err != nil {
 			t.Fatal(err)
 		}
-		if got := stepResults(t, a, 1)[1].Text; strings.Contains(got, "Not run again") {
+		if got := elideStepResults(t, a, 1)[1].Text; strings.Contains(got, "Not run again") {
 			t.Fatalf("repeat after an outside change answered from the cache: %q", got)
 		}
 	})
 	t.Run("a different command", func(t *testing.T) {
 		f := &fake{responses: []*llm.Response{
 			toolCall("t1", "write_file", `{"path":"x.txt","content":"v1"}`),
-			toolCall("t2", "bash", bashIn(gate+" | tail -5")),
+			toolCall("t2", "bash", elideBashIn(gate+" | tail -5")),
 			text("done"),
 		}}
 		a, _ := elideAgent(t, f, gate)
 		if err := a.Run(context.Background(), "go", nil); err != nil {
 			t.Fatal(err)
 		}
-		if got := stepResults(t, a, 1)[0].Text; strings.Contains(got, "Not run again") {
+		if got := elideStepResults(t, a, 1)[0].Text; strings.Contains(got, "Not run again") {
 			t.Fatalf("a different command answered from the cache: %q", got)
 		}
 	})
@@ -316,7 +316,7 @@ func TestElideRepeatRunsAfterTheTreeMoved(t *testing.T) {
 func TestElideFallsBackToTheModelsOwnCheck(t *testing.T) {
 	script := func() []*llm.Response {
 		return []*llm.Response{
-			toolCall("t1", "bash", bashIn("test -f a.txt && echo 3 passed")),
+			toolCall("t1", "bash", elideBashIn("test -f a.txt && echo 3 passed")),
 			toolCall("t2", "write_file", `{"path":"x.txt","content":"v1"}`),
 			text("done"),
 		}
@@ -327,7 +327,7 @@ func TestElideFallsBackToTheModelsOwnCheck(t *testing.T) {
 	if err := a.Run(context.Background(), "go", emit); err != nil {
 		t.Fatal(err)
 	}
-	got := lastResult(stepResults(t, a, 1))
+	got := elideLastResult(elideStepResults(t, a, 1))
 	if !strings.Contains(got, "$ test -f a.txt && echo 3 passed — passed: 3 passed") {
 		t.Fatalf("result = %q", got)
 	}
@@ -347,7 +347,7 @@ func TestElideFallsBackToTheModelsOwnCheck(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := lastResult(stepResults(t, a, 1)); strings.Contains(got, "[harness] Checked") {
+	if got := elideLastResult(elideStepResults(t, a, 1)); strings.Contains(got, "[harness] Checked") {
 		t.Fatalf("ran the model's check without auto-approve: %q", got)
 	}
 	for _, q := range ap.asked {
@@ -465,8 +465,8 @@ func TestScreenElision(t *testing.T) {
 		}
 	}
 	edit := [3]string{"edit_file", `{"path":"a.py"}`, "Edited a.py"}
-	pytest := [3]string{"bash", bashIn("python -m pytest -q"), "3 passed"}
-	probe := [3]string{"bash", bashIn("python - <<'EOF'\nassert 1\nEOF"), ""}
+	pytest := [3]string{"bash", elideBashIn("python -m pytest -q"), "3 passed"}
+	probe := [3]string{"bash", elideBashIn("python - <<'EOF'\nassert 1\nEOF"), ""}
 	read := [3]string{"read_file", `{"path":"a.py"}`, "x"}
 	reply(1, pytest)                                           // the model's own check, learned
 	reply(1, edit)                                             // trigger: next is the same check alone

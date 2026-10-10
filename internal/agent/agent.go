@@ -940,6 +940,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	if a.specReview(outcome, &g.specReviewed, emit) {
 		return false
 	}
+	if g.specReviewed {
+		a.noteReviewClaims(resp.Message.Text(), emit)
+	}
 	a.logOutcome(outcome)
 	// A goal closed in a turn whose checks came back red is put back to
 	// active, once, so the loop answers for the red rather than stopping

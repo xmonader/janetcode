@@ -29,6 +29,18 @@ and measurements behind each round are in `docs/notes/history.md`.
   r12–r13 sessions 37% of edit-completing replies were followed by a
   check (kill line 60%) and 3.3% of model calls were check-only replies
   it could have removed, so it stays opt-in.
+- Claim-checked handoffs: the facts in the working-memory record written
+  at compaction are held to the calls the harness watched. A fact with
+  evidence carries a pointer `expand_output` resolves (`(evidence:
+  ctx-14, call 7)`), one nothing showed is marked `unverified:`, and one
+  the evidence contradicts (tests said to pass whose last run was red, a
+  name the file no longer holds) is dropped with a notice. A subagent's
+  report is checked the same way against its own calls before the parent
+  reads it, and the summary a spec review ends on gets a notice for what
+  no call showed. No model calls; nothing runs in a session that never
+  compacts or delegates (`JANETCODE_OFF=claimcheck`). Offline replay of
+  the 70 recorded compaction records: 18 of 606 facts (3%) were
+  unverified or contradicted.
 
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
