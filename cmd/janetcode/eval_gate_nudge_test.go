@@ -20,3 +20,15 @@ func TestWireEvalGateCarriesTheStaleCheckNudge(t *testing.T) {
 		}
 	}
 }
+
+// Round-trip elision is opt-in the same way: an arm that sets elide_checks
+// gets it on the eval agent, and one that does not is left without it.
+func TestWireEvalGateCarriesElideChecks(t *testing.T) {
+	for _, want := range []bool{false, true} {
+		ag := &agent.Agent{}
+		wireEvalGate(ag, t.TempDir(), &config.Config{ElideChecks: want}, map[string]bool{"decisions": true}, "")
+		if ag.ElideChecks != want {
+			t.Errorf("config elide_checks=%v reached the eval agent as %v", want, ag.ElideChecks)
+		}
+	}
+}

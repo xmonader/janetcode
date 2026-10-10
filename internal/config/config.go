@@ -187,6 +187,13 @@ type Config struct {
 	// everything that passed, passed against a tree the turn has since
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
+	// ElideChecks has the harness run the project's check after a step
+	// whose last change was an edit nothing checked, and hand the result
+	// to the model with that step's tool results, instead of waiting a
+	// round trip for the model to ask; a repeat of that exact command on
+	// an unchanged tree is answered from the result. Off by default: it
+	// changes what the model sees after every edit.
+	ElideChecks bool `json:"elide_checks,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

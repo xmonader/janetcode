@@ -81,6 +81,13 @@ var featureSwitches = []featureSwitch{
 		on:    func(cfg *config.Config) bool { return cfg.StaleCheckNudge },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
+	{
+		name:  "elide",
+		key:   "elide_checks",
+		what:  "the harness runs the check after an unchecked edit and hands over the result",
+		on:    func(cfg *config.Config) bool { return cfg.ElideChecks },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
 }
 
 // decisionSwitches builds the consumer switches from the config package's

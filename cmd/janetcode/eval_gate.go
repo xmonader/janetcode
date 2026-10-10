@@ -82,5 +82,8 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	// measured arm once while the eval agent never set it, so an arm that
 	// turns it on in the config now actually gets it.
 	ag.StaleCheckNudge = cfg.StaleCheckNudge
+	// Round-trip elision is opt-in for the same reason, and an arm that
+	// asks for it has to get it.
+	ag.ElideChecks = cfg.ElideChecks
 	settingsapply.WireDecisions(cfg, ag, off)
 }
