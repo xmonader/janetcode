@@ -19,6 +19,15 @@ and measurements behind each round are in `docs/notes/history.md`.
   idea passed, the offer would have been made by the harness: a
   precomputed diff in the edit result, applied with one confirmation, not
   a new tool the model has to choose.
+- A clean-room blind tester for headless runs, opt-in with
+  `"blind_tester": "on"` (or a slot: `cheap`, `strong`, `advisor`,
+  `main`): when a turn that changed files ends green, one model call that
+  sees only the task text and the project's file names, never the code or
+  the transcript, writes up to eight checks, one per rule the task states.
+  They run in a throwaway worktree; the turn goes back once told only
+  which rules failed, the failed checks are rerun after that round, and
+  the proof note records the result. `JANETCODE_OFF=blindtest` turns it
+  off.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's

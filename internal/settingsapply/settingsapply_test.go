@@ -154,6 +154,7 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"vision_model":  "no consumer yet: resolved through cfg.Slot wherever it is eventually read",
 		"screen_reader": "read via cfg.ScreenReaderOn() when the session picks its interface",
 		"conflict_exit": "read from cfg.ConflictExit when the agent is built: it adds a system prompt line, so it takes effect at the next session and never rewrites a cached prefix mid-session",
+		"blind_tester":  "read via cfg.BlindTesterModel() when a headless run or an eval arm is built; an interactive session has no blind tester to update",
 	}
 	for _, k := range config.SettableKeys {
 		if strings.HasPrefix(k, "voice.") {
