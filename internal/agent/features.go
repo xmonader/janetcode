@@ -60,6 +60,21 @@ func (a *Agent) EffortControlOn() bool {
 	return a.EffortControl
 }
 
+// SetLocalizeFailures turns failure localization on or off for the
+// red runs that follow.
+func (a *Agent) SetLocalizeFailures(on bool) {
+	a.featMu.Lock()
+	a.LocalizeFailures = on
+	a.featMu.Unlock()
+}
+
+// LocalizeOn is LocalizeFailures, safe to read while a turn runs.
+func (a *Agent) LocalizeOn() bool {
+	a.featMu.RLock()
+	defer a.featMu.RUnlock()
+	return a.LocalizeFailures
+}
+
 // SetAdvisorMode changes the forced-consult mode ("off" or "always") and
 // the per-turn cap; a cap of zero keeps the default.
 func (a *Agent) SetAdvisorMode(mode string, maxConsults int) {

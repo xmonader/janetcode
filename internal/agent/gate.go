@@ -107,6 +107,13 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	// it. It goes in before the feedback so the model reads the failure
 	// last, closest to its next call.
 	a.adviseOnGateFailure(ctx, feedback, emit)
+	// Which of the turn's hunks did it, worked out by the harness rather
+	// than left for the model to guess (see localize.go). Only on a
+	// repair round: a reminder of failures the turn did not cause
+	// returned above.
+	if res.Failed != "" {
+		feedback += a.localizeFailure(ctx, res.Output, emit)
+	}
 	a.appendHarnessText(feedback)
 	return true
 }

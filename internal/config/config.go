@@ -200,6 +200,12 @@ type Config struct {
 	// an unchanged tree is answered from the result. Off by default: it
 	// changes what the model sees after every edit.
 	ElideChecks bool `json:"elide_checks,omitempty"`
+	// LocalizeFailures attaches, to a red test run after a turn changed
+	// more than one hunk, the fewest of those hunks that still make the
+	// failing tests fail (delta debugging in a throwaway worktree) and
+	// the functions the failing tests ran ranked by Ochiai. Off by
+	// default: it reruns tests, up to a minute, while the model waits.
+	LocalizeFailures bool `json:"localize_failures,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

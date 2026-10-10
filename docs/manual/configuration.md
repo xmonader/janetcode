@@ -747,7 +747,7 @@ key=value` or through the two commands that group them:
 - `/features` lists the slots and the switches that use them --
   `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
   `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`),
-  `elide` (`elide_checks`) and the four decision consumers --
+  `elide` (`elide_checks`), `localize` (`localize_failures`) and the four decision consumers --
   with what each is set to and what still stands in its way.
   `/features <name> on|off` changes one.
 - `/jev` is the decisions block: see below.

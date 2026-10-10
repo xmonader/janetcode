@@ -3119,6 +3119,39 @@ with `mutate` gets no baseline, since the full run does not do mutation
 testing. Off by default until measured (`docs/benchmarks/orient-baseline`);
 `--eval-off baseline` turns it off for one run.
 
+#### Which hunk did it: `localize_failures`
+
+Off by default; `"localize_failures": true` (or `/features localize on`,
+or `--set localize_failures=true` for one headless run) turns it on.
+
+When a test run comes back red after the turn changed two or more hunks
+-- the gate's run, or the model's own `go test` through bash -- janetcode
+works out which of those hunks broke it before the model reads the
+failure. In a throwaway git worktree it puts the files the turn changed
+back as the turn found them, re-applies the turn's hunks in subsets and
+reruns only the failing tests, narrowing by delta debugging to the
+fewest hunks that still fail them. It then runs the failing package's
+tests one at a time with coverage and ranks the functions the failing
+tests executed by Ochiai suspiciousness. Both are appended to the failing
+output:
+
+```
+[localize] Of the 3 hunks this turn changed, 1 is enough to make TestMul fail on the code as the turn found it; with the other 2 hunks alone it passes (6 reruns in a clean copy).
+- hunk 2 of 3: calc/calc.go line 13
+    -	return a * b
+    +	return a + b
+Most suspicious functions (Ochiai, from 3 tests run alone with coverage):
+- 1.00 calc/calc.go:12 Mul (failing tests ran it 1, passing 0), edited this turn
+```
+
+Nothing is attached when the failing tests also fail without the turn's
+edits (the turn did not cause them), when the failure does not reproduce
+in the clean copy, or when the output names no test a known runner
+reports. The runner is `go test` for now. One localization is bounded to
+a minute and its text to 2 KB, a turn localizes at most three times, and
+the same edits failing the same tests are not localized twice. No model
+is called; the cost is the reruns, which the model waits for.
+
 ### Diagnostics from language servers
 
 When a language server for the file is on PATH, every `write_file` or

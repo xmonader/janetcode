@@ -95,6 +95,13 @@ var featureSwitches = []featureSwitch{
 		on:    func(cfg *config.Config) bool { return cfg.ElideChecks },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
+	{
+		name:  "localize",
+		key:   "localize_failures",
+		what:  "a red test run after a multi-hunk edit names the hunks that did it",
+		on:    func(cfg *config.Config) bool { return cfg.LocalizeFailures },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
 }
 
 // decisionSwitches builds the consumer switches from the config package's

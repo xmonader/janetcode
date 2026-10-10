@@ -798,7 +798,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			out, isErr = msg, true
 		}
 	}
+	// Read off the whole output before stash may archive it: the failing
+	// test lines are what localization starts from.
+	located := a.localizeBash(ctx, u.Name, u.Input, out, isErr, emit)
 	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
+	out += located
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}
