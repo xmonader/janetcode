@@ -109,6 +109,8 @@ var featureSwitches = []featureSwitch{
 		on:    func(cfg *config.Config) bool { return cfg.SubagentMerge },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
+	{name: "speculate", key: "speculate", what: "the predicted follow-up runs ahead on the cheap model; adopted if you send it", on: func(cfg *config.Config) bool { return cfg.Speculate }, value: func(_ *config.Config, on bool) string { return onOffWord(on) }},
+	{name: "plan-file", key: "plan_file", what: "your edits to .janetcode/plan.md reach the model between steps", on: func(cfg *config.Config) bool { return cfg.PlanFile }, value: func(_ *config.Config, on bool) string { return onOffWord(on) }},
 }
 
 // decisionSwitches builds the consumer switches from the config package's
