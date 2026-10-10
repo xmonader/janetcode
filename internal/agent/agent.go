@@ -189,6 +189,13 @@ type Agent struct {
 	VerifyBaseline bool
 	// baseline is this turn's pre-edit verification run.
 	baseline *baselineRun
+	// ElideChecks runs the project's check after a step whose last change
+	// was an unchecked edit and puts the result beside the step's tool
+	// results, saving the round trip the model would spend asking for it.
+	// Opt-in (config elide_checks). See elide.go.
+	ElideChecks bool
+	// elide is what round-trip elision carries between steps.
+	elide elideState
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.
@@ -619,6 +626,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	// turn; nothing has changed the tree yet.
 	a.startBaseline(ctx)
 	a.resetDiagnostics()
+	a.resetElide()
 	a.outBoost = 0
 	a.planCuts, a.planCutNow = 0, false
 	a.effort.start(a.Settings().Effort)
@@ -975,6 +983,11 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	}
 	results, images, runErr := a.executeAll(ctx, uses, emit)
 	a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
+	if runErr == nil && len(results) > 0 {
+		if note := a.elideAfterStep(ctx, uses, results, emit); note != "" {
+			results[len(results)-1].Text += "\n\n" + note
+		}
+	}
 	if note, _ := a.collectDiagnostics(0); note != "" && len(results) > 0 {
 		results[len(results)-1].Text += "\n\n" + note
 		emit(Event{Kind: EvNotice, Text: "diagnostics: " + firstLine(note)})

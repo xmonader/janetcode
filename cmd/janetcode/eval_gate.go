@@ -85,5 +85,8 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	// The effort controller likewise, so an arm that sets
 	// effort_control is the arm it says it is.
 	ag.EffortControl = cfg.EffortControl
+	// Round-trip elision is opt-in for the same reason, and an arm that
+	// asks for it has to get it.
+	ag.ElideChecks = cfg.ElideChecks
 	settingsapply.WireDecisions(cfg, ag, off)
 }

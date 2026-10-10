@@ -19,6 +19,16 @@ and measurements behind each round are in `docs/notes/history.md`.
   assistant event. Replayed offline over 184 recorded local sessions
   (888 calls), it would have asked for `low` on 90% of calls and changed
   the tier 0.25 times a turn on average.
+- `elide_checks` (off by default): after a step whose last change was a
+  file edit nothing checked, the harness runs the project's check itself
+  and hands the model the result with that step's tool results, a pass
+  as one line and a failure in full up to 4,000 bytes, instead of
+  waiting a round trip for the model to ask. A repeat of that exact
+  command on an unchanged tree is answered from the result and says so.
+  `--session-profile` prints its offline pre-screen: on the effbench
+  r12–r13 sessions 37% of edit-completing replies were followed by a
+  check (kill line 60%) and 3.3% of model calls were check-only replies
+  it could have removed, so it stays opt-in.
 
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the

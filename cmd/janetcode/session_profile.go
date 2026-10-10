@@ -172,6 +172,7 @@ func writeProfileTable(w io.Writer, byModel map[string]*agent.CallProfile, stale
 		fmt.Fprintf(w, "  wasted tool calls: %d of %d (%.1f%%) -- errored %d, loop %d, dead tail %d\n",
 			wasted, p.ToolCalls, profilePct(wasted, p.ToolCalls),
 			p.Waste[agent.WasteErrored], p.Waste[agent.WasteLoop], p.Waste[agent.WasteDeadTail])
+		writeElideScreen(w, p.Elide, p.ModelCalls)
 		writeProfileSpread(w, p.Points)
 		fmt.Fprintln(w)
 	}
@@ -260,4 +261,25 @@ func meanCI(vals []float64, resamples int, seed int64) (mean, lo, hi float64) {
 	}
 	sort.Float64s(means)
 	return mean, means[resamples*25/1000], means[resamples*975/1000]
+}
+
+// writeElideScreen is the round-trip elision pre-screen: of the replies
+// whose last change was an unchecked edit, how many were followed by the
+// check the harness would have run itself. Its kill line is a 60% hit
+// rate; the replies that did nothing but run that check are the model
+// calls elision would have saved outright.
+func writeElideScreen(w io.Writer, e agent.ElideScreen, modelCalls int) {
+	if e.Replies == 0 {
+		return
+	}
+	fmt.Fprintf(w, "  round-trip elision: %d edit-completing replies of %d (%d more edited and checked in one reply)\n",
+		e.Triggers, e.Replies, e.Batched)
+	if e.Triggers == 0 {
+		return
+	}
+	fmt.Fprintf(w, "    next call a check: %d (%.0f%%; kill below 60%%) -- alone %d, beside other calls %d, same command as the last check %d\n",
+		e.Hits(), profilePct(e.Hits(), e.Triggers), e.HitAlone, e.HitMixed, e.SameCommand)
+	fmt.Fprintf(w, "    misses: edited first %d, turn ended %d, other %d\n", e.MissEdit, e.MissEnd, e.MissOther)
+	fmt.Fprintf(w, "    model calls removable (check-only replies): %d of %d (%.1f%%); check output %d bytes, %d as elided\n",
+		e.HitAlone, modelCalls, profilePct(e.HitAlone, modelCalls), e.HitBytes, e.ElidedBytes)
 }

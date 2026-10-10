@@ -84,6 +84,16 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: dedupedResult})
 	}
 
+	answerElided := func(i int, u llm.Block, out string) {
+		results[i] = llm.ToolResult(replyID(u), out, false)
+		filled[i] = true
+		call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+		emit(Event{Kind: EvToolResult, Call: &call, Output: out})
+		emit(Event{Kind: EvNotice, Text: "answered a repeat of the post-edit check from its result"})
+		a.logEvent(session.Event{Type: session.TypeNotice, Turn: a.turnN, Step: a.stepN, Name: "elide/hit", Arguments: string(u.Input)})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out})
+	}
+
 	// The first error any call returned. execute only errors for
 	// cancellation and for an approver that could not answer; either way
 	// the batch stops and the error is reported, rather than being lost
@@ -131,6 +141,10 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	for i, u := range uses[:lead] {
 		if dup[i] {
 			answerDeduped(i, u)
+			continue
+		}
+		if out, ok := a.elideHit(u); ok {
+			answerElided(i, u, out)
 			continue
 		}
 		wg.Add(1)
@@ -190,8 +204,16 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		if err := ctx.Err(); err != nil {
 			return stop(err)
 		}
+		// A repeat of the check the harness ran after the last edit, on
+		// a tree nothing has changed since, is answered from that run
+		// (see elide.go); anything else that may change the tree drops it.
+		if out, ok := a.elideHit(u); ok {
+			answerElided(i, u, out)
+			continue
+		}
 		ro := parallel(u)
 		if !ro {
+			a.elideInvalidate()
 			// The barrier: a mutating or unknown call may have moved
 			// the world, so a read after it cannot reuse what a read
 			// before it saw. This also drops the lead's keys.

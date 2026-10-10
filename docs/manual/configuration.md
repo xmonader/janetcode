@@ -602,6 +602,23 @@ the overclaim gate: the expensive mistake here is nagging a finished
 turn into another round of model calls. A turn that never ran anything
 is already `unverified` and already sent back, and is not nudged twice.
 
+`elide_checks` (default off) has the harness make the call a model
+usually makes after an edit. When a step's last change was a file edit
+that landed, with no check after it in the same reply, the project's
+verify commands run at once (never a held-out acceptance command), and
+the result goes to the model with that step's tool results: a pass as
+one line, a failure with its output up to 4,000 bytes, marked when the
+turn's baseline already saw it fail. With no verify commands the check
+is the last project check the model ran itself this session (not an
+inline `python -c` or heredoc probe), run as a bash call of its own and
+only when calls are auto-approved. A `go test ./...` is narrowed to the
+packages the edited Go files reach when that is under half the module.
+If the model then asks for the same command on a tree nothing has
+changed since, it gets the result back marked "Not run again" instead
+of a second run. On the effbench r12–r13 recordings only 37% of
+edit-completing replies were followed by a check (`--session-profile`
+prints this), under the 60% the idea needed, which is why it is off.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the
@@ -729,8 +746,8 @@ key=value` or through the two commands that group them:
 
 - `/features` lists the slots and the switches that use them --
   `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
-  `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`)
-  and the four decision consumers --
+  `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`),
+  `elide` (`elide_checks`) and the four decision consumers --
   with what each is set to and what still stands in its way.
   `/features <name> on|off` changes one.
 - `/jev` is the decisions block: see below.
@@ -932,6 +949,13 @@ characters is quoted in any later assistant message.
 The point of the report is to bound a context-curation change before
 building it: exploration share is the ceiling on what pre-selection can
 save, and the stale share is the ceiling on what pruning could recover.
+
+It also prints the pre-screen for `elide_checks`: of the replies whose
+last change was a file edit nothing checked, how many were followed by a
+project check before any other change (the hit rate, killed below 60%),
+how many of those replies did nothing but run it (the model calls
+elision could remove), and how many bytes those results would have cost
+as elided notes.
 `docs/notes/jev.md` records the measured ceilings.
 
 ### Stream watchdog
