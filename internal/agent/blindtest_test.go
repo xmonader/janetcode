@@ -223,7 +223,8 @@ func TestBlindTesterSkipsAndRecordsWhy(t *testing.T) {
 		"empty body": {"RULE: x\n```sh\n```\n", true, "no checks"},
 	}
 	for name, tc := range cases {
-		f := &fake{responses: []*llm.Response{text(tc.reply)}}
+		// A reply with no checks is asked for once more.
+		f := &fake{responses: []*llm.Response{text(tc.reply), text(tc.reply)}}
 		runs := blindRunsTable()
 		a, _ := blindAgent(t, f, runs)
 		if !tc.scratch {
@@ -243,12 +244,25 @@ func TestBlindTesterSkipsAndRecordsWhy(t *testing.T) {
 // An empty slot model is the session's own, and the call goes through
 // the route like any side call.
 func TestBlindTesterOnTheSessionModel(t *testing.T) {
-	f := &fake{responses: []*llm.Response{text("no rules here")}}
+	f := &fake{responses: []*llm.Response{text("no rules here"), text("still none")}}
 	a, _ := blindAgent(t, f, blindRunsTable())
 	a.BlindTest.Model = ""
 	var g blindGateState
 	a.blindTestGate(context.Background(), greenTurn, &g, func(Event) {})
-	if len(f.requests) != 1 || f.requests[0].Model != "m" || g.rec.Model != "m" {
+	if len(f.requests) != 2 || f.requests[0].Model != "m" || g.rec.Model != "m" {
 		t.Fatalf("calls %d, model %q, record %q", len(f.requests), f.requests[0].Model, g.rec.Model)
+	}
+}
+
+// A reply with no checks is asked for once more, and the second answer
+// is the one used.
+func TestBlindTesterAsksAgainOnAnEmptyReply(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text(""), text(blindReply)}}
+	runs := blindRunsTable()
+	a, _ := blindAgent(t, f, runs)
+	var g blindGateState
+	a.blindTestGate(context.Background(), greenTurn, &g, func(Event) {})
+	if len(f.requests) != 2 || g.rec.Checks == 0 {
+		t.Fatalf("calls %d, record %+v", len(f.requests), g.rec)
 	}
 }

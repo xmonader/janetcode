@@ -95,6 +95,15 @@ func (a *Agent) blindTestGate(ctx context.Context, outcome TurnOutcome, g *blind
 	if ctx.Err() != nil {
 		return false
 	}
+	// One more ask when the call failed or the reply held no checks: on the broker DeepSeek
+	// sometimes answers empty in two seconds, or reasons to the bound,
+	// and the next identical call writes eight checks.
+	if err != nil || len(blindtest.Parse(reply.Text)) == 0 {
+		reply, err = a.sideCallEffort(ctx, blindtest.System, msgs, a.BlindTest.Model, blindMaxTokens, a.BlindTest.Effort)
+		if ctx.Err() != nil {
+			return false
+		}
+	}
 	if reply.Model != "" {
 		g.rec.Model = reply.Model
 	}

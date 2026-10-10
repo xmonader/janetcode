@@ -42,7 +42,7 @@ RULE: <the rule, in one sentence, as the task states it>
 <one shell command, run from the project root, that exercises only that rule>
 ` + "```" + `
 
-Each command must exit 0 when the rule holds. When it does not hold it must print a line starting with "VIOLATION:" saying what was expected and what happened, and exit 1. Catch exceptions the code under test raises where the task says it must not raise, and report them as a VIOLATION. Use the project's language and standard tooling (python3 - <<'EOF' ... EOF, node -e, a throwaway _test.go file written with cat and run with go test -run, cargo test with a file under tests/). Do not install anything, do not use the network, and do not modify existing files. Check only what the task states; never guess at behaviour it leaves open.`
+Each command must exit 0 when the rule holds. When it does not hold it must print a line starting with "VIOLATION:" saying what was expected and what happened, and exit 1. Catch exceptions the code under test raises where the task says it must not raise, and report them as a VIOLATION. Use the project's language and standard tooling (python3 - <<'EOF' ... EOF, node -e, a throwaway _test.go file written with cat and run with go test -run, cargo test with a file under tests/). Do not install anything, do not use the network, and do not modify existing files. Check only what the task states; never guess at behaviour it leaves open. Do not deliberate at length: pick the clearest rules and start writing the checks at once.`
 
 // Prompt is the tester's one user message: the task and the names of the
 // project's files as the task found them.
