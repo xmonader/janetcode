@@ -54,6 +54,16 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   Impossible-effbench split: docs/benchmarks/effbench/impossible. Next:
   live A/Bs on ai02. Further ideas: reports/Janetcode wild ideas.md.
 
+- Wild ideas 2026-10-10 (same branch): all 25 from reports/Janetcode wild
+  ideas.md built, unit-tested, no live runs. Default on: numclaim, scope,
+  dossier, typosquat. Opt-in: spec_coverage, spec_examples, blind_tester,
+  diff_fuzz, flake_quarantine, fix_cache, speculate, plan_file, hedge_provider,
+  stream_resume, fingerprint, probe_memory, read_blame, observed_purity,
+  preresolve, prefix_kernel, scope_justify; flags --eval-sequential,
+  --ab-replay, --off-peak-by, --session-ref, --why-broke. Weak pre-screens:
+  pattern induction 5.6% (<10%, not wired), speculation proxy 1%, hedging
+  0 rescues, flake flips ~0, fix-cache 0.6%, purity 2.9% prompts saved.
+
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does
