@@ -5,6 +5,21 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- A probe ledger, opt-in with `"probe_ledger": true` (or
+  `--set probe_ledger=true`): the inline checks the model runs after it
+  edits (`python3 - <<'EOF' ... assert ... EOF`, `node -e` with a throw)
+  are kept in harness state. Each new one that still passes is run once
+  more against the tree as it was before the turn's first change; one that
+  failed there is frozen and replayed at every later gate, and the turn
+  goes back to the model when a later edit breaks it (at most twice a
+  turn; one left failing into the next turn is dropped). Probes that also
+  passed on the old code are named to the spec review as testing nothing.
+  Reruns go through the bash tool and its sandbox, and only when the rules
+  would let the call run without asking. `JANETCODE_OFF=probes` turns it
+  off. `go run ./cmd/probescreen <runs>` is the offline pre-screen over
+  recorded session logs.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

@@ -187,6 +187,11 @@ type Config struct {
 	// everything that passed, passed against a tree the turn has since
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
+	// ProbeLedger keeps the model's inline checks: each is classified
+	// against the tree as it was before the turn's first change, and the
+	// ones that fail there and pass now are replayed at every later gate.
+	// Off by default: it reruns commands and can send a turn back.
+	ProbeLedger bool `json:"probe_ledger,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end
