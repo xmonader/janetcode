@@ -105,6 +105,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetFlakeQuarantine(cfg.FlakeQuarantine)
 	case "fix_cache":
 		a.SetFixCache(cfg.FixCache)
+	case "speculate":
+		a.SetSpeculate(cfg.Speculate)
+	case "plan_file":
+		a.SetPlanFile(cfg.PlanFile)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":

@@ -64,3 +64,21 @@ func (m *model) acceptFollowup() bool {
 	m.followupGen++
 	return true
 }
+
+// speculate records the predicted prompt on the session and, when
+// speculation is on, starts running it ahead of the user (see
+// internal/agent/speculate.go). Starting takes a checkout of the project,
+// so it is done off the UI goroutine; a run that cannot start stays
+// silent, since nothing was asked of the user. The turn that follows
+// says whether it was adopted or discarded.
+func (m *model) speculate(text string) {
+	ag, life := m.opts.Agent, m.life
+	if ag == nil {
+		return
+	}
+	ag.LogFollowup(text)
+	if !ag.SpeculateOn() {
+		return
+	}
+	go ag.StartSpeculation(life, text)
+}

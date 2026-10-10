@@ -82,6 +82,19 @@ and measurements behind each round are in `docs/notes/history.md`.
   real local sessions; an earlier session's fix would have been attached
   to 3 of 520 signed red episodes (0.6%), none touching the file that
   session's own fix touched.
+- `speculate` (off by default) runs the follow-up suggestion's predicted
+  prompt ahead of the user on `route_cheap`, in a throwaway checkout,
+  capped at $0.05 a run, and adopts its changes when the user sends that
+  prompt; anything else discards it. Follow-up suggestions are now logged
+  (`followup/suggest`) and `cmd/specscreen` measures how often the next
+  prompt matched. No suggestions were recorded before this, so the direct
+  rate is unmeasured; on the proxy (the reply offered a next step and the
+  user took it) 184 local sessions give 1 of 82 prompt pairs, far under
+  the 40% kill line, mostly scripted QA sessions, so a real number needs
+  logged suggestions.
+- `plan_file` (off by default): edits to `.janetcode/plan.md` made while
+  the agent works reach the model before its next call, as only the
+  change.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's

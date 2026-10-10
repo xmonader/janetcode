@@ -268,6 +268,9 @@ func (b builtAgent) close() {
 		// language servers: a fork still running would otherwise go on
 		// asking a manager that has already shut down.
 		b.task.Close(ctx)
+		if b.agent != nil {
+			b.agent.DiscardSpeculation()
+		}
 		b.diag.Close()
 	}
 	if b.once == nil {
@@ -550,6 +553,8 @@ func (b *agentBuilder) stepCore() error {
 	ag.SetSpecExamples(d.cfg.SpecExamples)
 	ag.FlakeQuarantine = d.cfg.FlakeQuarantine
 	ag.FixCache, ag.FixCacheDir = d.cfg.FixCache, fixCacheDir()
+	ag.Speculate = d.cfg.Speculate
+	ag.PlanFile = d.cfg.PlanFile
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

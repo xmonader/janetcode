@@ -88,6 +88,9 @@ const (
 	// TypeBlindTest records the blind tester's run on a turn
 	// (internal/agent/blindtest.go): Extra carries a proof.BlindTest.
 	TypeBlindTest = "verify/blindtest"
+	// TypeFollowup records the next prompt the follow-up suggestion
+	// predicted (Output), for comparison with the one the user sent.
+	TypeFollowup = "followup/suggest"
 )
 
 // Gate sources on a TypeGate event.
