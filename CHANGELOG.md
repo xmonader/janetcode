@@ -5,6 +5,25 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- Signed, re-executable evidence beside each proof note: an in-toto
+  Statement v1 (predicate `https://janetcode.dev/change-evidence/v1`,
+  subject the commit's tree) in a DSSE envelope signed with a local
+  ed25519 key, under `refs/notes/janetcode-evidence`. It records every
+  verification command the contributing turns ran with its exit code and
+  a hash of its normalised output, the model and provider with the
+  serving-model provenance verdict, prompt and system-prompt hashes, the
+  test files' hashes before the commit, the sandbox profile, and who
+  approved each change to a committed file. `janetcode --proof verify
+  [commit]` checks the signature and the tree, re-runs the commands in a
+  throwaway checkout under the recorded sandbox profile and diffs the
+  outcomes; claims with no record show as unverified assertions, and it
+  exits 1 when the evidence does not hold. `/proof verify` in a session
+  checks without re-running; `--proof key` prints the public key for
+  another machine to trust. The turn-end gate now keeps each command's
+  exit code and output digest on its log event. On with `proof_notes`;
+  `JANETCODE_OFF=evidence` turns it off.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

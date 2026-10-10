@@ -401,3 +401,72 @@ func TestAutomaticProofIncludesTheTurnsGateRuns(t *testing.T) {
 		t.Fatalf("turns = %+v, want the verify gate's green run recorded", r.Turns)
 	}
 }
+
+// TestAutomaticEvidenceIsSignedAndReproduces is the evidence path end to
+// end: the turn's own check and the verify gate's run are recorded in the
+// signed statement beside the proof note, and re-running them from a
+// throwaway checkout of the commit reproduces both. With the evidence
+// behaviour off, the proof note is attached and the evidence is not.
+func TestAutomaticEvidenceIsSignedAndReproduces(t *testing.T) {
+	for _, off := range []bool{false, true} {
+		f := &fake{responses: []*llm.Response{
+			toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+			toolCall("t2", "bash", `{"command":"test -f foo.go"}`),
+			toolCall("t3", "bash", `{"command":"git add -A && git commit -q -m 'add foo'"}`),
+			text("done"),
+		}}
+		a, root := newAgent(t, f, nil)
+		gitInit(t, root)
+		repo, err := snapshot.Open(context.Background(), root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.Snapshots = repo
+		a.AutoApprove = true
+		a.ProofNotes = true
+		a.Root = root
+		keys := t.TempDir()
+		a.Evidence = proof.NewKeySigner(keys)
+		if off {
+			a.Off = map[string]bool{"evidence": true}
+		}
+		a.Verify = &verify.Runner{Config: verify.Config{Commands: []string{"true"}}, Cwd: root}
+		a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+		sess, err := session.New(t.TempDir(), root, "p", "m")
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.Log = sess
+		if err := a.Run(context.Background(), "add foo", nil); err != nil {
+			t.Fatal(err)
+		}
+		ctx := context.Background()
+		if _, ok, err := proof.Read(ctx, root, headOf(t, root)); err != nil || !ok {
+			t.Fatalf("proof note: ok=%v err=%v", ok, err)
+		}
+		_, ok, err := proof.ReadEvidence(ctx, root, headOf(t, root))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if off {
+			if ok {
+				t.Fatal("evidence attached with the evidence behaviour off")
+			}
+			continue
+		}
+		if !ok {
+			t.Fatal("no evidence attached beside the proof note")
+		}
+		trusted, err := proof.TrustedKeys(keys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rep, err := proof.VerifyEvidence(ctx, root, "HEAD", proof.VerifyOptions{Run: true, Trusted: trusted})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !rep.OK() || rep.Count(proof.ClaimReproduced) != 2 || len(rep.Claims) != 2 {
+			t.Fatalf("verify:\n%s", proof.VerifySummary(rep))
+		}
+	}
+}

@@ -76,7 +76,7 @@ checked against its own published data.
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled.
 The names are the list `--eval-off` prints on a misspelling (and the
-usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `coach`, `critic`, `extratools`,
+usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `coach`, `critic`, `evidence`, `extratools`,
 `faults`, `headlesscore`, `impact`, `inline`, `intent`, `keeprevert`, `ladder`, `leanprompt`, `lineedit`, `loops`,
 `memoryrank`, `mermaid`, `opentodos`, `oversized`, `plan`, `planbudget`, `proof`, `protected`, `prune`, `recipe`,
 `repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `specreview`, `syntax`, `testguard`, `thenrun`, `todo`, `undoabout`,

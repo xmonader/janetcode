@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/plan"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -319,6 +320,13 @@ type Agent struct {
 	// as a git note (see proof.go). It does not gate /proof or --proof,
 	// which attach on request regardless. Config default is on.
 	ProofNotes bool
+	// Evidence signs the evidence statement attached beside each proof
+	// note (see evidence.go and internal/proof's evidence.go): an in-toto
+	// statement of what demonstrated the commit, which `janetcode --proof
+	// verify` re-runs. Nil attaches no evidence; the CLI sets a
+	// proof.KeySigner over the local key. The "evidence" behaviour turns
+	// it off.
+	Evidence proof.Signer
 	// ReadOnly hides mutating tools from the model and refuses them if
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool

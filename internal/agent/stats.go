@@ -468,6 +468,7 @@ var switches = map[string]bool{
 	"keeprevert": true, "memoryrank": true, "sleep": true, "decisions": true,
 	"escalate": true, "advisor": true, "scrub": true, "opentodos": true,
 	"orient": true, "baseline": true, "thenrun": true, "inline": true, "asyncdiag": true, "headlesscore": true, "leanprompt": true, "planbudget": true, "burstcap": true, "specreview": true, "testguard": true,
+	"evidence": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

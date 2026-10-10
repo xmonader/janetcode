@@ -548,7 +548,9 @@ against — the setting exists for a repository where a third-party git
 notes ref is unwelcome, or a CI checkout where the write would fail
 anyway. `/config proof_notes=false` sets it for one session; `/proof`
 still attaches on request regardless, since that is something you asked
-for directly.
+for directly. The signed evidence attached beside each note (see
+"Signed evidence" in [Interface](interface.md)) rides on the same
+setting; `JANETCODE_OFF=evidence` keeps the notes and drops the evidence.
 
 ### Model fallback
 

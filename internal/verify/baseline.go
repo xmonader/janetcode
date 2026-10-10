@@ -30,6 +30,9 @@ type CommandResult struct {
 	// FailLines counts lines that mention a failure or an error: the
 	// fallback measure of "more broken than before" when nothing parsed.
 	FailLines int
+	// printed is what the command printed, redacted, pass or fail: kept
+	// for Result's Runs (signed evidence hashes it), never serialised.
+	printed string
 }
 
 // Report is a full run: every command, not only up to the first failure.
@@ -53,6 +56,7 @@ func (rep Report) OK() bool {
 func (rep Report) Result() Result {
 	res := Result{Duration: rep.Duration}
 	for _, c := range rep.Commands {
+		res.Runs = append(res.Runs, Run{Name: c.Name, Exit: c.Exit, Output: c.printed})
 		if c.OK {
 			res.Passed = append(res.Passed, c.Name)
 		} else if res.Failed == "" {
@@ -74,8 +78,9 @@ func (r *Runner) RunEach(ctx context.Context) Report {
 			break
 		}
 		ok, exit, output := r.runOne(ctx, command, timeout)
-		c := CommandResult{Name: r.name(command), OK: ok, Exit: exit, Output: output}
+		c := CommandResult{Name: r.name(command), OK: ok, Exit: exit, printed: output}
 		if !ok {
+			c.Output = output
 			c.Failures, c.Parsed = ParseFailures(output)
 			c.FailLines = countFailLines(output)
 		}

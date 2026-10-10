@@ -1859,7 +1859,8 @@ already be on the remote) but warns —
 `N noted commit(s) are not on <remote> yet; push your branch too`.
 
 <sub>Under the hood, `/proof push` runs `git push <remote>
-refs/notes/janetcode`; `/proof fetch` runs `git fetch <remote>
+refs/notes/janetcode` (plus `refs/notes/janetcode-evidence` when there is
+signed evidence, below); `/proof fetch` runs `git fetch <remote>
 refs/notes/janetcode:refs/notes/janetcode` and adds
 `+refs/notes/janetcode:refs/notes/janetcode` to `remote.<remote>.fetch`.
 `git log --notes=janetcode` reads them inline once fetched.</sub>
@@ -1890,6 +1891,64 @@ during `--amend` or a rebase, no further action needed. Because the two
 `notes.rewrite.*` keys are only ever set when they were previously unset,
 an explicit `false` you (or another tool) put there on purpose is never
 overridden.
+
+#### Signed evidence: re-run what a commit claims
+
+Beside each proof note janetcode attaches a second note, under
+`refs/notes/janetcode-evidence`, that a machine can check rather than a
+person read: an [in-toto](https://in-toto.io) Statement v1 with the
+predicate type `https://janetcode.dev/change-evidence/v1`, whose subject
+is the commit's tree (`{"gitTree": <sha>}`), wrapped in a DSSE envelope
+and signed with a local ed25519 key. It records, for each session that
+contributed and each of its turns that wrote a committed file:
+
+- every verification command the turn ran (its own checks and the
+  turn-end gates'), the latest run of each, with its exit code, a sha256
+  of its normalised output, the sandbox profile it ran under, and whether
+  the turn edited files after it ran;
+- the model asked for, every model and provider that answered, and the
+  serving-model provenance verdict (`match`, `mismatch`, `unknown`);
+- the sha256 of the turn's prompt and of the system prompt;
+- who approved each call that changed a committed file (a rule, a mode,
+  the user);
+- the sha256 of every committed test file as it was before the commit
+  (`absent` for a new one);
+- the sandbox profile and a hash of its definition.
+
+`janetcode --proof verify [commit]` checks it: the signature against the
+keys this machine trusts, that the subject is the commit's own tree (an
+amend that changed a file carries the note along and then fails here),
+then re-runs each recorded command in a throwaway checkout of the commit
+under its recorded sandbox profile and compares exit code and normalised
+output (timings, paths, temp directories, addresses and `(cached)` are
+normalised away; test names, counts, messages and line numbers are not).
+Each claim comes back `reproduced`, `exit reproduced` (the recorded output
+was cut or not kept), `output differs`, `diverged` (the exit code
+changed), `not re-run` (a held-out acceptance gate, or a sandbox this
+machine cannot provide), or `unverified assertion`: a check the proof
+note lists, or a turn where the model said it verified, with no recorded
+run behind it. A commit with a proof note and no evidence shows every
+check as an unverified assertion. It exits 1 when the evidence does not
+hold — no evidence, a signature that is invalid or from a key not
+trusted here, another tree, or a re-run that exited differently.
+
+```
+janetcode --proof verify HEAD~2
+/proof verify            # in a session: signature, subject and records only, nothing re-run
+janetcode --proof key    # this machine's public key, for another machine's trusted file
+```
+
+The key is created on the first commit that gets evidence, at
+`<config>/evidence/ed25519.key` (mode 0600). A machine trusts its own key
+and every `<key id> <base64 key>` line in `<config>/evidence/trusted`;
+`--proof key` prints this machine's line. Signing is local and offline;
+the signer is an interface, so keyless signing (Sigstore) can be added
+without changing the format. `/proof push` and `/proof fetch` move the
+evidence with the notes.
+
+The evidence is for a reviewer: nothing in it reaches the model, and it
+costs a few git calls per commit. It rides on `proof_notes`;
+`JANETCODE_OFF=evidence` turns off just the evidence.
 
 ### Recipes: replay a turn for free
 

@@ -39,7 +39,13 @@ func Push(ctx context.Context, repoDir, remote string) (warning string, err erro
 		return "", err
 	}
 	warning = notPushedWarning(ctx, repoDir, remote)
-	if _, err := gitx.Run(ctx, repoDir, nil, "push", remote, NotesRef); err != nil {
+	refs := []string{NotesRef}
+	// The signed evidence travels with the proof notes when there is any:
+	// pushing a ref that does not exist locally is an error.
+	if _, err := gitx.Run(ctx, repoDir, nil, "rev-parse", "--verify", "-q", EvidenceRef); err == nil {
+		refs = append(refs, EvidenceRef)
+	}
+	if _, err := gitx.Run(ctx, repoDir, nil, append([]string{"push", remote}, refs...)...); err != nil {
 		return "", err
 	}
 	return warning, nil
@@ -124,7 +130,15 @@ func Fetch(ctx context.Context, repoDir, remote string) error {
 	if err := notAnOption("remote", remote); err != nil {
 		return err
 	}
-	_, err := gitx.Run(ctx, repoDir, nil, "fetch", remote, NotesRef+":"+NotesRef)
+	if _, err := gitx.Run(ctx, repoDir, nil, "fetch", remote, NotesRef+":"+NotesRef); err != nil {
+		return err
+	}
+	// The evidence ref is fetched when the remote has one; a remote that
+	// was only ever pushed proof notes has none, which is not a failure.
+	if _, err := gitx.Run(ctx, repoDir, nil, "ls-remote", "--exit-code", remote, EvidenceRef); err != nil {
+		return nil
+	}
+	_, err := gitx.Run(ctx, repoDir, nil, "fetch", remote, "+"+EvidenceRef+":"+EvidenceRef)
 	return err
 }
 
@@ -177,8 +191,13 @@ func ConfigureFetch(ctx context.Context, repoDir, remote string) error {
 // left exactly as they set it — only a key nobody has touched gets
 // janetcode's own default of true.
 func EnsureRewriteConfig(ctx context.Context, repoDir string) error {
-	if err := addConfigValueIfAbsent(ctx, repoDir, "notes.rewriteRef", NotesRef); err != nil {
-		return err
+	// The evidence note follows an amend or rebase too; one whose tree
+	// changed on the way no longer verifies (its subject is the tree),
+	// which is what a reviewer should see.
+	for _, ref := range []string{NotesRef, EvidenceRef} {
+		if err := addConfigValueIfAbsent(ctx, repoDir, "notes.rewriteRef", ref); err != nil {
+			return err
+		}
 	}
 	for _, key := range []string{"notes.rewrite.amend", "notes.rewrite.rebase"} {
 		if err := setConfigIfUnset(ctx, repoDir, key, "true"); err != nil {
