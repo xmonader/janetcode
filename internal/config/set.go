@@ -104,6 +104,8 @@ var setters = map[string]setter{
 	"hedge_after_ms":         countKey("hedge_after_ms", func(c *Config) *int { return &c.HedgeAfterMs }),
 	"stream_resume":          boolKey(func(c *Config) *bool { return &c.StreamResume }),
 	"fingerprint":            boolKey(func(c *Config) *bool { return &c.Fingerprint }),
+	"probe_memory":           boolKey(func(c *Config) *bool { return &c.ProbeMemory }),
+	"read_blame":             boolKey(func(c *Config) *bool { return &c.ReadBlame }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),

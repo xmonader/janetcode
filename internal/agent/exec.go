@@ -826,8 +826,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// test lines are what localization starts from.
 	located := a.localizeBash(ctx, u.Name, u.Input, out, isErr, emit)
 	located += a.flakeBash(ctx, u.Name, u.Input, out, isErr, dur, emit) + a.fixCacheBash(u.Name, u.Input, out, isErr, emit)
+	blamed := a.readBlame(ctx, u.Name, u.Input, out, isErr)
 	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
-	out += located
+	out += located + blamed
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}

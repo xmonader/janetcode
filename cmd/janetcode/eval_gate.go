@@ -100,5 +100,6 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	ag.FlakeQuarantine = cfg.FlakeQuarantine
 	ag.FixCache, ag.FixCacheDir = cfg.FixCache, fixCacheDir()
 	ag.FingerprintDir = fingerprintDir(cfg)
+	ag.ProbeMemory, ag.ReadBlame = cfg.ProbeMemory, cfg.ReadBlame
 	settingsapply.WireDecisions(cfg, ag, off)
 }

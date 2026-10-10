@@ -556,6 +556,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Speculate = d.cfg.Speculate
 	ag.PlanFile = d.cfg.PlanFile
 	ag.FingerprintDir = fingerprintDir(d.cfg)
+	ag.ProbeMemory, ag.ReadBlame = d.cfg.ProbeMemory, d.cfg.ReadBlame
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

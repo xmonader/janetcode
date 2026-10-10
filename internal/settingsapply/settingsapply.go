@@ -109,6 +109,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetSpeculate(cfg.Speculate)
 	case "plan_file":
 		a.SetPlanFile(cfg.PlanFile)
+	case "probe_memory":
+		a.SetProbeMemory(cfg.ProbeMemory)
+	case "read_blame":
+		a.SetReadBlame(cfg.ReadBlame)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":

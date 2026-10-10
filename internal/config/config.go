@@ -274,6 +274,15 @@ type Config struct {
 	// between steps, only the change. Off by default: it adds text to the
 	// conversation, from a file a cloned repository may have brought.
 	PlanFile bool `json:"plan_file,omitempty"`
+	// ProbeMemory keeps the probe ledger's discriminating probes in the
+	// repository (refs/janetcode/probes) and replays them at the gate of
+	// later sessions; it turns the probe ledger on with it. Off by
+	// default: it writes a ref and can send a turn back.
+	ProbeMemory bool `json:"probe_memory,omitempty"`
+	// ReadBlame appends to a read_file result one line per range of the
+	// shown lines an earlier agent turn wrote with a stated intent. Off
+	// by default: it changes what the model reads.
+	ReadBlame bool `json:"read_blame,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end
