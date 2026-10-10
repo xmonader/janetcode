@@ -124,6 +124,11 @@ func TestDependencyDirection(t *testing.T) {
 		{"skill", []string{"agent"}},
 		{"mutate", []string{"agent", "verify"}},
 		{"worktree", []string{"agent"}},
+		// Failure localization: the loop uses localize's types and is
+		// handed localize/tree.Run, which owns the worktree; neither
+		// reaches back into the loop.
+		{"worktree", []string{"localize"}},
+		{"agent", []string{"localize/..."}},
 		// The feature packages phase 3 lifted out of internal/agent.
 		// Each of them is imported BY the agent loop, so none of them
 		// may import it back: accept owns the /accept state and the

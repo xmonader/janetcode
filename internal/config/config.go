@@ -187,6 +187,12 @@ type Config struct {
 	// everything that passed, passed against a tree the turn has since
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
+	// LocalizeFailures attaches, to a red test run after a turn changed
+	// more than one hunk, the fewest of those hunks that still make the
+	// failing tests fail (delta debugging in a throwaway worktree) and
+	// the functions the failing tests ran ranked by Ochiai. Off by
+	// default: it reruns tests, up to a minute, while the model waits.
+	LocalizeFailures bool `json:"localize_failures,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

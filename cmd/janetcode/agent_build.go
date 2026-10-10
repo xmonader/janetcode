@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/impact"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/localize/tree"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -511,6 +512,8 @@ func (b *agentBuilder) stepCore() error {
 	ag.Route = d.models
 	ag.RouteCheap = d.cfg.RouteCheap
 	ag.StaleCheckNudge = d.cfg.StaleCheckNudge
+	ag.LocalizeFailures = d.cfg.LocalizeFailures
+	ag.Localize = tree.Run
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

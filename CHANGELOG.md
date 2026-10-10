@@ -5,6 +5,22 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- `localize_failures` (opt-in): when a test run goes red after the turn
+  changed two or more hunks, whether the gate ran it or the model's own
+  `go test` did, janetcode reruns the failing tests in a throwaway
+  worktree on subsets of the turn's hunks (delta debugging) and appends
+  the fewest hunks that still fail them ("hunk 2 of 3: calc/calc.go line
+  13"), plus the functions the failing tests ran ranked by Ochiai from
+  per-test coverage. No model call and no new tool; bounded to a minute
+  and 2 KB, three times a turn, and silent when the failure predates the
+  turn or does not reproduce. Go tests only for now. The offline
+  pre-screen over effbench r8-r13 (192 runs): 151 turns (79%) had a red
+  check after a multi-hunk edit, but only 1 of those reds named a failing
+  `go test` and 19 named failures any known runner reports; most were the
+  model's inline Python probes. Red to next green took a median of 2 tool
+  calls.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

@@ -17,6 +17,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/localize"
 	"github.com/xmonader/janetcode/internal/plan"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -189,6 +190,17 @@ type Agent struct {
 	VerifyBaseline bool
 	// baseline is this turn's pre-edit verification run.
 	baseline *baselineRun
+	// LocalizeFailures attaches causal patch minimisation and a ranked
+	// list of suspicious functions to a red test run that follows a
+	// multi-hunk edit. Off by default: it reruns tests. See localize.go.
+	LocalizeFailures bool
+	// Localize runs one localization; the composition root sets it to
+	// internal/localize/tree.Run, which owns the throwaway worktree the
+	// loop does not import (the mutation runner's arrangement). Nil
+	// leaves LocalizeFailures with nothing to run.
+	Localize func(context.Context, localize.Request) localize.Report
+	// localized is this turn's localization state.
+	localized localizeState
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.

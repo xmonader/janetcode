@@ -87,6 +87,7 @@ var setters = map[string]setter{
 	"ask_timeout":            askWaitKey("ask_timeout", func(c *Config) *string { return &c.AskTimeout }),
 	"ask_timeout_unattended": askWaitKey("ask_timeout_unattended", func(c *Config) *string { return &c.AskTimeoutUnattended }),
 	"stale_check_nudge":      boolKey(func(c *Config) *bool { return &c.StaleCheckNudge }),
+	"localize_failures":      boolKey(func(c *Config) *bool { return &c.LocalizeFailures }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),
