@@ -90,6 +90,12 @@ func (a *Agent) sideQueryReply(ctx context.Context, system, question, model stri
 // own), routed to the provider that serves it. msgs is all it sees: a
 // caller that must not show the transcript (blindtest.go) passes its own.
 func (a *Agent) sideCall(ctx context.Context, system string, msgs []llm.Message, model string, maxTok int) (sideReply, error) {
+	return a.sideCallEffort(ctx, system, msgs, model, maxTok, "")
+}
+
+// sideCallEffort is sideCall with a reasoning_effort for providers that
+// send one only on request (llm.Request.ReasoningEffort).
+func (a *Agent) sideCallEffort(ctx context.Context, system string, msgs []llm.Message, model string, maxTok int, wireEffort string) (sideReply, error) {
 	s := a.Settings()
 	if s.Provider == nil {
 		return sideReply{}, fmt.Errorf("no provider")
@@ -120,6 +126,8 @@ func (a *Agent) sideCall(ctx context.Context, system string, msgs []llm.Message,
 		Messages:  msgs,
 		MaxTokens: maxTok,
 		Effort:    "low",
+
+		ReasoningEffort: wireEffort,
 	}, nil)
 	if err != nil {
 		return sideReply{Model: model}, err

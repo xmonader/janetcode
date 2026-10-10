@@ -94,6 +94,7 @@ var setters = map[string]setter{
 	"subagent_merge":         boolKey(func(c *Config) *bool { return &c.SubagentMerge }),
 	"probe_ledger":           boolKey(func(c *Config) *bool { return &c.ProbeLedger }),
 	"blind_tester":           blindTesterKey,
+	"blind_tester_effort":    blindTesterEffortKey,
 	"spec_coverage":          boolKey(func(c *Config) *bool { return &c.SpecCoverage }),
 	"spec_examples":          boolKey(func(c *Config) *bool { return &c.SpecExamples }),
 	"flake_quarantine":       boolKey(func(c *Config) *bool { return &c.FlakeQuarantine }),

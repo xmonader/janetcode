@@ -34,7 +34,12 @@ import (
 // the model to ask, and how to make a throwaway copy of the tree as it
 // stands (localize/tree.Scratch), which the agent may not import.
 type BlindTester struct {
-	Model   string
+	Model string
+	// Effort, when set, is sent as reasoning_effort on the tester's call
+	// (blind_tester_effort). Reasoning models given an open "find every
+	// rule" brief otherwise spend the whole output bound thinking: MiMo
+	// and DeepSeek V4.1 Flash both wrote no checks in 12-32k tokens.
+	Effort  string
 	Scratch func(ctx context.Context, root string) (dir string, cleanup func(), err error)
 }
 
@@ -86,7 +91,7 @@ func (a *Agent) blindTestGate(ctx context.Context, outcome TurnOutcome, g *blind
 	emit(Event{Kind: EvNotice, Text: "the turn is done; a tester that sees only the task is writing checks for it"})
 	spec, files := a.blindSpec()
 	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, blindtest.Prompt(spec, files))}
-	reply, err := a.sideCall(ctx, blindtest.System, msgs, a.BlindTest.Model, blindMaxTokens)
+	reply, err := a.sideCallEffort(ctx, blindtest.System, msgs, a.BlindTest.Model, blindMaxTokens, a.BlindTest.Effort)
 	if ctx.Err() != nil {
 		return false
 	}

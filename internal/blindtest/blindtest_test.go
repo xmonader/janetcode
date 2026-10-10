@@ -85,3 +85,12 @@ func TestNoteNamesRulesOnly(t *testing.T) {
 		t.Fatal("the note does not allow for a wrong check")
 	}
 }
+
+// DeepSeek numbers its rule labels and bolds them.
+func TestParseNumberedRules(t *testing.T) {
+	reply := "**RULE 1:** a fresh bucket starts full\n```sh\npython3 - <<'EOF'\nprint(1)\nEOF\n```\n\nRule 2: capacity >= 1\n```sh\ntrue\n```\n"
+	got := Parse(reply)
+	if len(got) != 2 || got[0].Rule != "a fresh bucket starts full" || got[1].Rule != "capacity >= 1" {
+		t.Fatalf("%+v", got)
+	}
+}

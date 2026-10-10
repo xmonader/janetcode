@@ -14,6 +14,7 @@ package blindtest
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -99,6 +100,9 @@ func Parse(reply string) []Check {
 	return out
 }
 
+// numberedRuleRe matches a numbered rule label up to its colon.
+var numberedRuleRe = regexp.MustCompile(`^(?i:rule)\s+\d+\s*(?:\*\*)?:(?:\*\*)?`)
+
 // cutRule reads a "RULE: ..." line, markdown emphasis and list marks
 // allowed around the label.
 func cutRule(l string) (string, bool) {
@@ -107,6 +111,10 @@ func cutRule(l string) (string, bool) {
 		l = strings.TrimSpace(n[1:]) // "1. RULE:" / "2) RULE:"
 	}
 	l = strings.TrimPrefix(l, "**")
+	// "RULE 3:" / "Rule 3:": a numbered label, as DeepSeek writes it.
+	if m := numberedRuleRe.FindStringIndex(l); m != nil {
+		l = "RULE:" + l[m[1]:]
+	}
 	for _, p := range []string{"RULE:", "Rule:", "RULE**:", "RULE:**"} {
 		if r, ok := strings.CutPrefix(l, p); ok {
 			r = strings.TrimSpace(strings.Trim(strings.TrimSpace(r), "*"))

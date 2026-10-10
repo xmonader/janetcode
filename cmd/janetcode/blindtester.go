@@ -15,5 +15,5 @@ func blindTester(cfg *config.Config) *agent.BlindTester {
 	if !on {
 		return nil
 	}
-	return &agent.BlindTester{Model: model, Scratch: tree.Scratch}
+	return &agent.BlindTester{Model: model, Effort: cfg.BlindTesterEffort, Scratch: tree.Scratch}
 }

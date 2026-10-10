@@ -51,3 +51,18 @@ func blindTesterKey(c *Config, val string) (any, error) {
 	c.BlindTester = v
 	return v, nil
 }
+
+// blindTesterEffortKey is /config's setter for blind_tester_effort: a
+// reasoning_effort value the OpenAI-compatible servers know, or off.
+func blindTesterEffortKey(c *Config, val string) (any, error) {
+	v := strings.ToLower(strings.TrimSpace(val))
+	switch v {
+	case "", "off", "none":
+		c.BlindTesterEffort = ""
+		return "off", nil
+	case "minimal", "low", "medium", "high":
+		c.BlindTesterEffort = v
+		return v, nil
+	}
+	return nil, fmt.Errorf("blind_tester_effort: want off, minimal, low, medium or high, not %q", val)
+}

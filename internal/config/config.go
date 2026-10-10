@@ -245,6 +245,10 @@ type Config struct {
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
 	// BlindTester names the model slot a headless run's blind tester
+	// BlindTesterEffort is sent as reasoning_effort on the blind tester's
+	// call (low, medium, high); empty sends none. Reasoning models on
+	// OpenAI-compatible servers need it to write checks at all.
+	BlindTesterEffort string `json:"blind_tester_effort,omitempty"`
 	// uses (see blindtester.go); empty or "off" is off.
 	BlindTester string `json:"blind_tester,omitempty"`
 	// SpecCoverage tells the model, at a turn's first tool step, which
