@@ -184,6 +184,9 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending.reply <- verdict{d: d, reason: reason, rule: m.rungRule()}
 	m.transcript.permissionAnswered(m.pending.call, d)
 	call := m.pending.call
+	if d != agent.Deny && m.diffSeenWhole(call) {
+		m.opts.Agent.MarkReviewed(call.ID)
+	}
 	m.closePending()
 	m.turn.setPhase("thinking")
 	// A cancelling answer moves the queue on only once the cancel has
@@ -209,6 +212,22 @@ func (m *model) answer(d agent.Decision, reason string) {
 		m.observeApproval(shape)
 	}
 	m.refresh(false)
+}
+
+// diffSeenWhole says the prompt being answered had the call's whole diff
+// on screen: it fit unexpanded, or the reader expanded it (ctrl+o, or
+// /verbose for everything). Approving such a call is approving lines that
+// were read, so its changes are not comprehension debt (see package
+// tour); one approved with its diff clipped is.
+func (m *model) diffSeenWhole(c agent.ToolCall) bool {
+	if !c.PreviewShown() {
+		return false
+	}
+	if !pendingExpandable(c) || m.verbose {
+		return true
+	}
+	e := m.transcript.findTool(c.ID)
+	return e != nil && e.expanded
 }
 
 // learnedHeadline shortens the ledger's note ("approved 4× before, never

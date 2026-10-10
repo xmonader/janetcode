@@ -24,7 +24,7 @@ import (
 // less than the terminal's.
 var webCommands = []string{
 	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
-	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/checkpoints", "/diff", "/open", "/context",
+	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
@@ -162,6 +162,10 @@ var webDispatch = map[string]webHandler{
 	"/checkpoints": (*server).cmdCheckpoints,
 	"/changes": func(s *server, arg string) (bool, error) {
 		s.sheet("changes", s.changesText(arg))
+		return false, nil
+	},
+	"/tour": func(s *server, arg string) (bool, error) {
+		s.sheet("tour", s.opts.Agent.TourText(s.life, arg, s.cwd()))
 		return false, nil
 	},
 	"/diff": func(s *server, arg string) (bool, error) {

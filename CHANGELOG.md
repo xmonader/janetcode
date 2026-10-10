@@ -5,6 +5,23 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- `/tour` reviews a turn's changes riskiest hunk first, each with the
+  intent the model stated for it: behaviour changes, then test edits,
+  then comment-only ones, ranked within each by how widely the changed
+  symbols are used. Reformatting and consistent renames are recognised by
+  token equality and collapsed behind a count (`/tour all` shows them).
+  A turn with more than one hunk ends with a one-line summary of the tour.
+- A comprehension-debt meter counts changed lines approved without being
+  read whole (auto mode, a rule, or a clipped diff not expanded), per
+  directory, at the end of `/tour`, under `/changes` and in `/stats`, in
+  the terminal and the web UI. `JANETCODE_OFF=tour` turns both off.
+  Measured on effbench's recorded final diffs, only 0.2% of r13's changed
+  lines (0.1% over all 319 recorded sessions) are mechanical, below the
+  20% the idea's kill criterion asks for: on greenfield benchmark tasks
+  there is almost nothing to collapse, so the ordering and the meter carry
+  the feature there.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

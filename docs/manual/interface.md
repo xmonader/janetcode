@@ -1683,6 +1683,43 @@ as changes themselves. Turn-level `/undo`, `/undo turn n` (which
 rewinds the conversation too) and `/redo` still restore whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
+### Review tour and comprehension debt: /tour
+
+`/tour` reads the last turn that changed files the way a reviewer should:
+riskiest hunk first instead of file by file. Each file's change is shown
+as one net diff (a hunk rewritten three times is read once, in its final
+form), and every hunk carries the intent the model stated for the change
+that wrote it. Hunks are ranked by kind, then by reach: a change to what
+the program does comes before a test edit, which comes before a
+comment-only one, and within a kind the hunk in a file whose touched
+symbols are used in more places comes first (the same count the impact
+line on a permission prompt shows). Mechanical churn — a hunk whose
+tokens are identical on both sides (reformatting), or that only renames
+identifiers consistently to names no changed file used before — is
+collapsed behind a count; `/tour all` lists it after the rest. `/tour 3`
+tours turn 3. The classification is token equality, never a model's
+opinion, and errs towards "behaviour": an import that now names a
+different symbol, or a swap to a name already in use, is not a rename.
+
+After a turn with more than one hunk, a line under it says what the tour
+holds (`review: 4 hunks (3 behaviour, 1 test) · 12 lines mechanical
+collapsed · /tour`).
+
+The comprehension-debt meter counts the changed lines this session that
+were approved without anyone reading them whole, per directory: a change
+approved by auto mode or a rule, or at a prompt whose diff was clipped and
+not expanded (ctrl+o), is debt; one approved with its whole diff on
+screen, or shown afterwards by `/tour` or `/changes n`, is not.
+Mechanical hunks, undos, and changes since undone never count. It appears
+at the end of `/tour`, under `/changes` and in `/stats`, in the terminal
+and the web UI alike, e.g. `comprehension debt: 1200 lines approved
+unread · 900 in pkg/auth, 300 in cmd`. What was read is not kept across
+`--resume`, so a resumed session counts its earlier changes as unread.
+
+All of it is computed from the change record without a model call.
+`JANETCODE_OFF=tour` (or `--off tour`) turns the tour line, `/tour` and
+the meter off.
+
 ### Undo by description
 
 `/undo about <description>` finds which of this session's changes match a

@@ -145,6 +145,21 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 	}
 }
 
+// reachHook is the review tour's measure of how far one file's change
+// reaches (see agent.Agent.Reach): the references to every symbol whose
+// definition it touches, counted the way the impact line before a
+// permission prompt counts them.
+func reachHook(cd *agent.CD, diag *lsp.Manager, repo *repomap.Cache) func(ctx context.Context, path, before, after string) int {
+	return func(ctx context.Context, path, before, after string) int {
+		ix, _ := repo.Get(ctx)
+		n := 0
+		for _, s := range impact.Analyze(ctx, impact.Input{Path: path, Old: before, New: after, Cwd: cd.Dir(), LSP: diag, RepoIndex: ix}).Symbols {
+			n += s.Refs
+		}
+		return n
+	}
+}
+
 // agentDeps is what every agent in this process shares: the provider, the
 // configuration, the project directory and the process-wide stores. One
 // agent is built per session, so an ACP editor opening a second thread
@@ -696,6 +711,7 @@ func (b *agentBuilder) stepTurnHooks() error {
 		}
 		return nil
 	})
+	ag.Reach = reachHook(b.cd, b.diag, b.repo)
 	predictor, err := agent.LoadPredictor(filepath.Join(b.d.cfgDir, "critic.json"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)

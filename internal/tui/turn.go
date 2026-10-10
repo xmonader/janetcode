@@ -330,6 +330,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		}
 	})
 	m.reportCacheWaste()
+	m.reportTour()
 	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.turn.queued) == 0 {
 		if cmd := m.goalRound(); cmd != nil {
@@ -386,6 +387,21 @@ func (m *model) reportCacheWaste() {
 		line += " (~" + llm.FormatUSD(usd) + ")"
 	}
 	m.note(line + " · " + cause)
+}
+
+// reportTour puts the review tour's one line under a turn that changed
+// enough to be worth touring: more than one hunk, or any mechanical
+// churn collapsed. A one-hunk turn was already on screen in the
+// transcript, and a line saying so is noise.
+func (m *model) reportTour() {
+	if m.filesChangedLastTurn() == 0 {
+		return
+	}
+	line := m.opts.Agent.TourBrief()
+	if line == "" || strings.HasPrefix(line, "review: 1 hunk ") && !strings.Contains(line, "mechanical") {
+		return
+	}
+	m.transcript.info(line)
 }
 
 // tuiRemedies are the terminal's words for the fixes a provider failure

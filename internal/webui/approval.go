@@ -125,6 +125,12 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 	// waiting behind this one up, and a clear sent after its card took
 	// that card down (see doCancel).
 	s.emit(envelope{Type: "permission"})
+	// The card shows an edit's diff whole (see permOf), so approving one
+	// that carried it is approving lines that were in front of the
+	// reader: not comprehension debt (see package tour).
+	if d != agent.Deny && p.call.PreviewShown() && s.opts.Agent != nil {
+		s.opts.Agent.MarkReviewed(p.call.ID)
+	}
 	select {
 	case p.reply <- verdict{d: d, reason: reason, rule: body.Rule}:
 	default:
