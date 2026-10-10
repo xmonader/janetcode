@@ -571,7 +571,8 @@ feature has to be on before filling one changes anything, is in
 [Configuration](configuration.md) under "The model slots".
 
 `/features` is that second half: the cascade (`escalate`), the forced
-advisor (`advisor`), the stale-check nudge (`stale-nudge`) and the four
+advisor (`advisor`), the stale-check nudge (`stale-nudge`), the subagent
+merge-back (`subagent-merge`) and the four
 decision consumers, each with what it is set to and what still stands in
 its way — a filled strong slot with `escalate` off says so rather than
 looking like a working cascade. `/features <name> on|off` changes one and
@@ -1537,6 +1538,33 @@ patch inline, and the patch saved to a file so it can be applied with
 `git apply` after review. The real tree is untouched until then, and
 your deny rules still apply inside the worktree. This needs a git
 repository.
+
+With `subagent_merge` on (`/features subagent-merge on`, off by
+default) the harness merges the subagent's work into the project itself
+when it finishes, which is what makes several editing subagents started
+in one step safe to run on the same files. Every file the subagent read,
+and every grep and glob it ran, is its read-set; at merge-back the
+harness checks it against the project as it is now, since another
+subagent or the main agent may have changed it meanwhile:
+
+- a file both changed is merged when the two sets of edits touch
+  different declarations (Go is parsed with the standard parser, other
+  languages with a tree-sitter grammar in a `-tags treesitter` build,
+  everything else by line ranges, more strictly). Two subagents that each
+  added an import, or each appended a function, are merged too;
+- a file it read and did not edit only matters when the other change
+  touched a declaration its own edits use; a grep or glob only when its
+  answer would now differ.
+
+What merges is written to the project with a checkpoint and a `/changes`
+record, so `/undo` reverts it like any edit, and the turn's verify gate
+runs. What does not is sent back to the subagent once, with both sides'
+diffs, in a checkout brought up to date with the project; if it still
+conflicts, the project is left alone and the main agent gets the work as
+a patch against the current project. Merge-back never asks: when a write
+to one of the files would need your approval (no `/auto` or `/edits`, an
+ask or deny rule, a protected path), the patch comes back the old way.
+Commands the subagent ran through bash are not part of its read-set.
 
 ### A whole session in a worktree
 

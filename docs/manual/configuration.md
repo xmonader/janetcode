@@ -632,6 +632,19 @@ changes the prompt, and a model that reads it as an escape hatch from a
 hard task costs passes (measure with
 `docs/benchmarks/effbench/impossible`).
 
+`subagent_merge` (default off) has the harness merge an editing
+subagent's work (`task` with `edit: true`) into the project when it
+finishes, instead of handing the patch to the model to `git apply`. The
+subagent's read-set — the files it read, the greps and globs it ran — is
+checked against what changed in the project meanwhile; edits that touch
+different declarations than the concurrent change are merged with no
+model call, and what collides is sent back to the subagent for one
+repair round with both sides' diffs. It is off by default because it
+writes to the project without the main model applying anything, and
+because the repair round is a model call; it never writes where a write
+would need your approval. See "Editing subagents in a worktree" in
+[the interface manual](interface.md).
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the
@@ -760,7 +773,8 @@ key=value` or through the two commands that group them:
 - `/features` lists the slots and the switches that use them --
   `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
   `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`),
-  `elide` (`elide_checks`), `localize` (`localize_failures`) and the four decision consumers --
+  `elide` (`elide_checks`), `localize` (`localize_failures`),
+  `subagent-merge` (`subagent_merge`) and the four decision consumers --
   with what each is set to and what still stands in its way.
   `/features <name> on|off` changes one.
 - `/jev` is the decisions block: see below.

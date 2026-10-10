@@ -92,5 +92,6 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	// Localization rides the gate too, and is measured the same way.
 	ag.LocalizeFailures = cfg.LocalizeFailures
 	ag.Localize = tree.Run
+	ag.SubagentMerge = cfg.SubagentMerge
 	settingsapply.WireDecisions(cfg, ag, off)
 }

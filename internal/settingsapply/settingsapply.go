@@ -93,6 +93,8 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetElideChecks(cfg.ElideChecks)
 	case "localize_failures":
 		a.SetLocalizeFailures(cfg.LocalizeFailures)
+	case "subagent_merge":
+		a.SetSubagentMerge(cfg.SubagentMerge)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":

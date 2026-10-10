@@ -97,18 +97,18 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	// falls through and is shown as the text it is.
 	if isNotebookPath(in.Path) {
 		if nb, err := parseNotebook(data); err == nil {
-			t.Seen.Record(p, data)
+			t.Seen.RecordRead(p, data)
 			return textfmt.Truncate(nb.render(in.Path)), nil
 		}
 	}
 	if extracted, ok := extractReadable(ctx, in.Path, data); ok {
-		t.Seen.Record(p, data)
+		t.Seen.RecordRead(p, data)
 		return extracted, nil
 	}
 	if isBinary(data) {
 		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))
 	}
-	t.Seen.Record(p, data)
+	t.Seen.RecordRead(p, data)
 	text, shape := decodeText(data)
 	lines := strings.Split(text, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {

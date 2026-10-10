@@ -543,6 +543,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.ElideChecks = d.cfg.ElideChecks
 	ag.LocalizeFailures = d.cfg.LocalizeFailures
 	ag.Localize = tree.Run
+	ag.SubagentMerge = d.cfg.SubagentMerge
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

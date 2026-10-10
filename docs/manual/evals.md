@@ -183,7 +183,7 @@ you do not intend to push, or hand a task to someone who has no access to
 | 51–62 | `evals/*.json`, tagged `multistep` | the discriminating set (below) |
 | 31–35 | `evals/large/` | 1M-token corpora, for context behaviour |
 | 41–43 | `evals/session/` | multi-prompt sessions, for what survives across turns |
-| 51–59 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on |
+| 51–60 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on. 60 asks for three parallel editing subagents whose changes overlap in one file, the case `subagent_merge` is for |
 | 61 | `evals/explore/` | one change to find in a repository too big to read |
 | 71–73 | `evals/gated/` | long tasks that ship a strict `.janetcode/verify.json` (build + vet + gofmt + tests), so `--eval-gate` has a gate that can actually fail |
 | 81–86 | `evals/hard/` | six gap tasks ported from the mixai research repository: small Python programs whose stated behaviour a cheap model gets subtly wrong (occurs check, vector-clock concurrency, integer cent splitting, a regex engine that may not import `re`, deterministic topological order, a PN-counter merge). Each ships its `pytest` specification as a `locked` file, so an edit to the test is restored before grading, and a `.janetcode/verify.json` that runs the same tests inside the run, so `--eval-gate` has a gate that fails exactly when the task is unsolved. This is the set an escalation or advisor arm is measured on, because the easy sets are passed by every model |
