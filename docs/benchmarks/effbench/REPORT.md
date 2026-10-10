@@ -22,6 +22,13 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Latest (campaign `jc-mimo-r13`, 2026-10-10)
+
+janetcode `5c3ed1a2` against pi on all 16 tasks × 2 seeds: janetcode
+30/32 valid, pi 26/32 valid (27 passed, one flagged); janetcode 4%
+faster, 20% fewer calls, 30% less output. Over r12 and r13: janetcode
+60/64 valid, pi 55/64. The runs from r8 on are below, misses and all.
+
 ## Result (campaign `jc-mimo-r8`, 2026-10-09)
 
 All 16 tasks, the default subset and 8 held-out tasks never used for
