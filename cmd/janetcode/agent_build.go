@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/proof"
+	"github.com/xmonader/janetcode/internal/purity"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
@@ -545,6 +546,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Localize = tree.Run
 	ag.SubagentMerge = d.cfg.SubagentMerge
 	ag.ProbeLedger = d.cfg.ProbeLedger
+	ag.ObservedPurity, ag.Purity = d.cfg.ObservedPurity, purity.Open(true, d.cfgDir)
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

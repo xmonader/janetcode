@@ -224,6 +224,10 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
+	// ObservedPurity runs bash commands under strace and lets a command
+	// line seen to change nothing in 3 runs in a repository run there
+	// without asking. Off by default: it changes who answers a prompt.
+	ObservedPurity bool `json:"observed_purity,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

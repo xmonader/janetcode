@@ -1256,6 +1256,21 @@ skip `GOPRIVATE`/`GONOPROXY` modules and `GOPROXY=off`, and fail open.
 `JANETCODE_OFFLINE=1` skips them; `JANETCODE_OFF=depgate` turns the check
 off.
 
+A typosquat is registered, so the registry lookup passes it. An edit
+that adds an import to Go, Python or JavaScript/TypeScript source, or a
+requirement to one of those manifests, also has each new name compared,
+offline, with the names this machine already knows: the project's own
+dependencies and `node_modules`, the Python modules beside the file, the
+Go module cache, and a short list of well-known packages and standard
+libraries. A name one keystroke from a known one (`reqeusts`), with
+lookalike letters (`jeIlyfish`), a different case
+(`github.com/Sirupsen/logrus`), a different separator, or a decoration
+bolted on (`nodemailer-js`, `github.com/boltdb-go/bolt`) gets a
+`[typosquat check]` line on the edit's result naming what it resembles.
+A name that is itself known is never flagged, however close it is to
+another (`react` and `preact`). It never refuses the edit.
+`JANETCODE_OFF=typosquat` turns it off.
+
 With `memory_confirm` on (or `/memory confirm on` for the session), what
 the model or the extractor decides to remember waits instead of being
 saved: `/memory pending` lists each with where it was learned, its scope

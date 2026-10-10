@@ -5,6 +5,26 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- `observed_purity` (off by default, Linux with `strace`): foreground
+  bash commands outside the sandbox run under `strace`, and a command
+  line seen to change nothing in three runs in one repository, running
+  no interpreter, build tool or repository program, stops asking there.
+  It stays watched and the first run that writes demotes it for good.
+  Never promotes or records in a tainted session; fails closed without
+  `strace` or on a run that did not finish under the trace.
+  `JANETCODE_OFF=purity`. Offline pre-screen (`cmd/purityscreen`, with
+  the classifier standing in for the trace): 9 of 314 bash prompts (2.9%)
+  saved over the 184 recorded local sessions, 0 of 3,879 over effbench.
+- Typosquat tripwire (on by default, offline): an edit that adds an
+  import or a requirement gets a `[typosquat check]` line when the name
+  is a near-miss of a known one — the project's dependencies, the module
+  cache, a well-known list — by one keystroke, lookalike letters, case,
+  separators or a decoration (`nodemailer-js`, `boltdb-go/bolt`).
+  `JANETCODE_OFF=typosquat`. Pre-screen: 61 of 69 seeded typosquats
+  caught (88%), 2 of 62 real off-list packages flagged (3%); 0 flags on
+  1,073 imports added in recorded effbench and local edits.
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a

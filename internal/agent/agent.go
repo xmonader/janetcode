@@ -21,6 +21,7 @@ import (
 	"github.com/xmonader/janetcode/internal/localize"
 	"github.com/xmonader/janetcode/internal/plan"
 	"github.com/xmonader/janetcode/internal/proof"
+	"github.com/xmonader/janetcode/internal/purity"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/taint"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -301,6 +302,13 @@ type Agent struct {
 	// DepRegistry, when set, replaces the public registries the
 	// dependency check asks (depgate.go); tests use a fake.
 	DepRegistry depcheck.Registry
+	// ObservedPurity, when set, watches bash commands for side effects
+	// and lets one seen read-only PromoteAfter times in a repository run
+	// there unasked (purity.go), with its records kept in Purity (nil
+	// keeps none, which is off too). purityRun is the watched call.
+	ObservedPurity bool
+	Purity         *purity.Store
+	purityRun      purityWatch
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
