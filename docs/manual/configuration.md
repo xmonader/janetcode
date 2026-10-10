@@ -1114,6 +1114,49 @@ disable it.
 { "stream_idle_timeout": 240, "stream_max_duration": 900 }
 ```
 
+### Hedging, stream resume and the model fingerprint (experimental)
+
+Three opt-in defences against an unreliable route. All are off by default,
+because each sends requests you did not ask for.
+
+`hedge_provider` names another configured provider that serves the same
+model names (a second key, or a second route to the same model). When a
+call has produced no first token by the primary's p95 time to first token
+(learned from its last 200 calls; 10 s until 20 have been seen, never under
+1.5 s), the same request goes to the hedge provider too, and whichever
+answers first wins; the other is cancelled. A primary that fails on the
+route before its first token (a 5xx, a 429, a dropped connection) fails
+over to the hedge provider at once instead of waiting out its backoff. A
+request the server rejects (a 400) is not duplicated. `hedge_after_ms` fixes
+the delay instead of learning it. The status line says when a call is being
+raced.
+
+`stream_resume` continues a reply whose stream broke mid-text from the text
+that arrived, instead of regenerating the whole reply: the partial goes back
+as the start of the assistant's reply (Anthropic prefill; DeepSeek prefix
+completion, which needs the provider's `base_url` on
+`https://api.deepseek.com/beta`). It applies only to a reply that is still
+text (not a tool call), of at least 200 characters, at most twice per call,
+and on Anthropic not after the model has reasoned. On any other provider it
+does nothing, since a server that does not continue the partial would answer
+after it. A provider that refuses the prefill costs one request; the reply
+is regenerated and resume is not tried again in that session.
+
+`fingerprint` sends six canary prompts with known answers at the start of a
+session's first turn (who trained you, a multiplication, a reversed word, a
+letter count, a capital, a sequence) and compares the replies with the
+fingerprint stored for that provider and model under
+`~/.local/share/janetcode/fingerprints/`. The first session on a route
+records the reference. A model that names a maker other than the requested
+model's vendor, gets two canaries wrong that it used to get right, or
+changes the shape of most of its replies is reported as a notice; the turn
+goes on. A mismatching fingerprint is never stored over the reference;
+delete the file to accept a change.
+
+```json
+{ "hedge_provider": "ai02-backup", "stream_resume": true, "fingerprint": true }
+```
+
 ### Hook limits
 
 A hook is a shell command on the critical path of a tool call whose output

@@ -100,6 +100,10 @@ var setters = map[string]setter{
 	"fix_cache":              boolKey(func(c *Config) *bool { return &c.FixCache }),
 	"speculate":              boolKey(func(c *Config) *bool { return &c.Speculate }),
 	"plan_file":              boolKey(func(c *Config) *bool { return &c.PlanFile }),
+	"hedge_provider":         hedgeProviderKey,
+	"hedge_after_ms":         countKey("hedge_after_ms", func(c *Config) *int { return &c.HedgeAfterMs }),
+	"stream_resume":          boolKey(func(c *Config) *bool { return &c.StreamResume }),
+	"fingerprint":            boolKey(func(c *Config) *bool { return &c.Fingerprint }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),
@@ -410,4 +414,15 @@ func parseBool(s string) (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("want true/false")
+}
+
+// hedgeProviderKey takes empty (off) or the name of a configured
+// provider: a hedge onto a provider that does not exist would stop the
+// next start with a config error, so it is refused here instead.
+func hedgeProviderKey(c *Config, val string) (any, error) {
+	if _, ok := c.Providers[val]; val != "" && !ok {
+		return nil, fmt.Errorf("hedge_provider wants empty (off) or a configured provider's name, not %q", val)
+	}
+	c.HedgeProvider = val
+	return val, nil
 }

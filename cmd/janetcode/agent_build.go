@@ -555,6 +555,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.FixCache, ag.FixCacheDir = d.cfg.FixCache, fixCacheDir()
 	ag.Speculate = d.cfg.Speculate
 	ag.PlanFile = d.cfg.PlanFile
+	ag.FingerprintDir = fingerprintDir(d.cfg)
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

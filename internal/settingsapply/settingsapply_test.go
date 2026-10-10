@@ -180,6 +180,10 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"conflict_exit": "read from cfg.ConflictExit when the agent is built: it adds a system prompt line, so it takes effect at the next session and never rewrites a cached prefix mid-session",
 		"blind_tester":  "read via cfg.BlindTesterModel() when a headless run or an eval arm is built; an interactive session has no blind tester to update",
 	}
+	// The route mechanisms are read when the provider and agent are built.
+	for _, k := range []string{"hedge_provider", "hedge_after_ms", "stream_resume", "fingerprint"} {
+		noAgentField[k] = "read when the provider (wrapRoute) or agent (FingerprintDir) is built: takes effect at the next session"
+	}
 	for _, k := range config.SettableKeys {
 		if strings.HasPrefix(k, "voice.") {
 			noAgentField[k] = "read from cfg.Voice each time /voice transcribes"

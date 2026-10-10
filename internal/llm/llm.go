@@ -158,6 +158,12 @@ type Request struct {
 	// before, so setting it is always safe; ask for it where a malformed
 	// answer would cost something, not everywhere.
 	Schema *Schema
+	// Prefill marks the last message, an assistant one, as the start of
+	// the reply to continue rather than a finished turn (see Resume).
+	// Anthropic continues a trailing assistant message anyway; the
+	// OpenAI-compatible provider marks it "prefix", which is DeepSeek's
+	// prefix completion.
+	Prefill bool
 }
 
 // Schema names a JSON shape a reply must take.
