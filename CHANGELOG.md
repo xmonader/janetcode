@@ -28,6 +28,20 @@ and measurements behind each round are in `docs/notes/history.md`.
   which rules failed, the failed checks are rerun after that round, and
   the proof note records the result. `JANETCODE_OFF=blindtest` turns it
   off.
+- `spec_coverage` and `spec_examples` (both off by default). The first
+  reads the task text (the prompt and the documents it names) for rules
+  and worked examples, matches their literals against the public tests,
+  and tells the model at the turn's first tool step which rules no public
+  test reaches. The second compiles the examples it can read unambiguously
+  (a Python call with a literal answer, a shell command and its output)
+  into checks that run at the gate and send the turn back when they fail,
+  feeding the probe ledger when that is on. `speccovscreen` is the offline
+  pre-screen: on 36 effbench tasks and the r8–r13 runs, 77% of janetcode's
+  hidden-test failures (68% of the 40 distinct failing tests) touch a rule
+  the matrix flags, against a 47% base rate over all hidden tests, with
+  63% of rules flagged; 110 examples appear in 16 tasks' text, 18 of them
+  compile, in 4 tasks, all 18 pass on the reference solutions, and none
+  fails on a failed janetcode run.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's

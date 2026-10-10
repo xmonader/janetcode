@@ -94,6 +94,8 @@ var setters = map[string]setter{
 	"subagent_merge":         boolKey(func(c *Config) *bool { return &c.SubagentMerge }),
 	"probe_ledger":           boolKey(func(c *Config) *bool { return &c.ProbeLedger }),
 	"blind_tester":           blindTesterKey,
+	"spec_coverage":          boolKey(func(c *Config) *bool { return &c.SpecCoverage }),
+	"spec_examples":          boolKey(func(c *Config) *bool { return &c.SpecExamples }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),

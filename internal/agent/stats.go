@@ -473,6 +473,7 @@ var switches = map[string]bool{
 	"probes": true,
 
 	"blindtest": true,
+	"speccov":   true, "specexamples": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for
