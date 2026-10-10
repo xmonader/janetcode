@@ -81,12 +81,19 @@ type sideReply struct {
 
 // sideQueryReply is sideQuery reporting how the reply ended.
 func (a *Agent) sideQueryReply(ctx context.Context, system, question, model string, maxTok int) (sideReply, error) {
+	msgs := sideTranscript(a.MessagesSnapshot(), 8, 2000, 600)
+	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
+	return a.sideCall(ctx, system, msgs, model, maxTok)
+}
+
+// sideCall is one completion with no tools on model (empty: the session's
+// own), routed to the provider that serves it. msgs is all it sees: a
+// caller that must not show the transcript (blindtest.go) passes its own.
+func (a *Agent) sideCall(ctx context.Context, system string, msgs []llm.Message, model string, maxTok int) (sideReply, error) {
 	s := a.Settings()
 	if s.Provider == nil {
 		return sideReply{}, fmt.Errorf("no provider")
 	}
-	msgs := sideTranscript(a.MessagesSnapshot(), 8, 2000, 600)
-	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
 	if strings.TrimSpace(model) == "" {
 		model = s.Model
 	}

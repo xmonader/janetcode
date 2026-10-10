@@ -5,6 +5,17 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- A clean-room blind tester for headless runs, opt-in with
+  `"blind_tester": "on"` (or a slot: `cheap`, `strong`, `advisor`,
+  `main`): when a turn that changed files ends green, one model call that
+  sees only the task text and the project's file names, never the code or
+  the transcript, writes up to eight checks, one per rule the task states.
+  They run in a throwaway worktree; the turn goes back once told only
+  which rules failed, the failed checks are rerun after that round, and
+  the proof note records the result. `JANETCODE_OFF=blindtest` turns it
+  off.
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a

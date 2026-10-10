@@ -224,6 +224,9 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
+	// BlindTester names the model slot a headless run's blind tester
+	// uses (see blindtester.go); empty or "off" is off.
+	BlindTester string `json:"blind_tester,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

@@ -78,6 +78,8 @@ type Turn struct {
 	// Conflict is the spec/test contradiction the turn ended on, when it
 	// ended on one.
 	Conflict *Conflict `json:"conflict,omitempty"`
+	// BlindTest is the blind tester's run on the turn (blindtest.go).
+	BlindTest *BlindTest `json:"blind_test,omitempty"`
 }
 
 // Integrity is what a turn did to the tests that judged it: the test
@@ -187,6 +189,7 @@ type TurnOutcomeInput struct {
 	// session.TypeTestLedger and session.TypeConflict events.
 	Integrity *Integrity
 	Conflict  *Conflict
+	BlindTest *BlindTest // from the turn's latest session.TypeBlindTest event
 }
 
 // Build assembles a Record from one session's tracked changes and turn
@@ -247,6 +250,7 @@ func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes ma
 			Turn: tn, Verdict: o.Verdict, Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
 			Mutation: o.Mutation, Integrity: o.Integrity, Conflict: o.Conflict,
+			BlindTest: o.BlindTest,
 		})
 	}
 	return Record{
@@ -565,6 +569,9 @@ func Summary(r Record) string {
 				state = "confirmed red"
 			}
 			fmt.Fprintf(&b, " · CONFLICT %s (%s)", c.Test, state)
+		}
+		if bt := t.BlindTest; bt != nil {
+			b.WriteString(" · " + bt.Line())
 		}
 		b.WriteString("\n")
 	}
