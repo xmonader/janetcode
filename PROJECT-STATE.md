@@ -42,6 +42,18 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   fallback). Live: Serper, Exa, list-models; bwrap/editor/drag via pty.
   Not live: Tavily, SearXNG (no key/instance).
 
+- Novel ideas 2026-10-10 (branch feat/novel-ideas, not on master): all 13
+  from reports/Janetcode novel engineering ideas.md built, unit-tested, no
+  live runs. Default on (deterministic): claimcheck, tour, testledger,
+  evidence (--proof verify), taint/honeytoken/depgate. Opt-in: probe_ledger,
+  elide_checks, conflict_exit, localize_failures, effort_control,
+  subagent_merge, --branch-retry, --second-sample. Offline pre-screens:
+  elide 37% (<60% kill), claimcheck 3% (<10%), tour 0.2% mechanical
+  (<20%), second-sample trigger precision 23% (<40%), branch-retry 0
+  branch points; probes 75% of r13 runs, 23/32 with a discriminating one.
+  Impossible-effbench split: docs/benchmarks/effbench/impossible. Next:
+  live A/Bs on ai02. Further ideas: reports/Janetcode wild ideas.md.
+
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does
