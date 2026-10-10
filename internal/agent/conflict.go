@@ -136,13 +136,31 @@ func (a *Agent) conflictCommands(root string) ([]string, int) {
 			continue
 		}
 		if shell.IsTestRun(cmd) {
-			last = cmd
+			last = trimDisplayPipe(cmd)
 		}
 	}
 	if last == "" {
 		return nil, 0
 	}
 	return []string{last}, 300
+}
+
+// displayPipeRe matches a filter piped onto the end of a command only to
+// shorten what it prints: `pytest -q 2>&1 | tail -20`.
+var displayPipeRe = regexp.MustCompile(`\s*\|\s*(?:tail|head|grep|egrep|less|more|cat|tee|cut|sed|awk)\b[^|]*$`)
+
+// trimDisplayPipe drops those filters. The pipeline's status is the last
+// filter's, so a red run through `| tail` exits 0, and on a live run that
+// turned a true conflict away as "it passes"; the filter can also cut the
+// failing test's name out of what is left.
+func trimDisplayPipe(cmd string) string {
+	for {
+		t := displayPipeRe.ReplaceAllString(cmd, "")
+		if t == cmd || strings.TrimSpace(t) == "" {
+			return cmd
+		}
+		cmd = t
+	}
 }
 
 // findTest looks for the cited test in the project's test files and

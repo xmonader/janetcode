@@ -143,6 +143,36 @@ func TestConflictIgnoresInlineScripts(t *testing.T) {
 	}
 }
 
+func TestTrimDisplayPipe(t *testing.T) {
+	for in, want := range map[string]string{
+		"python -m pytest -q 2>&1 | tail -20":          "python -m pytest -q 2>&1",
+		"go test ./... 2>&1 | grep -v ok | head -n 30": "go test ./... 2>&1",
+		"python -m pytest -q":                          "python -m pytest -q",
+		"python -m pytest -q | python3 summarize.py":   "python -m pytest -q | python3 summarize.py",
+	} {
+		if got := trimDisplayPipe(in); got != want {
+			t.Errorf("trimDisplayPipe(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// A red run the model piped through tail still shows the test failing.
+func TestConflictSeesThroughTail(t *testing.T) {
+	root := ledgerProject(t, totalCheck)
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"sh tests/check.sh 2>&1 | tail -5"}`),
+		text("CONFLICT: test_total | the total is 40 | the test expects 42"),
+		text("should not be asked"),
+	}}
+	a := conflictAgent(f, root, true)
+	if err := a.Run(context.Background(), "fix total", nil); err != nil {
+		t.Fatal(err)
+	}
+	if c := a.Conflict(); c == nil || !c.Verified {
+		t.Fatalf("%d calls, conflict %+v", len(f.requests), c)
+	}
+}
+
 // Off by default: the line is only text.
 func TestConflictOffIgnoresTheLine(t *testing.T) {
 	root := ledgerProject(t, totalCheck)
