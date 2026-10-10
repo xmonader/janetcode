@@ -206,6 +206,12 @@ type Config struct {
 	// the functions the failing tests ran ranked by Ochiai. Off by
 	// default: it reruns tests, up to a minute, while the model waits.
 	LocalizeFailures bool `json:"localize_failures,omitempty"`
+	// ConflictExit offers the model a CONFLICT: line for a task whose
+	// tests contradict it: a confirmed one (the cited test exists and
+	// fails) ends the turn, and a headless run with exit status 58,
+	// instead of a turn spent making that test pass. Off by default: it
+	// adds a line to the system prompt.
+	ConflictExit bool `json:"conflict_exit,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

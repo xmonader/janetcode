@@ -618,6 +618,17 @@ changed since, it gets the result back marked "Not run again" instead
 of a second run. On the effbench r12–r13 recordings only 37% of
 edit-completing replies were followed by a check (`--session-profile`
 prints this), under the 60% the idea needed, which is why it is off.
+`conflict_exit` (default off) offers the model a way out of a task
+whose tests contradict it: one prompt line, and a `CONFLICT: <test id> |
+<the task's words> | <why>` line in its final answer. The harness checks
+the claim rather than taking it: the cited test must exist in the
+project and fail when the turn ends. A confirmed conflict ends the turn
+without the verify gate and the reviews that would send it back to make
+that test pass, is recorded in the proof note, and ends a `-p` run with
+exit 58; an unconfirmed one is sent back once. Off by default because it
+changes the prompt, and a model that reads it as an escape hatch from a
+hard task costs passes (measure with
+`docs/benchmarks/effbench/impossible`).
 
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a

@@ -96,7 +96,9 @@ func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committ
 		outcomes[tn] = proof.TurnOutcomeInput{
 			Verdict: string(o.Verdict), Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
-			Mutation: foldMutation(events, tn),
+			Mutation:  foldMutation(events, tn),
+			Integrity: foldLedger(events, tn),
+			Conflict:  foldConflict(events, tn),
 		}
 	}
 	return proof.Build(sessionID, a.Settings().Model, repoRoot, inputs, outcomes, versions), nil

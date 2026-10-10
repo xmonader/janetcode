@@ -145,6 +145,7 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"computer_use":  "read via cfg.ComputerUseEnabled() when MCP servers start",
 		"vision_model":  "no consumer yet: resolved through cfg.Slot wherever it is eventually read",
 		"screen_reader": "read via cfg.ScreenReaderOn() when the session picks its interface",
+		"conflict_exit": "read from cfg.ConflictExit when the agent is built: it adds a system prompt line, so it takes effect at the next session and never rewrites a cached prefix mid-session",
 	}
 	for _, k := range config.SettableKeys {
 		if strings.HasPrefix(k, "voice.") {

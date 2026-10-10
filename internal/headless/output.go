@@ -65,6 +65,7 @@ const (
 	ExitBudget    = 55  // the run reached --max-cost
 	ExitWallTime  = 56  // the run reached --max-wall-time
 	ExitToolLimit = 57  // the run reached --max-tool-calls
+	ExitConflict  = 58  // the run ended on a confirmed CONFLICT: the task and a test disagree
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
 
@@ -75,6 +76,12 @@ var ErrBudget = agent.ErrBudget
 
 // ErrToolLimit is returned when a run reaches --max-tool-calls.
 var ErrToolLimit = agent.ErrToolLimit
+
+// ErrConflict ends a run whose last turn ended on a confirmed CONFLICT
+// (conflict_exit): the cited test exists and fails, and the model says
+// the task contradicts it. It is a terminal state, not a failure: the
+// result object carries it as "conflict" with is_error false.
+var ErrConflict = errors.New("the task and a test contradict each other")
 
 // ErrBadInput marks a usage error, so main can exit 42 for it.
 var ErrBadInput = errors.New("bad input")
@@ -161,6 +168,7 @@ var exitRules = []struct {
 	}, ExitCancelled},
 	{"budget", func(err error) bool { return errors.Is(err, ErrBudget) }, ExitBudget},
 	{"tool limit", func(err error) bool { return errors.Is(err, ErrToolLimit) }, ExitToolLimit},
+	{"conflict", func(err error) bool { return errors.Is(err, ErrConflict) }, ExitConflict},
 	{"turn limit", func(err error) bool { return errors.Is(err, agent.ErrMaxIterations) }, ExitTurnLimit},
 	{"schema", func(err error) bool { return errors.Is(err, ErrNoStructuredOutput) }, ExitSchema},
 	{"bad input", func(err error) bool {
@@ -538,7 +546,15 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 			res.DryRun.Actions = []agent.DryAction{}
 		}
 	}
-	if err != nil {
+	if ag != nil {
+		res.Conflict = ag.Conflict()
+	}
+	switch {
+	case errors.Is(err, ErrConflict):
+		// Exit 58 says what happened; the run did what it was asked to
+		// when the task cannot be done as written.
+		res.Error = err.Error()
+	case err != nil:
 		res.IsError, res.Error = true, err.Error()
 	}
 	r.mergeAttempt(&res)

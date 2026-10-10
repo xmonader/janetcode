@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/localize"
 	"github.com/xmonader/janetcode/internal/plan"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -267,6 +268,17 @@ type Agent struct {
 	// (testguard.go).
 	TestGuard   bool
 	testGuarded map[string]bool
+	// TestLedger, when set, keeps the test-integrity ledger for a turn
+	// that changed files and sends it back once on a finding: original
+	// tests failing against the code, or a branch on a value only a test
+	// holds (testledger.go).
+	TestLedger bool
+	// ConflictExit, when set, accepts a CONFLICT: line ending a turn as a
+	// claim that the task and a test disagree, and ends the turn on it
+	// once the cited test is confirmed failing (conflict.go). The prompt
+	// line that offers it is the caller's to add (ConflictPrompt).
+	ConflictExit bool
+	conflict     *proof.Conflict
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -625,6 +637,10 @@ type turnGates struct {
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
 	specReviewed              bool
+	ledger                    ledgerState
+	// conflicted: the turn ended on a confirmed CONFLICT, past the gates
+	// that would send it back to make the cited test pass.
+	conflicted, conflictNudged bool
 }
 
 // openTurn is everything that has to happen once, before the first model
@@ -643,6 +659,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.planCuts, a.planCutNow = 0, false
 	a.effort.start(a.Settings().Effort)
 	a.reviewSteps = -1
+	a.conflict = nil
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -917,21 +934,30 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	if a.diagnosticsGate(&g.diagRounds, emit) {
 		return false
 	}
-	if !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
+	// Before the checks: a confirmed CONFLICT ends the turn with the
+	// cited test red, and the gates below would send it back to make
+	// that test pass by whatever means.
+	if a.conflictGate(ctx, resp.Message.Text(), g, emit) {
+		return false
+	}
+	if !g.conflicted && !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
 		a.stepRoute.taint("a verification check failed and was sent back")
 		a.noteEffort(effortTrouble)
 		return false
 	}
-	if a.acceptVerifyGate(ctx, &g.accept, emit) {
+	if !g.conflicted && a.acceptVerifyGate(ctx, &g.accept, emit) {
 		a.stepRoute.taint("an acceptance check failed and was sent back")
 		a.noteEffort(effortTrouble)
+		return false
+	}
+	if !g.conflicted && a.testLedgerGate(ctx, &g.ledger, emit) {
 		return false
 	}
 	// What the turn actually demonstrated, decided from what the harness
 	// watched rather than from what was written. A claim the turn does
 	// not support is put back to the model once.
 	outcome := a.Outcome()
-	if !a.Off["verdict"] && outcome.Overclaimed() && g.corrections == 0 {
+	if !g.conflicted && !a.Off["verdict"] && outcome.Overclaimed() && g.corrections == 0 {
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
 		a.appendHarnessText(outcome.Correction())
@@ -943,13 +969,13 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	// and bounded by the same one-correction-a-turn counter, because the
 	// expensive mistake here is nagging a turn that is genuinely finished
 	// into another round of model calls.
-	if a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
+	if !g.conflicted && a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
 		a.appendHarnessText(outcome.StaleCheckNote())
 		return false
 	}
-	if a.specReview(outcome, &g.specReviewed, emit) {
+	if !g.conflicted && a.specReview(outcome, &g.specReviewed, emit) {
 		return false
 	}
 	if g.specReviewed {
