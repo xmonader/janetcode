@@ -249,6 +249,9 @@ func (s *server) statsText() string {
 	if line := st.DecisionLine(); line != "" {
 		sb.WriteString(line + "\n")
 	}
+	if line := ag.DebtLine(s.cwd()); line != "" {
+		sb.WriteString(line + "\n")
+	}
 	for _, t := range st.Tools {
 		fmt.Fprintf(&sb, "  %-16s %d calls", t.Name, t.Calls)
 		if t.Errors > 0 {
@@ -358,13 +361,18 @@ func (s *server) changesText(arg string) string {
 		if err != nil {
 			return err.Error()
 		}
+		s.opts.Agent.MarkChangeReviewed(n)
 		return agent.FormatChange(c, s.cwd())
 	}
 	groups := s.opts.Agent.ChangeGroups()
 	if len(groups) == 0 {
 		return "no file changes in this session yet"
 	}
-	return agent.FormatChangeGroups(groups, s.cwd(), s.opts.Agent.RestorableTurns())
+	out := agent.FormatChangeGroups(groups, s.cwd(), s.opts.Agent.RestorableTurns())
+	if line := s.opts.Agent.DebtLine(s.cwd()); line != "" {
+		out += "\n\n" + line
+	}
+	return out
 }
 
 func (s *server) diffText(path string) string {

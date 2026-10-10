@@ -52,6 +52,7 @@ func (m *model) changesCommand(args []string) {
 			m.transcript.errorf("%v", err)
 			return
 		}
+		m.opts.Agent.MarkChangeReviewed(n)
 		m.transcript.code(agent.FormatChange(c, m.opts.Cwd))
 		return
 	}
@@ -60,7 +61,11 @@ func (m *model) changesCommand(args []string) {
 		m.transcript.info("no file changes in this session yet")
 		return
 	}
-	m.transcript.code(agent.FormatChangeGroups(groups, m.opts.Cwd, m.opts.Agent.RestorableTurns()) + "\n/changes <n> shows the hunks; /undo <n> reverts one change; /undo turn <n> puts the tree and the conversation back to before a turn; /blame <path> attributes lines")
+	out := agent.FormatChangeGroups(groups, m.opts.Cwd, m.opts.Agent.RestorableTurns())
+	if line := m.opts.Agent.DebtLine(m.opts.Cwd); line != "" {
+		out += "\n" + line
+	}
+	m.transcript.code(out + "\n/changes <n> shows the hunks; /tour reviews a turn riskiest first; /undo <n> reverts one change; /undo turn <n> puts the tree and the conversation back to before a turn; /blame <path> attributes lines")
 }
 
 // blameCommand attributes each line of a file to the change that wrote it.

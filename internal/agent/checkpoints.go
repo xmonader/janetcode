@@ -60,6 +60,13 @@ type checkpoints struct {
 	pendingUndo *pendingUndo
 	// blobTemp is blobDir's directory when there is no UndoPath.
 	blobTemp blobTemp
+	// review is which changes the person saw whole, for the
+	// comprehension-debt meter (see tour.go).
+	review reviewLedger
+	// Reach, when set, says how many places use what changing one file
+	// from before to after touches (see package impact); the review tour
+	// ranks a file's behaviour hunks by it. Set when the agent is built.
+	Reach func(ctx context.Context, path, before, after string) int
 }
 
 // snaps is Snapshots as the interface the checkpoint code consumes, and

@@ -91,6 +91,7 @@
 <tr><td><code>/stats</code></td><td></td><td>session statistics: turns, model calls, tool calls per tool, tokens, cost</td></tr>
 <tr><td><code>/undo</code></td><td><code>[preview | n | about &lt;description&gt; | apply [--force]]</code></td><td>revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; about &lt;description&gt; previews only the changes matching it, apply reverts that preview (--force if the preview has mixed changes or a coupling warning)</td></tr>
 <tr><td><code>/changes</code></td><td><code>[n]</code></td><td>this session&#x27;s file changes grouped by turn and intent; n shows one change&#x27;s hunks</td></tr>
+<tr><td><code>/tour</code></td><td><code>[turn] [all]</code></td><td>review a turn&#x27;s changes riskiest hunk first, each with its stated intent; reformatting and renames collapsed behind a count (all shows them); ends with the comprehension debt</td></tr>
 <tr><td><code>/blame</code></td><td><code>&lt;path&gt;</code></td><td>which change wrote each line of a file changed this session</td></tr>
 <tr><td><code>/redo</code></td><td></td><td>reapply what the last /undo reverted (until the next change)</td></tr>
 <tr><td><code>/mcp</code></td><td><code>[trust|reconnect [server]|auth &lt;server&gt;|logout &lt;server&gt;]</code></td><td>MCP servers and their tools; reconnect restarts one that went down; trust starts the project&#x27;s .mcp.json servers; auth logs in to a remote server with OAuth</td></tr>
