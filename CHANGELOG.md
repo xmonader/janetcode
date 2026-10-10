@@ -15,6 +15,13 @@ and measurements behind each round are in `docs/notes/history.md`.
   pairs), no pass-rate A/B would have stopped early and the output gate
   decided 3 of 17, saving one round of 16 runs: those A/Bs were
   underpowered, not overspent.
+- A/B arms that branch mid-run: `-p --ab-replay <session.jsonl>
+  --ab-replay-calls K` replays a recorded run's first K replies at no cost,
+  with the recording's absolute paths moved to this workspace, and goes
+  live from call K+1; effbench's `run.py --branch-from <campaign>
+  --branch-at 0.5` gives every janetcode arm the same recording per task
+  and seed. No branched campaign has run yet, so the variance it removes is
+  unmeasured; independent seeds disagree on 7 of 64 verdicts.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's

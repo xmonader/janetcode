@@ -44,6 +44,8 @@ var flagWhen = map[string]string{
 	"max-turns":              "capping the model calls a session may make, the same cap for the TUI, headless and ACP",
 	"compact-at":             "compacting earlier than the default, to test compaction or to keep a small model within its window",
 	"until":                  "the run is done when a command passes, not when the model says so",
+	"ab-replay":              "an A/B of a harness change that acts late in a run, where both arms should share their first replies exactly",
+	"ab-replay-calls":        "choosing how much of the recorded run both A/B arms share before they go live",
 	"branch-retry":           "an unattended run that would rather spend a second attempt than end stuck, without paying again for the exploring the first one did",
 	"second-sample":          "an unattended run where a confident wrong answer costs more than a second attempt does",
 	"watch":                  "you want failures fixed as you save, without pressing enter",

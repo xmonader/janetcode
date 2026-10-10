@@ -286,6 +286,9 @@ func (r *root) headlessMode() error {
 	} else if o.branchRetry || o.secondSample {
 		ro = &headless.Rollout{Branch: o.branchRetry, Sample: o.secondSample, Attempt: rolloutAttempt(r.sessDir, cwd, os.Stderr)}
 	}
+	if err := abBranch(ag, o.abReplay, o.abCalls, cwd, spec != nil || ro != nil); err != nil {
+		return err
+	}
 	var schema json.RawMessage
 	if o.jsonSchema != "" {
 		var err error

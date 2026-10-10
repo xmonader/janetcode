@@ -78,6 +78,8 @@ type options struct {
 	evalStrict   bool
 	evalGate     bool
 	evalSeq      string
+	abReplay     string
+	abCalls      int
 	inspectWhat  string
 	wtBranch     string
 	acpMode      bool
@@ -269,6 +271,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.compactAt, "compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")
 	fs.StringVar(&o.until, "until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 	fs.BoolVar(&o.branchRetry, "branch-retry", false, "with -p: when the run ends badly (stuck, out of turns or tool calls, the project's checks or --until still red), branch once from the step where it stopped exploring: the steps before it are replayed from the recording at no cost, the rest run live with a line saying what failed, and the better of the two trees is kept. Opt-in: it buys a second run's calls")
+	fs.StringVar(&o.abReplay, "ab-replay", "", "with -p: replay the first --ab-replay-calls model replies of this recorded session file (paths moved to this directory) at no cost, then run live: both arms of an A/B branched from one recording share their start exactly")
+	fs.IntVar(&o.abCalls, "ab-replay-calls", 0, "with --ab-replay: how many recorded model calls to replay before going live")
 	fs.BoolVar(&o.secondSample, "second-sample", false, "with -p: when the run finishes green on weak evidence (the verdict says the claim is not shown, the check is stale, or a gaming signal fired), draw one more attempt from the start and keep the better tree, ranked by the harness's own checks, never by a model. Opt-in: it can double the run's cost")
 	fs.StringVar(&o.watchCmd, "watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 	fs.StringVar(&o.provider, "provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")

@@ -490,6 +490,42 @@ re-analysed over 17 past effbench A/Bs, the bootstrap called six output-token
 differences significant at their full size and the sequential test three.
 No pass-rate difference in any of them was decisive by either test.
 
+## A/B arms that branch mid-run
+
+Two independent runs of one task differ from the first reply on, and most
+of the spread between arms comes from there: across the effbench r10–r13
+janetcode runs, the two seeds of a task disagreed on the verdict in 7 of 64
+pairs and their output tokens differed by a factor of e^0.87 (one standard
+deviation of the log ratio). A harness change that only acts late in a run
+— a gate, the spec review, compaction — has to be seen through all of it.
+
+`--ab-replay <session.jsonl> --ab-replay-calls K` (with `-p`) takes the
+first K model replies from a recorded run of the same task instead of the
+model: they cost nothing, their tool calls re-execute against this run's
+own workspace (absolute paths in them are moved from the recording's
+directory to this one), and the run goes live from call K+1. Two arms given
+the same recording and the same K start from an identical history and an
+identical tree, so their difference is the change, not the first replies.
+The recorded tree must be the same starting point: a benchmark's seeded
+workspace is; a tool whose output varies run to run (a timing test) can
+still make the replayed results differ slightly from the recording's.
+
+The effbench driver does this for every janetcode arm:
+
+```sh
+./run.py --campaign ab-gate --model mimo --seeds 2 \
+  --arms janetcode:base=$PWD/runs/janetcode-r13,janetcode:gate=$PWD/runs/janetcode-new \
+  --branch-from jc-mimo-r13 --branch-at 0.5
+```
+
+`--branch-at` below 1 is a fraction of each recording's calls (the median
+run wrote 57% of its output tokens in the first half of its calls, so half
+is a large share of the run frozen), at 1 or more a call count. A unit with
+no recording, or a branch point outside it, runs unbranched in every arm
+alike, and each branched unit writes `branch.json` beside its result. Only
+janetcode arms can replay, so a pi arm is refused. Nothing has measured how
+much variance this removes yet: no branched campaign has been run.
+
 ## Every eval flag
 
 The environment variables above are what `make eval` sets; each is a flag
