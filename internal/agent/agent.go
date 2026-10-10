@@ -221,6 +221,16 @@ type Agent struct {
 	// snapshot export in tests.
 	probeExec    func(ctx context.Context, cmd string) probeResult
 	probePreTree func(ctx context.Context) string
+	// FlakeQuarantine reruns a red test command of the model's and tells
+	// it when the result flips. See flake.go.
+	FlakeQuarantine bool
+	flaky           flakeState
+	// FixCache stores, per repository under FixCacheDir, the change that
+	// made a check's error go away, and shows it when the error recurs.
+	// See fixcache.go.
+	FixCache    bool
+	FixCacheDir string
+	fixc        fixCacheState
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.

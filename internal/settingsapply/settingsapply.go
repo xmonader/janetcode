@@ -101,6 +101,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetSpecCoverage(cfg.SpecCoverage)
 	case "spec_examples":
 		a.SetSpecExamples(cfg.SpecExamples)
+	case "flake_quarantine":
+		a.SetFlakeQuarantine(cfg.FlakeQuarantine)
+	case "fix_cache":
+		a.SetFixCache(cfg.FixCache)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":

@@ -548,6 +548,8 @@ func (b *agentBuilder) stepCore() error {
 	ag.ProbeLedger = d.cfg.ProbeLedger
 	ag.SetSpecCoverage(d.cfg.SpecCoverage)
 	ag.SetSpecExamples(d.cfg.SpecExamples)
+	ag.FlakeQuarantine = d.cfg.FlakeQuarantine
+	ag.FixCache, ag.FixCacheDir = d.cfg.FixCache, fixCacheDir()
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

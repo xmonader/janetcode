@@ -705,6 +705,29 @@ without counting as a failure. With `probe_ledger` on, the passing ones
 join the ledger and are replayed at every later gate.
 `JANETCODE_OFF=specexamples` turns it off.
 
+`flake_quarantine` (default off): when a test command the model ran
+comes back red, the harness runs it again once on the tree as it is and,
+when the turn ran the same command before its first change, once more on
+that tree (exported from the undo snapshot, as the probe ledger does). If
+a result flips between two runs on one tree — red then green, or red with
+a different set of failing tests (go test, pytest, cargo, jest/vitest and
+TAP names are read) — the red output carries a note that the command is
+non-deterministic, and later red runs of it in the session carry it too.
+A run that fails the same way twice adds nothing. A red run slower than
+45 seconds is not rerun, a turn reruns at most two, and reruns go through
+the bash tool under the sandbox and only when the permission rules would
+let them run unasked. `JANETCODE_OFF=flaky` turns it off.
+
+`fix_cache` (default off): when a check that came back red goes green on
+a later run of the same command with files changed in between, its error
+lines, normalised (paths under the repository, line numbers, addresses and
+numbers taken out; bare "FAIL" and summary lines ignored), are stored with
+the diff of those files in one file per repository under
+`$XDG_DATA_HOME/janetcode/fixcache/`. When a red check in a later session
+names a stored error, the earlier diff is appended to its output, once
+per error per session. Nothing calls a model. `JANETCODE_OFF=fixcache`
+turns it off.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

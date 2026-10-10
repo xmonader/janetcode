@@ -97,5 +97,7 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	ag.BlindTest = blindTester(cfg)
 	ag.SetSpecCoverage(cfg.SpecCoverage)
 	ag.SetSpecExamples(cfg.SpecExamples)
+	ag.FlakeQuarantine = cfg.FlakeQuarantine
+	ag.FixCache, ag.FixCacheDir = cfg.FixCache, fixCacheDir()
 	settingsapply.WireDecisions(cfg, ag, off)
 }

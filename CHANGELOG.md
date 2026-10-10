@@ -65,6 +65,23 @@ and measurements behind each round are in `docs/notes/history.md`.
   16:30–00:30 UTC discount, withdrawn in September 2025, so it finds
   nothing in force until a provider publishes a window. At those old
   rates r13 would have cost $2.19 instead of $4.39.
+- `flake_quarantine` (off by default): a red test command the model ran is
+  rerun once on the tree as it is and, when the turn saw the command's
+  result before its first change, once on that pre-edit tree. A result
+  that flips (red then green, or different failing tests) is reported to
+  the model as non-deterministic; no model call. `JANETCODE_OFF=flaky`.
+  Offline over 321 effbench sessions: 78 of 536 red test runs (14.6%) were
+  followed by an edit to a file the failure did not name, but only 1 red
+  run was seen to flip on an unchanged tree (0.2%, 0 with no other shell
+  call in between).
+- `fix_cache` (off by default): the change that turned a red check green is
+  stored per repository with the check's normalised error lines, and shown
+  under the same error in a later session; no model call.
+  `JANETCODE_OFF=fixcache`. Offline, 7.1% of distinct error signatures
+  recurred across effbench sessions of the same task and 0 across 184
+  real local sessions; an earlier session's fix would have been attached
+  to 3 of 520 signed red episodes (0.6%), none touching the file that
+  session's own fix touched.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
