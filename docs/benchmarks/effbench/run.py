@@ -50,6 +50,44 @@ def _run(cmd, *a, **k):
 subprocess.run = _run
 
 
+# --branch-from: (campaign dir, arm, K). Every janetcode arm replays the first K model replies of
+# that arm's recorded session for the same task and seed (janetcode --ab-replay), then runs live,
+# so the arms differ only from step K on. A K below 1 is a fraction of the recording's calls.
+BRANCH = None
+
+
+def recorded_calls(path):
+    """How many model calls a janetcode session file holds (what replay.Read counts)."""
+    n = 0
+    for line in path.read_text().splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("t") == "assistant/message" and ev.get("message") and ev.get("surface_op") != "replace":
+            n += 1
+    return n
+
+
+def branch_args(run):
+    """The --ab-replay flags for this unit, or none when there is no recording to branch from.
+    The decision depends only on the recording, so every arm makes the same one for a unit."""
+    if not BRANCH:
+        return []
+    camp, arm, at = BRANCH
+    sessions = sorted((camp / arm / run.name / "janetcode-sessions").glob("*.jsonl"))
+    if not sessions:
+        eb.log(f"{run.name}: no recorded session under {camp.name}/{arm}; this unit runs unbranched")
+        return []
+    calls = recorded_calls(sessions[0])
+    k = int(at) if at >= 1 else int(at * calls)
+    if k < 1 or k >= calls:
+        eb.log(f"{run.name}: branch point {k} is outside the recording's {calls} calls; this unit runs unbranched")
+        return []
+    (run / "branch.json").write_text(json.dumps({"from": str(sessions[0]), "calls": k, "recorded_calls": calls}))
+    return ["--ab-replay", str(sessions[0]), "--ab-replay-calls", str(k)]
+
+
 class JanetcodeArm(eb.CompetitorArm):
     """janetcode headless (`-p --output-format json --yolo`), in a throwaway HOME holding one
     config: the model's context window. The provider is the arm's metering proxy through
@@ -82,7 +120,7 @@ class JanetcodeArm(eb.CompetitorArm):
         env["OPENAI_API_KEY"] = self.key
         prompt = (run / "prompt.txt").read_text()
         return [self.bin, "-p", prompt, "--yolo", "--output-format", "json",
-                "--provider", "openai", "--model", self.model], env
+                "--provider", "openai", "--model", self.model] + branch_args(run), env
 
     def collect(self, home, run):
         sess = home / ".local" / "share" / "janetcode" / "sessions"
@@ -123,7 +161,21 @@ def main():
     ap.add_argument("--tasks-root", type=Path,
                     help="run the tasks of this directory instead of effbench's (e.g. impossible/make.py's output); "
                          "with no --tasks, every task in it")
+    ap.add_argument("--branch-from", metavar="CAMPAIGN[:ARM]",
+                    help="A/B that branches mid-run: every janetcode arm replays the first --branch-at replies of "
+                         "this campaign's recorded session (arm janetcode by default) for the same task and seed, "
+                         "then runs live. Only janetcode arms can replay, so other arms are refused")
+    ap.add_argument("--branch-at", type=float, default=0.5,
+                    help="with --branch-from: model calls to replay; below 1, a fraction of the recording's calls")
     a = ap.parse_args()
+
+    global BRANCH
+    if a.branch_from:
+        bcamp, _, barm = a.branch_from.partition(":")
+        bdir = HERE / "runs" / bcamp
+        if not (bdir / (barm or "janetcode")).is_dir():
+            raise SystemExit(f"--branch-from: no {barm or 'janetcode'} arm under {bdir}")
+        BRANCH = (bdir, barm or "janetcode", a.branch_at)
 
     if a.tasks_root:
         eb.TASKS_ROOT = a.tasks_root.resolve()
@@ -161,12 +213,16 @@ def main():
             arms.append(eb.ARM_CLASSES[spec](camp, cfg, model, a.timeout, key))
         else:
             raise SystemExit(f"unknown arm {spec}")
+    if BRANCH and any(not isinstance(arm, JanetcodeArm) for arm in arms):
+        raise SystemExit("--branch-from: only janetcode arms can replay a recording; a pi arm would start from scratch "
+                         "and the comparison would not be paired")
 
     (camp / "meta.json").write_text(json.dumps({
         "campaign": a.campaign, "model": model, "config": str(cfg), "tasks": tasks, "seeds": a.seeds,
         "jobs": a.jobs, "timeout": a.timeout, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "provider": eb.PROVIDER, "upstream": eb.UPSTREAM, "effbench": str(EFFBENCH),
         "tasks_root": str(eb.TASKS_ROOT),
+        "branch": {"from": str(BRANCH[0]), "arm": BRANCH[1], "at": BRANCH[2]} if BRANCH else None,
         "arms": {arm.name: arm.version for arm in arms}}, indent=2))
     eb.log(f"{a.campaign}: model={model} tasks={len(tasks)} seeds={a.seeds} arms={[x.name for x in arms]}")
 

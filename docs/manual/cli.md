@@ -54,6 +54,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--worktree <branch>` | run the session in a git worktree on that branch |
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |
 | `--branch-retry` | with `-p`, opt-in: a run that ends badly gets one branch from the step where it stopped exploring. See [A second attempt](#a-second-attempt) |
+| `--off-peak-by <deadline>` | wait for the model's off-peak hours that still finish by the deadline, then run `-p` or `--eval` (`--off-peak-estimate` says how long it takes). See [Off-peak scheduling](#off-peak-scheduling) |
 | `--second-sample` | with `-p`, opt-in: a run that finishes green on weak evidence gets one more attempt from the start. See [A second attempt](#a-second-attempt) |
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
@@ -267,6 +268,40 @@ answer and exit code are those of the attempt whose tree was kept.
 `--max-cost` covers both attempts. The flags do not combine with
 `--resume`, `--continue`, `--recover`, `--worktree`, `--watch`,
 `--json-schema`, `--bg` or a stream-json conversation.
+
+## Off-peak scheduling
+
+`--off-peak-by <deadline>` holds a `-p` run or an `--eval` until the
+model's cheapest hours that still let it finish by the deadline, given
+`--off-peak-estimate` (default 30m) for how long it takes; alone, it only
+waits and exits 0, so it can go in front of any batch job:
+
+```sh
+janetcode --off-peak-by 08:00 --off-peak-estimate 4h --model deepseek-chat && ./run.py ...
+```
+
+The deadline is an RFC 3339 time, a local `HH:MM` (the next one) or a
+duration (`8h`). The deadline always wins: a run that cannot fit a window
+starts where the most of it falls inside one, or now. It prints one line
+saying which, on stderr.
+
+Which providers discount and when is data, not code: `offpeak.json` in the
+config directory, a JSON array of windows, replaces the built-in table:
+
+```json
+[{"provider": "deepseek", "models": ["deepseek-chat"], "start": "16:30", "end": "00:30",
+  "multiplier": 0.5, "until": "2025-09-05T16:00:00Z"}]
+```
+
+`start` and `end` are UTC and may cross midnight, `multiplier` is the
+fraction of the peak price paid, `models` match by substring, and `from` /
+`until` bound the dates. The built-in table holds only DeepSeek's old
+16:30–00:30 UTC discount, which DeepSeek withdrew on 2025-09-05, so out of
+the box the flag finds no window in force and says so; it pays off once a
+provider you use publishes one. Priced at those old DeepSeek rates, the
+r13 effbench campaign (64 runs, both arms) would have cost $4.39 as run —
+it ran 01:56–05:40 UTC, entirely at peak — and $2.19 inside the window,
+which its 3h44m fits.
 
 ## Exit codes
 

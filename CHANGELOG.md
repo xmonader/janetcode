@@ -42,6 +42,29 @@ and measurements behind each round are in `docs/notes/history.md`.
   63% of rules flagged; 110 examples appear in 16 tasks' text, 18 of them
   compile, in 4 tasks, all 18 pass on the reference solutions, and none
   fails on a failed janetcode run.
+- Sequential A/B testing: `--eval-compare` (and `--eval-report` with it)
+  now also prints an always-valid mSPRT verdict on the pass rate and on
+  output tokens, paired by task and run index, with broker-dropped pairs
+  counted per arm instead of silently left out. `--eval-sequential
+  pass|output|any` runs the rounds one at a time and stops the first round
+  the chosen gate is decisive. Re-analysed over 17 past effbench A/Bs (447
+  pairs), no pass-rate A/B would have stopped early and the output gate
+  decided 3 of 17, saving one round of 16 runs: those A/Bs were
+  underpowered, not overspent.
+- A/B arms that branch mid-run: `-p --ab-replay <session.jsonl>
+  --ab-replay-calls K` replays a recorded run's first K replies at no cost,
+  with the recording's absolute paths moved to this workspace, and goes
+  live from call K+1; effbench's `run.py --branch-from <campaign>
+  --branch-at 0.5` gives every janetcode arm the same recording per task
+  and seed. No branched campaign has run yet, so the variance it removes is
+  unmeasured; independent seeds disagree on 7 of 64 verdicts.
+- `--off-peak-by <deadline>` (with `--off-peak-estimate`) holds a `-p`
+  run or an `--eval`, or alone just waits, until the model's cheapest
+  hours that still finish by the deadline. The windows are a table in
+  `offpeak.json`, not code; the built-in one holds only DeepSeek's
+  16:30–00:30 UTC discount, withdrawn in September 2025, so it finds
+  nothing in force until a provider publishes a window. At those old
+  rates r13 would have cost $2.19 instead of $4.39.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's

@@ -77,6 +77,11 @@ type options struct {
 	evalNoLimit  bool
 	evalStrict   bool
 	evalGate     bool
+	evalSeq      string
+	abReplay     string
+	abCalls      int
+	offPeakBy    string
+	offPeakEst   time.Duration
 	inspectWhat  string
 	wtBranch     string
 	acpMode      bool
@@ -268,6 +273,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.compactAt, "compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")
 	fs.StringVar(&o.until, "until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 	fs.BoolVar(&o.branchRetry, "branch-retry", false, "with -p: when the run ends badly (stuck, out of turns or tool calls, the project's checks or --until still red), branch once from the step where it stopped exploring: the steps before it are replayed from the recording at no cost, the rest run live with a line saying what failed, and the better of the two trees is kept. Opt-in: it buys a second run's calls")
+	fs.StringVar(&o.abReplay, "ab-replay", "", "with -p: replay the first --ab-replay-calls model replies of this recorded session file (paths moved to this directory) at no cost, then run live: both arms of an A/B branched from one recording share their start exactly")
+	fs.IntVar(&o.abCalls, "ab-replay-calls", 0, "with --ab-replay: how many recorded model calls to replay before going live")
+	fs.StringVar(&o.offPeakBy, "off-peak-by", "", "wait for the model's cheapest off-peak hours that still finish by this deadline (RFC 3339, local HH:MM, or a duration such as 8h), then run -p or --eval; alone, wait and exit 0. Windows come from offpeak.json in the config directory, else the built-in table")
+	fs.DurationVar(&o.offPeakEst, "off-peak-estimate", 30*time.Minute, "with --off-peak-by: how long the run is expected to take, so it finishes by the deadline")
 	fs.BoolVar(&o.secondSample, "second-sample", false, "with -p: when the run finishes green on weak evidence (the verdict says the claim is not shown, the check is stale, or a gaming signal fired), draw one more attempt from the start and keep the better tree, ranked by the harness's own checks, never by a model. Opt-in: it can double the run's cost")
 	fs.StringVar(&o.watchCmd, "watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 	fs.StringVar(&o.provider, "provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
@@ -297,6 +306,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.evalKeep, "eval-keep", false, "keep eval work directories")
 	fs.IntVar(&o.evalRuns, "eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
 	fs.StringVar(&o.evalCompare, "eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
+	fs.StringVar(&o.evalSeq, "eval-sequential", "", "with --eval-compare and --eval-runs N: run the rounds one at a time and stop as soon as the always-valid (mSPRT) test against the baseline's same task and run is decisive on this gate: pass, output or any. Pair by run index, so the baseline wants as many runs; broker-dropped pairs are counted per arm, not scored")
 	fs.StringVar(&o.evalOff, "eval-off", "", "comma-separated agent behaviours to disable for an ablation run: "+strings.Join(agent.Switches(), ", "))
 	fs.StringVar(&o.evalRoute, "eval-route", "", "set route_cheap for this run: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead of the session's, and record the variant in the results file so a comparison shows what it bought (see docs/manual/evals.md, \"Measuring step routing\")")
 	fs.StringVar(&o.evalLabel, "eval-label", "", "name recorded in the results file for this variant")
