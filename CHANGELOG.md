@@ -81,9 +81,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   once, to check the change against the task requirement by requirement
   before it ends. effbench's remaining misses were stated rules the
   public tests did not reach, such as price filters validated and never
-  applied. After six tool steps the model is told to wrap up: unbounded,
-  the review cost about 150 s a run, mostly spent debugging the model's
-  own check scripts (`JANETCODE_OFF=specreview` turns it off).
+  applied. The review compares the brief with the code by reading it,
+  without new checks, and the model is told to wrap up after three tool
+  steps: asked for a check script, the review cost about 150 s a run,
+  mostly spent debugging the model's own checks
+  (`JANETCODE_OFF=specreview` turns it off).
 - A headless run's first write to a test file is refused with a note to
   keep its own checks inline; the same write again goes through, for a
   task that asks for tests. MiMo rewrote an existing test file once and

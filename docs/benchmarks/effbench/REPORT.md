@@ -124,6 +124,27 @@ model to wrap the review up after six tool steps, and to trust the
 task's words over a check of its own that disagrees. `jc-mimo-r12`
 measures both.
 
+### Test guard and a capped review: `jc-mimo-r12` (`e4dfa3a4`)
+
+| arm | runs | passed | time | speed-adjusted | calls | input | fresh input | output | tamper |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| janetcode | 32 | **30/32** | 16,400 s | 16,400 s | 633 | 13.94M | 1,000k | **1,133k** | **0** |
+| pi | 32 | 29/32 | **14,838 s** | **14,707 s** | **629** | **10.07M** | **879k** | 1,314k | 0 |
+
+- janetcode passes one more, with no tamper flag; the test guard refused
+  a test-file write on two runs, and both passed. janetcode passed
+  d-minire s2, its second pass of that task in any campaign; pi missed
+  d-linediff s1 and both d-minire runs.
+- The broker was slower for both arms than in r10.
+- The review still cost what it did in r11: about 5,100 s over the 32
+  runs (53–375 s each), more than the whole gap to pi. The cap of six
+  steps was advisory and runs went to 17; most of the time went on
+  writing and running new check scripts.
+
+The next commit makes the review read instead of check: compare the
+brief with the code, fix what does not hold, run the tests once, and
+wrap up after three tool steps. `jc-mimo-r13` measures it.
+
 ## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
 | arm | runs | passed | time | speed-adjusted | calls | input | cached | fresh input | output | tamper |
@@ -242,6 +263,7 @@ Campaign history, all on MiMo through ai02:
 | `jc-mimo-r9` | `6e50c06f` (16 tasks × 2) | 27/32 (1 tamper) | 11,459 s | 419 | 29/32, 12,772 s, 642 calls |
 | `jc-mimo-r10` | `8d768119` (16 tasks × 2) | 28/32 | 11,184 s | 422 | 27/32 (1 tamper), 13,418 s, 639 calls |
 | `jc-mimo-r11` | `f6cd0fae` (16 tasks × 2) | 29/32 (1 tamper) | 16,042 s | 656 | 29/32, 13,796 s, 670 calls |
+| `jc-mimo-r12` | `e4dfa3a4` (16 tasks × 2) | 30/32 | 16,400 s | 633 | 29/32, 14,838 s, 629 calls |
 
 ## Caveats
 
