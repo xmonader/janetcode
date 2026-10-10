@@ -844,6 +844,33 @@ line asking the model why the change is needed, and its answer is
 recorded as that edit's justification. It is off by default because it
 adds a line to what the model sees.
 
+`preresolve` (default off) looks up what a fresh session's first message
+names before the model sees it, in a repository too big to be sent whole
+(over 40 files or 32 KB). A path that is an indexed file, or the tail of
+exactly one, is sent whole when it is 6 KB or less (and counts as read),
+else as an outline of its definitions. A backticked name, or a code-shaped
+one in the prose (`parseConfig`, `max_retries`, `Cache.Get`), defined in
+at most three files, is sent as its definition's excerpt with the comment
+above it — Go measured by its own parser, Python by indentation, the rest
+by braces, at most 60 lines — followed by up to two test functions that
+mention it. A plain word counts only when it is part of exactly one
+compound definition name in the whole index ("refund" for
+`RefundWindowDays`). Everything goes in one `<resolved>` block of at most
+12 KB, after the repository map. Nothing runs: no model, no command, no
+language server.
+
+`prefix_kernel` (default off) makes every session on one commit start
+from the same bytes, so a provider's prompt cache matches a second
+session from its first call rather than its second. The system prompt
+keeps its usual head, then the project's instruction files, then a map
+of the committed tree ranked by structure alone (for a repository over
+40 files); the working directory, date and branch move to an
+`<environment>` block at the end of the first message. The map is stored
+under the data directory's `kernels/`, keyed by the hash of the committed
+tree, so two checkouts of the same content share it; a dirty tree reads a
+stored map but never stores its own. After `/cd` the session goes back to
+the usual prompt for the new directory.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

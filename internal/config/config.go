@@ -302,6 +302,17 @@ type Config struct {
 	// recorded as the edit's justification. Off by default: it adds a
 	// line to a tool result. The scope report itself is always kept.
 	ScopeJustify bool `json:"scope_justify,omitempty"`
+	// Preresolve sends, with a fresh session's first message in a
+	// repository too big to inline whole, the definitions of the files
+	// and identifiers the request names and the tests that exercise them
+	// (internal/preresolve). Off by default: it changes the prompt.
+	Preresolve bool `json:"preresolve,omitempty"`
+	// PrefixKernel arranges the system prompt so every session on one
+	// commit sends the same bytes before its first message: the
+	// environment moves to the end of that message and a map of the
+	// committed tree joins the prompt. Off by default: it changes the
+	// prompt, and writes the map under the data directory.
+	PrefixKernel bool `json:"prefix_kernel,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

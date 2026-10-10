@@ -190,6 +190,26 @@ and measurements behind each round are in `docs/notes/history.md`.
   to the change after which a test fails, inside a squashed commit, with
   the turn's prompt and the change's intent; a break no file tool
   recorded falls back to the per-turn snapshots.
+- `preresolve` (off by default) sends, with a fresh session's first
+  message in a repository too big to inline, the definitions of the files
+  and identifiers the request names and the tests that mention them, in a
+  `<resolved>` block of at most 12 KB (`internal/preresolve`). On the
+  58-file explore fixture, whose prompt names nothing, it resolves the
+  refund constant by the word "refund" and nothing from the junk files.
+  The recorded local sessions on a large repository are smoke prompts:
+  zero calls before a first edit, and the word tier was tightened until
+  it resolved nothing on all eight of them. The live measure (calls
+  before the first edit, drop if under 20%) is not run.
+- `prefix_kernel` (off by default) arranges the system prompt so every
+  session on one commit sends identical bytes before its first message:
+  project instructions and a commit-keyed map of the tree in the prompt,
+  directory, date and branch moved to the end of the first message.
+  Effbench r10–r13: the tool list was the same 6,465 bytes in all 128
+  runs, and a first call read 22% of its prompt from cache (the tool list
+  and the head; the working-directory line ended the match). First calls
+  are 0.6% of those campaigns' input, so the ceiling there is small.
+- `JANETCODE_PRERESOLVE_PRESCREEN` and `JANETCODE_KERNEL_PRESCREEN` run
+  the two pre-screens over recorded sessions and effbench proxy logs.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
