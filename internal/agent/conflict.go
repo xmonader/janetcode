@@ -128,7 +128,14 @@ func (a *Agent) conflictCommands(root string) ([]string, int) {
 		if e.Turn != a.turnN || e.Type != session.TypeToolResult || e.Name != "bash" || refused(e) || neverRan(e) {
 			continue
 		}
-		if cmd := shell.TrimWorkspaceCd(shell.CommandOf(e.Arguments), root); shell.IsTestRun(cmd) {
+		cmd := shell.TrimWorkspaceCd(shell.CommandOf(e.Arguments), root)
+		// An inline script is the model's own check, not the project's
+		// runner: re-run, it says nothing about the cited test, and on a
+		// live run it "passed" and turned a true conflict away.
+		if loc := scratchRe.FindStringIndex(cmd); loc != nil && !shell.IsTestRun(cmd[:loc[0]]) {
+			continue
+		}
+		if shell.IsTestRun(cmd) {
 			last = cmd
 		}
 	}

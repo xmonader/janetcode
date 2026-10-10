@@ -123,6 +123,26 @@ func TestConflictUnconfirmedIsSentBackOnce(t *testing.T) {
 	}
 }
 
+// The model's own inline script after the real test run is not the
+// command that shows the cited test failing: on a live run it passed and
+// a true conflict was sent back as "it passes".
+func TestConflictIgnoresInlineScripts(t *testing.T) {
+	root := ledgerProject(t, totalCheck)
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"sh tests/check.sh"}`),
+		toolCall("t2", "bash", `{"command":"python3 - <<'EOF'\nassert 1 + 1 == 2\nprint('test ok')\nEOF"}`),
+		text("CONFLICT: test_total | the total is 40 | the test expects 42"),
+		text("should not be asked"),
+	}}
+	a := conflictAgent(f, root, true)
+	if err := a.Run(context.Background(), "fix total", nil); err != nil {
+		t.Fatal(err)
+	}
+	if c := a.Conflict(); c == nil || !c.Verified {
+		t.Fatalf("%d calls, conflict %+v", len(f.requests), c)
+	}
+}
+
 // Off by default: the line is only text.
 func TestConflictOffIgnoresTheLine(t *testing.T) {
 	root := ledgerProject(t, totalCheck)
