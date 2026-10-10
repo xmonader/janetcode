@@ -220,6 +220,16 @@ type Agent struct {
 	// snapshot export in tests.
 	probeExec    func(ctx context.Context, cmd string) probeResult
 	probePreTree func(ctx context.Context) string
+	// ProbeMemory keeps the ledger's discriminating probes in the
+	// repository and replays them in later sessions. See probememory.go.
+	ProbeMemory bool
+	probeMem    probeMemState
+	// probeMemRepoDir stands in for the user's repository in tests.
+	probeMemRepoDir string
+	// ReadBlame notes on a read_file result the lines an earlier agent
+	// turn wrote, and why. See readblame.go.
+	ReadBlame      bool
+	readBlameCache readBlameState
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.

@@ -224,6 +224,15 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
+	// ProbeMemory keeps the probe ledger's discriminating probes in the
+	// repository (refs/janetcode/probes) and replays them at the gate of
+	// later sessions; it turns the probe ledger on with it. Off by
+	// default: it writes a ref and can send a turn back.
+	ProbeMemory bool `json:"probe_memory,omitempty"`
+	// ReadBlame appends to a read_file result one line per range of the
+	// shown lines an earlier agent turn wrote with a stated intent. Off
+	// by default: it changes what the model reads.
+	ReadBlame bool `json:"read_blame,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

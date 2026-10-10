@@ -5,6 +5,25 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- Executable memory: `probe_memory` (off by default; turns `probe_ledger`
+  on) writes every discriminating probe to the repository under
+  `refs/janetcode/probes`, and later sessions arm the ones that pass on
+  their pre-edit tree and replay them at the gate; a probe the model
+  declines to fix is retired. `JANETCODE_OFF=probememory`. No live warm-
+  session benchmark yet.
+- Agent blame on reads: `read_blame` (off by default) notes on a
+  `read_file` result the ranges an earlier agent turn wrote with an intent,
+  from the session's own provenance or a commit's proof note, under 480
+  bytes. Over 63 recorded local sessions, 36 of 142 reads (25%) would have
+  carried a note; over 320 effbench sessions none would (all single-turn).
+  `JANETCODE_OFF=readblame`.
+- Sessions as git refs: `janetcode --session-ref save|list|show|open|push|fetch`
+  keeps a session's transcript, evidence and probes under
+  `refs/janetcode/sessions/<id>`, capped at 1 MB. All 321 effbench
+  sessions fit whole (p90 565 KB raw, 100 KB compressed); of 184 local
+  sessions one needed clipping.
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a

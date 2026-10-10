@@ -545,6 +545,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Localize = tree.Run
 	ag.SubagentMerge = d.cfg.SubagentMerge
 	ag.ProbeLedger = d.cfg.ProbeLedger
+	ag.ProbeMemory, ag.ReadBlame = d.cfg.ProbeMemory, d.cfg.ReadBlame
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

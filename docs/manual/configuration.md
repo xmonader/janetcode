@@ -660,6 +660,35 @@ probe is rerun through the bash tool, under the session's sandbox, and
 only when the permission rules would let that call run without asking.
 `JANETCODE_OFF=probes` turns it off.
 
+`probe_memory` (default off, and it turns `probe_ledger` on with it)
+keeps the ledger's discriminating probes beyond the session, in the
+repository under `refs/janetcode/probes` — a ref that is never checked
+out and never moved by a plain `git push` or `git fetch`. Each entry is
+the command with the workspace path taken out, the intent of the change
+it told apart and the session that made it. The first gate of a later
+session arms up to eight of them, newest first, but only those that pass
+on the tree as it was before that turn's first change: a remembered probe
+that already fails there says nothing about the turn and is left out.
+The armed ones are replayed like the ledger's own; one the turn breaks
+sends it back with "remembered from an earlier session …, which made it
+pass: <intent>", and one the model leaves failing into the next turn is
+retired from the memory as well. It runs through the bash tool under the
+same sandbox and permission rules as the ledger. `janetcode --session-ref
+probes` lists the memory, `--session-ref push` / `fetch` move it (a fetch
+merges the remote's probes into yours). `JANETCODE_OFF=probememory`
+turns it off.
+
+`read_blame` (default off) adds a note to a `read_file` result when the
+lines shown include a range an earlier agent turn wrote for a stated
+reason: `L12–19 turn 2 (#5, 2026-10-01): guard a non-positive page size ·
+checked by go test ./...` for this session's own changes, `L12–19 commit
+1a2b3c4 (verified): …` for lines a committed session wrote (from its proof
+note). Only ranges of two lines or more with an intent are noted, never
+the running turn's own, never an undone change or a file edited outside
+the session since; at most four ranges and 480 bytes a read. It changes
+what the model reads, so it is opt-in; `JANETCODE_OFF=readblame` turns it
+off.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

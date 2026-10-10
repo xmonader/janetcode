@@ -2071,6 +2071,29 @@ The evidence is for a reviewer: nothing in it reaches the model, and it
 costs a few git calls per commit. It rides on `proof_notes`;
 `JANETCODE_OFF=evidence` turns off just the evidence.
 
+### Sessions as git refs
+
+`janetcode --session-ref save [id]` keeps a session in the repository, as
+a commit under `refs/janetcode/sessions/<id>` (default: the latest session
+in this directory). It holds the transcript, the proof records and signed
+evidence of the last 50 commits that name the session, and the probes it
+left in the probe memory, under 1 MB: a transcript that does not fit has
+its long strings (tool output, file contents, images) clipped until it
+does, its structure kept whole. Saving again replaces the record and keeps
+the old one as its parent.
+
+```
+janetcode --session-ref list                # saved sessions, newest first
+janetcode --session-ref show <id>           # what a record holds
+janetcode --session-ref push [remote]       # sessions and probe memory
+janetcode --session-ref fetch [remote] [id] # someone else's
+janetcode --session-ref open <id>           # then --show / --what-if read it
+```
+
+Nothing is pushed or fetched unless asked. `open` writes the transcript
+among the local sessions and never over one already there; a reviewer can
+then read it with `--show` and re-run its evidence with `--proof verify`.
+
 ### Recipes: replay a turn for free
 
 A turn that read the right files, ran the right commands and edited the

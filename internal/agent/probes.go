@@ -200,7 +200,7 @@ func (a *Agent) SetProbeLedger(on bool) {
 func (a *Agent) ProbeLedgerOn() bool {
 	a.featMu.RLock()
 	defer a.featMu.RUnlock()
-	return a.ProbeLedger && !a.Off["probes"]
+	return (a.ProbeLedger || a.ProbeMemory && !a.Off["probememory"]) && !a.Off["probes"]
 }
 
 // probeGate classifies the turn's new probes and replays the frozen ones
@@ -218,6 +218,7 @@ func (a *Agent) probeGate(ctx context.Context, g *probeGateState, emit func(Even
 	if led.seen == nil {
 		led.seen = map[string]bool{}
 	}
+	a.probeMemArm(ctx, led, emit)
 	var fresh []Probe
 	for _, p := range InlineProbes(a.Log.Events(), a.turnN, a.displayRoot()) {
 		if !led.seen[p.Key] && !a.gateCommand(p.Key) {
@@ -270,6 +271,7 @@ func (a *Agent) probeGate(ctx context.Context, g *probeGateState, emit func(Even
 		case probeFail:
 			discriminating++
 			led.freeze(p)
+			a.probeMemRemember(ctx, p)
 			frozenNow[p.Key] = true
 		case probePass:
 			vacuous++
@@ -292,10 +294,11 @@ func (a *Agent) probeGate(ctx context.Context, g *probeGateState, emit func(Even
 		if fp.disputedTurn != 0 && fp.disputedTurn != a.turnN {
 			emit(Event{Kind: EvNotice, Text: "probe ledger: dropping a probe the model left failing last turn: " + checkLabel(fp.key)})
 			led.frozen = append(led.frozen[:i], led.frozen[i+1:]...)
+			a.probeMemRetire(ctx, fp.key)
 			i--
 			continue
 		}
-		failing = append(failing, failedProbe{fp.key, res.output})
+		failing = append(failing, failedProbe{fp.key, a.probeMemNote(fp.key) + res.output})
 	}
 	if ctx.Err() != nil {
 		return false
