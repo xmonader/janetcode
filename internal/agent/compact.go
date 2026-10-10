@@ -389,6 +389,17 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 	if a.Log != nil {
 		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})
 	}
+	// The head leaves the model's reach now; its text goes to the archive
+	// first so that what the summary dropped — reasoning, tool inputs, the
+	// small results that were never archived on their own — stays one
+	// expand_output call away instead of being gone. It is archived before
+	// the note is written so the claims in the note can point into it.
+	headID := ""
+	if a.Archive != nil {
+		if id, err := a.Archive.PutSubject(fmt.Sprintf("compaction-%d-%d", a.turnN, time.Now().UnixNano()), "compacted conversation", fmt.Sprintf("turn %d", a.turnN), renderMessages(head)); err == nil {
+			headID = id
+		}
+	}
 	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary + touchedNote(head) + "\n\n" + faultDiscipline
 	if typed {
 		w := &a.working
@@ -397,8 +408,17 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 		if !w.merge(summary) {
 			emit(Event{Kind: EvNotice, Text: "working memory: the model returned prose instead of the record; kept as notes"})
 		}
+		root := a.RootDir()
 		if hooks := a.HookRunner(); hooks != nil {
 			w.hash(hooks.Cwd)
+			if root == "" {
+				root = hooks.Cwd
+			}
+		}
+		if !a.Off["claimcheck"] {
+			if t := w.checkClaims(head, headID, root); t.changed() {
+				emit(Event{Kind: EvNotice, Text: "working memory claims: " + t.String()})
+			}
 		}
 		note = w.Render()
 	}
@@ -408,14 +428,8 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 	if midTurn {
 		note += "\n\n[The previous turn was interrupted mid-task by compaction. Continue the work described above.]"
 	}
-	// The head leaves the model's reach now; its text goes to the archive
-	// first so that what the summary dropped — reasoning, tool inputs, the
-	// small results that were never archived on their own — stays one
-	// expand_output call away instead of being gone.
-	if a.Archive != nil {
-		if id, err := a.Archive.PutSubject(fmt.Sprintf("compaction-%d-%d", a.turnN, time.Now().UnixNano()), "compacted conversation", fmt.Sprintf("turn %d", a.turnN), renderMessages(head)); err == nil && id != "" {
-			note += fmt.Sprintf("\n\nThe full text of the compacted conversation is archived as %s: expand_output {\"id\":%q,\"query\":\"<what you are looking for>\"} finds passages in it, offset/limit reads it in order.", id, id)
-		}
+	if headID != "" {
+		note += fmt.Sprintf("\n\nThe full text of the compacted conversation is archived as %s: expand_output {\"id\":%q,\"query\":\"<what you are looking for>\"} finds passages in it, offset/limit reads it in order.", headID, headID)
 	}
 	a.setMessages(append([]llm.Message{llm.HarnessMessage(llm.RoleUser, note)}, tail...))
 	a.RefreshExtra() // the prefix is rebuilt anyway; pick up new memory and skills
