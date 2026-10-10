@@ -103,5 +103,6 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	ag.ProbeMemory, ag.ReadBlame = cfg.ProbeMemory, cfg.ReadBlame
 	ag.NumericClaimsNudge = cfg.NumericClaimsNudge
 	ag.DiffFuzz = cfg.DiffFuzz
+	ag.ScopeJustify = cfg.ScopeJustify
 	settingsapply.WireDecisions(cfg, ag, off)
 }

@@ -478,6 +478,7 @@ var switches = map[string]bool{
 	"probememory": true, "readblame": true,
 	"numclaim": true,
 	"purity":   true, "typosquat": true,
+	"dossier": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

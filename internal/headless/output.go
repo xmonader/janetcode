@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/dossier"
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
@@ -245,6 +246,8 @@ type recorder struct {
 	rollout    *CLIRollout
 	attempt    *CLIResult
 	attemptWon bool
+	// dossier is the failure dossier the run left, if it failed (dossier.go).
+	dossier *dossier.Dossier
 }
 
 // emitLocked is emit for a caller not already holding the lock: the
@@ -548,6 +551,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 	}
 	if ag != nil {
 		res.Conflict = ag.Conflict()
+		res.Scope = ag.ScopeReport()
 	}
 	switch {
 	case errors.Is(err, ErrConflict):
@@ -557,6 +561,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 	case err != nil:
 		res.IsError, res.Error = true, err.Error()
 	}
+	res.Dossier = r.dossier
 	r.mergeAttempt(&res)
 	return res
 }

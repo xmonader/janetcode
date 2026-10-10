@@ -750,6 +750,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
+		out += a.scopeAfter(u, intent, pend)
 	}
 	a.bashAuditAfter(ctx, u, shellBefore)
 	if ctx.Err() != nil && err != nil {

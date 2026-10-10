@@ -297,6 +297,11 @@ type Config struct {
 	// line seen to change nothing in 3 runs in a repository run there
 	// without asking. Off by default: it changes who answers a prompt.
 	ObservedPurity bool `json:"observed_purity,omitempty"`
+	// ScopeJustify asks the model for a one-line reason after an edit
+	// outside the task's inferred scope that stated none; the answer is
+	// recorded as the edit's justification. Off by default: it adds a
+	// line to a tool result. The scope report itself is always kept.
+	ScopeJustify bool `json:"scope_justify,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

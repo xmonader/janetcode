@@ -40,6 +40,7 @@ func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error 
 	}
 	a.UndoPath = sess.UndoPath()
 	a.checkpoints.reset()
+	a.scopeReset()
 	return a.LoadUndo()
 }
 

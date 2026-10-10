@@ -561,6 +561,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.NumericClaimsNudge = d.cfg.NumericClaimsNudge
 	ag.DiffFuzz = d.cfg.DiffFuzz
 	ag.ObservedPurity, ag.Purity = d.cfg.ObservedPurity, purity.Open(true, d.cfgDir)
+	ag.ScopeJustify = d.cfg.ScopeJustify
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

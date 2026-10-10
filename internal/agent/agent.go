@@ -319,6 +319,11 @@ type Agent struct {
 	// once the cited test is confirmed failing (conflict.go). The prompt
 	// line that offers it is the caller's to add (ConflictPrompt).
 	ConflictExit bool
+	// ScopeJustify asks for a one-line reason after an out-of-scope edit
+	// that stated none (scopecontract.go); scopes is the session's
+	// scope contract, kept whatever ScopeJustify says.
+	ScopeJustify bool
+	scopes       scopeLedger
 	conflict     *proof.Conflict
 	// taint is the session's untrusted-content label (taint.go), shared
 	// with the subagents it starts; taintHosts are the hosts the user
