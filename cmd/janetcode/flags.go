@@ -77,6 +77,7 @@ type options struct {
 	evalNoLimit  bool
 	evalStrict   bool
 	evalGate     bool
+	evalSeq      string
 	inspectWhat  string
 	wtBranch     string
 	acpMode      bool
@@ -297,6 +298,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.evalKeep, "eval-keep", false, "keep eval work directories")
 	fs.IntVar(&o.evalRuns, "eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
 	fs.StringVar(&o.evalCompare, "eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
+	fs.StringVar(&o.evalSeq, "eval-sequential", "", "with --eval-compare and --eval-runs N: run the rounds one at a time and stop as soon as the always-valid (mSPRT) test against the baseline's same task and run is decisive on this gate: pass, output or any. Pair by run index, so the baseline wants as many runs; broker-dropped pairs are counted per arm, not scored")
 	fs.StringVar(&o.evalOff, "eval-off", "", "comma-separated agent behaviours to disable for an ablation run: "+strings.Join(agent.Switches(), ", "))
 	fs.StringVar(&o.evalRoute, "eval-route", "", "set route_cheap for this run: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead of the session's, and record the variant in the results file so a comparison shows what it bought (see docs/manual/evals.md, \"Measuring step routing\")")
 	fs.StringVar(&o.evalLabel, "eval-label", "", "name recorded in the results file for this variant")

@@ -68,6 +68,7 @@ var flagWhen = map[string]string{
 	"eval-keep":              "a task failed and you want to look at the directory it failed in",
 	"eval-runs":              "one run per task is a coin flip; a comparison wants three or more",
 	"eval-compare":           "deciding whether a change actually helped",
+	"eval-sequential":        "an A/B against a saved baseline that should stop paying for runs once the answer is clear",
 	"eval-off":               "an ablation: what does this behaviour buy",
 	"eval-route":             "measuring whether the experimental step router (route_cheap) is worth turning on",
 	"eval-label":             "telling two variants apart in a results file",

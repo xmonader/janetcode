@@ -450,6 +450,46 @@ by moonshot, not xiaomi (tool ids tool_24)" — and each assistant event
 in the session log carries `served` when it changes and `mismatch` when
 it disagrees.
 
+## Stopping an A/B when it is decided
+
+The bootstrap interval `--eval-compare` prints is a fixed-sample test: it
+means what it says only if the number of runs was chosen before the first
+one ran. Looked at after every round, and stopped the first time it reads
+"significant", it reports an effect that is not there far more often than
+5% of the time. So a comparison also prints a sequential verdict that may
+be read after every pair:
+
+```
+sequential (mSPRT, always-valid at 0.025 per gate): 32 paired run(s), 31 scored in both arms
+  dropped pairs: 0 lost in base only · 1 in current only · 0 in both (infrastructure or another vendor's model; counted, not scored)
+  pass rate: 2 won · 3 lost · 26 tied · p=0.75 · undecided: keep running or call it no detectable effect
+  output tokens: ×0.59 over 31 pair(s), 23 fewer · 8 more · p=0.118 · undecided: keep running or call it no detectable effect
+```
+
+A pair is the same task at the same run index in both arms: the same seed
+and the same starting files. The pass-rate gate reads only the pairs where
+one arm passed and the other failed; the output-token gate reads which arm
+wrote fewer output tokens. Both are a mixture likelihood ratio against a
+fair coin, exact rather than approximate, each held to 0.025 so the two
+together stay at 0.05. A pair where either arm was lost to the provider or
+answered by another vendor's model is counted against that arm and kept
+out, so an arm that loses more runs to the broker is visible.
+
+`--eval-sequential pass|output|any` uses it to stop: the rounds run one at
+a time (every task once, then every task again, up to `--eval-runs`), and
+the run ends after the first round where the chosen gate is decided:
+
+```sh
+janetcode --eval evals --eval-runs 10 --eval-compare base.json \
+  --eval-sequential output --eval-json new.json
+```
+
+It needs a baseline with as many runs per task, since a round with nothing
+to pair against cannot move the test. It is less eager than the bootstrap:
+re-analysed over 17 past effbench A/Bs, the bootstrap called six output-token
+differences significant at their full size and the sequential test three.
+No pass-rate difference in any of them was decisive by either test.
+
 ## Every eval flag
 
 The environment variables above are what `make eval` sets; each is a flag
@@ -464,6 +504,7 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-json <file>` | write the run's numbers for a later comparison |
 | `--eval-report <file>` | re-read a saved results file and print it again |
 | `--eval-compare <file>` | pair against a baseline results file and print the delta with a bootstrap interval |
+| `--eval-sequential <gate>` | with `--eval-compare`: run rounds one at a time and stop when the always-valid test on `pass`, `output` or `any` is decided (see [Stopping an A/B](#stopping-an-ab-when-it-is-decided)) |
 | `--eval-label <text>` | name this variant, so two runs can be told apart in a results file |
 | `--eval-keep` | keep the work directory of every task, to look at one that failed |
 | `--eval-off <behaviour>` | turn one harness behaviour off for the run: an ablation |

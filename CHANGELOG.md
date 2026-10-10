@@ -5,6 +5,17 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- Sequential A/B testing: `--eval-compare` (and `--eval-report` with it)
+  now also prints an always-valid mSPRT verdict on the pass rate and on
+  output tokens, paired by task and run index, with broker-dropped pairs
+  counted per arm instead of silently left out. `--eval-sequential
+  pass|output|any` runs the rounds one at a time and stops the first round
+  the chosen gate is decisive. Re-analysed over 17 past effbench A/Bs (447
+  pairs), no pass-rate A/B would have stopped early and the output gate
+  decided 3 of 17, saving one round of 16 runs: those A/Bs were
+  underpowered, not overspent.
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a
