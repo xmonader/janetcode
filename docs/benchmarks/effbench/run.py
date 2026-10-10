@@ -22,6 +22,7 @@ Campaigns go to runs/<campaign>/ beside this file (git-ignored); summarise with
 """
 import argparse
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -198,7 +199,9 @@ def main():
     pi_cli = os.environ.get("PI_CLI") or (str(builds[0]) if builds else shutil.which("pi") or "pi")
 
     arms = []
-    for spec in a.arms.split(","):
+    # A comma starts a new arm only before an arm's name, so one variant can
+    # carry several K=V settings: janetcode:x=bin+set.a=1,set.b=2,pi
+    for spec in re.split(r",(?=(?:janetcode|pi|qwencode|hermes|openclaw)\b)", a.arms):
         if spec == "janetcode":
             arms.append(JanetcodeArm(camp, cfg, model, a.timeout, key))
         elif spec.startswith("janetcode:"):
