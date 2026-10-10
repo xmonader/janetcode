@@ -266,3 +266,71 @@ func TestUntilBeyondRecordingStaysRecorded(t *testing.T) {
 		t.Fatalf("live.calls = %d, want 0", live.calls)
 	}
 }
+
+// TestUntilCallSwitchesMidTurn covers the checkpoint branch: the boundary
+// is a model call inside turn 1, and served runs once, right after the
+// last recorded response and before the first live call.
+func TestUntilCallSwitchesMidTurn(t *testing.T) {
+	rp, err := Read(strings.NewReader(twoTurns))
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := &fakeLive{}
+	fired := 0
+	p := UntilCall(rp, 1, live, func() { fired++ })
+	r1, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r1.Message.ToolUses()) != 1 || live.calls != 0 {
+		t.Fatalf("call 1 = %+v (live %d), want the recorded bash call", r1, live.calls)
+	}
+	if fired != 1 {
+		t.Fatalf("served ran %d times after the last recorded call, want 1", fired)
+	}
+	r2, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live.calls != 1 || r2.Message.Text() != "live reply" {
+		t.Fatalf("call 2 = %+v (live %d), want live: turn 1's own recorded end must not be served", r2, live.calls)
+	}
+	if _, err := p.Stream(context.Background(), llm.Request{}, nil); err != nil || fired != 1 {
+		t.Fatalf("a later live call: err %v, served ran %d times, want once", err, fired)
+	}
+}
+
+// TestUntilCallZeroIsAllLive: no prefix to replay, so nothing is served
+// from the recording and served never runs.
+func TestUntilCallZeroIsAllLive(t *testing.T) {
+	rp, err := Read(strings.NewReader(twoTurns))
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := &fakeLive{}
+	fired := false
+	p := UntilCall(rp, 0, live, func() { fired = true })
+	if _, err := p.Stream(context.Background(), llm.Request{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if live.calls != 1 || fired {
+		t.Fatalf("live.calls = %d, served ran = %v; want 1, false", live.calls, fired)
+	}
+}
+
+// Free makes the recording's calls cost nothing, for a caller that bills
+// only what it bought.
+func TestFreeClearsUsage(t *testing.T) {
+	p, err := Read(strings.NewReader(recording))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Free()
+	r, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Usage != (llm.Usage{}) {
+		t.Fatalf("usage = %+v, want none", r.Usage)
+	}
+}

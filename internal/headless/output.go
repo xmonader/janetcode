@@ -182,6 +182,12 @@ func ExitCode(err error) int {
 	if err == nil {
 		return ExitOK
 	}
+	// The extra attempt's own failure, standing as the run's: the child
+	// already classified it.
+	var ae attemptError
+	if errors.As(err, &ae) {
+		return ae.code
+	}
 	for _, r := range exitRules {
 		if r.is(err) {
 			return r.code
@@ -226,6 +232,11 @@ type recorder struct {
 	// errOut is the run's stderr, where text mode puts a dry run's
 	// preview.
 	errOut io.Writer
+	// rollout, attempt and attemptWon are the opt-in second attempt's
+	// account (see rollout.go), folded in by mergeAttempt.
+	rollout    *CLIRollout
+	attempt    *CLIResult
+	attemptWon bool
 }
 
 // emitLocked is emit for a caller not already holding the lock: the
@@ -530,6 +541,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 	if err != nil {
 		res.IsError, res.Error = true, err.Error()
 	}
+	r.mergeAttempt(&res)
 	return res
 }
 

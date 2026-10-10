@@ -56,6 +56,26 @@ and measurements behind each round are in `docs/notes/history.md`.
   20% the idea's kill criterion asks for: on greenfield benchmark tasks
   there is almost nothing to collapse, so the ordering and the meter carry
   the feature there.
+- `--branch-retry` (opt-in, `-p`): a run that ends stuck, out of turns or
+  tool calls, or with the verify gate or `--until` still red is branched
+  once from its critical step, the last call before the first edit that
+  explored something new. The steps up to there are replayed from the
+  recording at zero tokens, so the prompt prefix stays the same, and the
+  live part is told in one line what the failed attempt did. The better of
+  the two trees is kept, ranked by a clean end, the gate, the verdict,
+  gaming signals and waste share, never by a model.
+- `--second-sample` (opt-in, `-p`): a run that finishes green on weak
+  evidence (an overclaimed or stale verdict, or a gaming signal) draws one
+  independent attempt, ranked by the same deterministic selector. The
+  ranking leaves slots for the probe ledger's and the test-integrity
+  ledger's scores.
+- `cmd/rolloutscreen` runs both offline pre-screens over recorded
+  effbench campaigns. On `jc-mimo-r8`..`r13` (191 valid runs) only 1 run
+  ended badly, and none had a branch point, because small-repo inlining
+  means runs edit before they explore. The second-sample trigger fired on
+  13 green runs, 3 of which failed the hidden tests: a precision of 23%,
+  under the report's 40% kill line. The gaming signal fired 12 of those
+  times with 2 failing; the verdict reasons fired once, failing.
 
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the

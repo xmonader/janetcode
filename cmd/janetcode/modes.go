@@ -252,6 +252,12 @@ func (r *root) headlessMode() error {
 	o, cfg, ag, cwd, mem, sess, format := r.opts, r.cfg, r.ag, r.cwd, r.mem, r.sess, r.format
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// A second attempt (--branch-retry, --second-sample) is this binary
+	// run again as a child with a spec; see rollout.go.
+	spec, err := rolloutSpec()
+	if err != nil {
+		return err
+	}
 	text, atts := prompt.ExpandMentions(cwd, o.promptText)
 	for _, a := range atts {
 		fmt.Fprintf(os.Stderr, "[attached] %s\n", a.Path)
@@ -262,8 +268,23 @@ func (r *root) headlessMode() error {
 	stdin := os.Stdin
 	if o.inFormat == string(headless.InputStreamJSON) {
 		input, stdin = os.Stdin, nil
+	} else if spec != nil {
+		// The parent already folded its stdin into the prompt it sent.
+		text, stdin = spec.Prompt, nil
 	} else if extra := pipedStdin(); extra != "" {
 		text += "\n\n<stdin>\n" + extra + "\n</stdin>"
+	}
+	maxCost := o.maxCost
+	var ro *headless.Rollout
+	if spec != nil {
+		if err := branchFrom(ag, spec); err != nil {
+			return err
+		}
+		if spec.MaxCostUSD > 0 {
+			maxCost = spec.MaxCostUSD
+		}
+	} else if o.branchRetry || o.secondSample {
+		ro = &headless.Rollout{Branch: o.branchRetry, Sample: o.secondSample, Attempt: rolloutAttempt(r.sessDir, cwd, os.Stderr)}
 	}
 	var schema json.RawMessage
 	if o.jsonSchema != "" {
@@ -288,11 +309,12 @@ func (r *root) headlessMode() error {
 	}
 	defer r.syncSession()
 	finish := startBgRun(ag, sess, cwd)
-	err := headless.Run(ctx, headless.Options{
+	err = headless.Run(ctx, headless.Options{
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemoryHeadless(),
-		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, JSONSchema: schema, Recover: o.recoverTurn,
+		Format: format, MaxCostUSD: maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, JSONSchema: schema, Recover: o.recoverTurn,
+		Rollout: ro,
 	})
 	finish(err)
 	return err
