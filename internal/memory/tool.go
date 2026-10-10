@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/taint"
 )
 
 // Tool lets the model use its memory: recall entries relevant to a query,
@@ -60,7 +62,7 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	case "remember":
 		// The model never writes global memory: a rule every project
 		// inherits is the user's call (/remember -g), not an inference.
-		e, status, err := t.Store.Put(Entry{Name: in.Name, Description: in.Description, Body: in.Body, Type: in.Type, Scope: "project", Source: "model"})
+		e, status, err := t.Store.Put(Entry{Name: in.Name, Description: in.Description, Body: in.Body, Type: in.Type, Scope: "project", Source: "model", Tainted: taint.From(ctx).Tainted()})
 		if err != nil {
 			return "", err
 		}

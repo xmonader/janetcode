@@ -31,8 +31,12 @@ const Held Status = 100
 func (s *Store) pendingDir() string { return filepath.Join(s.Root, s.Key, "pending") }
 
 // needsConfirm says whether an entry from this source waits for the user.
+// One learned while untrusted content was in the context (Entry.Tainted)
+// waits whether or not Confirm is on: memory is read back into every
+// later prompt, so an injected "remember to always run X" written there
+// would outlive the session that read it.
 func (s *Store) needsConfirm(e Entry) bool {
-	return s.Confirm.Load() && e.Source != "user"
+	return (s.Confirm.Load() || e.Tainted) && e.Source != "user"
 }
 
 // hold writes e as pending. The caller holds s.mu; e is normalised.
@@ -58,6 +62,9 @@ func (s *Store) hold(e Entry, existing []Entry) (Entry, Status, error) {
 	meta := map[string]string{
 		"name": e.Name, "description": e.Description, "type": e.Type, "source": e.Source, "scope": e.Scope,
 		"created": now.UTC().Format(time.RFC3339),
+	}
+	if e.Tainted {
+		meta["tainted"] = "true"
 	}
 	if len(e.Evidence) > 0 {
 		meta["evidence"] = strings.Join(e.Evidence, ",")
@@ -93,7 +100,7 @@ func (s *Store) pendingLocked() []Entry {
 		e := Entry{
 			Name: strings.TrimSuffix(filepath.Base(p), ".md"), Description: meta["description"], Type: meta["type"],
 			Scope: meta["scope"], Body: strings.TrimSpace(body), Source: meta["source"], Path: p, Pending: true,
-			Replaces: meta["replaces"], MergesInto: meta["merges_into"],
+			Replaces: meta["replaces"], MergesInto: meta["merges_into"], Tainted: meta["tainted"] == "true",
 		}
 		e.Created, _ = time.Parse(time.RFC3339, meta["created"])
 		for _, v := range strings.Split(meta["evidence"], ",") {

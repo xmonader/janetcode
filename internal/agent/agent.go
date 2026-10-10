@@ -15,10 +15,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/depcheck"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/plan"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/taint"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -248,6 +250,17 @@ type Agent struct {
 	// (testguard.go).
 	TestGuard   bool
 	testGuarded map[string]bool
+	// taint is the session's untrusted-content label (taint.go), shared
+	// with the subagents it starts; taintHosts are the hosts the user
+	// let a tainted turn reach. canaryHit is the host a planted
+	// honeytoken was sent to, once one was.
+	taint      *taint.Tracker
+	taintMu    sync.Mutex
+	taintHosts map[string]bool
+	canaryHit  atomic.Pointer[string]
+	// DepRegistry, when set, replaces the public registries the
+	// dependency check asks (depgate.go); tests use a fake.
+	DepRegistry depcheck.Registry
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -485,6 +498,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		return errors.New("no provider")
 	}
 	ctx, endEgress := a.egressTurn(ctx, blocks)
+	ctx = a.taintTurn(ctx)
 	defer endEgress()
 	// A continuation has no prompt of its own: the prompt hooks saw the
 	// dead turn's, and nothing new is submitted.

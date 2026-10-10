@@ -52,7 +52,7 @@ func (a *Agent) EgressSummary() string {
 	} else {
 		body = "no turn has run yet in this session"
 	}
-	return a.EgressPolicy.Describe() + a.egressBashNote() + "\n\n" + body + "\n\nEvery turn's report is in the session log (egress/turn) and in headless JSON (\"egress\")."
+	return a.EgressPolicy.Describe() + a.egressBashNote() + "\n" + a.TaintSummary() + "\n\n" + body + "\n\nEvery turn's report is in the session log (egress/turn) and in headless JSON (\"egress\")."
 }
 
 // egressBashNote says how far the policy reaches bash, "" with no policy.
@@ -74,7 +74,12 @@ func (a *Agent) StartEgressProxy() (*egress.Proxy, error) {
 	if !a.EgressPolicy.Active() || a.Sandbox == nil {
 		return nil, nil
 	}
-	px := &egress.Proxy{Policy: a.EgressPolicy, Recorder: a.EgressRecorder, Ask: a.askEgressHost}
+	px := &egress.Proxy{
+		Policy: a.EgressPolicy, Recorder: a.EgressRecorder, Ask: a.askEgressHost,
+		// Watching for the honeytokens (taint.go).
+		Canaries: a.plantedCanaries,
+		OnCanary: a.onProxyCanary,
+	}
 	if err := px.Start(); err != nil {
 		return nil, err
 	}

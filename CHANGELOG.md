@@ -5,6 +5,31 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- Taint-labelled context. Each tool result is labelled by where it came
+  from: fetch_url, web search, MCP tools, files under dependency
+  directories (`vendor/`, `node_modules/`, the Go module cache, ...) and
+  bash that fetches or prints an issue are untrusted; your prompt and
+  repository are not. Once untrusted content is in the context, a network
+  command, a change to CI, credential, protected or janetcode settings
+  files, and data sent to a host outside `egress.allow` ask first under
+  every mode, and the prompt says where the argument came from ("came
+  from vendor/acme/README.md:40"). Headless runs, with nobody to ask,
+  refuse them. A clean session asks nothing new: replaying the 168
+  recorded benchmark runs in `docs/benchmarks` tainted none of them. The
+  status line shows `tainted`, or `trifecta: egress asks` when secrets
+  are readable and no egress policy is set; `/egress` names the sources.
+  Memory learned in a tainted session waits for `/memory approve`
+  (`JANETCODE_OFF=taint`).
+- Honeytokens: every model-run command carries two planted variables with
+  random values; a tool call or an egress-proxy request that carries one
+  stops the run (`JANETCODE_OFF=honeytoken`).
+- Dependency check: an edit that adds a name to `go.mod`, `package.json`
+  or `requirements*.txt` looks it up in the public registry and flags a
+  name that does not exist or is under 30 days old. It only adds a note,
+  fails open, skips private Go modules, and is skipped with
+  `JANETCODE_OFFLINE=1` (`JANETCODE_OFF=depgate`).
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

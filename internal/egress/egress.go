@@ -39,6 +39,7 @@ const (
 	KindSkill    = "skill"    // a skill attached to the request
 	KindImage    = "image"    // an image sent with the request
 	KindRedacted = "redacted" // secret-shaped values scrubbed before they were sent
+	KindRegistry = "registry" // a package registry asked whether an added dependency exists
 )
 
 // Entry is one destination (or one item of content) for the turn, with
@@ -164,7 +165,7 @@ func (r *Recorder) Last() (Report, bool) {
 	return r.last, r.has
 }
 
-var kinds = []string{KindModel, KindMCP, KindFetch, KindSearch, KindCommand, KindFile, KindImage, KindMemory, KindSkill, KindTool, KindRedacted}
+var kinds = []string{KindModel, KindMCP, KindFetch, KindSearch, KindRegistry, KindCommand, KindFile, KindImage, KindMemory, KindSkill, KindTool, KindRedacted}
 
 func kindOrder(k string) int {
 	for i, x := range kinds {
@@ -201,7 +202,7 @@ func (rep Report) Text() string {
 			KindModel: "model requests", KindMCP: "remote MCP servers", KindFetch: "fetch_url", KindSearch: "web search",
 			KindCommand: "shell commands that reach a host", KindFile: "files whose contents were sent", KindImage: "images",
 			KindMemory: "memory entries attached", KindSkill: "skills attached", KindTool: "tool output sent back to the model",
-			KindRedacted: "secret-shaped values redacted before sending",
+			KindRedacted: "secret-shaped values redacted before sending", KindRegistry: "package registries (dependency check)",
 		}[e.Kind]
 		if title == "" {
 			title = e.Kind

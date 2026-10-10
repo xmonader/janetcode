@@ -29,6 +29,7 @@ func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error 
 	}
 	a.switchSessionHooks(history)
 	a.setMessages(history)
+	a.retaint(history)
 	a.SetPins(sess.Meta.Pins)
 	a.SetLog(sess)
 	a.acceptMode().Replace(sess.Meta.Accept, func(am *session.AcceptMeta) { _ = sess.SetAccept(am) })
