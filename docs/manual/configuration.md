@@ -787,6 +787,35 @@ the session since; at most four ranges and 480 bytes a read. It changes
 what the model reads, so it is opt-in; `JANETCODE_OFF=readblame` turns it
 off.
 
+`numeric_claims_nudge` (default off) sends a turn back once when its
+answer states a number that no measurement in the session backs. The
+check itself is always on and only reports (see "Numbers in the answer"
+in [the sessions manual](sessions.md)); this key adds the send-back,
+which asks the model to measure the number — before and after, for a
+speed or memory change — or to say it is an estimate. It shares the
+verdict's one correction a turn.
+
+`diff_fuzz` (default 0, off) is how many seconds to fuzz a refactor. When
+the request (or a `BRIEF.md`/`TASK.md` at the project root) says the
+change keeps behaviour the same — "refactor", "optimise", "clean up" with
+nothing new asked for beside it, or "without changing behaviour" in so
+many words — a turn that changed Go code is, before it ends, compared
+with the code as it was before the turn: the module is copied to a
+temporary directory, the package as it was is written beside the new one
+under an alias import path, and a generated `testing.F` harness calls
+each changed exported function (and each that calls one) on both with
+the same inputs, seeded with the literals the package and its tests hold.
+The first input they disagree on sends the turn back once, naming the
+call and both results. Functions that disagree with themselves on an
+input (time, randomness) skip it. Methods, generic functions and
+parameters of the package's own types are not compared yet; nothing is
+written to the project, and the build runs with `GOPROXY=off`. It runs
+outside the session's sandbox, like the test ledger's replay.
+
+```json
+{ "diff_fuzz": 20, "numeric_claims_nudge": true }
+```
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

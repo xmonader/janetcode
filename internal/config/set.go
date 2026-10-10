@@ -106,6 +106,8 @@ var setters = map[string]setter{
 	"fingerprint":            boolKey(func(c *Config) *bool { return &c.Fingerprint }),
 	"probe_memory":           boolKey(func(c *Config) *bool { return &c.ProbeMemory }),
 	"read_blame":             boolKey(func(c *Config) *bool { return &c.ReadBlame }),
+	"numeric_claims_nudge":   boolKey(func(c *Config) *bool { return &c.NumericClaimsNudge }),
+	"diff_fuzz":              countKey("diff_fuzz", func(c *Config) *int { return &c.DiffFuzz }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),

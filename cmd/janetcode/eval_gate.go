@@ -101,5 +101,7 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	ag.FixCache, ag.FixCacheDir = cfg.FixCache, fixCacheDir()
 	ag.FingerprintDir = fingerprintDir(cfg)
 	ag.ProbeMemory, ag.ReadBlame = cfg.ProbeMemory, cfg.ReadBlame
+	ag.NumericClaimsNudge = cfg.NumericClaimsNudge
+	ag.DiffFuzz = cfg.DiffFuzz
 	settingsapply.WireDecisions(cfg, ag, off)
 }

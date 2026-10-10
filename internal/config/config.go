@@ -283,6 +283,16 @@ type Config struct {
 	// shown lines an earlier agent turn wrote with a stated intent. Off
 	// by default: it changes what the model reads.
 	ReadBlame bool `json:"read_blame,omitempty"`
+	// NumericClaimsNudge sends a turn back once when its answer states a
+	// number ("40% faster", "coverage 85%") no measurement in the session
+	// backs. Off by default: the send-back is a model call; the notice
+	// naming such numbers is always on (JANETCODE_OFF=numclaim).
+	NumericClaimsNudge bool `json:"numeric_claims_nudge,omitempty"`
+	// DiffFuzz is how many seconds a behaviour-preserving turn's changed
+	// Go functions are fuzzed against the code before the turn; zero is
+	// off. Off by default: it builds and fuzzes while the model waits and
+	// can send a turn back.
+	DiffFuzz int `json:"diff_fuzz,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

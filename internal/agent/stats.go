@@ -476,6 +476,7 @@ var switches = map[string]bool{
 	"speccov":   true, "specexamples": true,
 	"fixcache":    true,
 	"probememory": true, "readblame": true,
+	"numclaim": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

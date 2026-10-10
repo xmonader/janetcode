@@ -369,6 +369,10 @@ type Agent struct {
 	// TurnOutcome.StaleCheck). Off by default: it changes what a turn
 	// does, and every eval baseline here was measured without it.
 	StaleCheckNudge bool
+	// NumericClaimsNudge sends a turn back once when its answer states a number no measurement backs (numclaim.go).
+	NumericClaimsNudge bool
+	// DiffFuzz is how many seconds a refactor's changed Go functions are fuzzed against their pre-turn selves; zero is off (difffuzz.go).
+	DiffFuzz int
 	// EffortControl lets the effort controller set each call's reasoning
 	// tier from the turn's own signals, at or below Effort (effortctl.go).
 	// Off by default: it changes what every call asks for, and it acts
@@ -720,6 +724,7 @@ type turnGates struct {
 	specReviewed              bool
 	ledger                    ledgerState
 	blind                     blindGateState
+	difffuzz                  difffuzzGateState
 	// conflicted: the turn ended on a confirmed CONFLICT, past the gates
 	// that would send it back to make the cited test pass.
 	conflicted, conflictNudged bool
@@ -1044,6 +1049,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	if !g.conflicted && a.testLedgerGate(ctx, &g.ledger, emit) {
 		return false
 	}
+	if !g.conflicted && a.diffFuzzGate(ctx, &g.difffuzz, emit) {
+		return false
+	}
 	// What the turn actually demonstrated, decided from what the harness
 	// watched rather than from what was written. A claim the turn does
 	// not support is put back to the model once.
@@ -1064,6 +1072,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
 		a.appendHarnessText(outcome.StaleCheckNote())
+		return false
+	}
+	if a.numclaimGate(resp.Message.Text(), g, emit) {
 		return false
 	}
 	if !g.conflicted && a.specReview(outcome, &g.specReviewed, emit) {
