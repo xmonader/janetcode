@@ -6,6 +6,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/proof"
 )
 
 // The result object is defined here, by the package that writes it; the
@@ -51,8 +52,13 @@ type CLIResult struct {
 	PermissionDenials int     `json:"permission_denials"`
 	// Verdict is what the turn demonstrated, computed from what the
 	// harness watched rather than from what the model claimed.
-	Verdict    string `json:"verdict,omitempty"`
-	DurationMS int64  `json:"duration_ms"`
+	Verdict string `json:"verdict,omitempty"`
+	// Conflict is the CONFLICT the last turn ended on (conflict_exit):
+	// the cited test, the task's words, why, and whether the harness
+	// confirmed the test exists and fails. Only a confirmed one sets
+	// exit status 58.
+	Conflict   *proof.Conflict `json:"conflict,omitempty"`
+	DurationMS int64           `json:"duration_ms"`
 	// Recoveries is the harness's repair work: what it had to rescue for
 	// the run to get this far. A run with a clean result and three
 	// recoveries is not the same run as one with none, and a benchmark

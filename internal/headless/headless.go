@@ -213,6 +213,12 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 		if err := turn(ctx, opts, rec, blocks); err != nil {
 			return err
 		}
+		if c := ag.Conflict(); c != nil && c.Verified {
+			// Before --until: its check is the test the model says
+			// cannot pass, and another round would be spent on it.
+			fmt.Fprintf(opts.Stderr, "[conflict] %s fails and contradicts the task: %s\n", safe(c.Test), safeLine(c.Why, 200))
+			return fmt.Errorf("%w: %s", ErrConflict, c.Test)
+		}
 		if opts.MaxCostUSD > 0 {
 			if spent, ok := rec.spentUSD(); ok && spent >= opts.MaxCostUSD {
 				return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSDPrecise(spent), llm.FormatUSDPrecise(opts.MaxCostUSD))

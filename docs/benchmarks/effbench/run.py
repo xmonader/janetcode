@@ -9,6 +9,12 @@ that measured herox and pi. Nothing in effbench is modified.
 
     AIBROKER_AI02_API_KEY=... ./run.py --campaign jc-mimo-1 --model mimo --arms janetcode,pi --seeds 2
     ./run.py ... --arms janetcode,janetcode:noinline=/path/to/janetcode+JANETCODE_OFF=inline
+    ./run.py ... --arms janetcode,janetcode:conflict=+set.conflict_exit=true      # a config key
+    ./run.py ... --tasks-root runs/impossible-tasks                                # Impossible-effbench
+
+A `set.<key>=<value>` in a variant's spec goes into the arm's config.json instead of its
+environment. --tasks-root runs the tasks of another tasks directory (impossible/make.py writes one;
+score them with impossible/score.py).
 
 Campaigns go to runs/<campaign>/ beside this file (git-ignored); summarise with
 `<effbench>/report.py runs/<campaign>`. The broker key comes from the environment; effbench's
@@ -52,15 +58,26 @@ class JanetcodeArm(eb.CompetitorArm):
 
     def __init__(self, camp, cfg, model, timeout, key, binary=JANETCODE, name="janetcode", env_extra=None):
         super().__init__(camp, cfg, model, timeout, key)
-        self.name, self.bin, self.env_extra = name, str(binary), env_extra or {}
+        env_extra = dict(env_extra or {})
+        # set.<key>=<value>: a janetcode config key for this arm, JSON-decoded when it parses.
+        self.settings = {}
+        for k in [k for k in env_extra if k.startswith("set.")]:
+            v = env_extra.pop(k)
+            try:
+                self.settings[k[4:]] = json.loads(v)
+            except ValueError:
+                self.settings[k[4:]] = v
+        self.name, self.bin, self.env_extra = name, str(binary), env_extra
         v = _real_run([self.bin, "--version"], capture_output=True, text=True)
         self.version = {"bin": self.bin, "sha": eb.sha_short(Path(self.bin)),
-                        "version": (v.stdout or v.stderr).strip(), "env": self.env_extra}
+                        "version": (v.stdout or v.stderr).strip(), "env": self.env_extra,
+                        "settings": self.settings}
 
     def prepare(self, home, ws, run):
         cfg = home / ".config" / "janetcode"
         cfg.mkdir(parents=True)
-        (cfg / "config.json").write_text(json.dumps({"models": {self.model: {"context_window": self.ctx}}}))
+        (cfg / "config.json").write_text(json.dumps({"models": {self.model: {"context_window": self.ctx}},
+                                                     **self.settings}))
         env = eb.competitor_env(home, None, OPENAI_BASE_URL=self.base_url, **self.env_extra)
         env["OPENAI_API_KEY"] = self.key
         prompt = (run / "prompt.txt").read_text()
@@ -103,9 +120,15 @@ def main():
     ap.add_argument("--seeds", type=int, default=2)
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--timeout", type=int, default=1200)
+    ap.add_argument("--tasks-root", type=Path,
+                    help="run the tasks of this directory instead of effbench's (e.g. impossible/make.py's output); "
+                         "with no --tasks, every task in it")
     a = ap.parse_args()
 
-    tasks = a.tasks or eb.SUBSETS[a.subset]
+    if a.tasks_root:
+        eb.TASKS_ROOT = a.tasks_root.resolve()
+    tasks = a.tasks or (sorted(p.parent.name for p in eb.TASKS_ROOT.glob("*/seed")) if a.tasks_root
+                        else eb.SUBSETS[a.subset])
     cfg = eb.LONGTASKS / "configs" / f"{a.model}.toml"
     model = eb.served_model(cfg)
     eb.PROVIDER = eb.BACKEND_PROVIDER[eb.served_backend(cfg)]
@@ -143,6 +166,7 @@ def main():
         "campaign": a.campaign, "model": model, "config": str(cfg), "tasks": tasks, "seeds": a.seeds,
         "jobs": a.jobs, "timeout": a.timeout, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "provider": eb.PROVIDER, "upstream": eb.UPSTREAM, "effbench": str(EFFBENCH),
+        "tasks_root": str(eb.TASKS_ROOT),
         "arms": {arm.name: arm.version for arm in arms}}, indent=2))
     eb.log(f"{a.campaign}: model={model} tasks={len(tasks)} seeds={a.seeds} arms={[x.name for x in arms]}")
 

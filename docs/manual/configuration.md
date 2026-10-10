@@ -584,6 +584,18 @@ the overclaim gate: the expensive mistake here is nagging a finished
 turn into another round of model calls. A turn that never ran anything
 is already `unverified` and already sent back, and is not nudged twice.
 
+`conflict_exit` (default off) offers the model a way out of a task
+whose tests contradict it: one prompt line, and a `CONFLICT: <test id> |
+<the task's words> | <why>` line in its final answer. The harness checks
+the claim rather than taking it: the cited test must exist in the
+project and fail when the turn ends. A confirmed conflict ends the turn
+without the verify gate and the reviews that would send it back to make
+that test pass, is recorded in the proof note, and ends a `-p` run with
+exit 58; an unconfirmed one is sent back once. Off by default because it
+changes the prompt, and a model that reads it as an escape hatch from a
+hard task costs passes (measure with
+`docs/benchmarks/effbench/impossible`).
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

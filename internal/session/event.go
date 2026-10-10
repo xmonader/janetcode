@@ -76,6 +76,15 @@ const (
 	// TypeEgress records what one turn sent off the machine (see
 	// internal/egress): Output carries the report as JSON.
 	TypeEgress = "egress/turn"
+	// TypeTestLedger records a turn's test-integrity ledger (see
+	// internal/agent/testledger.go): Extra carries a proof.Integrity,
+	// the latest one per turn standing. A proof record folds it into
+	// proof.Turn.Integrity.
+	TypeTestLedger = "verify/ledger"
+	// TypeConflict records a CONFLICT: line the model ended a turn with
+	// (internal/agent/conflict.go): Extra carries a proof.Conflict with
+	// whether the harness confirmed the cited test exists and fails.
+	TypeConflict = "turn/conflict"
 )
 
 // Gate sources on a TypeGate event.

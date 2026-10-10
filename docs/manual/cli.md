@@ -239,7 +239,29 @@ comes out unwrapped. Supported keywords: `type`, `properties`,
 | 55 | the run reached `--max-cost` |
 | 56 | the run reached `--max-wall-time` |
 | 57 | the run reached `--max-tool-calls` |
+| 58 | the run ended on a confirmed `CONFLICT:` (`conflict_exit`): the task and a test contradict each other. Not an error: `is_error` is false and the result object's `conflict` holds the cited test, the task's words, the reason and what the harness checked |
 | 130 | interrupted, as a shell reports a SIGINT |
 
 The code is also in the `exit_code` field of the result object, so a
 caller reading only stdout still has it.
+
+### Test integrity in a headless run
+
+A headless run refuses its first write to each test file (`testguard`),
+and when a turn that changed files is about to end it keeps a
+test-integrity ledger (`testledger`): any test file the turn changed is
+run again in its original form, in a throwaway copy of the tree, with the
+turn's last passing test command (or the project's verify commands); and
+the source lines the turn added are scanned for branches on a value only
+a test holds (`if code == "SAVE-17"` where neither the task text nor the
+file had `SAVE-17`). Either finding sends the turn back once, naming the
+test or the line. The counts (tests modified and added, assertions
+changed, whether the originals pass, the flagged lines) go on the session
+log and into the commit's proof note. `JANETCODE_OFF=testledger` turns it
+off.
+
+With `--set conflict_exit=true` the model may end a turn with
+`CONFLICT: <test id> | <the task's words> | <why>` when a test
+contradicts the task. The harness runs the tests once more: a claim
+naming a test that exists and fails ends the run with exit 58; any other
+is sent back once and then judged like any turn.

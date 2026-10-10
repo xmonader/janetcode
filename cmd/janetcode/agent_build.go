@@ -502,8 +502,14 @@ func (b *agentBuilder) stepCore() error {
 		ag.PlanBudget = planBudgetChars
 		ag.SpecReview = true
 		ag.TestGuard = true
+		ag.TestLedger = true
 	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
+	if d.cfg.ConflictExit {
+		// Fixed for the session, so the prompt prefix stays cacheable.
+		ag.ConflictExit = true
+		ag.System += "\n" + agent.ConflictPrompt
+	}
 	ag.Sandbox = b.sb
 	ag.Cron = b.cron
 	ag.Jobs = d.jobs

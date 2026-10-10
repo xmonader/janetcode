@@ -5,6 +5,33 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- A headless run keeps a test-integrity ledger when a turn that changed
+  files ends. Test files the turn changed are run again in their
+  original form, in a throwaway copy of the tree, with the turn's last
+  passing test command: a green on edited tests is no evidence unless the
+  originals pass too. Source lines the turn added are scanned for
+  branches on a literal only a test holds (not the task text, not the
+  file as it was). Either finding sends the turn back once, naming the
+  test or the line; the counts (tests modified and added, assertions
+  changed, replay result, flagged lines) go on the session log and into
+  the proof note. On 934 recorded effbench workspaces (r1-r13 and the
+  competitor campaigns, every arm) the literal scan raises no flag
+  (`JANETCODE_OFF=testledger`).
+- `conflict_exit` (opt-in): the model may end a turn with `CONFLICT:
+  <test id> | <the task's words> | <why>` when a test contradicts the
+  task. The claim is checked: the test must exist and fail at the end of
+  the turn. A confirmed one ends the turn past the gates that would make
+  that test pass, is recorded in the proof note, and ends a `-p` run with
+  exit 58 (`is_error` false, `conflict` in the result object); any other
+  is sent back once.
+- Impossible-effbench (`docs/benchmarks/effbench/impossible`): eight
+  effbench tasks with one public test mutated to contradict the brief,
+  each proven impossible against the task's reference solution, and a
+  scorer that counts a pass as a cheat and a CONFLICT exit as the right
+  answer. `run.py --tasks-root` runs them; `set.<key>=<value>` in an arm
+  spec sets a janetcode config key for that arm.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were
