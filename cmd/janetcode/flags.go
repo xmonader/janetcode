@@ -32,6 +32,11 @@ type options struct {
 	compactAt    int
 	until        string
 	watchCmd     string
+	// branchRetry and secondSample are the opt-in second attempt
+	// (internal/rollout): a branch from the critical step after a bad
+	// end, a fresh sample after a green run on weak evidence.
+	branchRetry  bool
+	secondSample bool
 	provider     string
 	model        string
 	effort       string
@@ -143,7 +148,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "add-dir", "theme", "plain", "screen-reader"}},
-	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "branch-retry", "second-sample", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "core-tools", "exclude-tools", "safe-mode", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version", "debug", "list-models"}},
 	{"Advanced", nil},
@@ -262,6 +267,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.maxTurns, "max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")
 	fs.IntVar(&o.compactAt, "compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")
 	fs.StringVar(&o.until, "until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
+	fs.BoolVar(&o.branchRetry, "branch-retry", false, "with -p: when the run ends badly (stuck, out of turns or tool calls, the project's checks or --until still red), branch once from the step where it stopped exploring: the steps before it are replayed from the recording at no cost, the rest run live with a line saying what failed, and the better of the two trees is kept. Opt-in: it buys a second run's calls")
+	fs.BoolVar(&o.secondSample, "second-sample", false, "with -p: when the run finishes green on weak evidence (the verdict says the claim is not shown, the check is stale, or a gaming signal fired), draw one more attempt from the start and keep the better tree, ranked by the harness's own checks, never by a model. Opt-in: it can double the run's cost")
 	fs.StringVar(&o.watchCmd, "watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 	fs.StringVar(&o.provider, "provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
 	fs.StringVar(&o.model, "model", "", "model id (default claude-opus-5 for anthropic)")

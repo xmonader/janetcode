@@ -347,6 +347,11 @@ func (s *startup) stageFlags() (bool, error) {
 	if err != nil {
 		return true, fmt.Errorf("%w: %v", headless.ErrBadInput, err)
 	}
+	if os.Getenv(headless.RolloutEnv) != "" {
+		// A rollout's child reports to its parent, which reads one
+		// result object from its stdout (see rollout.go).
+		format = headless.FormatJSON
+	}
 	s.format = format
 	if err := checkModes(s.opts, s.initial, format); err != nil {
 		return true, err

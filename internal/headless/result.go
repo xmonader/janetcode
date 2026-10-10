@@ -89,6 +89,10 @@ type CLIResult struct {
 	// model requests, memory and skills attached, and how many
 	// secret-shaped values were redacted first (see internal/egress).
 	Egress []egress.Report `json:"egress,omitempty"`
+	// Rollout is the opt-in second attempt's account (--branch-retry,
+	// --second-sample): what fired, what was drawn and which attempt's
+	// tree was kept. Omitted when nothing fired.
+	Rollout *CLIRollout `json:"rollout,omitempty"`
 	// DryRun is the preview a --dry-run run built instead of changing
 	// anything: the files it would change with their diffs, and every
 	// call it recorded rather than made. Omitted outside a dry run.
