@@ -145,6 +145,27 @@ The next commit makes the review read instead of check: compare the
 brief with the code, fix what does not hold, run the tests once, and
 wrap up after three tool steps. `jc-mimo-r13` measures it.
 
+### A review that reads: `jc-mimo-r13` (`5c3ed1a2`)
+
+| arm | runs | passed | time | speed-adjusted | calls | input | fresh input | output | tamper |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| janetcode | 32 | **30/32** | **12,792 s** | **12,792 s** | **541** | 12.18M | **876k** | **900k** | **0** |
+| pi | 32 | 27/32 | 13,323 s | 13,634 s | 675 | **10.75M** | 1,018k | 1,286k | 1 |
+
+- janetcode leads on passes and on cost together: 30 valid against pi's
+  26 (pi's a-http-ratelimit s1 is a flagged PASS). It is 4% faster (6%
+  speed-adjusted), makes 20% fewer calls, sends 14% less fresh input
+  and writes 30% less output; its total input is 13% higher, the cached
+  context the review rereads.
+- The review cost fell from about 150 s a run to the point where
+  janetcode is faster than pi again, and the passes held at r12's 30.
+- Misses: janetcode a-build-incremental s2 and d-minire s2 (it passed
+  d-minire s1, at the cap); pi c-rs-logstore s1, c-ts-eventsource s2 (at
+  the cap), d-todocli s1 and both d-minire runs.
+
+Over r12 and r13, the two runs with the test guard and the review:
+janetcode 60/64 valid, pi 55/64 valid.
+
 ## Result on the tuning tasks (campaign `jc-mimo-r4`, 2026-10-09)
 
 | arm | runs | passed | time | speed-adjusted | calls | input | cached | fresh input | output | tamper |
@@ -264,6 +285,7 @@ Campaign history, all on MiMo through ai02:
 | `jc-mimo-r10` | `8d768119` (16 tasks × 2) | 28/32 | 11,184 s | 422 | 27/32 (1 tamper), 13,418 s, 639 calls |
 | `jc-mimo-r11` | `f6cd0fae` (16 tasks × 2) | 29/32 (1 tamper) | 16,042 s | 656 | 29/32, 13,796 s, 670 calls |
 | `jc-mimo-r12` | `e4dfa3a4` (16 tasks × 2) | 30/32 | 16,400 s | 633 | 29/32, 14,838 s, 629 calls |
+| `jc-mimo-r13` | `5c3ed1a2` (16 tasks × 2) | 30/32 | 12,792 s | 541 | 27/32 (1 tamper), 13,323 s, 675 calls |
 
 ## Caveats
 
