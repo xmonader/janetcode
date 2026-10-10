@@ -5,6 +5,21 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- Pattern induction for repetitive edits (wild idea 7) was screened and
+  dropped; nothing in the agent changes. `internal/editpattern` infers a
+  rewrite rule from two similar edits (token-level anti-unification, so
+  `load(a)` -> `load(a, ctx)` and `load(b)` -> `load(b, ctx)` give
+  `load ( $0 )` -> `load ( $0 , ctx )`) and finds the other sites it
+  matches. `go run ./cmd/patternscreen <campaign>...` replays recorded
+  effbench runs and counts the runs where a rule induced from two hunks
+  would have written a third one. On r1-r13: janetcode 14 of 251 editing
+  runs (5.6%) and pi 10 of 248 (4.0%), with 0.4% of edit bytes in those
+  later hunks on both arms. Both are under the idea's 10% line. Had the
+  idea passed, the offer would have been made by the harness: a
+  precomputed diff in the edit result, applied with one confirmation, not
+  a new tool the model has to choose.
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a
