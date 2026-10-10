@@ -97,6 +97,18 @@ type Result struct {
 	Mutation Mutation
 	// MutationErr is why mutation testing could not run (not a failure).
 	MutationErr error
+	// Runs is every command that ran, passing or not, with its exit code
+	// and redacted output: what signed evidence (internal/proof) hashes.
+	// Passed, Failed and Output stay the summary the gate reports.
+	Runs []Run
+}
+
+// Run is one command a verification run ran. Name is as reported
+// (Runner.Display applies).
+type Run struct {
+	Name   string
+	Exit   int
+	Output string
 }
 
 // OK reports whether every command passed and no mutant survived.
@@ -209,6 +221,7 @@ func (r *Runner) Run(ctx context.Context) Result {
 	timeout := r.timeout()
 	for _, command := range r.Config.Commands {
 		ok, exit, output := r.runOne(ctx, command, timeout)
+		res.Runs = append(res.Runs, Run{Name: r.name(command), Exit: exit, Output: output})
 		if ok {
 			res.Passed = append(res.Passed, r.name(command))
 			continue
@@ -238,7 +251,7 @@ func (r *Runner) timeout() time.Duration {
 }
 
 // runOne runs one command and reports whether it passed, its exit code
-// and, for a failure, its redacted output.
+// and its redacted output.
 func (r *Runner) runOne(ctx context.Context, command string, timeout time.Duration) (bool, int, string) {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -263,14 +276,14 @@ func (r *Runner) runOne(ctx context.Context, command string, timeout time.Durati
 	if errors.Is(err, exec.ErrWaitDelay) {
 		err = nil
 	}
-	if err == nil {
-		return true, 0, ""
-	}
 	// Redacted as a bash result is: this output goes to the model, the
 	// session log and eval records, and a suite that prints the
 	// environment or a .env on failure would otherwise hand over what the
 	// same command run through bash does not.
 	red, _ := secret.Redact(out.String())
+	if err == nil {
+		return true, 0, red
+	}
 	var ee *exec.ExitError
 	switch {
 	case errors.Is(cctx.Err(), context.DeadlineExceeded):

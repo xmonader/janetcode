@@ -54,6 +54,15 @@ func TestRunStopsAtFirstFailure(t *testing.T) {
 	if os.Getenv("JANETCODE_VERIFY") != "" {
 		t.Fatal("env leaked into the test process")
 	}
+	// Runs keeps every command that ran, the pass's output too (signed
+	// evidence hashes it); Output stays the failure's alone.
+	if len(res.Runs) != 2 || res.Runs[0].Exit != 0 || res.Runs[1].Exit != 3 || !strings.Contains(res.Runs[1].Output, "boom") {
+		t.Fatalf("runs = %+v", res.Runs)
+	}
+	pass := (&Runner{Cwd: root, Config: Config{Commands: []string{"echo hi"}}}).Run(context.Background())
+	if pass.Output != "" || len(pass.Runs) != 1 || strings.TrimSpace(pass.Runs[0].Output) != "hi" {
+		t.Fatalf("pass = %+v", pass)
+	}
 }
 
 // A failing check's output is fed to the model, written to the session

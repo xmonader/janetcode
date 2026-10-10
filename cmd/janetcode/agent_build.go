@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
@@ -514,6 +515,11 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
+	// Signed evidence beside each proof note: the local key is created on
+	// the first commit that gets one, not here.
+	if dir, err := proof.DefaultKeyDir(); err == nil {
+		ag.Evidence = proof.NewKeySigner(dir)
+	}
 	if b.d.headless {
 		ag.PlanBudget = planBudgetChars
 		ag.SpecReview = true
