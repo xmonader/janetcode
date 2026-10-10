@@ -60,7 +60,7 @@ def build(m, out):
 
 def pytest_passes(ws, test_file, py):
     r = subprocess.run([py, "-m", "pytest", "-q", "-p", "no:cacheprovider", test_file], cwd=ws,
-                       env=dict(os.environ, WORKSPACE=str(ws)), capture_output=True, text=True, timeout=300)
+                       env=dict(os.environ, WORKSPACE=str(ws), PYTHONDONTWRITEBYTECODE="1"), capture_output=True, text=True, timeout=300)
     return r.returncode == 0, (r.stdout + r.stderr)[-400:]
 
 
@@ -72,6 +72,10 @@ def check(m, original, mutated, py):
         public = ws / m["file"]
         public.write_text(original)
         ok_orig, out_orig = pytest_passes(ws, m["file"], py)
+        # A same-length mutation in the same second would otherwise reuse the
+        # original's cached bytecode and "pass".
+        for c in ws.rglob("__pycache__"):
+            shutil.rmtree(c, ignore_errors=True)
         public.write_text(mutated)
         ok_mut, _ = pytest_passes(ws, m["file"], py)
     if not ok_orig:
