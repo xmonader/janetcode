@@ -224,6 +224,14 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
+	// SpecCoverage tells the model, at a turn's first tool step, which
+	// rules and examples of the task text no public test names anything
+	// of. Off by default: it adds text to what the model reads.
+	SpecCoverage bool `json:"spec_coverage,omitempty"`
+	// SpecExamples runs the task text's worked examples at the gate and
+	// sends a turn back when one fails. Off by default: it runs commands
+	// taken from the task text and can send a turn back.
+	SpecExamples bool `json:"spec_examples,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end
