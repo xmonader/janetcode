@@ -77,6 +77,13 @@ type turnMonitor struct {
 	// run, until the note saying so goes out with their results.
 	burstRan    int
 	burstRepeat bool
+	// effort is the effort controller's state for this turn;
+	// effortIdleSaid keeps its "on but idle" notice to one a session;
+	// lastCallEffort is the tier the controller gave the latest call,
+	// for its assistant event (see effortctl.go).
+	effort         effortControl
+	effortIdleSaid bool
+	lastCallEffort string
 	// reviewSteps counts the tool steps since the spec review sent the
 	// turn back, -1 before it does (see specreview.go).
 	reviewSteps int

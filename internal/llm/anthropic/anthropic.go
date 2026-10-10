@@ -129,7 +129,10 @@ func New(cfg Config) (*Provider, error) {
 func (p *Provider) Name() string { return "anthropic" }
 
 // SupportsEffort implements llm.EffortAware: the Messages API takes a
-// reasoning tier on output_config, so llm.Request.Effort is sent.
+// reasoning tier on output_config, so llm.Request.Effort is sent. It
+// deliberately does not implement llm.EffortCacheNeutral: a change of
+// thinking or effort settings invalidates the cached messages, so a tier
+// the harness moved mid-turn would re-bill the whole history each time.
 func (p *Provider) SupportsEffort() bool { return true }
 
 // Keys is the number of distinct API keys configured.

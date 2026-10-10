@@ -81,6 +81,13 @@ var featureSwitches = []featureSwitch{
 		on:    func(cfg *config.Config) bool { return cfg.StaleCheckNudge },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
+	{
+		name:  "effort-ctl",
+		key:   "effort_control",
+		what:  "each call's reasoning tier follows the turn: low, up on trouble, halved on progress",
+		on:    func(cfg *config.Config) bool { return cfg.EffortControl },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
 }
 
 // decisionSwitches builds the consumer switches from the config package's

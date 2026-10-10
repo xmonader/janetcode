@@ -80,6 +80,13 @@ func (p *Provider) Name() string { return p.cfg.Name }
 // reasoning.effort (until a model refuses it; see wire.Learn).
 func (p *Provider) SupportsEffort() bool { return true }
 
+// EffortOutsideCacheKey implements llm.EffortCacheNeutral. OpenAI's
+// prompt cache matches the input prefix — instructions, input items,
+// tools — and reasoning.effort is none of those, so a call at another
+// tier reads the prefix the last one wrote. That is the documented
+// shape of the cache, not a measured hit rate.
+func (p *Provider) EffortOutsideCacheKey() bool { return true }
+
 // Stream implements llm.Provider.
 func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	return p.c.Stream(ctx, req, emit)

@@ -4,6 +4,7 @@ import "strings"
 
 // The feature knobs a front-end can change in the middle of a session:
 // the cascade's round count, the forced advisor, the stale-check nudge,
+// the effort controller,
 // the advisor slot and the decision provider with its consumers.
 //
 // Each of them is a plain field on Agent, assigned once while the agent
@@ -42,6 +43,21 @@ func (a *Agent) StaleNudgeOn() bool {
 	a.featMu.RLock()
 	defer a.featMu.RUnlock()
 	return a.StaleCheckNudge
+}
+
+// SetEffortControl turns the effort controller on or off. A turn already
+// running keeps the tier it has until its next call.
+func (a *Agent) SetEffortControl(on bool) {
+	a.featMu.Lock()
+	a.EffortControl = on
+	a.featMu.Unlock()
+}
+
+// EffortControlOn is EffortControl, safe to read while a turn runs.
+func (a *Agent) EffortControlOn() bool {
+	a.featMu.RLock()
+	defer a.featMu.RUnlock()
+	return a.EffortControl
 }
 
 // SetAdvisorMode changes the forced-consult mode ("off" or "always") and

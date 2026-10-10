@@ -5,6 +5,21 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- `effort_control` (experimental, off by default) sets each model call's
+  reasoning tier from the turn's own signals instead of one fixed tier: a
+  turn starts at `low`, a failed edit, a red check, a loop note or a
+  verify gate sending the turn back raises it one rung, a green check or
+  the first edit to a file halves the distance above `low`, and a reply
+  the plan budget or output limit cut returns it to `low`. `effort` is
+  the ceiling and a turn changes the tier at most four times. It acts only
+  on a provider whose prompt cache does not key on the tier (OpenAI
+  Responses); on Anthropic, Gemini and OpenAI-compatible servers it says
+  once that it is idle. The chosen tier is logged as `effort` on each
+  assistant event. Replayed offline over 184 recorded local sessions
+  (888 calls), it would have asked for `low` on 90% of calls and changed
+  the tier 0.25 times a turn on average.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

@@ -287,6 +287,11 @@ type Agent struct {
 	// TurnOutcome.StaleCheck). Off by default: it changes what a turn
 	// does, and every eval baseline here was measured without it.
 	StaleCheckNudge bool
+	// EffortControl lets the effort controller set each call's reasoning
+	// tier from the turn's own signals, at or below Effort (effortctl.go).
+	// Off by default: it changes what every call asks for, and it acts
+	// only on a provider whose prompt cache does not key on the tier.
+	EffortControl bool
 	// DecisionsSessionOutcome enables the session-end outcome
 	// classification (config decisions.session_outcome, item 9). It is
 	// log-only: nothing in the harness changes because of the answer,
@@ -567,6 +572,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			return err
 		}
 		a.noteCut(resp)
+		a.noteEffort(replyEffortSignal(resp, a.planCutNow))
 		if a.refuseTruncatedCalls(resp, emit) {
 			continue
 		}
@@ -615,6 +621,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.resetDiagnostics()
 	a.outBoost = 0
 	a.planCuts, a.planCutNow = 0, false
+	a.effort.start(a.Settings().Effort)
 	a.reviewSteps = -1
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
@@ -742,7 +749,7 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true,
 		Message: &msg, Usage: &u, Model: a.lastCallModel, Served: served, Mismatch: mismatch,
 		Slot: a.lastCallSlot, Provider: a.lastCallProvider, Route: a.lastCallRoute, RouteWhy: a.lastCallWhy,
-		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds()})
+		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds(), Effort: a.lastCallEffort})
 	emit(Event{Kind: EvTextBlockDone})
 	// The ceiling is asked about here, while the call just paid for
 	// is in the totals and before its tools are run.
@@ -892,10 +899,12 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	}
 	if !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
 		a.stepRoute.taint("a verification check failed and was sent back")
+		a.noteEffort(effortTrouble)
 		return false
 	}
 	if a.acceptVerifyGate(ctx, &g.accept, emit) {
 		a.stepRoute.taint("an acceptance check failed and was sent back")
+		a.noteEffort(effortTrouble)
 		return false
 	}
 	// What the turn actually demonstrated, decided from what the harness
@@ -986,6 +995,9 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	if note := a.reviewStepNote(); note != "" && len(results) > 0 {
 		results[len(results)-1].Text += "\n\n" + note
 		emit(Event{Kind: EvNotice, Text: "the review has used its calls; asking the model to wrap up"})
+	}
+	if a.EffortControlOn() {
+		a.noteEffort(stepEffortSignal(uses, results, a.effort.edited))
 	}
 	tr := llm.ToolResultMessage(results...)
 	tr.Blocks = append(tr.Blocks, images...)

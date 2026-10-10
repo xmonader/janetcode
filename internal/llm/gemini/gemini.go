@@ -78,7 +78,10 @@ func New(cfg Config) (*Provider, error) {
 func (p *Provider) Name() string { return p.cfg.Name }
 
 // SupportsEffort implements llm.EffortAware: the tier is sent as the
-// thinking level (until a model refuses one; see wire.Learn).
+// thinking level (until a model refuses one; see wire.Learn). It does
+// not implement llm.EffortCacheNeutral: whether the implicit cache keys
+// on the thinking config is not documented, and the safe guess is that
+// it does.
 func (p *Provider) SupportsEffort() bool { return true }
 
 // Stream implements llm.Provider.

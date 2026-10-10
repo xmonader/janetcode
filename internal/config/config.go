@@ -187,6 +187,12 @@ type Config struct {
 	// everything that passed, passed against a tree the turn has since
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
+	// EffortControl lets the harness set each call's reasoning tier from
+	// the turn's signals — low to start, a rung up after a failed edit, a
+	// red check or a loop, halved after progress — never above effort.
+	// Off by default, and idle on a provider that sends no tier or whose
+	// prompt cache keys on it (Anthropic).
+	EffortControl bool `json:"effort_control,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

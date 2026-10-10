@@ -72,3 +72,23 @@ func HonoursEffort(prov Provider) bool {
 	ea, ok := prov.(EffortAware)
 	return ok && ea.SupportsEffort()
 }
+
+// EffortCacheNeutral is implemented by a provider whose prompt cache does
+// not key on the reasoning tier: a call asking for another tier than the
+// one before it still reads the prefix that call wrote. Anthropic does
+// not qualify — a change of thinking or effort settings invalidates the
+// cached messages — so a harness that moves the tier by itself (the
+// agent's effort controller) asks this first and leaves a provider that
+// does not say so alone.
+type EffortCacheNeutral interface {
+	EffortOutsideCacheKey() bool
+}
+
+// EffortChangeKeepsCache reports whether a change of Request.Effort
+// between two calls on prov keeps its prompt cache. A provider that does
+// not say is taken to key on it: a guess the other way re-bills the whole
+// history at every change.
+func EffortChangeKeepsCache(prov Provider) bool {
+	en, ok := prov.(EffortCacheNeutral)
+	return ok && en.EffortOutsideCacheKey()
+}

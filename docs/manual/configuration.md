@@ -114,6 +114,24 @@ other live keys (`model`, `max_tokens`, `compact_at`, `auto_approve`) do.
 model that refuses the tier asked for is served the one below it, and the
 session shows any tier above the default on its status line.
 
+`effort_control` (experimental, default off) lets the harness set each
+call's tier from the turn itself instead of asking every call for
+`effort`. A turn starts at `low`; a step that went wrong — a failed edit,
+a check that came back red, a loop note, a verify gate sending the turn
+back — raises it one rung; a step that made progress — a green check, the
+turn's first edit to a file — halves the distance above `low`; and a
+reply the plan budget or the output limit cut goes straight back to
+`low`. `effort` is the ceiling (`high` when it is unset), and a turn
+changes the tier at most four times. It acts only where the provider
+sends a tier and its prompt cache does not key on it, which today is the
+`responses` provider: on Anthropic a change of effort invalidates the
+cached messages, Gemini's cache is not documented either way, and an
+OpenAI-compatible server is not sent a tier at all, so there the
+controller says once that it is idle and every call asks for `effort`.
+The tier it chose is recorded as `effort` on each assistant event of the
+session log. `/features effort-ctl on|off` and `--set
+effort_control=true` turn it on for a session.
+
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
@@ -711,7 +729,8 @@ key=value` or through the two commands that group them:
 
 - `/features` lists the slots and the switches that use them --
   `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
-  `stale-nudge` (`stale_check_nudge`) and the four decision consumers --
+  `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`)
+  and the four decision consumers --
   with what each is set to and what still stands in its way.
   `/features <name> on|off` changes one.
 - `/jev` is the decisions block: see below.
