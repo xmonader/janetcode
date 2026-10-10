@@ -19,6 +19,7 @@ import (
 func (m *model) extractMemory() tea.Cmd {
 	ag, store := m.opts.Agent, m.opts.Memory
 	msgs := ag.MessagesSnapshot()
+	tainted := ag.Tainted()
 	// Extraction reads a window of prose, not events, so its evidence is
 	// the watermark form: this session, as it stands now.
 	ref := ""
@@ -37,6 +38,7 @@ func (m *model) extractMemory() tea.Cmd {
 		if ref != "" {
 			xs = memory.StampEvidence(xs, ref)
 		}
+		xs = memory.MarkTainted(xs, tainted)
 		changed, err := store.Apply(xs)
 		return memoryMsg{added: changed, err: err}
 	}
@@ -90,7 +92,7 @@ func (m *model) sleepMemory(loud bool) tea.Cmd {
 		if err != nil {
 			return memoryMsg{err: err}
 		}
-		changed, err := store.ApplyWith(xs, "sleep")
+		changed, err := store.ApplyWith(memory.MarkTainted(xs, ag.Tainted()), "sleep")
 		if err != nil {
 			return memoryMsg{err: err}
 		}

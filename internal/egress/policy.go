@@ -67,6 +67,24 @@ func (p *Policy) Decide(host string) Verdict {
 	return p.Default
 }
 
+// Listed reports whether host is on the allow list or is one of the
+// model provider's own hosts, whatever the default. A nil policy lists
+// nothing.
+func (p *Policy) Listed(host string) bool {
+	if p == nil {
+		return false
+	}
+	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	for _, list := range [][]string{p.Implicit, p.Allow} {
+		for _, pat := range list {
+			if matchHost(strings.ToLower(strings.TrimSpace(pat)), host) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func matchHost(pat, host string) bool {
 	switch {
 	case pat == "":

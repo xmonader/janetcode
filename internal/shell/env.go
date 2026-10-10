@@ -1,6 +1,9 @@
 package shell
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 // secretEnv lists variables that model-run commands must never see: the
 // agent's own credentials. Anything else the user exported stays available.
@@ -116,5 +119,78 @@ func ScrubEnv(env []string) []string {
 	if dropLCAll {
 		out = append(out, "LC_CTYPE=C.UTF-8")
 	}
-	return append(out, nonInteractiveEnv...)
+	out = append(out, nonInteractiveEnv...)
+	// The honeytokens go last and only under names the user has not
+	// set: a real variable of the same name is never shadowed.
+	for _, kv := range Planted() {
+		name, _, _ := strings.Cut(kv, "=")
+		if !hasName(env, name) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+func hasName(env []string, name string) bool {
+	for _, kv := range env {
+		if n, _, _ := strings.Cut(kv, "="); n == name {
+			return true
+		}
+	}
+	return false
+}
+
+// planted are the honeytoken variables (see egress.Canary) every
+// model-run command gets. They live here, process-wide, because every
+// backend that starts a command — the local shell, bwrap, Landlock,
+// seatbelt — builds its environment through ScrubEnv.
+var (
+	plantedMu sync.Mutex
+	planted   []string
+)
+
+// Plant sets the honeytoken variables, NAME=value each; nil removes them.
+func Plant(kv []string) {
+	plantedMu.Lock()
+	defer plantedMu.Unlock()
+	planted = append([]string(nil), kv...)
+}
+
+// Planted is what Plant set.
+func Planted() []string {
+	plantedMu.Lock()
+	defer plantedMu.Unlock()
+	return append([]string(nil), planted...)
+}
+
+// credentialWords are what a variable a command keeps is named for when
+// it holds a credential: the ones ScrubEnv leaves in on purpose
+// (GITHUB_TOKEN for gh, NPM_TOKEN for npm publish) are still secrets a
+// command can read.
+var credentialWords = []string{"TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "PRIVATE_KEY", "API_KEY", "ACCESS_KEY"}
+
+// ExposedSecrets names the variables in env that a model-run command
+// would still see and that look like credentials, the honeytokens left
+// out. It is one leg of the lethal trifecta: secrets a command can read.
+func ExposedSecrets(env []string) []string {
+	plantedNames := map[string]bool{}
+	for _, kv := range Planted() {
+		n, _, _ := strings.Cut(kv, "=")
+		plantedNames[n] = true
+	}
+	var out []string
+	for _, kv := range ScrubEnv(env) {
+		name, val, _ := strings.Cut(kv, "=")
+		if val == "" || plantedNames[name] {
+			continue
+		}
+		upper := strings.ToUpper(name)
+		for _, w := range credentialWords {
+			if strings.Contains(upper, w) {
+				out = append(out, name)
+				break
+			}
+		}
+	}
+	return out
 }

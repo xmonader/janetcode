@@ -243,6 +243,13 @@ func (m *model) statusState() string {
 	if ws := m.opts.Workspace; ws != nil && !ws.Local() {
 		s += m.styles.faint.Render(" · " + ws.Kind())
 	}
+	// Untrusted content in the context changes what will ask from here
+	// on, so it stays in view for as long as it holds (/egress says why).
+	if ag := m.opts.Agent; ag != nil {
+		if b := ag.TaintBadge(); b != "" {
+			s += m.styles.warn.Render(" · " + b)
+		}
+	}
 	return s + m.styles.faint.Render(" · ")
 }
 

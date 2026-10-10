@@ -1199,6 +1199,62 @@ simply cannot connect. `JANETCODE_SANDBOX_BACKEND` and
 `JANETCODE_SANDBOX_IMAGE` pick the backend and docker image for a run,
 as `/sandbox landlock` and `/sandbox <image>` do in a session.
 
+### Untrusted content: the tainted session
+
+Every tool result is labelled by where it came from. Your prompt and
+your repository's files are trusted. These are not: fetch_url, web
+search, MCP tools, files under a dependency directory (`vendor/`,
+`node_modules/`, `third_party/`, `site-packages/`, the Go module cache
+and the like, read with read_file, grep or `cat`), and bash that fetches
+(`curl`, `wget`) or prints an issue or pull request (`gh issue view`,
+`gh pr view`, `gh api`). Any of those can carry instructions someone
+else wrote. Once one is in the context the session is *tainted*, the
+status line says so, and from then on these calls ask first, whatever
+the mode (`/yolo`, `/auto` and allow rules included):
+
+- a bash command that can reach the network: `curl`, `ssh`, `git push`,
+  `npm install`, `pip install`, `go get`, a `python -c` that opens a URL;
+- a change to CI configuration (`.github/workflows/`, `.gitlab-ci.yml`
+  and the rest), a credential file (`.env`, `*.pem`, `.npmrc`, ...), a
+  protected path, or janetcode's own settings, rules and hooks;
+- a call that sends data to a host outside `egress.allow` (fetch_url,
+  web search, a remote MCP server). A yes covers that host for the rest
+  of the session.
+
+The prompt says where the argument came from when it can be traced:
+"this curl URL came from vendor/acme/README.md:40". With nobody to ask
+(a headless run) these calls are refused, which leaves egress at the
+allow list. When the other two legs of the lethal trifecta are up as
+well (secrets a command can read, and no egress policy), the badge reads
+`trifecta: egress asks`. Network commands are recognised by what they
+spell, so a command can still reach a host it does not name; an egress
+policy with the sandbox on is what holds bash to the allow list for
+every host. `/egress` lists what tainted the session. A memory the model or the extractor learns in a tainted
+session waits for `/memory approve` even with `memory_confirm` off. A
+resumed session is labelled again from its history; `/clear` starts
+clean. `JANETCODE_OFF=taint` turns all of this off.
+
+Every command the model runs also carries two honeytoken variables,
+`DEPLOY_TOKEN_BACKUP` and `PROD_DB_PASSWORD_RO`, with random values that
+exist nowhere else (never shadowing a variable you have set). A tool
+call whose arguments hold one, or a request through the egress proxy
+that carries one (in the URL, headers, the first 64 KB of a plain HTTP
+body, or the CONNECT host), stops the run: only a command sending the
+environment somewhere can hold them. Inside a TLS tunnel the proxy
+cannot see, and without the proxy a sandboxed command is not watched.
+`JANETCODE_OFF=honeytoken` stops planting them.
+
+An edit that adds a dependency to `go.mod`, `package.json` or a
+`requirements*.txt` has each new name looked up in its public registry
+(the Go module proxy, or the one `GOPROXY` names; npm; PyPI). A name
+that does not exist, or that was first published under 30 days ago,
+gets a line on the edit's result: models invent package names, and
+someone may have registered the invention. It never refuses the edit.
+Lookups take at most five seconds an edit, go through the egress policy,
+skip `GOPRIVATE`/`GONOPROXY` modules and `GOPROXY=off`, and fail open.
+`JANETCODE_OFFLINE=1` skips them; `JANETCODE_OFF=depgate` turns the check
+off.
+
 With `memory_confirm` on (or `/memory confirm on` for the session), what
 the model or the extractor decides to remember waits instead of being
 saved: `/memory pending` lists each with where it was learned, its scope
