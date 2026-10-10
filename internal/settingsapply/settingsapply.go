@@ -97,6 +97,10 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetSubagentMerge(cfg.SubagentMerge)
 	case "probe_ledger":
 		a.SetProbeLedger(cfg.ProbeLedger)
+	case "numeric_claims_nudge":
+		a.SetNumericClaimsNudge(cfg.NumericClaimsNudge)
+	case "diff_fuzz":
+		a.SetDiffFuzz(cfg.DiffFuzz)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":

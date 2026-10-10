@@ -5,6 +5,26 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- Numbers in the answer are checked like "tests pass": "40% faster",
+  "allocations halved", "coverage 85%" need a measurement of their kind
+  in the session (a speed or memory change needs a run before the edits
+  and one after, or a benchstat/hyperfine comparison; benchstat's `~`
+  backs nothing). Unbacked numbers get a notice and a log entry; on by
+  default, no model call, `JANETCODE_OFF=numclaim`. `numeric_claims_nudge`
+  (off by default) sends the turn back once to measure or retract them.
+  Over 543 final answers in 505 recorded sessions (local and effbench) no
+  answer states a number of this kind, so the share of unbacked ones is
+  not measurable there; the 28 hits of a first draft were all durations
+  and products ("0.2s", "8×366"), which the checker now leaves alone.
+- `diff_fuzz` (seconds, off by default): when the task says behaviour must
+  not change, a turn that changed Go code is fuzzed against the code
+  before the turn — changed exported functions called on both with the
+  same inputs from a generated `testing.F` harness in a temporary copy of
+  the module — and the first diverging input sends the turn back once.
+  On five seeded refactors with a subtle behaviour change their tests
+  miss, it caught 4 of 5 at 10 seconds each (missed: EqualFold vs
+  ToLower).
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a

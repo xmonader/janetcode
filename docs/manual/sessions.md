@@ -323,6 +323,22 @@ notice for what it claims that no call showed. None of this calls a
 model, and none of it runs in a session that never compacts or delegates.
 `JANETCODE_OFF=claimcheck` turns it off.
 
+Numbers in the answer get the same treatment as "tests pass". A number
+with a unit that says what it measures — "40% faster", "2x", "allocations
+halved", "120 ns/op", "coverage 85%", "4.2 MB" — is held against the
+session's commands: it needs a measurement of its kind (a benchmark or a
+`time`/`hyperfine` run, `-benchmem` or a profiler, a coverage run,
+`ls -l`/`du`), run after the last edit, whose output holds the number;
+a change ("40% faster") needs a run before the edits and one after whose
+numbers give it, or a `benchstat`/`hyperfine` comparison that states it.
+A `benchstat` whose every delta is `~` backs nothing. Numbers nothing
+backs are named in a notice beside the answer ("unverified numbers in
+the answer: "40%": no benchmark or timing run in this session") and on
+the session log; hedged numbers ("could be 2x faster"), durations with no
+word about speed ("125 tests pass (0.2s)"), versions and counts are left
+alone. It calls no model; `numeric_claims_nudge` adds a send-back, and
+`JANETCODE_OFF=numclaim` turns it off.
+
 Edits are refused when a file changed on disk since the agent last read
 or wrote it (you edited it, a formatter ran, another session touched it):
 the model is told to read it again. Files it has never read are not
