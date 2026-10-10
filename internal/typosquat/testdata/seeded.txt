@@ -1,0 +1,148 @@
+# The seeded pre-screen for the typosquat check (TestSeededTyposquats).
+#
+# squat <eco> <name> <the package it imitates>
+# legit <eco> <name>
+#
+# The squats are real typosquat names from public incident reports, or
+# the same patterns applied to the most imitated packages: the 2017 npm
+# batch (crossenv and 37 others), the PyPI campaigns (urlib3, colourama,
+# jeIlyfish, python3-dateutil), the Go case squat of
+# github.com/Sirupsen/logrus and the 2025 github.com/boltdb-go/bolt.
+# Where the imitated package is not on the well-known list the check
+# cannot know it in an empty project; those rows count as misses, as
+# they would in use. The legit rows are real packages that are not on
+# the list, several of them a keystroke from one that is: each flag on
+# one is a false alarm.
+
+squat npm crossenv cross-env
+squat npm cross-env.js cross-env
+squat npm d3.js d3
+squat npm fabric-js fabric
+squat npm ffmepg ffmpeg
+squat npm gruntcli grunt-cli
+squat npm http-proxy.js http-proxy
+squat npm jquery.js jquery
+squat npm mongose mongoose
+squat npm mssql.js mssql
+squat npm mysqljs mysql
+squat npm nodecaffe caffe
+squat npm nodefabric fabric
+squat npm nodeffmpeg ffmpeg
+squat npm nodemailer-js nodemailer
+squat npm nodemailer.js nodemailer
+squat npm noderequest request
+squat npm nodesass node-sass
+squat npm opencv.js opencv
+squat npm babelcli babel-cli
+squat npm electorn electron
+squat npm lodashs lodash
+squat npm axois axios
+squat npm expres express
+squat npm jquerry jquery
+squat npm momnet moment
+squat npm chalk-js chalk
+squat npm reqeust request
+squat npm bcyrpt bcrypt
+squat npm dotevn dotenv
+squat npm webpak webpack
+squat npm typescirpt typescript
+squat npm @babel/croe @babel/core
+squat npm event-streem event-stream
+squat pypi urlib3 urllib3
+squat pypi reqeusts requests
+squat pypi requestes requests
+squat pypi colourama colorama
+squat pypi jeIlyfish jellyfish
+squat pypi python3-dateutil python-dateutil
+squat pypi beautifulsup4 beautifulsoup4
+squat pypi djanga django
+squat pypi diango django
+squat pypi setup-tools setuptools
+squat pypi acqusition acquisition
+squat pypi numpi numpy
+squat pypi matplotib matplotlib
+squat pypi tensorfow tensorflow
+squat pypi selenuim selenium
+squat pypi scikitlearn scikit-learn
+squat pypi pandass pandas
+squat pypi pyhton-dotenv python-dotenv
+squat pypi crypt0graphy cryptography
+squat pypi pilloww pillow
+squat pypi bs4-python bs4
+squat python reqeusts requests
+squat python nunpy numpy
+squat python colorama_ colorama
+squat python yamI yaml
+squat go github.com/Sirupsen/logrus github.com/sirupsen/logrus
+squat go github.com/boltdb-go/bolt github.com/boltdb/bolt
+squat go github.com/stretchr/testfy github.com/stretchr/testify
+squat go github.com/spf13/cobr github.com/spf13/cobra
+squat go github.com/gorila/mux github.com/gorilla/mux
+squat go github.com/go-chi/chii github.com/go-chi/chi
+squat go github.com/googIe/uuid github.com/google/uuid
+squat go golang.org/x/crypt0 golang.org/x/crypto
+squat go github.com/golang-jvvt/jwt github.com/golang-jwt/jwt
+squat go github.com/spf14/cobra github.com/spf13/cobra
+
+legit npm react-router
+legit npm vue-router
+legit npm styled-components
+legit npm lodash-es
+legit npm express-validator
+legit npm socket.io-client
+legit npm pino
+legit npm koa-router
+legit npm redux-thunk
+legit npm ts-jest
+legit npm swr
+legit npm immer
+legit npm zustand
+legit npm sinon-chai
+legit npm graphql-tag
+legit npm dotenv-expand
+legit npm date-fns-tz
+legit npm @tanstack/react-query
+legit npm @types/node
+legit npm vue-loader
+legit npm mime
+legit npm qs
+legit npm debug-log
+legit npm pngjs
+legit npm superjson
+legit pypi requests-oauthlib
+legit pypi requests-toolbelt
+legit pypi flask-cors
+legit pypi django-filter
+legit pypi numpydoc
+legit pypi pandas-stubs
+legit pypi pytest-mock
+legit pypi cattrs
+legit pypi httpcore
+legit pypi anyio
+legit pypi sniffio
+legit pypi pyarrow
+legit pypi polars
+legit pypi orjson
+legit pypi xlsxwriter
+legit pypi arrow
+legit pypi boto
+legit pypi pymongo
+legit pypi pyparsing
+legit pypi wrapt
+legit python pymongo
+legit python ujson
+legit python attrs
+legit python dataclasses_json
+legit go github.com/spf13/afero
+legit go github.com/go-chi/cors
+legit go github.com/gorilla/handlers
+legit go github.com/stretchr/objx
+legit go github.com/rs/cors
+legit go github.com/google/go-github
+legit go go.uber.org/atomic
+legit go github.com/sirupsen/logrus/hooks/syslog
+legit go github.com/labstack/echo/v4
+legit go github.com/redis/go-redis/v9
+legit go github.com/spf13/cast
+legit go github.com/google/btree
+legit go github.com/fatih/structs

@@ -83,6 +83,8 @@ func (a *Agent) shortcutBasis(t tool.Tool, u *llm.Block, verdict perm.Verdict, r
 		return "rule " + rule.String()
 	case hookAllowed:
 		return "pre-tool hook"
+	case a.purityAllows(*u):
+		return "observed read-only"
 	}
 	return "unknown"
 }

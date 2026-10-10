@@ -816,6 +816,26 @@ outside the session's sandbox, like the test ledger's replay.
 { "diff_fuzz": 20, "numeric_claims_nudge": true }
 ```
 
+`observed_purity` (default off, Linux with `strace`) watches every
+foreground bash command that runs on this machine for side effects: it
+runs under `strace`, and the trace is read for a file opened for
+writing, created, renamed, removed or re-moded, a network connection, a
+signal to another process. A command line seen to change nothing in
+three runs in one repository, and that runs no interpreter, build tool
+or program inside the repository (their code can change while the
+command line does not), stops asking there: it is approved like a saved
+allow rule, and the audit records `observed read-only`. It stays watched,
+and the first run that writes demotes it for good, with a notice.
+Promotion is the last shortcut, so deny and ask rules, protected paths
+and the taint, egress and test gates still decide first; a tainted
+session neither promotes nor records; a run that was killed, timed out,
+went to the background or left a process running proves nothing; and
+without a usable `strace` nothing is promoted. A command run in the
+sandbox, or on a remote workspace, is not watched (a trace would see the
+sandbox's own setup), so nothing is promoted there either. The records are kept per repository under the
+configuration directory (`purity/`). `JANETCODE_OFF=purity` turns it
+off for a run.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the
