@@ -57,6 +57,10 @@ func (p *providerPool) For(model string) (llm.Provider, string, error) {
 }
 
 func buildProvider(cfg *config.Config) (llm.Provider, error) {
+	return wrapRoute(cfg, buildBareProvider)
+}
+
+func buildBareProvider(cfg *config.Config) (llm.Provider, error) {
 	p := cfg.Active()
 	switch p.Type {
 	case "anthropic":

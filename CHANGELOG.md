@@ -5,6 +5,22 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- `hedge_provider`, `stream_resume` and `fingerprint` (experimental, all off
+  by default). `hedge_provider` races a second configured route when a call
+  has no first token by the primary's learned p95 time to first token, and
+  fails over to it at once when the primary fails on the route before
+  answering. `stream_resume` continues a reply whose stream broke mid-text
+  from the partial (Anthropic prefill, DeepSeek prefix completion) instead
+  of regenerating it. `fingerprint` sends six canary prompts at session
+  start and reports a route whose model names another maker, or answers
+  differently from the reference stored for it. Replayed over the effbench
+  proxy logs (10,351 calls, 595 runs), none of the recorded failures would
+  have been rescued: every call returned 200, the 286 calls cut mid-stream
+  were all cut by the client (276 by janetcode, 10 by pi), not the server,
+  and hedging at p95 would have saved at most 89 s in total. The broker's 504s (the ~45% INFRA drops) are not in any per-call
+  record in the repository (`docs/benchmarks/effbench/hedgescreen.py`).
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a

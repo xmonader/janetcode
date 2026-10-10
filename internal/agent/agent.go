@@ -216,6 +216,11 @@ type Agent struct {
 	// apart from the old code at every later gate. See probes.go.
 	ProbeLedger bool
 	probes      probeLedger
+	// FingerprintDir, when set, runs the behavioural model fingerprint at
+	// the start of the session's first turn, keeping references there
+	// (fingerprint.go). Empty is off: it is six extra model calls.
+	FingerprintDir  string
+	fingerprintDone atomic.Bool
 	// probeExec and probePreTree stand in for the bash tool and the
 	// snapshot export in tests.
 	probeExec    func(ctx context.Context, cmd string) probeResult
@@ -560,6 +565,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	ctx, endEgress := a.egressTurn(ctx, blocks)
 	ctx = a.taintTurn(ctx)
+	a.fingerprintSession(ctx, emit)
 	defer endEgress()
 	// A continuation has no prompt of its own: the prompt hooks saw the
 	// dead turn's, and nothing new is submitted.
