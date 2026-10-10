@@ -437,6 +437,9 @@ func (s *startup) stageReplayModes() (bool, error) {
 	if s.opts.listModels {
 		return true, listModels(context.Background(), os.Stdout, s.prov, s.format)
 	}
+	if done, err := offPeakMode(s.opts, s.cfg); done {
+		return true, err
+	}
 	if done, err := whatIfMode(s.opts, s.cfg, s.prov); done {
 		return true, err
 	}

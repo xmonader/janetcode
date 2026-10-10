@@ -22,6 +22,13 @@ and measurements behind each round are in `docs/notes/history.md`.
   --branch-at 0.5` gives every janetcode arm the same recording per task
   and seed. No branched campaign has run yet, so the variance it removes is
   unmeasured; independent seeds disagree on 7 of 64 verdicts.
+- `--off-peak-by <deadline>` (with `--off-peak-estimate`) holds a `-p`
+  run or an `--eval`, or alone just waits, until the model's cheapest
+  hours that still finish by the deadline. The windows are a table in
+  `offpeak.json`, not code; the built-in one holds only DeepSeek's
+  16:30–00:30 UTC discount, withdrawn in September 2025, so it finds
+  nothing in force until a provider publishes a window. At those old
+  rates r13 would have cost $2.19 instead of $4.39.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
