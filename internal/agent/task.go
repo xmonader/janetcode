@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -46,6 +47,10 @@ type Task struct {
 	nextID   int
 	life     context.Context
 	stop     context.CancelFunc
+	// mergeMu serialises merge-backs (see occmerge.go), and merged says
+	// one wrote to the project since the parent last looked.
+	mergeMu sync.Mutex
+	merged  atomic.Bool
 }
 
 // maxChildren bounds how many subagents stay continuable. Each holds its
@@ -656,7 +661,25 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if strings.TrimSpace(report) == "" {
 		report = "(the subagent finished without a report)"
 	}
-	if wt != nil {
+	// With merge-back on, the harness merges the work into the project
+	// itself (see occmerge.go); settled is false when it declined, and the
+	// patch goes back the old way with the reason in front of it.
+	settled := false
+	if wt != nil && t.Parent.SubagentMergeOn() {
+		var note string
+		note, settled = t.mergeBack(runCtx, childID, kid, in.Description, emit)
+		switch {
+		case settled:
+			// A repair round ends with a report of its own.
+			if r := lastAssistantText(child.Messages); strings.TrimSpace(r) != "" && r != report {
+				report += "\n\nAfter the merge repair round:\n" + r
+			}
+			report += note
+		case note != "":
+			report += "\n\n" + strings.TrimSpace(note)
+		}
+	}
+	if wt != nil && !settled {
 		patch, stat, derr := wt.diff(context.WithoutCancel(ctx))
 		switch {
 		case derr != nil:

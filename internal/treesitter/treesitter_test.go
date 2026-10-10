@@ -192,3 +192,20 @@ func TestParserIsTheRepomapHook(t *testing.T) {
 		t.Fatalf("through the hook: ok=%v defs=%+v", ok, defs)
 	}
 }
+
+// Spans are the top-level nodes, one per declaration, with their lines;
+// a file with a syntax error gives none rather than spans that would put
+// one broken declaration's halves in two regions.
+func TestSpans(t *testing.T) {
+	src := "def a():\n    return 1\n\n\ndef b():\n    x = 2\n    return x\n"
+	spans, ok := Spans("m.py", []byte(src))
+	if !ok || len(spans) != 2 || spans[0] != [2]int{1, 2} || spans[1] != [2]int{5, 7} {
+		t.Fatalf("spans = %v ok=%v", spans, ok)
+	}
+	if _, ok := Spans("m.py", []byte("def a(:\n")); ok {
+		t.Fatal("a file that does not parse gave spans")
+	}
+	if _, ok := Spans("m.go", []byte("package m\n")); ok {
+		t.Fatal("Go is not handled here")
+	}
+}

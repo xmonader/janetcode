@@ -187,6 +187,13 @@ type Config struct {
 	// everything that passed, passed against a tree the turn has since
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
+	// SubagentMerge has the harness merge an editing subagent's work into
+	// the project when it finishes: its read-set is validated, edits that
+	// commute with what changed meanwhile are applied, and conflicts go
+	// back to the subagent for one repair round. Off by default: it writes
+	// to the project without the model applying a patch, and the repair
+	// round is a model call.
+	SubagentMerge bool `json:"subagent_merge,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

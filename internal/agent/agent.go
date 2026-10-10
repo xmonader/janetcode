@@ -287,6 +287,15 @@ type Agent struct {
 	// TurnOutcome.StaleCheck). Off by default: it changes what a turn
 	// does, and every eval baseline here was measured without it.
 	StaleCheckNudge bool
+	// SubagentMerge has the harness merge an editing subagent's work
+	// back into the project when it finishes, instead of handing the
+	// patch to the model to apply: its read-set is validated and its
+	// edits merged with whatever changed meanwhile when they commute,
+	// and what does not is sent back to the subagent once (see
+	// occmerge.go and internal/occ). Off by default: it writes to the
+	// project without the model's say, and its repair round is a model
+	// call.
+	SubagentMerge bool
 	// DecisionsSessionOutcome enables the session-end outcome
 	// classification (config decisions.session_outcome, item 9). It is
 	// log-only: nothing in the harness changes because of the answer,

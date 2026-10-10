@@ -511,6 +511,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Route = d.models
 	ag.RouteCheap = d.cfg.RouteCheap
 	ag.StaleCheckNudge = d.cfg.StaleCheckNudge
+	ag.SubagentMerge = d.cfg.SubagentMerge
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil

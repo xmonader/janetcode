@@ -23,3 +23,9 @@ func TestStubOffersNoParser(t *testing.T) {
 		}
 	}
 }
+
+func TestStubHasNoSpans(t *testing.T) {
+	if _, ok := Spans("a.py", []byte("def a():\n    pass\n")); ok {
+		t.Fatal("a build without the tag must have no spans")
+	}
+}

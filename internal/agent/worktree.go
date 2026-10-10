@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/gitx"
+	"github.com/xmonader/janetcode/internal/occ"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -27,6 +28,15 @@ type worktree struct {
 	// so a user's core.autocrlf does not turn every file of the patch
 	// into a line-ending change.
 	raw []string
+	// seen is the subagent's file-hash record, whose read-set the
+	// merge-back validates, and patterns the greps and globs it ran.
+	seen     *tool.Seen
+	patterns *patternLog
+	// rebased holds, for the paths the merge-back brought up to date with
+	// the project, the content they were brought to: from then on that,
+	// not the checkout's base commit, is what the subagent's edits to
+	// them are measured against.
+	rebased map[string]occ.Version
 }
 
 // newWorktree checks the current state of root out into a temp directory.
@@ -102,10 +112,11 @@ func (w *worktree) remove(ctx context.Context) {
 // a notebook rewrites the JSON by hand.
 func (w *worktree) tools(cache *tool.IOCache) []tool.Tool {
 	seen := &tool.Seen{}
+	w.seen, w.patterns = seen, &patternLog{dir: w.Dir}
 	return []tool.Tool{
 		tool.ReadFile{Root: w.Dir, Seen: seen, Cache: cache}, tool.WriteFile{Root: w.Dir, Seen: seen, Cache: cache}, tool.EditFile{Root: w.Dir, Seen: seen, Cache: cache},
 		tool.NotebookEdit{Root: w.Dir, Seen: seen, Cache: cache},
-		tool.ListDir{Root: w.Dir}, tool.Glob{Root: w.Dir}, tool.Grep{Root: w.Dir},
+		tool.ListDir{Root: w.Dir}, rangeRead{Tool: tool.Glob{Root: w.Dir}, log: w.patterns}, rangeRead{Tool: tool.Grep{Root: w.Dir}, log: w.patterns},
 		tool.Bash{Root: w.Dir, Cache: &tool.ShellCache{}},
 	}
 }

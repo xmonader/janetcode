@@ -5,6 +5,25 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Novel ideas (2026-10-10)
+- Editing subagents can be merged back by the harness instead of handed
+  to the model as a patch (`subagent_merge`, off by default;
+  `/features subagent-merge on`). A subagent's read-set — the files it
+  read and the greps and globs it ran — is checked against what changed
+  in the project while it worked. Edits to different declarations of one
+  file are merged with no model call (Go by its parser, other languages
+  by tree-sitter in a `-tags treesitter` build, the rest by line ranges);
+  two sides that each added an import or appended a function are merged
+  too. A conflict, or a read whose declaration the subagent's edits use,
+  goes back to the subagent once with both sides' diffs, and what still
+  conflicts is returned as a patch against the current project, which is
+  left alone. Merges are checkpointed and recorded like any edit, and
+  merge-back never writes where a write would need approval.
+- `evals/fanout/60-parallel-overlap`: three parallel editing subagents
+  whose changes overlap in one file. Applied with `git apply` one after
+  another, two of the three patches fail; merged back, one conflict
+  reaches a subagent.
+
 ### Lean execution (2026-10-08)
 - A headless `-p` run no longer extracts memory or consolidates the
   session at the end unless the config says `"memory": true`. Those were

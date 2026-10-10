@@ -44,6 +44,20 @@ func (a *Agent) StaleNudgeOn() bool {
 	return a.StaleCheckNudge
 }
 
+// SetSubagentMerge turns the merge-back of editing subagents on or off.
+func (a *Agent) SetSubagentMerge(on bool) {
+	a.featMu.Lock()
+	a.SubagentMerge = on
+	a.featMu.Unlock()
+}
+
+// SubagentMergeOn is SubagentMerge, safe to read while a turn runs.
+func (a *Agent) SubagentMergeOn() bool {
+	a.featMu.RLock()
+	defer a.featMu.RUnlock()
+	return a.SubagentMerge
+}
+
 // SetAdvisorMode changes the forced-consult mode ("off" or "always") and
 // the per-turn cap; a cap of zero keeps the default.
 func (a *Agent) SetAdvisorMode(mode string, maxConsults int) {

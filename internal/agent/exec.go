@@ -44,6 +44,7 @@ const dedupedResult = "[deduped: identical call above returned this output]"
 // answer — and the error that stopped it is returned rather than dropped.
 func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, []llm.Block, error) {
 	a.setEmitter(emit)
+	defer a.noteSubagentMerges()
 	results := make([]llm.Block, len(uses))
 	filled := make([]bool, len(uses))
 	var (

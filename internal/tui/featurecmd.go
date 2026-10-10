@@ -81,6 +81,13 @@ var featureSwitches = []featureSwitch{
 		on:    func(cfg *config.Config) bool { return cfg.StaleCheckNudge },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
+	{
+		name:  "subagent-merge",
+		key:   "subagent_merge",
+		what:  "an editing subagent's work is merged into the project by the harness, conflicts sent back to it once",
+		on:    func(cfg *config.Config) bool { return cfg.SubagentMerge },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
 }
 
 // decisionSwitches builds the consumer switches from the config package's

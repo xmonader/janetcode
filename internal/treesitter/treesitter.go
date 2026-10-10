@@ -253,3 +253,42 @@ func isIdentifier(kind string) bool {
 	}
 	return false
 }
+
+// Spans returns the line span (1-based, inclusive) of every top-level
+// node of the file: its declarations, statements and comments. A merge
+// that asks whether two edits touch the same declaration reads them. ok
+// is false when no grammar handles the file, it is too large, or it does
+// not parse cleanly — a span list from a tree with errors in it would
+// put two edits in different "declarations" that are really one.
+func Spans(path string, src []byte) ([][2]int, bool) {
+	l := languages[strings.ToLower(filepath.Ext(path))]
+	if l == nil || len(src) > MaxBytes {
+		return nil, false
+	}
+	if err := l.load(); err != nil {
+		return nil, false
+	}
+	parser := ts.NewParser()
+	defer parser.Close()
+	if err := parser.SetLanguage(l.lang); err != nil {
+		return nil, false
+	}
+	tree := parser.Parse(src, nil)
+	if tree == nil {
+		return nil, false
+	}
+	defer tree.Close()
+	root := tree.RootNode()
+	if root.HasError() {
+		return nil, false
+	}
+	var out [][2]int
+	for i := uint(0); i < root.NamedChildCount(); i++ {
+		n := root.NamedChild(i)
+		if n == nil {
+			continue
+		}
+		out = append(out, [2]int{int(n.StartPosition().Row) + 1, int(n.EndPosition().Row) + 1})
+	}
+	return out, true
+}

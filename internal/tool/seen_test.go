@@ -141,3 +141,36 @@ func TestPriorReadCausesAreDistinct(t *testing.T) {
 		t.Fatalf("binary write message: %q", msg)
 	}
 }
+
+// The read-set holds what a read tool first showed: a later read or the
+// agent's own write moves the edit check's hash on, not the read-set's,
+// and a file only ever written is not in it at all.
+func TestReadSetKeepsFirstRead(t *testing.T) {
+	root := t.TempDir()
+	p := filepath.Join(root, "a.go")
+	os.WriteFile(p, []byte("one\n"), 0o644)
+	seen := &Seen{}
+	read := ReadFile{Root: root, Seen: seen}
+	write := WriteFile{Root: root, Seen: seen}
+	ctx := context.Background()
+	if _, err := read.Run(ctx, json.RawMessage(`{"path":"a.go"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := write.Run(ctx, json.RawMessage(`{"path":"a.go","content":"two\n"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := read.Run(ctx, json.RawMessage(`{"path":"a.go"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := write.Run(ctx, json.RawMessage(`{"path":"new.go","content":"x\n"}`)); err != nil {
+		t.Fatal(err)
+	}
+	reads := seen.Reads()
+	if len(reads) != 1 || reads[p] != HashBytes([]byte("one\n")) {
+		t.Fatalf("read-set = %v", reads)
+	}
+	var none *Seen
+	if none.Reads() != nil {
+		t.Fatal("a nil Seen has a read-set")
+	}
+}
