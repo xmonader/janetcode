@@ -219,6 +219,11 @@ type Config struct {
 	// to the project without the model applying a patch, and the repair
 	// round is a model call.
 	SubagentMerge bool `json:"subagent_merge,omitempty"`
+	// ProbeLedger keeps the model's inline checks: each is classified
+	// against the tree as it was before the turn's first change, and the
+	// ones that fail there and pass now are replayed at every later gate.
+	// Off by default: it reruns commands and can send a turn back.
+	ProbeLedger bool `json:"probe_ledger,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

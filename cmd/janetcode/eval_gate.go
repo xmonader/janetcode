@@ -93,5 +93,6 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	ag.LocalizeFailures = cfg.LocalizeFailures
 	ag.Localize = tree.Run
 	ag.SubagentMerge = cfg.SubagentMerge
+	ag.ProbeLedger = cfg.ProbeLedger
 	settingsapply.WireDecisions(cfg, ag, off)
 }

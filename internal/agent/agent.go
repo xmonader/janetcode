@@ -211,6 +211,15 @@ type Agent struct {
 	Localize func(context.Context, localize.Request) localize.Report
 	// localized is this turn's localization state.
 	localized localizeState
+	// ProbeLedger keeps the model's inline checks, classifies them
+	// against the pre-edit tree and replays the ones that tell the change
+	// apart from the old code at every later gate. See probes.go.
+	ProbeLedger bool
+	probes      probeLedger
+	// probeExec and probePreTree stand in for the bash tool and the
+	// snapshot export in tests.
+	probeExec    func(ctx context.Context, cmd string) probeResult
+	probePreTree func(ctx context.Context) string
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.
@@ -664,6 +673,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 type turnGates struct {
 	stops, needs, corrections int
 	verify, accept            gateState
+	probes                    probeGateState
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
 	specReviewed              bool
@@ -972,6 +982,11 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	}
 	if !g.conflicted && !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
 		a.stepRoute.taint("a verification check failed and was sent back")
+		a.noteEffort(effortTrouble)
+		return false
+	}
+	if !g.conflicted && a.probeGate(ctx, &g.probes, emit) {
+		a.stepRoute.taint("a probe the model had passed failed and was sent back")
 		a.noteEffort(effortTrouble)
 		return false
 	}

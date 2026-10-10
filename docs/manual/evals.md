@@ -78,7 +78,7 @@ checked against its own published data.
 The names are the list `--eval-off` prints on a misspelling (and the
 usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `claimcheck`, `coach`, `critic`, `depgate`, `evidence`, `extratools`,
 `faults`, `headlesscore`, `honeytoken`, `impact`, `inline`, `intent`, `keeprevert`, `ladder`, `leanprompt`, `lineedit`, `loops`,
-`memoryrank`, `mermaid`, `opentodos`, `oversized`, `plan`, `planbudget`, `proof`, `protected`, `prune`, `recipe`,
+`memoryrank`, `mermaid`, `opentodos`, `oversized`, `plan`, `planbudget`, `probes`, `proof`, `protected`, `prune`, `recipe`,
 `repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `specreview`, `syntax`, `taint`, `testguard`, `testledger`, `thenrun`, `todo`, `tour`, `undoabout`,
 `verdict`, `verify`, `working`. The variant name is recorded in the results file so
 a comparison says what it compared. The same names work as

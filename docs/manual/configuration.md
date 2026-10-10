@@ -645,6 +645,21 @@ because the repair round is a model call; it never writes where a write
 would need your approval. See "Editing subagents in a worktree" in
 [the interface manual](interface.md).
 
+`probe_ledger` (default off) keeps the inline checks the model runs
+after it edits — a `python3 - <<'EOF'` script with asserts, a `node -e`
+that throws — instead of letting them vanish. At the end of a turn that
+changed something, each new one that still passes is run again against
+the tree as it was before the turn's first change (exported from the undo
+snapshot into a temporary directory). One that fails there and passes now
+tells the change apart from the old code: it is frozen in harness state,
+where no edit can reach it, and replayed at every later gate; when a later
+edit breaks it the turn goes back with its output, at most twice a turn,
+and one left failing into the next turn is dropped as declined. One that
+passes on the old code too is vacuous, and the spec review is told so. A
+probe is rerun through the bash tool, under the session's sandbox, and
+only when the permission rules would let that call run without asking.
+`JANETCODE_OFF=probes` turns it off.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the
