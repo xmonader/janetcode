@@ -39,8 +39,11 @@ type BlindTester struct {
 }
 
 const (
-	// blindMaxTokens bounds the tester's reply: eight short checks.
-	blindMaxTokens = 6000
+	// blindMaxTokens bounds the tester's reply: eight short checks, after
+	// whatever the model reasons first. 6,000 was spent entirely on
+	// reasoning by MiMo on the first live run (finish=length, no checks),
+	// so the bound is the main loop's own.
+	blindMaxTokens = 32768
 	// blindBudget bounds the wall time of one run of the checks; a check
 	// it cuts off is inconclusive.
 	blindBudget = 4 * time.Minute
