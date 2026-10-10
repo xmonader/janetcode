@@ -471,6 +471,7 @@ var switches = map[string]bool{
 	"evidence": true,
 	"taint":    true, "honeytoken": true, "depgate": true,
 	"probes": true,
+	"scope":  true, "dossier": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

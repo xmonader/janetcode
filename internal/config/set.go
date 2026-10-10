@@ -93,6 +93,7 @@ var setters = map[string]setter{
 	"conflict_exit":          boolKey(func(c *Config) *bool { return &c.ConflictExit }),
 	"subagent_merge":         boolKey(func(c *Config) *bool { return &c.SubagentMerge }),
 	"probe_ledger":           boolKey(func(c *Config) *bool { return &c.ProbeLedger }),
+	"scope_justify":          boolKey(func(c *Config) *bool { return &c.ScopeJustify }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),

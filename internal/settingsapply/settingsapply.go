@@ -95,6 +95,8 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetLocalizeFailures(cfg.LocalizeFailures)
 	case "subagent_merge":
 		a.SetSubagentMerge(cfg.SubagentMerge)
+	case "scope_justify":
+		a.SetScopeJustify(cfg.ScopeJustify)
 	case "probe_ledger":
 		a.SetProbeLedger(cfg.ProbeLedger)
 	case "escalate_after":

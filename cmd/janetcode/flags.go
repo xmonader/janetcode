@@ -127,6 +127,7 @@ type options struct {
 	sessionProfileStale int
 	doctorFix           bool
 	runProof            bool
+	runWhyBroke         bool
 	recipeName          string
 	themeFlag           string
 	web                 bool
@@ -349,6 +350,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.restoreFrom, "restore", "", "put a --backup archive back, then exit. The files it replaces are saved to a tar.gz beside it first, so a restore can be undone")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	fs.BoolVar(&o.runProof, "proof", false, "print the proof note attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed; verify [commit] checks the commit's signed evidence and re-runs the commands it records, exiting 1 when it does not hold; key prints this machine's evidence public key")
+	fs.BoolVar(&o.runWhyBroke, "why-broke", false, "bisect a session over its own changes to find where a test started failing, then exit: positional arguments are the test (a name such as TestParse or tests/test_a.py::test_b, or a quoted command) and optionally the session (default the newest here); each state is rebuilt from the session's start snapshot and its recorded file changes in a throwaway directory, so the culprit can sit inside a squashed commit, and the report shows that change, its turn's prompt and its intent; a break no file tool recorded falls back to the per-turn snapshots")
 	fs.StringVar(&o.recipeName, "recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails, or the project's verify gate once every step has succeeded, hands over to the model if a provider is configured, otherwise the run exits non-zero")
 	fs.BoolVar(&o.screenReader, "screen-reader", false, "a line interface for a screen reader instead of the full-screen one: every line written once and never redrawn, no animation, colour or box drawing, every state said in words, permission asked as a typed y/a/r/n (JANETCODE_SCREEN_READER=1, or screen_reader in the config; ACCESSIBILITY_ENABLED=1 turns it on too)")
 	fs.BoolVar(&o.plain, "plain", false, "draw the terminal interface in ASCII with no animation, for the Linux console, a font without box drawing, or a quieter screen (JANETCODE_PLAIN=1; on by itself when TERM=linux)")

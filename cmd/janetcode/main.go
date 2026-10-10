@@ -171,6 +171,9 @@ func printFlag(fs *flag.FlagSet, f *flag.Flag) {
 	if f.Name == "proof" {
 		line += " [commit]" // a bool whose argument is positional
 	}
+	if f.Name == "why-broke" {
+		line += " <test> [session]" // positional too, like --proof
+	}
 	line += "\n" + wrapUsage(usage, 70, "    \t")
 	if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" && f.DefValue != "0s" {
 		if name == "string" {

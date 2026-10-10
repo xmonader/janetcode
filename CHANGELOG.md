@@ -5,6 +5,34 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Wild ideas (2026-10-10)
+- Scope contracts (on; `JANETCODE_OFF=scope`): the expected blast radius
+  of a request is inferred from the files it names (and those a brief it
+  points at names), widened to their directory, importers and tests. An
+  edit outside it is never refused; its first edit is logged as a
+  `scope` notice with the model's intent as the justification, and a
+  headless result carries `scope` with the files outside and the creep
+  share. `scope_justify` (off) asks for a one-line reason when an
+  out-of-scope edit stated none. Offline over 271 recorded effbench runs
+  (r1–r13), 13% touched a file outside the inferred scope (r13 alone:
+  0 of 32), almost all scratch check scripts; those runs failed 5/34
+  against 22/237 for the rest, and the contracts cover 95% of those tiny
+  trees, so effbench cannot say much either way.
+- Failure dossier (on; `JANETCODE_OFF=dossier`): a failed headless run
+  writes `<id>.dossier.md` beside its session log and a `dossier` field
+  in its result: the smallest reproduction (the last red check, narrowed
+  to its tests for go test, pytest and cargo), each batch of edits with
+  the check that ruled it out, the last red output, and the best state
+  reached with a `--what-if` pointer. Over the 28 failed recorded runs,
+  26 had a red check to reproduce (5 narrowed) and 26 had hypotheses;
+  2 had a best state before the end. Whether it shortens a human's or a
+  second run's fix is unmeasured.
+- `--why-broke <test> [session]` bisects a session over its recorded
+  file changes, rebuilt from its start snapshot in throwaway directories,
+  to the change after which a test fails, inside a squashed commit, with
+  the turn's prompt and the change's intent; a break no file tool
+  recorded falls back to the per-turn snapshots.
+
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
   reasoning tier from the turn's own signals instead of one fixed tier: a

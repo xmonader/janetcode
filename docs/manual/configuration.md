@@ -660,6 +660,14 @@ probe is rerun through the bash tool, under the session's sandbox, and
 only when the permission rules would let that call run without asking.
 `JANETCODE_OFF=probes` turns it off.
 
+`scope_justify` (default off) asks for a reason when an edit leaves the
+task's scope. The scope itself is always inferred (see "Scope contracts"
+in [Sessions](sessions.md#scope-contracts)); with this key on, the
+result of an out-of-scope edit that came with no stated intent gets one
+line asking the model why the change is needed, and its answer is
+recorded as that edit's justification. It is off by default because it
+adds a line to what the model sees.
+
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

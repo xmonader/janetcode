@@ -224,6 +224,11 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
+	// ScopeJustify asks the model for a one-line reason after an edit
+	// outside the task's inferred scope that stated none; the answer is
+	// recorded as the edit's justification. Off by default: it adds a
+	// line to a tool result. The scope report itself is always kept.
+	ScopeJustify bool `json:"scope_justify,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end

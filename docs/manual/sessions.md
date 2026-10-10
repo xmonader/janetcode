@@ -342,6 +342,60 @@ their names in the `tool_search` description and loads the ones it needs
 by keyword, after which they stay available. The `task` subagent tool takes
 an optional `tools` list so a narrow job gets a narrow toolset.
 
+## Scope contracts
+
+When the first edit of a request lands, janetcode infers the request's
+expected blast radius from its own words: the files and directories it
+names (and, one level down, those named by a document it points at, such
+as "read BRIEF.md"), widened to the rest of each named file's directory,
+the files that import it, and the tests whose names carry its stem. A
+file the session itself created is left out, so a new module importing a
+named one does not widen the scope. Nothing is refused. The first edit
+to each file outside the scope is recorded on the session log as a
+`scope` notice carrying the reason the model gave for the call (its
+provenance intent), or "no justification given". Dependency manifests
+and lock files (`go.mod`, `package.json`, `Cargo.lock`, ...) are counted
+apart, neither in scope nor out. A request that names no file has no
+contract and no creep figure.
+
+A headless run's result object carries it as `scope`: what the task
+named, how many files the contract covers, how many the run edited, the
+ones outside with their justification, and `creep`, the share of the
+non-incidental files edited that fell outside. The config key
+`scope_justify` asks the model for a reason when an out-of-scope edit
+stated none (see [Configuration](configuration.md)).
+`JANETCODE_OFF=scope` turns all of this off.
+
+## Failure dossier
+
+A headless run that fails (an error, or a last turn whose verdict is
+`check failed`, `not demonstrated` or `vacuous`) leaves a hand-off beside
+its session log, `<id>.dossier.md`, and carries the same content in its
+result object as `dossier`:
+
+- the smallest reproduction: the last red check, narrowed to the tests
+  it named when the runner's one-test form is known (`go test -run`,
+  pytest node ids, `cargo test --exact`), with an output filter such as
+  `| tail -5` dropped; anything more compound is given as it ran;
+- the hypotheses tried: each batch of edits between two checks, with
+  the intent the model gave for it and the check after it as the
+  evidence (`ruled out`, `worse` when more tests failed than before,
+  `held`, or `unchecked`);
+- the last red output, tail-clipped;
+- the best state reached, when an earlier check had fewer failures than
+  the last one: the change it came after, the changes made since, and a
+  `--what-if <id> --from-turn <n>` line that replays the session to that
+  turn.
+
+It is folded from what the session already recorded, with no model call
+and nothing rerun, and written to the data directory, never into the
+project. A run that changed nothing and checked nothing leaves none. A
+confirmed CONFLICT is a finished run and leaves none either.
+`JANETCODE_OFF=dossier` turns it off.
+
+To find where a test that fails now started failing inside a session,
+see `--why-broke` in the [command line reference](cli.md).
+
 ## What if: replaying a session with one thing changed
 
 `janetcode --what-if <session id or path> --from-turn <n> [--model <m>]

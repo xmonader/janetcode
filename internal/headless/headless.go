@@ -122,6 +122,7 @@ func Run(ctx context.Context, opts Options) error {
 	if opts.Rollout != nil && opts.Input == nil && opts.Watch == "" && !opts.Recover && len(opts.JSONSchema) == 0 {
 		err = secondAttempt(ctx, opts, rec, err)
 	}
+	rec.dossier = failureDossier(opts, rec, err)
 	rec.finish(opts.Agent, err)
 	return err
 }

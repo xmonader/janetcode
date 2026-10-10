@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/dossier"
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/proof"
+	"github.com/xmonader/janetcode/internal/scope"
 )
 
 // The result object is defined here, by the package that writes it; the
@@ -99,6 +101,13 @@ type CLIResult struct {
 	// --second-sample): what fired, what was drawn and which attempt's
 	// tree was kept. Omitted when nothing fired.
 	Rollout *CLIRollout `json:"rollout,omitempty"`
+	// Scope is the run's edits against the scope inferred from its task
+	// (internal/scope): the files outside it with their justification,
+	// and the creep share. Omitted when the task named nothing.
+	Scope *scope.Report `json:"scope,omitempty"`
+	// Dossier is a failed run's hand-off (internal/dossier), also written
+	// beside the session log as <id>.dossier.md. Omitted on success.
+	Dossier *dossier.Dossier `json:"dossier,omitempty"`
 	// DryRun is the preview a --dry-run run built instead of changing
 	// anything: the files it would change with their diffs, and every
 	// call it recorded rather than made. Omitted outside a dry run.
