@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/session"
 	"sort"
 	"strings"
 	"time"
@@ -180,9 +181,25 @@ func FormatUsageByModel(rows []ModelUsage, price func(string) *llm.Price) string
 	return sb.String()
 }
 
-// addUsage accumulates the usage of one model call. The status bar reads it
-// from the UI goroutine while the turn runs, so it is guarded.
+// addUsage bills a model call whose usage no assistant message carries to
+// the log: it is counted and logged as a usage event, so a resumed session
+// restores it (RestoreFromLog).
 func (a *Agent) addUsage(model string, u llm.Usage) {
+	a.countUsage(model, u)
+	a.logUsage(model, u)
+}
+
+// logUsage records spend the session log would otherwise not have.
+func (a *Agent) logUsage(model string, u llm.Usage) {
+	if u == (llm.Usage{}) {
+		return
+	}
+	a.logEvent(session.Event{Type: session.TypeUsage, Usage: &u, Model: model})
+}
+
+// countUsage accumulates the usage of one model call. The status bar reads it
+// from the UI goroutine while the turn runs, so it is guarded.
+func (a *Agent) countUsage(model string, u llm.Usage) {
 	a.usageMu.Lock()
 	a.Usage.Add(u)
 	a.turnUse.Add(u)
@@ -215,6 +232,24 @@ func (a *Agent) addSideUsage(model string, u llm.Usage) {
 	a.turnUse.Add(u)
 	a.noteModel(model, u)
 	a.usageMu.Unlock()
+	a.logUsage(model, u)
+}
+
+// restoreUsage sets the session totals from its log: every assistant
+// message's usage and every usage event. A resume started them at zero,
+// so ↑/↓, the cost and /usage read as if the session had spent nothing.
+func (a *Agent) restoreUsage(ev []session.Event) {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	a.Usage = llm.Usage{}
+	a.byModel = nil
+	for _, e := range ev {
+		if e.Usage == nil || (e.Type != session.TypeAssistant && e.Type != session.TypeUsage) {
+			continue
+		}
+		a.Usage.Add(*e.Usage)
+		a.noteModel(e.Model, *e.Usage)
+	}
 }
 
 // cancelledUsage estimates what a model call cancelled mid-stream cost.

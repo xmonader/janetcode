@@ -843,7 +843,9 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.lastInputMsgs = len(a.Messages)
 	a.appendMessage(resp.Message)
 	a.integ.lastLen = len(a.Messages)
-	a.addUsage(a.lastCallModel, resp.Usage)
+	// The assistant event below carries this usage, so it is counted
+	// without a usage event of its own.
+	a.countUsage(a.lastCallModel, resp.Usage)
 	msg := resp.Message
 	u := resp.Usage
 	served, mismatch := a.servedForLog()

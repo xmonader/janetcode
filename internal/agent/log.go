@@ -54,6 +54,7 @@ func (a *Agent) RestoreFromLog() {
 	ev := a.Log.Events()
 	plan := session.FoldPlanMode(ev)
 	a.UpdateSettings(func(s *Settings) { s.PlanMode = plan })
+	a.restoreUsage(ev)
 	a.turnN = 0
 	for _, e := range ev {
 		if e.Turn > a.turnN {

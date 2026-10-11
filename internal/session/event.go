@@ -25,6 +25,11 @@ const (
 	TypeCompactSummary = "compaction/summary"
 	TypeCompactEnd     = "compaction/end"
 	TypePlanMode       = "plan/mode"
+	// TypeUsage is spend that no assistant message carries: a side call
+	// (advisor, follow-up, compaction, vision), a subagent's turns, a
+	// call cancelled mid-stream. With the assistant messages' usage it is
+	// the session's total, which a resume restores.
+	TypeUsage = "usage"
 	TypeSpillSave      = "spill/save"
 	// TypeRetrieval records one lookup in the archive: what was asked,
 	// what came back, and whether anything did. Without it a failed
