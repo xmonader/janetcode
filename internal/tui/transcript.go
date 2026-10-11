@@ -127,11 +127,15 @@ type mdChunk struct {
 
 // transcript is the ordered list of things shown in the viewport.
 type transcript struct {
-	entries   []*entry
-	renderer  *glamour.TermRenderer
-	rWidth    int
-	styleName string // glamour standard style: "dark" or "light"
-	styles    *styles
+	entries  []*entry
+	renderer *glamour.TermRenderer
+	rWidth   int
+	// codeRenderer draws fenced code blocks at codeWrap, a width wide
+	// enough that glamour never word-wraps the code (see renderCodeBlock).
+	codeRenderer *glamour.TermRenderer
+	codeWrap     int
+	styleName    string // glamour standard style: "dark" or "light"
+	styles       *styles
 	// cwd shortens the absolute paths the agent writes into notices and
 	// verdicts, the way tool lines already shorten theirs.
 	cwd string
@@ -162,6 +166,8 @@ func (t *transcript) restyle(style string, sty *styles) {
 	t.styles = sty
 	t.renderer = nil
 	t.rWidth = 0
+	t.codeRenderer = nil
+	t.codeWrap = 0
 	for _, e := range t.entries {
 		e.rendered = ""
 		e.width = 0
