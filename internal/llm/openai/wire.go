@@ -17,9 +17,6 @@ type wireMessage struct {
 	Content    any            `json:"content"`
 	ToolCalls  []wireToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
-	// Prefix asks the server to continue this assistant message rather
-	// than answer after it (DeepSeek's prefix completion, llm.Request.Prefill).
-	Prefix bool `json:"prefix,omitempty"`
 }
 
 // wirePart is one element of a multi-part user message.

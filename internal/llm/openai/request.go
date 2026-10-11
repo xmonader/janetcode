@@ -102,9 +102,6 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 			return wireRequest{}, fmt.Errorf("openai: unsupported role %q", m.Role)
 		}
 	}
-	if n := len(w.Messages); req.Prefill && n > 0 && w.Messages[n-1].Role == "assistant" {
-		w.Messages[n-1].Prefix = true
-	}
 	for _, t := range req.Tools {
 		var wt wireTool
 		wt.Type = "function"

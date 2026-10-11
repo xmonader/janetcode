@@ -182,20 +182,6 @@ type Config struct {
 	// negative disables the bound.
 	StreamIdleTimeout int `json:"stream_idle_timeout,omitempty"`
 	StreamMaxDuration int `json:"stream_max_duration,omitempty"`
-	// HedgeProvider names a configured provider that serves the same
-	// model names; a call that has not produced its first token by the
-	// primary's p95 time to first token (or HedgeAfterMs) is duplicated
-	// there and the first answer wins (llm.Hedge). A primary that fails
-	// on the route before its first token fails over to it at once.
-	// Empty is off: every hedge is a second request paid for.
-	HedgeProvider string `json:"hedge_provider,omitempty"`
-	// HedgeAfterMs fixes the hedge delay; zero learns the p95.
-	HedgeAfterMs int `json:"hedge_after_ms,omitempty"`
-	// StreamResume continues a reply whose stream broke mid-text from the
-	// partial text (Anthropic prefill, DeepSeek prefix completion — the
-	// latter needs the provider's base_url on https://api.deepseek.com/beta)
-	// instead of regenerating it (llm.Resume). Off by default.
-	StreamResume bool `json:"stream_resume,omitempty"`
 	// Fingerprint sends a few canary prompts with known answers at the
 	// start of a session and compares the replies with the fingerprint
 	// stored for the route, to catch a gateway serving another model, or

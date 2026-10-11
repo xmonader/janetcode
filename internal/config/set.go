@@ -93,9 +93,6 @@ var setters = map[string]setter{
 	"subagent_merge":         boolKey(func(c *Config) *bool { return &c.SubagentMerge }),
 	"probe_ledger":           boolKey(func(c *Config) *bool { return &c.ProbeLedger }),
 	"plan_file":              boolKey(func(c *Config) *bool { return &c.PlanFile }),
-	"hedge_provider":         hedgeProviderKey,
-	"hedge_after_ms":         countKey("hedge_after_ms", func(c *Config) *int { return &c.HedgeAfterMs }),
-	"stream_resume":          boolKey(func(c *Config) *bool { return &c.StreamResume }),
 	"fingerprint":            boolKey(func(c *Config) *bool { return &c.Fingerprint }),
 	"probe_memory":           boolKey(func(c *Config) *bool { return &c.ProbeMemory }),
 	"read_blame":             boolKey(func(c *Config) *bool { return &c.ReadBlame }),
@@ -415,15 +412,4 @@ func parseBool(s string) (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("want true/false")
-}
-
-// hedgeProviderKey takes empty (off) or the name of a configured
-// provider: a hedge onto a provider that does not exist would stop the
-// next start with a config error, so it is refused here instead.
-func hedgeProviderKey(c *Config, val string) (any, error) {
-	if _, ok := c.Providers[val]; val != "" && !ok {
-		return nil, fmt.Errorf("hedge_provider wants empty (off) or a configured provider's name, not %q", val)
-	}
-	c.HedgeProvider = val
-	return val, nil
 }
