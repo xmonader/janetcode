@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -43,6 +44,36 @@ func TestJobsOverlayKeepsTheHighlightOnScreen(t *testing.T) {
 	h.update(tea.KeyMsg{Type: tea.KeyDown})
 	if v := plain(h.m.View()); !strings.Contains(v, "▸ job 1 ") {
 		t.Fatalf("wrapped highlight is off screen:\n%s", v)
+	}
+}
+
+// The panels size their box from the window, and a window a few columns
+// wide made that size negative.
+func TestOverlaysDrawOnATinyTerminal(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	attachTask(h)
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	h.m.opts.Jobs = jobs
+	if _, err := jobs.Start(h.m.opts.Cwd, "echo hi"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := jobs.Start(h.m.opts.Cwd, "echo two"); err != nil {
+		t.Fatal(err)
+	}
+	for w := 1; w <= 12; w++ {
+		for _, hgt := range []int{1, 3, 6} {
+			h.update(tea.WindowSizeMsg{Width: w, Height: hgt})
+			for _, line := range []string{"/todos", "/agents", "/jobs", "/jobs 1", "/trajectory"} {
+				h.m.command(line)
+				_ = h.m.View()
+				h.update(tea.KeyMsg{Type: tea.KeyDown})
+				_ = h.m.View()
+				h.m.closeOverlay()
+			}
+		}
 	}
 }
 
