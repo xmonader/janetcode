@@ -150,6 +150,21 @@ func TestEditorCRLFIsOneLineBreak(t *testing.T) {
 	}
 }
 
+// TestTabNeverShortensTheInput: the command menu lists fuzzy matches
+// after the prefix ones, and tab extended to what every row shared, so
+// "/co" (whose fuzzy rows include /checkpoints) became "/c".
+func TestTabNeverShortensTheInput(t *testing.T) {
+	h := newHarness(t)
+	for _, typed := range []string{"/co", "/re", "/m", "/s"} {
+		h.inputReset()
+		h.keys(typed)
+		h.update(tea.KeyMsg{Type: tea.KeyTab})
+		if v := h.m.input.Value(); !strings.HasPrefix(v, typed) {
+			t.Errorf("tab on %q gave %q", typed, v)
+		}
+	}
+}
+
 // TestCtrlHTakesAChipWhole: ^H is backspace in some terminals and
 // ctrl+backspace in most; it took one character off a paste chip.
 func TestCtrlHTakesAChipWhole(t *testing.T) {
