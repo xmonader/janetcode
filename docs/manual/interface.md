@@ -115,7 +115,7 @@ In normal mode: `h` `j` `k` `l`, `w` `b` `e`, `0` `^` `$`, `gg` `G` move;
 `x`, `dd`, `dw`, `de`, `d$`, `D`, `diw` delete (what was deleted goes to
 the register that `p` puts back, a whole line below the current one);
 `cw`, `ce`, `c$`, `C`, `cc`, `ciw` change; `i` `a` `I` `A` `o` `O` go back
-to insert mode; `u` undoes the last normal-mode edit. `enter` sends and
+to insert mode; `u` undoes the last edit, what an insert typed included. `enter` sends and
 the ctrl keys keep their meanings in both modes. A paste is text in
 either mode. It is the everyday subset, not an ex line or macros.
 
