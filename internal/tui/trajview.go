@@ -272,7 +272,11 @@ func (m *model) trajListView(height int) string {
 	}
 	lines = append(lines, head)
 	lines = append(lines, m.styles.faint.Render("↑↓ move · enter inspect · / search · s slowest · m projection · esc close"))
-	lines = append(lines, m.trajStrip(w)...)
+	// The strip is an overview; on a terminal too short for it and a few
+	// rows of the list, the list wins.
+	if strip := m.trajStrip(w); height-countLines(lines)-countLines(strip)-1 >= 3 {
+		lines = append(lines, strip...)
+	}
 	lines = append(lines, "")
 
 	rows := m.trajRows(l, w-2)
@@ -285,7 +289,14 @@ func (m *model) trajListView(height int) string {
 		selectedRow = sel[m.ov.idx]
 	}
 	// The window: keep the highlighted row visible, clamp at both ends.
-	viewH := max(height-len(lines)-2, 4)
+	// It is what the header leaves, counted in screen lines (the ruler
+	// is two in one string): a guess with a floor of four rows ran the
+	// list, and the highlight, past the bottom of a short terminal.
+	viewH := height - countLines(lines)
+	if viewH < 1 {
+		lines = lines[:max(height-1, 0)]
+		viewH = 1
+	}
 	m.traj.listH = viewH
 	if selectedRow >= 0 {
 		if selectedRow < m.ov.scroll {
@@ -313,6 +324,16 @@ func (m *model) trajListView(height int) string {
 		lines = append(lines, truncateLine(mark+r.text, w))
 	}
 	return m.trajFrame(height, w, lines)
+}
+
+// countLines is how many screen lines lines take, an entry holding a
+// newline counting for each line in it.
+func countLines(lines []string) int {
+	n := 0
+	for _, l := range lines {
+		n += strings.Count(l, "\n") + 1
+	}
+	return n
 }
 
 func (m *model) trajFrame(height, w int, lines []string) string {

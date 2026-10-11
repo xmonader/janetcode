@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -133,5 +134,43 @@ func TestTrajectoryBrowser(t *testing.T) {
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
 	if h.m.ov.kind != "" {
 		t.Fatalf("esc should close the browser, kind=%q", h.m.ov.kind)
+	}
+}
+
+// On a short terminal the ledger's list was sized from a count of the
+// header that took the two-line ruler for one line and never went below
+// four rows, so the bottom of the list — the highlighted row with it —
+// was cut off by the frame.
+func TestTrajectoryHighlightStaysOnAShortTerminal(t *testing.T) {
+	var rs []*llm.Response
+	for i := 0; i < 3; i++ {
+		rs = append(rs,
+			&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+				{Type: llm.BlockToolUse, ID: fmt.Sprintf("c%d", i), Name: "read_file", Input: []byte(`{"path":"a.txt"}`)}}},
+				StopReason: llm.StopToolUse},
+			&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	}
+	h := newHarness(t, rs...)
+	for i := 0; i < 3; i++ {
+		h.keys("read the file")
+		h.enter()
+		h.pump(func() bool { return !h.m.turn.running })
+	}
+	for _, size := range []tea.WindowSizeMsg{{Width: 40, Height: 15}, {Width: 60, Height: 12}, {Width: 100, Height: 8}} {
+		h.update(size)
+		h.keys("/trajectory")
+		h.enter()
+		n := len(trajSelectable(h.m.trajRows(h.m.trajLedger(), 60)))
+		for i := 0; i < n; i++ {
+			v := plain(h.m.View())
+			if !strings.Contains(v, "▸") {
+				t.Fatalf("%dx%d: record %d of %d highlighted off screen:\n%s", size.Width, size.Height, i+1, n, v)
+			}
+			if got := len(strings.Split(v, "\n")); got > size.Height {
+				t.Fatalf("%dx%d: view is %d lines", size.Width, size.Height, got)
+			}
+			h.update(tea.KeyMsg{Type: tea.KeyDown})
+		}
+		h.update(tea.KeyMsg{Type: tea.KeyEsc})
 	}
 }
