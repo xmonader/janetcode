@@ -374,6 +374,14 @@ func (p plainWriter) Write(b []byte) (int, error) {
 	s := ansi.Strip(textfmt.StripUnsafeANSI(string(b)))
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
+	// A bell rang the reader's terminal and a backspace ate the character
+	// before it: neither is text to read.
+	s = strings.Map(func(r rune) rune {
+		if (r < 0x20 && r != '\n' && r != '\t') || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
 	if _, err := io.WriteString(p.w, s); err != nil {
 		return 0, err
 	}

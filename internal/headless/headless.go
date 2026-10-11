@@ -706,7 +706,7 @@ func StdinInteractive(f *os.File) bool {
 // repaints the caller's terminal or reads its clipboard back. Naming it
 // once is the point: the escapes that got through were the call sites
 // that spelled the stripping out and the ones that forgot to.
-func safe(s string) string { return textfmt.StripUnsafeANSI(s) }
+func safe(s string) string { return textfmt.Display(s) }
 
 // safeLine is safe, flattened to one line and clipped to n columns.
 func safeLine(s string, n int) string { return textfmt.Clip(textfmt.OneLine(safe(s)), n) }
