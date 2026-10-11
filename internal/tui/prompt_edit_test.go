@@ -135,6 +135,21 @@ func TestEnterSendsACompleteMention(t *testing.T) {
 	}
 }
 
+// TestEditorCRLFIsOneLineBreak: an editor that saves CRLF line endings
+// gave back a double-spaced prompt, because the textarea makes \r and \n
+// each a line break.
+func TestEditorCRLFIsOneLineBreak(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(t.TempDir(), "prompt.md")
+	if err := os.WriteFile(path, []byte("one\r\ntwo\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.m.editorDone(editorDoneMsg{path: path})
+	if v := h.m.input.Value(); v != "one\ntwo" {
+		t.Fatalf("composer = %q", v)
+	}
+}
+
 // TestCtrlHTakesAChipWhole: ^H is backspace in some terminals and
 // ctrl+backspace in most; it took one character off a paste chip.
 func TestCtrlHTakesAChipWhole(t *testing.T) {
