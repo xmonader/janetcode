@@ -377,9 +377,20 @@ func SaveModelMeta(path, model string, meta ModelMeta) error {
 	return writePrivate(path, append(out, '\n'))
 }
 
-// MetaOf converts a listed model into stored metadata.
+// MetaOf converts a listed model into stored metadata. A listed price
+// of zero on every side is dropped: brokers list "0" for models they
+// have not priced, and storing it made the cost read as a known $0.
 func MetaOf(mi llm.ModelInfo) ModelMeta {
-	return ModelMeta{ContextWindow: mi.ContextWindow, MaxOutput: mi.MaxOutput, Price: mi.Price}
+	price := mi.Price
+	if zeroPrice(price) {
+		price = nil
+	}
+	return ModelMeta{ContextWindow: mi.ContextWindow, MaxOutput: mi.MaxOutput, Price: price}
+}
+
+// zeroPrice reports a price that is present but says nothing.
+func zeroPrice(p *llm.Price) bool {
+	return p != nil && *p == (llm.Price{})
 }
 
 // sameMeta reports whether two model metadata records say the same thing.
