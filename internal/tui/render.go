@@ -609,7 +609,6 @@ func renderCode(sty *styles, text string, width int) string {
 	return strings.Join(out, "\n")
 }
 
-// unpad strips the trailing spaces lipgloss pads every wrapped line with.
 // wrapAtDots folds each line of a " · " list at the dots, so a wrapped
 // line never splits "c cancels" across two lines, and indents the lines
 // it continues with hang. A part wider than the width is word-wrapped.
@@ -655,6 +654,7 @@ func hangWrap(s string, width int, hang string) string {
 	return head + "\n" + strings.Join(lines, "\n")
 }
 
+// unpad strips the trailing spaces lipgloss pads every wrapped line with.
 func unpad(s string) string {
 	lines := strings.Split(s, "\n")
 	for i, l := range lines {
