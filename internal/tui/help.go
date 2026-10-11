@@ -36,7 +36,7 @@ var briefHelp = []struct{ name, text string }{
 func (m *model) briefHelpText() string {
 	var sb strings.Builder
 	sb.WriteString(i18n.T("keys") + "\n")
-	k := m.keys.First
+	k := m.keyLabel
 	helpLine(&sb,
 		keyed(k(keymap.Submit), i18n.T("%s send")),
 		keyed(k(keymap.Newline), i18n.T("%s newline")),
@@ -74,7 +74,7 @@ func (m *model) helpText() string {
 	// Every key named here is the one bound in this session: with the
 	// keybindings moved, the sheet used to send people to the defaults.
 	// An action with no key is left out rather than called "unbound".
-	k, every := m.keys.First, m.keyNames
+	k, every := m.keyLabel, m.keyNames
 	helpLine(&sb,
 		keyed(every(keymap.Submit), "%s send"),
 		keyed(every(keymap.Newline), "%s newline"),
@@ -144,7 +144,7 @@ func (m *model) helpText() string {
 			seen[n] = true
 			// A description the catalogue has (the everyday group's) is
 			// shown in the interface's language; the rest stay English.
-			desc := strings.ReplaceAll(descStyle.Render(m.boundKeysIn(c.name, i18n.T(c.help)+i18n.T(c.keyHelp))), "\n", "\n"+strings.Repeat(" ", col))
+			desc := strings.ReplaceAll(descStyle.Render(m.commandDesc(c, true)), "\n", "\n"+strings.Repeat(" ", col))
 			if len(c.name) > 10 || len(c.args) > 8 {
 				// Too wide for the columns: the description starts on
 				// its own line rather than wrapping from wherever the
@@ -219,13 +219,21 @@ func completedCommands() string {
 
 // keyNames is every key bound to an action, "" when there is none.
 func (m *model) keyNames(a keymap.Action) string {
-	return strings.Join(m.keys.Keys(a), " / ")
+	keys := m.keys.Keys(a)
+	for i, key := range keys {
+		keys[i] = i18n.KeyLabel(key)
+	}
+	return strings.Join(keys, " / ")
 }
+
+// keyLabel is the first key bound to an action as the locale names it,
+// "" when there is none.
+func (m *model) keyLabel(a keymap.Action) string { return i18n.KeyLabel(m.keys.First(a)) }
 
 // keyPair names the first keys of two actions as "up/down", or the one
 // that is bound, or "" when neither is.
 func (m *model) keyPair(a, b keymap.Action) string {
-	ka, kb := m.keys.First(a), m.keys.First(b)
+	ka, kb := m.keyLabel(a), m.keyLabel(b)
 	switch {
 	case ka != "" && kb != "":
 		return ka + "/" + kb
@@ -278,33 +286,39 @@ func helpLine(sb *strings.Builder, parts ...string) {
 var helpKeys = []struct {
 	cmd, key string
 	action   keymap.Action
-	drop     string
 }{
-	{"/effort", "alt+e", keymap.Effort, "; alt+e cycles it (the keybindings config key can move it)"},
-	{"/verbose", "ctrl+o", keymap.Expand, " (ctrl+o expands one turn)"},
-	{"/checkpoints", "esc esc", keymap.Cancel, " (esc esc opens it too)"},
-	{"/followup", "tab", keymap.Complete, "; tab accepts"},
+	{"/effort", "alt+e", keymap.Effort},
+	{"/verbose", "ctrl+o", keymap.Expand},
+	{"/checkpoints", "esc esc", keymap.Cancel},
+	{"/followup", "tab", keymap.Complete},
 }
 
-// boundKeysIn rewrites the default key a command's description names to
-// the key bound to that action.
-func (m *model) boundKeysIn(cmd, desc string) string {
+// commandDesc is a command's description with its key clause: the clause
+// names the key bound to its action, in the locale's words, and is left
+// out whole when the action has no key. translate gives the active
+// locale's text, as /help all does; the command menu is English.
+func (m *model) commandDesc(c command, translate bool) string {
+	help, clause := c.help, c.keyHelp
+	if translate {
+		help, clause = i18n.T(help), i18n.T(clause)
+	}
+	if clause == "" {
+		return help
+	}
 	for _, hk := range helpKeys {
-		if hk.cmd != cmd {
+		if hk.cmd != c.name {
 			continue
 		}
 		bound := m.keys.First(hk.action)
 		if bound == "" {
-			if strings.Contains(desc, hk.drop) {
-				desc = strings.Replace(desc, hk.drop, "", 1)
-				continue
-			}
-			bound = "unbound"
-		} else if hk.key == "esc esc" {
-			bound += " " + bound
+			return help
 		}
-		re := regexp.MustCompile(`(^|[\s(])` + regexp.QuoteMeta(hk.key) + `($|[\s),.;:])`)
-		desc = re.ReplaceAllString(desc, "${1}"+strings.ReplaceAll(bound, "$", "$$")+"${2}")
+		label := i18n.KeyLabel(bound)
+		if hk.key == "esc esc" {
+			label += " " + label
+		}
+		re := regexp.MustCompile(`(^|[\s(;])` + regexp.QuoteMeta(hk.key) + `($|[\s),.;:])`)
+		clause = re.ReplaceAllString(clause, "${1}"+strings.ReplaceAll(label, "$", "$$")+"${2}")
 	}
-	return desc
+	return help + clause
 }

@@ -141,3 +141,17 @@ func TestFallsBackToEnglish(t *testing.T) {
 		t.Errorf("unknown locale should be English, got %q", Active())
 	}
 }
+
+func TestKeyLabel(t *testing.T) {
+	SetLanguage("fr")
+	t.Cleanup(func() { SetLanguage("en") })
+	for in, want := range map[string]string{"enter": "entrée", "shift+tab": "maj+tab", "esc esc": "échap échap", "ctrl+x ctrl+e": "ctrl+x ctrl+e", "": ""} {
+		if got := KeyLabel(in); got != want {
+			t.Errorf("KeyLabel(%q) = %q, want %q", in, got, want)
+		}
+	}
+	SetLanguage("en")
+	if got := KeyLabel("enter"); got != "enter" {
+		t.Errorf("English KeyLabel(enter) = %q", got)
+	}
+}

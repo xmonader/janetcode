@@ -59,6 +59,37 @@ func Active() string {
 	return "en"
 }
 
+// keyWords are the key names a locale writes its own way; any other key
+// name (ctrl, alt, a letter, f6) reads the same in every locale.
+var keyWords = map[string]map[string]string{
+	"fr": {"enter": "entrée", "esc": "échap", "shift": "maj", "space": "espace"},
+}
+
+// KeyLabel is a key as the active locale names it: "shift+tab" is
+// "maj+tab" in French. The key itself stays what the config binds.
+func KeyLabel(key string) string {
+	words, ok := keyWords[Active()]
+	if !ok || key == "" {
+		return key
+	}
+	var b strings.Builder
+	start := 0
+	for i := 0; i <= len(key); i++ {
+		if i == len(key) || key[i] == '+' || key[i] == ' ' {
+			w := key[start:i]
+			if t, ok := words[w]; ok {
+				w = t
+			}
+			b.WriteString(w)
+			if i < len(key) {
+				b.WriteByte(key[i])
+			}
+			start = i + 1
+		}
+	}
+	return b.String()
+}
+
 // T is s in the active locale, or s itself.
 func T(s string) string { return In(Active(), s) }
 

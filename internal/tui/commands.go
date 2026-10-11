@@ -26,7 +26,7 @@ import (
 type command struct {
 	name, args, help string
 	// keyHelp is the description's clause naming a terminal key; it is
-	// shown with the key the user bound (boundKeysIn).
+	// shown with the key the user bound (commandDesc).
 	keyHelp string
 	// argsFor lists the completions for this command's argument, when
 	// they can be enumerated.
