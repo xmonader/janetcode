@@ -40,7 +40,21 @@ func TestNoTranscriptLineOverflowsTheViewport(t *testing.T) {
 	}
 }
 
-// TestFitWidthReopensTheStyleAfterABreak: a styled run broken across two
+// TestTightWindowStartsOnContent: the banner dropped in a tight window
+// left its separator behind as a blank first row.
+func TestTightWindowStartsOnContent(t *testing.T) {
+	h := newHarness(t)
+	h.m.transcript.info("first words")
+	h.update(tea.WindowSizeMsg{Width: 90, Height: 14})
+	if !h.m.tight() {
+		t.Fatal("a 14-row window is tight")
+	}
+	if l := plain(h.m.viewport.lines[0]); !strings.Contains(l, "first words") {
+		t.Fatalf("first transcript row is %q, want the first entry", l)
+	}
+}
+
+// TestFitWidthReopensTheStyleAfterABreak:a styled run broken across two
 // lines is closed at the end of the first and reopened on the second, so
 // a line scrolled to the top of the view keeps its colour.
 func TestFitWidthReopensTheStyleAfterABreak(t *testing.T) {

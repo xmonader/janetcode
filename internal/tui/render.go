@@ -132,16 +132,22 @@ func (t *transcript) render(o renderOpts) string {
 	// right guess for this one.
 	sb.Grow(t.lastRender + 1024)
 	line := 0
-	for i, e := range t.entries {
+	// first is whether nothing has been written yet. It is not the index:
+	// a banner skipped in a tight window would otherwise leave the
+	// separator before the next entry as a blank top row, in the one
+	// window too short to spare it.
+	first := true
+	for _, e := range t.entries {
 		if e.kind == entryBanner && o.tight {
 			// Nothing optional survives in a window this short.
 			e.lineFrom, e.lineTo = -1, -1
 			continue
 		}
-		if i > 0 {
+		if !first {
 			sb.WriteByte('\n')
 			line++
 		}
+		first = false
 		if t.needsRender(e, o, now) {
 			start := time.Now()
 			e.rendered = fitWidth(t.renderEntry(e, width, o), width)
