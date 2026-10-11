@@ -50,6 +50,10 @@ func (m *model) dreamMemory() tea.Cmd {
 		m.transcript.errorf("memory is not available in this session")
 		return nil
 	}
+	if ag.Settings().Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect")
+		return nil
+	}
 	m.note("consolidating memory…")
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
@@ -78,6 +82,14 @@ func (m *model) sleepMemory(loud bool) tea.Cmd {
 	ag, store, sess := m.opts.Agent, m.opts.Memory, m.opts.Session
 	if store == nil || ag == nil || sess == nil {
 		m.transcript.errorf("memory is not available in this session")
+		return nil
+	}
+	if ag.Settings().Provider == nil {
+		// The call below has no provider to go to: handed a nil one it
+		// took the whole window down.
+		if loud {
+			m.transcript.errorf("not connected to a provider yet: run /connect")
+		}
 		return nil
 	}
 	in := sleepfold.Fold(sess.Events())
