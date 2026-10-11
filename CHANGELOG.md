@@ -18,41 +18,45 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ### Wild ideas (2026-10-10)
 - Pattern induction for repetitive edits (wild idea 7) was screened and
-  dropped; nothing in the agent changes. `internal/editpattern` infers a
-  rewrite rule from two similar edits (token-level anti-unification, so
-  `load(a)` -> `load(a, ctx)` and `load(b)` -> `load(b, ctx)` give
-  `load ( $0 )` -> `load ( $0 , ctx )`) and finds the other sites it
-  matches. `go run ./cmd/patternscreen <campaign>...` replays recorded
-  effbench runs and counts the runs where a rule induced from two hunks
-  would have written a third one. On r1-r13: janetcode 14 of 251 editing
+  dropped; nothing in the agent changes, and the screen's code
+  (`internal/editpattern`, `cmd/patternscreen`) has since been removed. It
+  inferred a rewrite rule from two similar edits (token-level
+  anti-unification, so `load(a)` -> `load(a, ctx)` and `load(b)` ->
+  `load(b, ctx)` give `load ( $0 )` -> `load ( $0 , ctx )`) and found the
+  other sites it matched, and the screen replayed recorded effbench runs
+  to count the runs where a rule induced from two hunks would have written
+  a third one. On r1-r13: janetcode 14 of 251 editing
   runs (5.6%) and pi 10 of 248 (4.0%), with 0.4% of edit bytes in those
   later hunks on both arms. Both are under the idea's 10% line. Had the
   idea passed, the offer would have been made by the harness: a
   precomputed diff in the edit result, applied with one confirmation, not
   a new tool the model has to choose.
-- A clean-room blind tester for headless runs, opt-in with
-  `"blind_tester": "on"` (or a slot: `cheap`, `strong`, `advisor`,
-  `main`): when a turn that changed files ends green, one model call that
-  sees only the task text and the project's file names, never the code or
-  the transcript, writes up to eight checks, one per rule the task states.
-  They run in a throwaway worktree; the turn goes back once told only
-  which rules failed, the failed checks are rerun after that round, and
-  the proof note records the result. `JANETCODE_OFF=blindtest` turns it
-  off.
-- `spec_coverage` and `spec_examples` (both off by default). The first
-  reads the task text (the prompt and the documents it names) for rules
-  and worked examples, matches their literals against the public tests,
-  and tells the model at the turn's first tool step which rules no public
-  test reaches. The second compiles the examples it can read unambiguously
-  (a Python call with a literal answer, a shell command and its output)
-  into checks that run at the gate and send the turn back when they fail,
-  feeding the probe ledger when that is on. `speccovscreen` is the offline
+- A clean-room blind tester for headless runs (`blind_tester`): when a
+  turn that changed files ended green, one model call that saw only the
+  task text and the project's file names, never the code or the
+  transcript, wrote up to eight checks, one per rule the task states.
+  They ran in a throwaway worktree; the turn went back once told only
+  which rules failed. Dropped: live on the held-out set, with DeepSeek V4.1
+  Flash as the tester at `blind_tester_effort=low`, it scored 20/21, the
+  same as a second baseline, at +18% wall time and +45% output
+  (`docs/benchmarks/novel/REPORT.md`). Its code is removed, with the
+  `llm.Request.ReasoningEffort` field it alone used.
+- `spec_coverage` and `spec_examples`. The first read the task text (the
+  prompt and the documents it names) for rules and worked examples,
+  matched their literals against the public tests, and told the model at
+  the turn's first tool step which rules no public test reaches. The
+  second compiled the examples it could read unambiguously (a Python call
+  with a literal answer, a shell command and its output) into checks that
+  ran at the gate and sent the turn back when they failed. The offline
   pre-screen: on 36 effbench tasks and the r8–r13 runs, 77% of janetcode's
   hidden-test failures (68% of the 40 distinct failing tests) touch a rule
   the matrix flags, against a 47% base rate over all hidden tests, with
   63% of rules flagged; 110 examples appear in 16 tasks' text, 18 of them
   compile, in 4 tasks, all 18 pass on the reference solutions, and none
-  fails on a failed janetcode run.
+  fails on a failed janetcode run. Dropped: live on the held-out set
+  `spec_coverage` scored 19/21 against the baseline's 18/21 at +19% wall
+  time and +25% input, and the examples found nothing the public tests
+  did not. Both keys and their code are removed.
 - Sequential A/B testing: `--eval-compare` (and `--eval-report` with it)
   now also prints an always-valid mSPRT verdict on the pass rate and on
   output tokens, paired by task and run index, with broker-dropped pairs
@@ -76,50 +80,45 @@ and measurements behind each round are in `docs/notes/history.md`.
   16:30–00:30 UTC discount, withdrawn in September 2025, so it finds
   nothing in force until a provider publishes a window. At those old
   rates r13 would have cost $2.19 instead of $4.39.
-- `flake_quarantine` (off by default): a red test command the model ran is
-  rerun once on the tree as it is and, when the turn saw the command's
-  result before its first change, once on that pre-edit tree. A result
-  that flips (red then green, or different failing tests) is reported to
-  the model as non-deterministic; no model call. `JANETCODE_OFF=flaky`.
-  Offline over 321 effbench sessions: 78 of 536 red test runs (14.6%) were
-  followed by an edit to a file the failure did not name, but only 1 red
-  run was seen to flip on an unchanged tree (0.2%, 0 with no other shell
-  call in between).
-- `fix_cache` (off by default): the change that turned a red check green is
-  stored per repository with the check's normalised error lines, and shown
-  under the same error in a later session; no model call.
-  `JANETCODE_OFF=fixcache`. Offline, 7.1% of distinct error signatures
-  recurred across effbench sessions of the same task and 0 across 184
-  real local sessions; an earlier session's fix would have been attached
-  to 3 of 520 signed red episodes (0.6%), none touching the file that
-  session's own fix touched.
-- `speculate` (off by default) runs the follow-up suggestion's predicted
-  prompt ahead of the user on `route_cheap`, in a throwaway checkout,
-  capped at $0.05 a run, and adopts its changes when the user sends that
-  prompt; anything else discards it. Follow-up suggestions are now logged
-  (`followup/suggest`) and `cmd/specscreen` measures how often the next
-  prompt matched. No suggestions were recorded before this, so the direct
-  rate is unmeasured; on the proxy (the reply offered a next step and the
-  user took it) 184 local sessions give 1 of 82 prompt pairs, far under
-  the 40% kill line, mostly scripted QA sessions, so a real number needs
-  logged suggestions.
+- `flake_quarantine`: a red test command the model ran was rerun once on
+  the tree as it was and, when the turn saw the command's result before
+  its first change, once on that pre-edit tree. A result that flipped (red
+  then green, or different failing tests) was reported to the model as
+  non-deterministic; no model call. Offline over 321 effbench sessions: 78
+  of 536 red test runs (14.6%) were followed by an edit to a file the
+  failure did not name, but only 1 red run was seen to flip on an
+  unchanged tree (0.2%, 0 with no other shell call in between). Dropped on
+  that evidence; its code is removed.
+- `fix_cache`: the change that turned a red check green was stored per
+  repository with the check's normalised error lines, and shown under the
+  same error in a later session; no model call. Offline, 7.1% of distinct
+  error signatures recurred across effbench sessions of the same task and
+  0 across 184 real local sessions; an earlier session's fix would have
+  been attached to 3 of 520 signed red episodes (0.6%), none touching the
+  file that session's own fix touched. Dropped on that evidence; its code
+  is removed.
+- `speculate` ran the follow-up suggestion's predicted prompt ahead of the
+  user on `route_cheap`, in a throwaway checkout, capped at $0.05 a run,
+  and adopted its changes when the user sent that prompt; anything else
+  discarded it. No suggestions had been recorded, so the direct rate was
+  unmeasured; on the proxy (the reply offered a next step and the user
+  took it) 184 local sessions gave 1 of 82 prompt pairs, far under the 40%
+  kill line, mostly scripted QA sessions. Dropped on that evidence; its
+  code, the `followup/suggest` log event and `cmd/specscreen` are removed.
 - `plan_file` (off by default): edits to `.janetcode/plan.md` made while
   the agent works reach the model before its next call, as only the
   change.
-- `hedge_provider`, `stream_resume` and `fingerprint` (experimental, all off
-  by default). `hedge_provider` races a second configured route when a call
-  has no first token by the primary's learned p95 time to first token, and
-  fails over to it at once when the primary fails on the route before
-  answering. `stream_resume` continues a reply whose stream broke mid-text
-  from the partial (Anthropic prefill, DeepSeek prefix completion) instead
-  of regenerating it. `fingerprint` sends six canary prompts at session
+- `fingerprint` (experimental, off by default) sends six canary prompts at session
   start and reports a route whose model names another maker, or answers
-  differently from the reference stored for it. Replayed over the effbench
-  proxy logs (10,351 calls, 595 runs), none of the recorded failures would
-  have been rescued: every call returned 200, the 286 calls cut mid-stream
-  were all cut by the client (276 by janetcode, 10 by pi), not the server,
-  and hedging at p95 would have saved at most 89 s in total. The broker's 504s (the ~45% INFRA drops) are not in any per-call
-  record in the repository (`docs/benchmarks/effbench/hedgescreen.py`).
+  differently from the reference stored for it. Request hedging
+  (`hedge_provider`, `hedge_after_ms`) and stream resume (`stream_resume`)
+  were built beside it and dropped: replayed over the effbench proxy logs
+  (10,351 calls, 595 runs), none of the recorded failures would have been
+  rescued. Every call returned 200, the 286 calls cut mid-stream were all
+  cut by the client (276 by janetcode, 10 by pi), not the server, and
+  hedging at p95 would have saved at most 89 s in total. The broker's 504s
+  (the ~45% INFRA drops) are not in any per-call record in the repository
+  (`docs/benchmarks/effbench/hedgescreen.py`). Their code is removed.
 - Executable memory: `probe_memory` (off by default; turns `probe_ledger`
   on) writes every discriminating probe to the repository under
   `refs/janetcode/probes`, and later sessions arm the ones that pass on
@@ -157,16 +156,13 @@ and measurements behind each round are in `docs/notes/history.md`.
   On five seeded refactors with a subtle behaviour change their tests
   miss, it caught 4 of 5 at 10 seconds each (missed: EqualFold vs
   ToLower).
-- `observed_purity` (off by default, Linux with `strace`): foreground
-  bash commands outside the sandbox run under `strace`, and a command
-  line seen to change nothing in three runs in one repository, running
-  no interpreter, build tool or repository program, stops asking there.
-  It stays watched and the first run that writes demotes it for good.
-  Never promotes or records in a tainted session; fails closed without
-  `strace` or on a run that did not finish under the trace.
-  `JANETCODE_OFF=purity`. Offline pre-screen (`cmd/purityscreen`, with
-  the classifier standing in for the trace): 9 of 314 bash prompts (2.9%)
-  saved over the 184 recorded local sessions, 0 of 3,879 over effbench.
+- `observed_purity` (Linux with `strace`): foreground bash commands
+  outside the sandbox ran under `strace`, and a command line seen to
+  change nothing in three runs in one repository, running no interpreter,
+  build tool or repository program, stopped asking there. Offline
+  pre-screen (with the classifier standing in for the trace): 9 of 314
+  bash prompts (2.9%) saved over the 184 recorded local sessions, 0 of
+  3,879 over effbench. Dropped on that evidence; its code is removed.
 - Typosquat tripwire (on by default, offline): an edit that adds an
   import or a requirement gets a `[typosquat check]` line when the name
   is a near-miss of a known one — the project's dependencies, the module
@@ -211,16 +207,17 @@ and measurements behind each round are in `docs/notes/history.md`.
   zero calls before a first edit, and the word tier was tightened until
   it resolved nothing on all eight of them. The live measure (calls
   before the first edit, drop if under 20%) is not run.
-- `prefix_kernel` (off by default) arranges the system prompt so every
-  session on one commit sends identical bytes before its first message:
+- `prefix_kernel` arranged the system prompt so every session on one
+  commit sent identical bytes before its first message:
   project instructions and a commit-keyed map of the tree in the prompt,
   directory, date and branch moved to the end of the first message.
   Effbench r10–r13: the tool list was the same 6,465 bytes in all 128
   runs, and a first call read 22% of its prompt from cache (the tool list
   and the head; the working-directory line ended the match). First calls
   are 0.6% of those campaigns' input, so the ceiling there is small.
-- `JANETCODE_PRERESOLVE_PRESCREEN` and `JANETCODE_KERNEL_PRESCREEN` run
-  the two pre-screens over recorded sessions and effbench proxy logs.
+  Dropped on that evidence; its code is removed.
+- `JANETCODE_PRERESOLVE_PRESCREEN` runs the preresolve pre-screen over
+  recorded sessions.
 
 ### Novel ideas (2026-10-10)
 - `effort_control` (experimental, off by default) sets each model call's
@@ -236,16 +233,14 @@ and measurements behind each round are in `docs/notes/history.md`.
   assistant event. Replayed offline over 184 recorded local sessions
   (888 calls), it would have asked for `low` on 90% of calls and changed
   the tier 0.25 times a turn on average.
-- `elide_checks` (off by default): after a step whose last change was a
-  file edit nothing checked, the harness runs the project's check itself
-  and hands the model the result with that step's tool results, a pass
-  as one line and a failure in full up to 4,000 bytes, instead of
-  waiting a round trip for the model to ask. A repeat of that exact
-  command on an unchanged tree is answered from the result and says so.
-  `--session-profile` prints its offline pre-screen: on the effbench
-  r12–r13 sessions 37% of edit-completing replies were followed by a
-  check (kill line 60%) and 3.3% of model calls were check-only replies
-  it could have removed, so it stays opt-in.
+- `elide_checks`: after a step whose last change was a file edit nothing
+  checked, the harness ran the project's check itself and handed the
+  model the result with that step's tool results, instead of waiting a
+  round trip for the model to ask. Its offline pre-screen: on the
+  effbench r12–r13 sessions 37% of edit-completing replies were followed
+  by a check (kill line 60%) and 3.3% of model calls were check-only
+  replies it could have removed. Dropped on that evidence; its code and
+  the `--session-profile` screen are removed.
 - Claim-checked handoffs: the facts in the working-memory record written
   at compaction are held to the calls the harness watched. A fact with
   evidence carries a pointer `expand_output` resolves (`(evidence:
@@ -273,21 +268,17 @@ and measurements behind each round are in `docs/notes/history.md`.
   20% the idea's kill criterion asks for: on greenfield benchmark tasks
   there is almost nothing to collapse, so the ordering and the meter carry
   the feature there.
-- `--branch-retry` (opt-in, `-p`): a run that ends stuck, out of turns or
-  tool calls, or with the verify gate or `--until` still red is branched
-  once from its critical step, the last call before the first edit that
-  explored something new. The steps up to there are replayed from the
-  recording at zero tokens, so the prompt prefix stays the same, and the
-  live part is told in one line what the failed attempt did. The better of
-  the two trees is kept, ranked by a clean end, the gate, the verdict,
-  gaming signals and waste share, never by a model.
-- `--second-sample` (opt-in, `-p`): a run that finishes green on weak
-  evidence (an overclaimed or stale verdict, or a gaming signal) draws one
-  independent attempt, ranked by the same deterministic selector. The
-  ranking leaves slots for the probe ledger's and the test-integrity
-  ledger's scores.
-- `cmd/rolloutscreen` runs both offline pre-screens over recorded
-  effbench campaigns. On `jc-mimo-r8`..`r13` (191 valid runs) only 1 run
+- `--branch-retry` (`-p`): a run that ended stuck, out of turns or tool
+  calls, or with the verify gate or `--until` still red was branched once
+  from its critical step, the last call before the first edit that
+  explored something new, replaying the steps up to there at zero tokens.
+- `--second-sample` (`-p`): a run that finished green on weak evidence
+  (an overclaimed or stale verdict, or a gaming signal) drew one
+  independent attempt; the better tree was kept by a deterministic
+  selector, never by a model.
+- Both were dropped on their offline pre-screens and their code is
+  removed (`--ab-replay` keeps the replay mechanism). On
+  `jc-mimo-r8`..`r13` (191 valid runs) only 1 run
   ended badly, and none had a branch point, because small-repo inlining
   means runs edit before they explore. The second-sample trigger fired on
   13 green runs, 3 of which failed the hidden tests: a precision of 23%,

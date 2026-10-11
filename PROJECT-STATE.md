@@ -53,6 +53,8 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   branch points; probes 75% of r13 runs, 23/32 with a discriminating one.
   Impossible-effbench split: docs/benchmarks/effbench/impossible. Next:
   live A/Bs on ai02. Further ideas: reports/Janetcode wild ideas.md.
+  Dropped on that evidence and their code removed (2026-10-11):
+  elide_checks, --branch-retry, --second-sample.
 
 - Wild ideas 2026-10-10 (same branch): all 25 from reports/Janetcode wild
   ideas.md built, unit-tested, no live runs. Default on: numclaim, scope,
@@ -63,6 +65,13 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   --ab-replay, --off-peak-by, --session-ref, --why-broke. Weak pre-screens:
   pattern induction 5.6% (<10%, not wired), speculation proxy 1%, hedging
   0 rescues, flake flips ~0, fix-cache 0.6%, purity 2.9% prompts saved.
+  Dropped and their code removed (2026-10-11): on those pre-screens,
+  pattern induction, speculate, hedge_provider/stream_resume,
+  flake_quarantine, fix_cache, observed_purity and prefix_kernel; on the
+  live runs (docs/benchmarks/novel/REPORT.md), spec_coverage/spec_examples
+  (19/21 vs 18/21 at +19% wall) and blind_tester (20/21, same as a second
+  baseline, +18% wall). The lists above are what was built, not what is
+  left.
 
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
