@@ -5,6 +5,17 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Pipelines report the failing stage (2026-10-11)
+- The bash tool now runs commands under `bash -o pipefail` (also zsh and
+  ksh; plain sh is unchanged). Before, `pytest -q | tail -20` exited with
+  tail's status, so a red test run read as green to the turn verdict,
+  claim checks, the test ledgers and the CONFLICT check; one live run's
+  verdict said the tests passed while pytest had failed. Exit 141 from a
+  pipeline whose reader stopped early (`git log | head -3`) is reported
+  as no failure, except for a test run, which was cut off before it said
+  how it ended. Exit 1 from `grep x f | wc -l` now reads as grep's "no
+  lines matched".
+
 ### Wild ideas (2026-10-10)
 - Pattern induction for repetitive edits (wild idea 7) was screened and
   dropped; nothing in the agent changes. `internal/editpattern` infers a

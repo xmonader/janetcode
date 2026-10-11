@@ -79,7 +79,22 @@ func Override(path string) (Shell, bool) {
 	if strings.HasPrefix(name, "busybox") {
 		return Shell{Name: "sh (busybox)", Path: path, Args: []string{"sh", "-c"}}, true
 	}
-	return Shell{Name: name, Path: path, Args: []string{"-c"}}, true
+	return Shell{Name: name, Path: path, Args: posixArgs(name)}, true
+}
+
+// posixArgs are the flags before the command for a POSIX shell. Shells
+// that have it run with pipefail, so `pytest | tail` exits with pytest's
+// status and not tail's: without it every check that reads the exit code
+// (the verdict, claim checks, the ledgers, CONFLICT) took a red test run
+// piped through a display filter for a green one, as one live run's
+// verdict did. Plain sh may not know the option, and an unknown option
+// would stop every command, so it is left without.
+func posixArgs(name string) []string {
+	switch name {
+	case "bash", "zsh", "ksh", "mksh":
+		return []string{"-o", "pipefail", "-c"}
+	}
+	return []string{"-c"}
 }
 
 // ShellCommand is Default().Command.
@@ -100,7 +115,7 @@ func shellFor(goos string, lookPath func(string) (string, error)) Shell {
 		return Shell{Name: "PowerShell", Path: path, Args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"}, encoded: true}
 	}
 	if p, err := lookPath("bash"); err == nil {
-		return Shell{Name: "bash", Path: p, Args: []string{"-c"}}
+		return Shell{Name: "bash", Path: p, Args: posixArgs("bash")}
 	}
 	return Shell{Name: "sh", Path: "sh", Args: []string{"-c"}}
 }

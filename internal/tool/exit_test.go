@@ -29,7 +29,14 @@ func TestNoMatchMeaning(t *testing.T) {
 		{"grep -r needle .", 2, ""},
 		// a plain command's exit 1 is unchanged.
 		{"go test ./...", 1, ""},
-		{"grep needle f | wc -l", 1, ""},
+		// the shell runs with pipefail: exit 1 here is grep's, not wc's.
+		{"grep needle f | wc -l", 1, "no lines matched"},
+		{"cat f | sort", 1, ""},
+		// 141 is a reader that stopped early: no failure, unless it cut a
+		// test run short, and never outside a pipeline.
+		{"git log | head -3", 141, "a later stage of the pipeline stopped reading early"},
+		{"pytest -q | head -5", 141, ""},
+		{"git log", 141, ""},
 		// with &&, exit 1 may come from either side; stay conservative.
 		{"grep needle f && echo yes", 1, ""},
 		{"", 1, ""},
@@ -67,5 +74,30 @@ func TestBashNoMatchIsNotAnError(t *testing.T) {
 	}
 	if !strings.Contains(out, "no lines matched") {
 		t.Fatalf("result does not explain the exit: %q", out)
+	}
+}
+
+// The shell runs with pipefail, so a red test run piped through a display
+// filter still exits red, and the reader closing early is not a failure.
+func TestBashPipelineExitStatus(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell")
+	}
+	b := Bash{Root: t.TempDir()}
+	run := func(cmd string) string {
+		t.Helper()
+		in, _ := json.Marshal(map[string]string{"command": cmd})
+		out, err := b.Run(context.Background(), in)
+		if err != nil {
+			t.Fatalf("%s: %v", cmd, err)
+		}
+		return out
+	}
+	if out := run("sh -c 'echo FAILED; exit 3' | tail -1"); !strings.Contains(out, "[exit code 3]") {
+		t.Fatalf("a failing command piped through tail read as green: %q", out)
+	}
+	out := run("yes | head -2")
+	if _, failed := CommandFailed("yes | head -2", out); failed {
+		t.Fatalf("a reader that stopped early read as a failure: %q", out)
 	}
 }
