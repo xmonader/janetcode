@@ -169,12 +169,16 @@ func (m *model) agentsCommand(arg string) {
 	kids := m.overlayKids()
 	switch {
 	case arg != "":
-		m.ov.child = arg
 		for i, k := range kids {
 			if k.ID == arg {
-				m.ov.idx = i
+				m.ov.idx, m.ov.child = i, arg
 				break
 			}
+		}
+		if m.ov.child == "" {
+			// The list, saying so: it used to open as though the
+			// subagent had been found.
+			m.ov.note = "no subagent " + arg
 		}
 	case len(kids) == 1:
 		m.ov.child = kids[0].ID
@@ -241,6 +245,10 @@ func (m *model) loopCommand(arg string) {
 	case arg == "off":
 		n := cron.CancelAll()
 		m.note(fmt.Sprintf("cancelled %s", textfmt.Plural(n, "loop")))
+	case arg == "cancel":
+		// Without an id this is not a prompt either: it armed a loop
+		// that sent the word "cancel" every five minutes.
+		m.transcript.errorf("usage: /loop cancel <id> (/loop lists them; /loop off cancels all)")
 	case strings.HasPrefix(arg, "cancel "):
 		id := strings.TrimSpace(strings.TrimPrefix(arg, "cancel "))
 		if !cron.Cancel(id) {
@@ -251,10 +259,20 @@ func (m *model) loopCommand(arg string) {
 	default:
 		every := 5 * time.Minute
 		prompt := arg
-		if f, rest, ok := strings.Cut(arg, " "); ok {
-			if d, err := agent.ParseEvery(f); err == nil {
-				every, prompt = d, strings.TrimSpace(rest)
-			}
+		// A lone duration is an interval with no prompt, not a prompt:
+		// "/loop 10m" armed a loop sending "10m" to the model.
+		f, rest, _ := strings.Cut(arg, " ")
+		if d, err := agent.ParseEvery(f); err == nil {
+			every, prompt = d, strings.TrimSpace(rest)
+		} else if _, perr := time.ParseDuration(f); perr == nil {
+			// A duration out of range is still a duration: "/loop 1s
+			// ping" armed "1s ping" every five minutes.
+			m.transcript.errorf("loop: %v", err)
+			break
+		}
+		if prompt == "" {
+			m.transcript.errorf("usage: /loop [duration] <prompt> · /loop %s needs something to send", arg)
+			break
 		}
 		id, err := cron.Add(every, prompt)
 		if err != nil {

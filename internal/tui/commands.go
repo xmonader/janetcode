@@ -457,15 +457,20 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 	}
 	m.opts.Session = sess
 	m.opts.CD.SetSession(sess)
-	if err := m.opts.Agent.OpenSession(sess, nil); err != nil {
-		m.transcript.errorf("%v", err)
-	}
+	openErr := m.opts.Agent.OpenSession(sess, nil)
 	m.titleGen++ // a title generated for the old conversation must not land here
 	m.transcript = newTranscriptStyled(m.transcript.styleName, m.styles)
 	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(""))
+	// After the new transcript, not before: an error written into the
+	// old one was thrown away with it.
+	if openErr != nil {
+		m.transcript.errorf("%v", openErr)
+	}
+	m.lastTurn, m.lastTurnTokens, m.lastVerdict = "", "", ""
+	// After the reset of the status line, which used to blank it as soon
+	// as it was set.
 	m.note("new session " + sess.Meta.ID)
-	m.lastTurn, m.lastTurnTokens, m.lastVerdict, m.status = "", "", "", ""
 	m.pinned = true
 	return nil, false
 }
@@ -790,6 +795,12 @@ func (m *model) noteInterrupted() {
 func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {
 	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before compacting")
+		return nil, false
+	}
+	// The summary is a model call. Handed no provider it dereferenced
+	// nil on the compaction goroutine and the whole program died.
+	if m.opts.Agent.Settings().Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect (/compact-fast prunes without one)")
 		return nil, false
 	}
 	return m.compact(), true
