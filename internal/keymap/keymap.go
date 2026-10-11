@@ -240,9 +240,14 @@ func ActionNames() []string {
 }
 
 // normalize checks one key or two-key chord and returns its canonical
-// spelling (lower case, single spaces).
+// spelling (lower case, single spaces). The character after alt+ keeps
+// its case: bubbletea reports alt+shift+e as "alt+E", and lowering it
+// bound alt+e instead, which then collided with effort's default.
 func normalize(spec string) (string, error) {
-	parts := strings.Fields(strings.ToLower(spec))
+	parts := strings.Fields(spec)
+	for i, p := range parts {
+		parts[i] = canonical(p)
+	}
 	switch len(parts) {
 	case 0:
 		return "", fmt.Errorf("an empty key; use \"\" alone to unbind the action")
@@ -269,6 +274,17 @@ var namedKeys = func() map[string]bool {
 	}
 	return out
 }()
+
+// canonical lowers one key name except for the character of an alt+
+// key, whose case makes it a different key.
+func canonical(k string) string {
+	low := strings.ToLower(k)
+	if base, ok := strings.CutPrefix(low, "alt+"); ok && utf8.RuneCountInString(base) == 1 {
+		r, _ := utf8.DecodeLastRuneInString(k)
+		return "alt+" + string(r)
+	}
+	return low
+}
 
 func validKey(k string) error {
 	base, alt := strings.CutPrefix(k, "alt+")
