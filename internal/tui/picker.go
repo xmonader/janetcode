@@ -48,6 +48,10 @@ type picker struct {
 	freeText bool
 }
 
+// pickerMinWidth is the narrowest the picker box is drawn; a narrower
+// terminal clips it rather than crashing.
+const pickerMinWidth = 16
+
 // openPicker shows a searchable list over the transcript.
 func (m *model) openPicker(p *picker) tea.Cmd {
 	p.field = textinput.New()
@@ -139,7 +143,10 @@ func (m *model) pickerPreview() {
 // pickerView draws the modal, in the same box the connect dialog uses.
 func (m *model) pickerView(height int) string {
 	p := m.picker
-	w := min(dialogWidth, m.width-4)
+	// Never narrower than pickerMinWidth: on a terminal a few columns
+	// wide the box's inner width went negative and the rule under the
+	// search field panicked in strings.Repeat.
+	w := max(min(dialogWidth, m.width-4), pickerMinWidth)
 	inner := w - 4
 	p.field.Width = inner - 3
 	var lines []string
