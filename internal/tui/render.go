@@ -849,7 +849,7 @@ func fitWidth(s string, width int) string {
 			continue
 		}
 		open := ""
-		for _, part := range strings.Split(ansi.Wrap(l, width, ""), "\n") {
+		for _, part := range breakLine(l, width) {
 			next := open + part
 			open = activeSGR(open, part)
 			if open != "" {
@@ -859,6 +859,27 @@ func fitWidth(s string, width int) string {
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// breakLine cuts a line too wide for the window into lines that fit. It
+// cuts at the width rather than at a space: a line only gets here when the
+// renderer that drew it could not find a space to break at (a URL, a path,
+// a run of output with none), and a word wrap of it put the indent on a
+// line of its own and the word, unindented, under it. The continuation
+// keeps the line's indent, so a broken line still reads as part of the
+// block it was in.
+func breakLine(l string, width int) []string {
+	text := ansi.Strip(l)
+	ind := len(text) - len(strings.TrimLeft(text, " "))
+	if ind*2 > width {
+		ind = 0
+	}
+	parts := []string{ansi.Truncate(l, width, "")}
+	rest := ansi.TruncateLeft(l, width, "")
+	for _, p := range strings.Split(ansi.Hardwrap(rest, width-ind, true), "\n") {
+		parts = append(parts, strings.Repeat(" ", ind)+p)
+	}
+	return parts
 }
 
 // activeSGR is the run of SGR sequences still in force after s, given

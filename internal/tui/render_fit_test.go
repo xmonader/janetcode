@@ -71,6 +71,19 @@ func TestFitWidthReopensTheStyleAfterABreak(t *testing.T) {
 			t.Fatalf("line wider than 10: %q", l)
 		}
 	}
+	// An unbreakable word under an indent is cut at the width and its
+	// continuation keeps the indent: a word wrap put the indent on a
+	// blank line of its own and the word at column 0 under it.
+	url := fitWidth("  \x1b[34mhttps://example.com/"+strings.Repeat("a", 40)+"\x1b[0m", 20)
+	for i, l := range strings.Split(url, "\n") {
+		p := plain(l)
+		if strings.TrimSpace(p) == "" || !strings.HasPrefix(p, "  ") || strings.HasPrefix(p, "   ") || lipgloss.Width(l) > 20 {
+			t.Errorf("line %d of a broken URL is %q", i, p)
+		}
+		if !strings.Contains(l, "\x1b[34m") {
+			t.Errorf("line %d of a broken URL lost its colour: %q", i, l)
+		}
+	}
 	if s := "plain\tshort"; fitWidth(s, 40) != "plain"+tabStop+"short" {
 		t.Fatalf("tab not expanded: %q", fitWidth(s, 40))
 	}
