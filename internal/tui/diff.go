@@ -33,9 +33,13 @@ import (
 const diffContext = 3
 
 type diffLine struct {
-	kind byte // ' ', '+', '-'
+	kind byte // ' ', '+', '-', or '\\' for a "\ No newline at end of file" marker
 	text string
 }
+
+// marker reports whether l is a note about the line before it rather
+// than a line of either file: it takes no line number.
+func (l diffLine) marker() bool { return l.kind == '\\' }
 
 type diffHunk struct {
 	oldStart, newStart int
@@ -61,7 +65,7 @@ func parseUnifiedDiff(s string) ([]diffHunk, bool) {
 		default:
 			kind := byte(' ')
 			text := l
-			if l != "" && (l[0] == '+' || l[0] == '-' || l[0] == ' ') {
+			if l != "" && (l[0] == '+' || l[0] == '-' || l[0] == ' ' || l[0] == '\\') {
 				kind, text = l[0], l[1:]
 			}
 			h := &hunks[len(hunks)-1]
@@ -95,7 +99,7 @@ func parseHunkHeader(l string) (old, new int, ok bool) {
 func (h diffHunk) trimContext() diffHunk {
 	first, last := -1, -1
 	for i, l := range h.lines {
-		if l.kind != ' ' {
+		if l.kind != ' ' && !l.marker() {
 			if first < 0 {
 				first = i
 			}
@@ -107,8 +111,12 @@ func (h diffHunk) trimContext() diffHunk {
 	}
 	from := max(0, first-diffContext)
 	to := min(len(h.lines), last+diffContext+1)
-	h.oldStart += from
-	h.newStart += from
+	for _, l := range h.lines[:from] {
+		if !l.marker() {
+			h.oldStart++
+			h.newStart++
+		}
+	}
 	h.lines = h.lines[from:to]
 	return h
 }
@@ -132,8 +140,14 @@ func (h diffHunk) changePair() (int, int, bool) {
 			add = i
 		}
 	}
-	if del < 0 || add != del+1 {
+	if del < 0 || add < del {
 		return 0, 0, false
+	}
+	// Adjacent, but for a no-newline marker after the removed line.
+	for _, l := range h.lines[del+1 : add] {
+		if !l.marker() {
+			return 0, 0, false
+		}
 	}
 	return del, add, true
 }
@@ -164,6 +178,13 @@ func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable b
 		oldN, newN := h.oldStart, h.newStart
 		tinted := sty.diffTint && !sty.ansiOnly
 		for j, l := range h.lines {
+			if l.marker() {
+				// Faint, under the text column, and with no number: it
+				// says the line above has no newline; it is not a line.
+				gutter := fmt.Sprintf("  %s │  ", strings.Repeat(" ", gw))
+				out = append(out, fitLine(sty.faint.Render(gutter)+sty.faint.Render(`\`+l.text), width-2))
+				continue
+			}
 			n := newN
 			style, hi := sty.dim, lipgloss.NewStyle().Reverse(true)
 			switch l.kind {
