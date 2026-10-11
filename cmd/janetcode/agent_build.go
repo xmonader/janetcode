@@ -527,10 +527,10 @@ func (b *agentBuilder) stepCore() error {
 		ag.TestLedger = true
 	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
-	if d.cfg.ConflictExit {
+	if d.cfg.ConflictExitEnabled() {
 		// Fixed for the session, so the prompt prefix stays cacheable.
 		ag.ConflictExit = true
-		ag.System += "\n" + agent.ConflictPrompt
+		ag.System = withConflictRule(ag.System)
 	}
 	ag.Sandbox = b.sb
 	ag.Cron = b.cron
@@ -821,4 +821,14 @@ func openSnapshots(dir, sessDir string) *snapshot.Repo {
 		return nil
 	}
 	return repo
+}
+
+// withConflictRule puts the CONFLICT line at the end of the standing rules,
+// above the environment: inside the cached prefix, and before any text the
+// user appends, which stays last.
+func withConflictRule(system string) string {
+	if i := strings.Index(system, prompt.EnvironmentHeading); i >= 0 {
+		return system[:i] + agent.ConflictPrompt + "\n" + system[i:]
+	}
+	return system + "\n" + agent.ConflictPrompt
 }

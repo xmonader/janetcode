@@ -208,9 +208,10 @@ type Config struct {
 	// ConflictExit offers the model a CONFLICT: line for a task whose
 	// tests contradict it: a confirmed one (the cited test exists and
 	// fails) ends the turn, and a headless run with exit status 58,
-	// instead of a turn spent making that test pass. Off by default: it
-	// adds a line to the system prompt.
-	ConflictExit bool `json:"conflict_exit,omitempty"`
+	// instead of a turn spent making that test pass. On unless set to
+	// false: live, it ended 29 of 32 impossible-task runs naming the
+	// contradicting test, and none of 40 runs on tasks that can be done.
+	ConflictExit *bool `json:"conflict_exit,omitempty"`
 	// SubagentMerge has the harness merge an editing subagent's work into
 	// the project when it finishes: its read-set is validated, edits that
 	// commute with what changed meanwhile are applied, and conflicts go
@@ -517,6 +518,10 @@ func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }
 // ProofNotesEnabled reports whether commits made this session get proof
 // notes attached automatically.
 func (c *Config) ProofNotesEnabled() bool { return c.ProofNotes == nil || *c.ProofNotes }
+
+// ConflictExitEnabled reports whether the CONFLICT: exit is offered:
+// unset means on.
+func (c *Config) ConflictExitEnabled() bool { return c.ConflictExit == nil || *c.ConflictExit }
 
 // UpdateCheckEnabled reports whether the TUI says when a release is out.
 func (c *Config) UpdateCheckEnabled() bool { return c.UpdateCheck == nil || *c.UpdateCheck }

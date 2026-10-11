@@ -89,7 +89,7 @@ var setters = map[string]setter{
 	"stale_check_nudge":      boolKey(func(c *Config) *bool { return &c.StaleCheckNudge }),
 	"effort_control":         boolKey(func(c *Config) *bool { return &c.EffortControl }),
 	"localize_failures":      boolKey(func(c *Config) *bool { return &c.LocalizeFailures }),
-	"conflict_exit":          boolKey(func(c *Config) *bool { return &c.ConflictExit }),
+	"conflict_exit":          boolPtr(func(c *Config) **bool { return &c.ConflictExit }),
 	"subagent_merge":         boolKey(func(c *Config) *bool { return &c.SubagentMerge }),
 	"probe_ledger":           boolKey(func(c *Config) *bool { return &c.ProbeLedger }),
 	"plan_file":              boolKey(func(c *Config) *bool { return &c.PlanFile }),

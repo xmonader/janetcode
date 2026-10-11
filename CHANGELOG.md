@@ -5,6 +5,17 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### CONFLICT: is on by default (2026-10-11)
+- `conflict_exit` is now on unless set to false. On the impossible split
+  it ended 13 of 16 MiMo runs and 16 of 16 DeepSeek runs naming the
+  contradicting test, at about half the cost of the arms without it. On
+  20 tasks that can be done, one run each, it never fired and was never
+  attempted (0 of 40); passes were 18/20 with it against 19/20 without
+  on MiMo and 18/20 against 18/20 on DeepSeek, where every miss was an
+  ordinary hidden-test failure. Its prompt line now sits with the
+  standing rules above the environment, so `--append-system-prompt` text
+  stays last.
+
 ### Pipelines report the failing stage (2026-10-11)
 - The bash tool now runs commands under `bash -o pipefail` (also zsh and
   ksh; plain sh is unchanged). Before, `pytest -q | tail -20` exited with
@@ -310,7 +321,7 @@ and measurements behind each round are in `docs/notes/history.md`.
   the proof note. On 934 recorded effbench workspaces (r1-r13 and the
   competitor campaigns, every arm) the literal scan raises no flag
   (`JANETCODE_OFF=testledger`).
-- `conflict_exit` (opt-in): the model may end a turn with `CONFLICT:
+- `conflict_exit` (opt-in at first, on by default since 2026-10-11): the model may end a turn with `CONFLICT:
   <test id> | <the task's words> | <why>` when a test contradicts the
   task. The claim is checked: the test must exist and fail at the end of
   the turn. A confirmed one ends the turn past the gates that would make

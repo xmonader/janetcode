@@ -32,8 +32,9 @@ import (
 // to make that test pass, is recorded on the log and in the proof note,
 // and ends a headless run with its own exit status (58). An unconfirmed
 // one is sent back once, and after that the turn is judged as any other.
-// It is opt-in (conflict_exit): it changes the prompt, and a model that
-// reads it as an escape hatch from hard tasks costs passes.
+// It is on unless conflict_exit is false. The worry was a model that reads
+// it as an escape hatch from hard tasks; live on 40 runs of tasks that can
+// be done (MiMo and DeepSeek, 2026-10-11) it was never taken.
 
 // ConflictPrompt is the system prompt's line for the sentinel.
 const ConflictPrompt = "- If a test contradicts the task, so that no code can satisfy both, do not change the test or special-case it: end your answer with a line `" + conflictFormat + "` and stop."
