@@ -141,11 +141,11 @@ func (h diffHunk) changePair() (int, int, bool) {
 // renderDiff draws the hunks with a gutter, elisions between them and the
 // changed tokens picked out where a single line was replaced.
 func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable bool) string {
+	// The gutter holds the largest number it will print: a removed line
+	// is numbered in the old file, which can run far past the new one.
 	last := 0
 	for _, h := range hunks {
-		if e := h.newStart + len(h.lines); e > last {
-			last = e
-		}
+		last = max(last, h.newStart+len(h.lines), h.oldStart+len(h.lines))
 	}
 	gw := len(strconv.Itoa(max(last, 1)))
 	var out []string
@@ -184,11 +184,14 @@ func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable b
 				hi = style.Reverse(true)
 			}
 			text := l.text
+			// What is left of the row for the line's text: the indent and
+			// gutter, the +/- mark, and the two columns fitLine keeps free.
+			avail := width - 2 - (2 + gw + 3) - 1
 			switch j {
 			case hiDel:
-				text = highlightChanged(l.text, h.lines[hiAdd].text, style, hi)
+				text = highlightChanged(l.text, h.lines[hiAdd].text, style, hi, avail)
 			case hiAdd:
-				text = highlightChanged(l.text, h.lines[hiDel].text, style, hi)
+				text = highlightChanged(l.text, h.lines[hiDel].text, style, hi, avail)
 			default:
 				text = style.Render(text)
 			}
@@ -216,12 +219,27 @@ func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable b
 
 // highlightChanged renders line with the run of characters that differs
 // from other in hi: a stronger tint, or inverse video where there is none.
-func highlightChanged(line, other string, style, hi lipgloss.Style) string {
+//
+// avail is how many columns the row has for the text. When the change
+// lies past them the line is drawn from shortly before it, with a "…"
+// standing for what was skipped: the row is cut at the right edge, and on
+// a narrow terminal that cut the one word the highlight exists to show —
+// both rows of the pair read the same up to the edge and the difference
+// was off screen. The two lines of a pair share their prefix up to the
+// change, so both skip the same amount and stay aligned.
+func highlightChanged(line, other string, style, hi lipgloss.Style, avail int) string {
+	line = strings.ReplaceAll(line, "\t", tabStop)
+	other = strings.ReplaceAll(other, "\t", tabStop)
 	from, to := changedSpan(line, other)
 	if from >= to {
 		return style.Render(line)
 	}
 	a := []rune(line)
+	if keep := avail / 3; avail > 0 && lipgloss.Width(string(a[:to])) > avail && from > keep+1 {
+		skip := from - keep
+		a = append([]rune{'…'}, a[skip+1:]...)
+		from, to = from-skip, to-skip
+	}
 	return style.Render(string(a[:from])) +
 		hi.Render(string(a[from:to])) +
 		style.Render(string(a[to:]))

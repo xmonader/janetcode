@@ -100,6 +100,7 @@ type entry struct {
 	renderedN  int           // text length when rendered
 	renderCost time.Duration // how long the last render took, for throttling
 	verbose    bool          // rendered with expanded tool output
+	foldAt     int           // the fold height (renderOpts.cap) it was rendered with
 	chunks     []mdChunk     // per-paragraph markdown cache
 	// toolBody is the tool entry without the leading icon and without the
 	// trailing elapsed on the first line. Spinner and elapsed are chrome:

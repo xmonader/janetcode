@@ -36,12 +36,11 @@ func TestScrollerSelection(t *testing.T) {
 // A drag selects and copies; a click without a move still folds.
 func TestMouseDragCopies(t *testing.T) {
 	var copied []string
-	defer func(f func(string) error) { copyText = f }(copyText)
-	copyText = func(s string) error { copied = append(copied, s); return nil }
 
 	here := t.TempDir()
 	sess := newSession(t, here)
 	m := newModel(Options{Agent: &agent.Agent{Tools: tool.NewRegistry(), Model: "m", Log: sess, Root: here}, Session: sess, Provider: "fake", Cwd: here, Version: "test"})
+	m.copyText = func(s string) error { copied = append(copied, s); return nil }
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	m.transcript.info("alpha bravo charlie\ndelta echo foxtrot")
 	m.refresh(false)

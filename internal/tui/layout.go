@@ -224,7 +224,6 @@ func (m *model) refresh(resized bool) {
 		cwd:       m.opts.Cwd,
 		width:     m.width,
 		gutter:    m.gutter(),
-		resized:   resized,
 		pending:   m.pending,
 		spinner:   m.spinner.View(),
 		verbose:   m.verbose,
@@ -232,7 +231,6 @@ func (m *model) refresh(resized bool) {
 		preview:   m.previewCall,
 		renderer:  m.toolRenderer,
 		tight:     m.tight(),
-		compact:   m.compactMode(),
 		noMermaid: m.opts.Agent != nil && m.opts.Agent.Off["mermaid"],
 	})
 	if content != m.lastContent || resized {
@@ -251,8 +249,22 @@ func (m *model) refresh(resized bool) {
 func (m *model) scroll(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
-	m.pinned = m.viewport.AtBottom()
+	m.syncPinned()
 	return cmd
+}
+
+// syncPinned re-reads whether the transcript follows new output after the
+// view was moved. Every way of moving it comes through here.
+func (m *model) syncPinned() {
+	was := m.pinned
+	m.pinned = m.viewport.AtBottom()
+	if m.pinned && !was {
+		// Back at the tail. No flash timer runs while the reader is
+		// scrolled away (see scheduleFlash), so a call that finished then
+		// is still drawn in its bright finishing mark: one redraw, almost
+		// all of it from the cache, settles it.
+		m.refresh(false)
+	}
 }
 
 // repin makes the transcript follow new output again.

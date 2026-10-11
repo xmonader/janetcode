@@ -174,7 +174,7 @@ func newModel(opts Options) *model {
 	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
 	ta.Focus()
 
-	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(defaultStyles().accent))
+	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	if opts.Plain {
 		sp.Spinner = plainSpinner
 	}
@@ -190,6 +190,12 @@ func newModel(opts Options) *model {
 	lipgloss.SetHasDarkBackground(dark)
 	st := newStyles(th, ansi)
 	styleInput(&ta, st)
+	// The spinner is drawn in the theme's accent, as a /theme switch
+	// sets it. It used to be given the default palette's accent before
+	// the theme was known, so until the first switch every running tool
+	// spun in the wrong colour — and on a sixteen-colour terminal in a
+	// truecolor hex quantised to whatever slot was nearest.
+	sp.Style = st.accent
 	style := "light"
 	if dark {
 		style = "dark"

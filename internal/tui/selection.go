@@ -170,7 +170,7 @@ func (m *model) mouseSelect(msg tea.MouseMsg) bool {
 		}
 		if m.drag.moved {
 			m.viewport.setSelection(m.drag.at, c)
-			m.pinned = m.viewport.AtBottom()
+			m.syncPinned()
 			m.refresh(false)
 		}
 		return true
@@ -197,6 +197,10 @@ func (m *model) copySelection() {
 		return
 	}
 	lines := strings.Count(text, "\n") + 1
+	copyText := m.copyText
+	if copyText == nil {
+		copyText = writeClipboardText
+	}
 	if err := copyText(text); err == nil {
 		m.status = fmt.Sprintf("copied %s · click clears the selection", plural(lines, "line"))
 	} else if osc52(text) {
@@ -206,9 +210,6 @@ func (m *model) copySelection() {
 	}
 	m.refresh(false)
 }
-
-// copyText writes the system clipboard; a variable so tests do not.
-var copyText = writeClipboardText
 
 // osc52 asks the terminal to set its clipboard, reporting whether it
 // could be sent at all. It goes to stderr in one write, so it cannot land

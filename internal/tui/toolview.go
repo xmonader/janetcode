@@ -132,7 +132,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		} else if full := prettyInputFor(e.call.Name, e.inputJSON(), o.expand(e)); full != "" && e.call.Name != "bash" {
 			sb.WriteString("\n" + t.styles.dim.Render(indent(clipTool(full, inputMax, !o.expand(e)), "  ")))
 		}
-		return t.finishTool(e, sb.String(), o)
+		return t.finishTool(e, sb.String(), width, o)
 	}
 	if e.done && !e.isError && e.call.Preview != "" && !e.denied {
 		max := o.lines(12)
@@ -146,7 +146,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if o.expand(e) {
 			max = expandedLines
 		}
-		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
+		body, diag := splitDiagnostics(strings.TrimRight(displayText(e.output), "\n"))
 		out := ""
 		switch lines := t.toolLines(e, body, o, max); {
 		case e.isError:
@@ -172,10 +172,14 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			sb.WriteString("\n" + t.styles.err.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clipNote(diag, 12, false)), "  ")))
 		}
 	}
-	return t.finishTool(e, sb.String(), o)
+	return t.finishTool(e, sb.String(), width, o)
 }
 
-func (t *transcript) finishTool(e *entry, body string, o renderOpts) string {
+func (t *transcript) finishTool(e *entry, body string, width int, o renderOpts) string {
+	// The body is fitted here, not only once the chrome is on: a frame
+	// that splices a new spinner onto the cached body (see render) never
+	// passes through the fitting again.
+	body = fitWidth(body, width)
 	e.toolBody = body
 	return applyToolChrome(body, toolIcon(t.styles, e, o), toolElapsed(t.styles, e, o))
 }

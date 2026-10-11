@@ -34,7 +34,6 @@ type renderOpts struct {
 	// and then indented, so the body indent and diffs stay relative to the
 	// gutter, not the terminal edge.
 	gutter  int
-	resized bool
 	pending *permissionMsg
 	spinner string // current spinner frame for running tools
 	verbose bool   // expand tool output
@@ -44,8 +43,8 @@ type renderOpts struct {
 	// short window and a waste of a tall one.
 	cap int
 	// tight drops what is optional in a very short window (the welcome
-	// banner); compact narrows what is left.
-	tight, compact bool
+	// banner).
+	tight bool
 	// preview computes what a call would do, for a call whose arguments
 	// have finished streaming but which has not run yet.
 	preview func(name string, input []byte) string
@@ -132,25 +131,32 @@ func (t *transcript) render(o renderOpts) string {
 	// right guess for this one.
 	sb.Grow(t.lastRender + 1024)
 	line := 0
-	for i, e := range t.entries {
+	// first is whether nothing has been written yet. It is not the index:
+	// a banner skipped in a tight window would otherwise leave the
+	// separator before the next entry as a blank top row, in the one
+	// window too short to spare it.
+	first := true
+	for _, e := range t.entries {
 		if e.kind == entryBanner && o.tight {
 			// Nothing optional survives in a window this short.
 			e.lineFrom, e.lineTo = -1, -1
 			continue
 		}
-		if i > 0 {
+		if !first {
 			sb.WriteByte('\n')
 			line++
 		}
+		first = false
 		if t.needsRender(e, o, now) {
 			start := time.Now()
-			e.rendered = t.renderEntry(e, width, o)
+			e.rendered = fitWidth(t.renderEntry(e, width, o), width)
 			e.renderCost = time.Since(start)
 			e.width = width
 			e.final = e.done
 			e.renderedAt = now
 			e.renderedN = len(e.text)
 			e.verbose = o.expand(e)
+			e.foldAt = o.cap
 			if e.kind == entryTool {
 				e.toolStamp = toolStamp(e, o)
 			}
@@ -203,6 +209,12 @@ func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
 	if e.rendered == "" || e.width != o.width || e.verbose != o.expand(e) {
 		return true
 	}
+	if e.kind == entryTool && e.foldAt != o.cap {
+		// The fold height follows the window's height: a tool result
+		// folded to four lines in a short window stays folded to four
+		// after the window has grown unless it is drawn again.
+		return true
+	}
 	if fixedText(e.kind) {
 		return false
 	}
@@ -246,44 +258,45 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		}
 		return strings.Join(ls, "\n")
 	}
+	text := displayText(e.text)
 	switch e.kind {
 	case entryBanner:
-		return t.renderBanner(e.text, width)
+		return t.renderBanner(text, width)
 	case entryInfo:
-		return t.styles.dim.Render(wrap(e.text))
+		return t.styles.dim.Render(wrap(text))
 	case entryHelp:
-		return helpSheet(t.styles, e.text, width-2)
+		return helpSheet(t.styles, text, width-2)
 	case entryTip:
-		return t.styles.faint.Render(hangWrap("tip · "+e.text, width-2, "      "))
+		return t.styles.faint.Render(hangWrap("tip · "+text, width-2, "      "))
 	case entryCode:
-		return renderCode(t.styles, e.text, width)
+		return renderCode(t.styles, text, width)
 	case entryError:
-		return t.styles.err.Render(errorBlock(e.text, width))
+		return t.styles.err.Render(errorBlock(text, width))
 	case entryVerdict:
 		style := t.styles.warn
-		switch present.VerdictTone(e.text) {
+		switch present.VerdictTone(text) {
 		case present.ToneOK:
 			style = t.styles.ok
 		case present.ToneBad:
 			style = t.styles.err
 		}
-		return style.Render(wrap(e.text))
+		return style.Render(wrap(text))
 	case entryUser:
-		body := unpad(lipgloss.NewStyle().Width(width - 4).Render(e.text))
+		body := unpad(lipgloss.NewStyle().Width(width - 4).Render(text))
 		return t.styles.user.Render("❯ ") + t.styles.userBody.Render(strings.ReplaceAll(body, "\n", "\n  "))
 	case entryThinking:
 		// Faint, never italic: many terminals have no italic face and
 		// draw SGR italic as reverse video.
 		if o.expand(e) && e.done {
-			return t.styles.faint.Render(hang("· thought: " + strings.ReplaceAll(strings.TrimSpace(e.text), "\n", "\n  ")))
+			return t.styles.faint.Render(hang("· thought: " + strings.ReplaceAll(strings.TrimSpace(text), "\n", "\n  ")))
 		}
-		return t.styles.faint.Render(hang(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
+		return t.styles.faint.Render(hang(thinkingView(text, e.done, e.thoughtFor(), e.started)))
 	case entryAssistant:
 		return t.renderMarkdown(e, width, o)
 	case entryTool:
 		return t.renderTool(e, width, o)
 	}
-	return e.text
+	return text
 }
 
 // renderMarkdown renders through glamour block by block, caching every
@@ -291,7 +304,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 // is re-rendered, which keeps the cost proportional to the tail rather than
 // the whole message.
 func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
-	text := e.text
+	text := displayText(e.text)
 	if strings.TrimSpace(text) == "" {
 		if e.done {
 			return ""
@@ -567,6 +580,10 @@ func renderCode(sty *styles, text string, width int) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
+		// A tab measures as nothing but is drawn four columns wide, so a
+		// tab-indented line (any Go file in /diff) was cut too late and
+		// then wrapped.
+		l = strings.ReplaceAll(l, "\t", tabStop)
 		if width > 6 && lipgloss.Width(l) > width-2 {
 			// truncateLine already marks the cut; adding another ellipsis
 			// here ended every long line in "……".
@@ -592,7 +609,6 @@ func renderCode(sty *styles, text string, width int) string {
 	return strings.Join(out, "\n")
 }
 
-// unpad strips the trailing spaces lipgloss pads every wrapped line with.
 // wrapAtDots folds each line of a " · " list at the dots, so a wrapped
 // line never splits "c cancels" across two lines, and indents the lines
 // it continues with hang. A part wider than the width is word-wrapped.
@@ -638,6 +654,7 @@ func hangWrap(s string, width int, hang string) string {
 	return head + "\n" + strings.Join(lines, "\n")
 }
 
+// unpad strips the trailing spaces lipgloss pads every wrapped line with.
 func unpad(s string) string {
 	lines := strings.Split(s, "\n")
 	for i, l := range lines {
@@ -732,6 +749,173 @@ func truncateLine(s string, max int) string {
 	}
 	// Width-aware: colour codes take no columns and a rune is never split.
 	return ansi.Truncate(s, max, "…")
+}
+
+// displayText is text as the transcript may draw it: what a terminal
+// would end up showing for each line, with no control character left to
+// move the cursor. A carriage return is how every progress bar redraws
+// itself (git clone, curl, npm, cargo), and in a tool's output it reached
+// the screen as it was: the cursor went back to the left edge mid-frame
+// and the rest of the line — the indent, the styling, the start of the
+// text — was drawn over. A line's \r-separated parts are laid over each
+// other the way the terminal would have laid them, a backspace steps back
+// one, and the other C0 controls (BEL, vertical tab, form feed…) are
+// dropped. Tabs, newlines and escape sequences are left for the
+// renderers and the frame filter that handle them.
+func displayText(s string) string {
+	clean := true
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; (c < 0x20 && c != '\n' && c != '\t' && c != 0x1b) || c == 0x7f {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+	// The sequences the frame filter would drop go first: a BEL is also
+	// what ends an OSC, and dropping it here would leave the filter an
+	// unterminated sequence whose payload it shows as text.
+	lines := strings.Split(textfmt.StripUnsafeANSI(s), "\n")
+	for i, l := range lines {
+		lines[i] = overstrike(strings.TrimRight(l, "\r"))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// overstrike plays one line's carriage returns and backspaces onto a row
+// of cells. A line that also carries escape sequences cannot be laid cell
+// by cell without parsing them, so it keeps its last non-empty part after
+// a carriage return, which is what a redrawn progress line ends on.
+func overstrike(l string) string {
+	if strings.IndexByte(l, 0x1b) >= 0 {
+		if i := strings.LastIndexByte(l, '\r'); i >= 0 {
+			l = l[i+1:]
+		}
+		return strings.Map(func(r rune) rune {
+			if (r < 0x20 && r != '\t' && r != 0x1b) || r == 0x7f {
+				return -1
+			}
+			return r
+		}, l)
+	}
+	var row []rune
+	col := 0
+	for _, r := range l {
+		switch {
+		case r == '\r':
+			col = 0
+		case r == '\b':
+			if col > 0 {
+				col--
+			}
+		case (r < 0x20 && r != '\t') || r == 0x7f:
+			// dropped
+		default:
+			if col < len(row) {
+				row[col] = r
+			} else {
+				row = append(row, r)
+			}
+			col++
+		}
+	}
+	return string(row)
+}
+
+// tabStop is what a tab is drawn as: lipgloss turns each into four spaces
+// when the viewport renders the frame, so every measurement before that
+// has to see the same four columns rather than the zero a width function
+// gives a control character.
+const tabStop = "    "
+
+// fitWidth makes every line of a rendered entry fit width columns. The
+// renderers wrap the text they are given, but not everything they emit
+// is wrappable text: glamour leaves a word longer than the line (a URL,
+// a long identifier in a code block) whole, and tool output and git's
+// patches carry tabs that measure as nothing. A line wider than the
+// viewport was folded again by the viewport itself, after the transcript
+// had counted its lines, so every such line pushed the bottom of the
+// transcript off the screen — while pinned, the newest output was the
+// part that could not be seen — and put the mouse's row-to-line mapping
+// out by one. Here such a line is broken at the width instead, and a
+// style open at the break is closed there and reopened on the next line,
+// so each line stands on its own as the viewport draws it.
+func fitWidth(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		if strings.IndexByte(l, '\t') >= 0 {
+			l = strings.ReplaceAll(l, "\t", tabStop)
+		}
+		if ansi.StringWidth(l) <= width {
+			out = append(out, l)
+			continue
+		}
+		open := ""
+		for _, part := range breakLine(l, width) {
+			next := open + part
+			open = activeSGR(open, part)
+			if open != "" {
+				next += "\x1b[0m"
+			}
+			out = append(out, next)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// breakLine cuts a line too wide for the window into lines that fit. It
+// cuts at the width rather than at a space: a line only gets here when the
+// renderer that drew it could not find a space to break at (a URL, a path,
+// a run of output with none), and a word wrap of it put the indent on a
+// line of its own and the word, unindented, under it. The continuation
+// keeps the line's indent, so a broken line still reads as part of the
+// block it was in.
+func breakLine(l string, width int) []string {
+	text := ansi.Strip(l)
+	ind := len(text) - len(strings.TrimLeft(text, " "))
+	if ind*2 > width {
+		ind = 0
+	}
+	parts := []string{ansi.Truncate(l, width, "")}
+	rest := ansi.TruncateLeft(l, width, "")
+	for _, p := range strings.Split(ansi.Hardwrap(rest, width-ind, true), "\n") {
+		parts = append(parts, strings.Repeat(" ", ind)+p)
+	}
+	return parts
+}
+
+// activeSGR is the run of SGR sequences still in force after s, given
+// the run that was in force before it: a reset empties it, any other
+// SGR is added to it.
+func activeSGR(prev, s string) string {
+	open := prev
+	for i := 0; i < len(s); {
+		j := strings.Index(s[i:], "\x1b[")
+		if j < 0 {
+			break
+		}
+		start := i + j
+		k := start + 2
+		for k < len(s) && (s[k] < 0x40 || s[k] > 0x7e) {
+			k++
+		}
+		if k >= len(s) {
+			break
+		}
+		if s[k] == 'm' {
+			if params := s[start+2 : k]; params == "" || params == "0" {
+				open = ""
+			} else {
+				open += s[start : k+1]
+			}
+		}
+		i = k + 1
+	}
+	return open
 }
 
 func indent(s, prefix string) string {
