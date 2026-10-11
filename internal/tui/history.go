@@ -86,11 +86,11 @@ func (h *historyState) remember(text string) {
 	}
 	if n := len(h.entries); n == 0 || h.entries[n-1] != e {
 		h.entries = append(h.entries, e)
+		if len(h.entries) > histCap {
+			h.entries = h.entries[len(h.entries)-histCap:]
+		}
 		if h.file != "" {
-			if err := appendPromptHistory(h.file, e, len(h.entries)); err == nil && len(h.entries) > histCap {
-				h.entries = h.entries[len(h.entries)-histCap:]
-				rewritePromptHistory(h.file, h.entries)
-			}
+			_ = savePromptHistory(h.file, e)
 		}
 	}
 	h.idx = len(h.entries)
@@ -189,9 +189,19 @@ func histPath(sessionsDir, cwd string) string {
 	return filepath.Join(filepath.Dir(sessionsDir), "history", hex.EncodeToString(sum[:8])+".jsonl")
 }
 
-// loadHistory reads the prompts recorded for this directory, oldest first.
-// A damaged line is skipped rather than losing the rest of the file.
+// loadPromptHistory reads the prompts recorded for this directory,
+// oldest first, at most histCap of them.
 func loadPromptHistory(path string) []histEntry {
+	out := readPromptHistory(path)
+	if len(out) > histCap {
+		out = out[len(out)-histCap:]
+	}
+	return out
+}
+
+// readPromptHistory reads every prompt in the file, oldest first. A
+// damaged line is skipped rather than losing the rest of the file.
+func readPromptHistory(path string) []histEntry {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -206,23 +216,42 @@ func loadPromptHistory(path string) []histEntry {
 			out = append(out, e)
 		}
 	}
-	if len(out) > histCap {
-		out = out[len(out)-histCap:]
-	}
 	return out
 }
 
-// appendPromptHistory adds one prompt to the file, rewriting it when it
-// has grown past the cap.
-func appendPromptHistory(path string, e histEntry, count int) error {
+// savePromptHistory adds one prompt to the file. Two sessions in the same
+// directory share the file, so the save works from what is on disk, never
+// from this process's copy: each used to rewrite the file from its own
+// entries once the cap was reached, and the second to save erased what
+// the first had just added. Under an advisory lock (a sidecar file, since
+// the rewrite replaces the history file itself) the prompt is appended,
+// skipped when it repeats the newest line, and once the file is past the
+// cap its tail is written to a temporary file and renamed over it, so a
+// reader never sees half a file.
+func savePromptHistory(path string, e histEntry) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	if count > histCap {
-		// Past the cap the file is rewritten with the tail we hold.
+	lf, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return err
+	}
+	defer lf.Close()
+	if err := lockHistory(lf); err != nil {
+		return err
+	}
+	defer unlockHistory(lf)
+
+	e = e.stored()
+	disk := readPromptHistory(path)
+	if n := len(disk); n > 0 && disk[n-1] == e {
 		return nil
 	}
-	line, err := json.Marshal(e.stored())
+	if len(disk)+1 > histCap {
+		disk = append(disk, e)
+		return rewritePromptHistory(path, disk[len(disk)-histCap:])
+	}
+	line, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
@@ -230,13 +259,16 @@ func appendPromptHistory(path string, e histEntry, count int) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	_, err = f.Write(append(line, '\n'))
-	return err
+	if _, err := f.Write(append(line, '\n')); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
-// rewritePromptHistory writes the whole kept history back, for the trim
-// that follows the cap being reached.
+// rewritePromptHistory replaces the file with entries, through a
+// temporary file renamed over it. Callers that share the file hold the
+// history lock.
 func rewritePromptHistory(path string, entries []histEntry) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
@@ -250,5 +282,22 @@ func rewritePromptHistory(path string, entries []histEntry) error {
 		sb.Write(line)
 		sb.WriteByte('\n')
 	}
-	return os.WriteFile(path, []byte(sb.String()), 0o600)
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.WriteString(sb.String()); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
