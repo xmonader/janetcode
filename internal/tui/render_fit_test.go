@@ -40,7 +40,29 @@ func TestNoTranscriptLineOverflowsTheViewport(t *testing.T) {
 	}
 }
 
-// TestTightWindowStartsOnContent: the banner dropped in a tight window
+// TestToolFoldFollowsTheWindowHeight: a tool result is folded to a third
+// of the viewport, but a finished entry was cached with the fold of the
+// window it was first drawn in, so growing the window kept it at four.
+func TestToolFoldFollowsTheWindowHeight(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 16})
+	var out []string
+	for i := 0; i < 60; i++ {
+		out = append(out, "output-line")
+	}
+	call := &agent.ToolCall{ID: "c1", Name: "bash", Input: json.RawMessage(`{"command":"ls"}`)}
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolStart, Call: call})
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: call, Output: strings.Join(out, "\n")})
+	h.m.refresh(false)
+	short := strings.Count(h.m.transcript.findTool("c1").rendered, "output-line")
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 90})
+	tall := strings.Count(h.m.transcript.findTool("c1").rendered, "output-line")
+	if want := outputCap(h.m.viewport.Height); tall != want || tall <= short {
+		t.Fatalf("after growing the window the result shows %d lines (was %d), want %d", tall, short, want)
+	}
+}
+
+// TestTightWindowStartsOnContent:the banner dropped in a tight window
 // left its separator behind as a blank first row.
 func TestTightWindowStartsOnContent(t *testing.T) {
 	h := newHarness(t)

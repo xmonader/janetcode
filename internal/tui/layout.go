@@ -224,7 +224,6 @@ func (m *model) refresh(resized bool) {
 		cwd:       m.opts.Cwd,
 		width:     m.width,
 		gutter:    m.gutter(),
-		resized:   resized,
 		pending:   m.pending,
 		spinner:   m.spinner.View(),
 		verbose:   m.verbose,

@@ -34,7 +34,6 @@ type renderOpts struct {
 	// and then indented, so the body indent and diffs stay relative to the
 	// gutter, not the terminal edge.
 	gutter  int
-	resized bool
 	pending *permissionMsg
 	spinner string // current spinner frame for running tools
 	verbose bool   // expand tool output
@@ -157,6 +156,7 @@ func (t *transcript) render(o renderOpts) string {
 			e.renderedAt = now
 			e.renderedN = len(e.text)
 			e.verbose = o.expand(e)
+			e.foldAt = o.cap
 			if e.kind == entryTool {
 				e.toolStamp = toolStamp(e, o)
 			}
@@ -207,6 +207,12 @@ func fixedText(k entryKind) bool {
 
 func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
 	if e.rendered == "" || e.width != o.width || e.verbose != o.expand(e) {
+		return true
+	}
+	if e.kind == entryTool && e.foldAt != o.cap {
+		// The fold height follows the window's height: a tool result
+		// folded to four lines in a short window stays folded to four
+		// after the window has grown unless it is drawn again.
 		return true
 	}
 	if fixedText(e.kind) {
