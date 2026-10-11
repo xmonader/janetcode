@@ -101,7 +101,36 @@ func TestDiffLinesAreTintedBands(t *testing.T) {
 	}
 }
 
-// TestDiffGutterFitsOldLineNumbers: the gutter was sized from the new
+// TestNarrowDiffShowsTheChangedWord: a one-word change past the right
+// edge of a narrow window was cut off with the rest of the row, so the
+// removed and added lines read the same and the change was not on screen.
+func TestNarrowDiffShowsTheChangedWord(t *testing.T) {
+	d := "@@ -7,1 +7,1 @@\n-\t\tfmt.Println(\"hello world this is a long line of text that goes on and on and HELLO\")\n+\t\tfmt.Println(\"hello world this is a long line of text that goes on and on and GOODBYE\")\n"
+	hunks, ok := parseUnifiedDiff(d)
+	if !ok {
+		t.Fatal("parse")
+	}
+	out := strings.Split(plain(renderDiff(defaultStyles(), hunks, 40, 40, true)), "\n")
+	if len(out) != 2 || !strings.Contains(out[0], "HELLO") || !strings.Contains(out[1], "GOODBYE") {
+		t.Fatalf("the changed words are not on screen:\n%s", strings.Join(out, "\n"))
+	}
+	if strings.Index(out[0], "HELLO") != strings.Index(out[1], "GOODBYE") {
+		t.Fatalf("the pair fell out of line:\n%s", strings.Join(out, "\n"))
+	}
+	for _, l := range out {
+		if lipgloss.Width(l) > 38 {
+			t.Fatalf("row wider than the window: %q", l)
+		}
+	}
+	// A change that fits is drawn from the start of the line, as before.
+	short := "@@ -1,1 +1,1 @@\n-a := 1\n+a := 2\n"
+	hunks, _ = parseUnifiedDiff(short)
+	if got := plain(renderDiff(defaultStyles(), hunks, 40, 40, true)); strings.Contains(got, "…") {
+		t.Fatalf("a short change was shifted: %q", got)
+	}
+}
+
+// TestDiffGutterFitsOldLineNumbers:the gutter was sized from the new
 // file's line numbers only, but a removed line is numbered in the old
 // one. After a hunk that deleted most of a file, the next hunk's old
 // numbers had more digits than the gutter and pushed their rows out of
