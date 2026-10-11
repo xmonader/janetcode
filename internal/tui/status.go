@@ -582,7 +582,13 @@ func (m *model) footerView() string {
 			for i := end - start; i < rows; i++ {
 				parts = append(parts, "")
 			}
-			parts = append(parts, m.styles.faint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
+			// An argument menu only offers: enter sends what is typed
+			// (see keyEnter), so it must not say enter takes the row.
+			accept := "tab or enter accepts"
+			if m.comp.args {
+				accept = "tab accepts · enter sends what is typed"
+			}
+			parts = append(parts, m.styles.faint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · %s", idx+1, len(c), accept)))
 		}
 	}
 	box := m.inputBox()
