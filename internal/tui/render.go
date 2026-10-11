@@ -43,8 +43,8 @@ type renderOpts struct {
 	// short window and a waste of a tall one.
 	cap int
 	// tight drops what is optional in a very short window (the welcome
-	// banner); compact narrows what is left.
-	tight, compact bool
+	// banner).
+	tight bool
 	// preview computes what a call would do, for a call whose arguments
 	// have finished streaming but which has not run yet.
 	preview func(name string, input []byte) string

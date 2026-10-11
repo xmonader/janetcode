@@ -231,7 +231,6 @@ func (m *model) refresh(resized bool) {
 		preview:   m.previewCall,
 		renderer:  m.toolRenderer,
 		tight:     m.tight(),
-		compact:   m.compactMode(),
 		noMermaid: m.opts.Agent != nil && m.opts.Agent.Off["mermaid"],
 	})
 	if content != m.lastContent || resized {
