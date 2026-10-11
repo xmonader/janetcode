@@ -164,6 +164,14 @@ func (m *model) handleDenyKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.cancelTurn()
 		m.nextPermission()
 	default:
+		if msg.Paste {
+			// Cleaned as the prompt cleans one: as the terminal sends it,
+			// a CRLF paste doubled every line break and kept its colours.
+			m.input.InsertString(cleanPaste(string(msg.Runes)))
+			m.layout()
+			m.refresh(false)
+			return nil, true
+		}
 		return nil, false // let the textarea take it
 	}
 	return nil, true
