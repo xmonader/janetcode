@@ -123,6 +123,17 @@ func decisionSwitches() []featureSwitch {
 			on:    func(cfg *config.Config) bool { return cfg.Decisions.ConsumerOn(name) },
 			value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 			caveat: func(cfg *config.Config) string {
+				if d := cfg.Decisions; d != nil && !d.On() {
+					// ConsumerOn reads off for every consumer while jev
+					// is off, so "/features triage on" answered "triage
+					// off" with no reason. Read the switch as stored.
+					stored := *d
+					stored.Enabled = nil
+					if stored.ConsumerOn(name) {
+						return "set, but jev is off (/jev on)"
+					}
+					return ""
+				}
 				if !cfg.Decisions.ConsumerOn(name) {
 					return ""
 				}
@@ -141,8 +152,8 @@ func decisionSwitches() []featureSwitch {
 	return out
 }
 
-// allFeatureSwitches is every switch /features knows, the three that use
-// the slots and the decision consumers /jev also toggles.
+// allFeatureSwitches is every switch /features knows: its own and the
+// decision consumers /jev also toggles.
 func allFeatureSwitches() []featureSwitch {
 	return append(append([]featureSwitch{}, featureSwitches...), decisionSwitches()...)
 }
