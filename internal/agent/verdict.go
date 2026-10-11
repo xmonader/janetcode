@@ -238,7 +238,7 @@ var inlineAssertRe = regexp.MustCompile(`(?i)\bassert\w*\b`)
 // ranEdited reports whether a command executes a file edited in this
 // turn — running the script you just wrote. It is evidence the code at
 // least executes, which is not nothing and is not a test either.
-func ranEdited(cmd string, edited map[string]bool) bool {
+func ranEdited(cmd string, edited map[string]bool, root string) bool {
 	if cmd == "" {
 		return false
 	}
@@ -252,6 +252,52 @@ func ranEdited(cmd string, edited map[string]bool) bool {
 		}
 		if strings.Contains(cmd, base) {
 			return true
+		}
+		if runsPackageOf(cmd, path, root) {
+			return true
+		}
+	}
+	return false
+}
+
+// runsPackageOf reports whether cmd runs the package an edited file is in
+// without naming the file: `go run .` or `go run ./cmd/x` for a Go file in
+// that directory (`./...` for any), `cargo run` for any Rust file. The
+// model's usual way of running what it changed counted as nothing, and the
+// turn read "nothing was run against it" over output that showed it ran.
+func runsPackageOf(cmd, path, root string) bool {
+	if root != "" && filepath.IsAbs(path) {
+		if rel, err := filepath.Rel(root, path); err == nil && !strings.HasPrefix(rel, "..") {
+			path = rel
+		}
+	}
+	dir := filepath.ToSlash(filepath.Dir(filepath.Clean(path)))
+	for _, elem := range strings.FieldsFunc(cmd, func(r rune) bool { return r == ';' || r == '&' || r == '|' || r == '\n' }) {
+		w := shell.Words(elem)
+		switch {
+		case len(w) >= 2 && w[0] == "cargo" && w[1] == "run":
+			if strings.HasSuffix(path, ".rs") {
+				return true
+			}
+		case len(w) >= 2 && w[0] == "go" && w[1] == "run" && strings.HasSuffix(path, ".go"):
+			for _, a := range w[2:] {
+				if strings.HasPrefix(a, "-") {
+					continue
+				}
+				if strings.HasSuffix(a, ".go") {
+					break // files named: the basename check covers them
+				}
+				target := filepath.ToSlash(filepath.Clean(a))
+				if rest, ok := strings.CutSuffix(target, "..."); ok {
+					rest = strings.TrimSuffix(rest, "/")
+					if rest == "" || rest == "." || dir == rest || strings.HasPrefix(dir, rest+"/") {
+						return true
+					}
+				} else if dir == target {
+					return true
+				}
+				break // the first package argument is the program
+			}
 		}
 	}
 	return false
@@ -596,7 +642,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	// A command that runs a file edited in this turn shows the code at
 	// least executes. It is weaker than a test and stronger than nothing.
 	for _, c := range turnCmds {
-		if !c.isErr && ranEdited(c.cmd, edited) {
+		if !c.isErr && ranEdited(c.cmd, edited, root) {
 			ranTheCode = true
 		}
 	}
