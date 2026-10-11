@@ -10,8 +10,10 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/project"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -95,6 +97,7 @@ func (m *model) refreshHintState() {
 	s := &m.hint.state
 	s.Blocked = m.mode().blocked()
 	s.Promotable = m.opts.Running != nil
+	s.BackgroundKey = m.keys.First(keymap.Background)
 	if m.opts.Verify != nil {
 		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0
 	}
@@ -253,7 +256,7 @@ func (m *model) observeEvent(ev agent.Event) {
 	}
 	m.noteHint(func(s *hints.State) {
 		s.SlowCommandSeconds = secs
-		s.SlowCommand = ev.Call.Name
+		s.SlowCommand = shell.CommandOf(string(ev.Call.Input))
 	})
 }
 

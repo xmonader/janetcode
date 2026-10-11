@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // State is everything the rules may look at. The caller updates it as
@@ -50,6 +52,10 @@ type State struct {
 	// ctrl+g could move. Hinting at a key that would do nothing is worse
 	// than saying nothing.
 	Promotable bool
+	// BackgroundKey is the key bound to moving the foreground command to
+	// the background (ctrl+g unless the user rebound it), "" when none
+	// is: the hint names the key that works, or says nothing.
+	BackgroundKey string
 
 	// DeniedShape is a permission rule shape the user has refused three
 	// times, and how often.
@@ -326,13 +332,17 @@ func Rules() []Rule {
 		},
 		{
 			ID: "background-slow", Feature: "ctrl+g",
-			When: func(s *State) bool { return s.Promotable && s.SlowCommandSeconds >= 20 },
+			When: func(s *State) bool { return s.Promotable && s.SlowCommandSeconds >= 20 && s.BackgroundKey != "" },
 			Text: func(s *State) string {
 				// Said after the command finished, so it has to read as
 				// advice for next time: "ctrl+g moves the running
 				// command" invites somebody to press it now, at an idle
 				// prompt, where it does nothing.
-				return fmt.Sprintf("that command held the turn for %ds — while the next one is still running, ctrl+g hands it to the background, where it finishes as a job (/jobs shows it) and the turn carries on without waiting", s.SlowCommandSeconds)
+				what := "that command"
+				if c := textfmt.Squash(s.SlowCommand); c != "" {
+					what = "`" + textfmt.Clip(c, 40) + "`"
+				}
+				return fmt.Sprintf("%s held the turn for %ds — while the next one is still running, %s hands it to the background, where it finishes as a job (/jobs shows it) and the turn carries on without waiting", what, s.SlowCommandSeconds, s.BackgroundKey)
 			},
 		},
 		{

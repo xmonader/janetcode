@@ -70,7 +70,7 @@ func TestOnlyOneHintPerEvaluation(t *testing.T) {
 	// still get one line, not nine.
 	s := &State{
 		MutatingTurns: 9, DeniedShape: "bash(rm *)", DeniedCount: 4,
-		Promotable: true, SlowCommandSeconds: 90, ContextPct: 92,
+		Promotable: true, BackgroundKey: "ctrl+g", SlowCommandSeconds: 90, ContextPct: 92,
 		PasteLines: 200, CostUSD: 4, Untrusted: []string{".mcp.json"},
 		UnpricedModel: "who/knows", ResumedAfterCompaction: true,
 	}
@@ -438,5 +438,20 @@ func TestASubcommandHintIsNotSuppressedByTheBareCommand(t *testing.T) {
 	got := e.Eval(&State{VerifyConfigured: true, UndoneMixed: 3, Used: func(f string) bool { return f == "/undo" }})
 	if !strings.Contains(got, "/undo about") {
 		t.Fatalf("hint = %q", got)
+	}
+}
+
+// The slow-command hint names the command and the key the user actually
+// has: a rebound key is the one that works, and an unbound one leaves
+// nothing to advise.
+func TestSlowCommandHintNamesTheBoundKeyAndTheCommand(t *testing.T) {
+	s := &State{VerifyConfigured: true, Promotable: true, SlowCommandSeconds: 45, SlowCommand: "go test ./...", BackgroundKey: "ctrl+b"}
+	got := New(nil, nil).Eval(s)
+	if !strings.Contains(got, "ctrl+b hands it") || strings.Contains(got, "ctrl+g") || !strings.Contains(got, "`go test ./...`") {
+		t.Fatalf("hint = %q", got)
+	}
+	s.BackgroundKey = ""
+	if got := New(nil, nil).Eval(s); strings.Contains(got, "background") {
+		t.Fatalf("hinted at an unbound action: %q", got)
 	}
 }
