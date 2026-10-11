@@ -205,7 +205,9 @@ func (m *model) startTurn(phase string) {
 	m.turn.start()
 	m.term.turnStarted()
 	m.status = ""
-	m.lastVerdict = ""
+	// A turn that ends without EvTurnDone (an error, a cancel) must not
+	// report the previous turn's cost and tokens as its own.
+	m.lastVerdict, m.lastTurn, m.lastTurnTokens = "", "", ""
 	m.turn.setPhase(phase)
 	if phase == "thinking" {
 		m.transcript.apply(agent.Event{Kind: agent.EvThinking})
