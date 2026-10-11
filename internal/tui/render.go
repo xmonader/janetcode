@@ -136,6 +136,12 @@ func (t *transcript) render(o renderOpts) string {
 	// separator before the next entry as a blank top row, in the one
 	// window too short to spare it.
 	first := true
+	// The pass keeps each tool's latest result as it goes, so a tool
+	// entry's previous result is a lookup rather than a scan back through
+	// the transcript: a full re-render (a resize, a theme) was quadratic
+	// in the number of tool calls.
+	t.prevByTool = make(map[string]string)
+	defer func() { t.prevByTool = nil }()
 	for _, e := range t.entries {
 		if e.kind == entryBanner && o.tight {
 			// Nothing optional survives in a window this short.
@@ -185,6 +191,9 @@ func (t *transcript) render(o renderOpts) string {
 		sb.WriteString(out)
 		sb.WriteByte('\n')
 		line++
+		if e.kind == entryTool && e.done && !e.isError {
+			t.prevByTool[e.call.Name] = strings.TrimRight(e.output, "\n")
+		}
 	}
 	t.lastRender = sb.Len()
 	return sb.String()

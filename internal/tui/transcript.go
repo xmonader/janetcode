@@ -134,8 +134,14 @@ type transcript struct {
 	// enough that glamour never word-wraps the code (see renderCodeBlock).
 	codeRenderer *glamour.TermRenderer
 	codeWrap     int
-	styleName    string // glamour standard style: "dark" or "light"
-	styles       *styles
+	// prevByTool is each tool's latest successful result among the
+	// entries a render pass has drawn so far, nil outside a pass.
+	prevByTool map[string]string
+	// prevScanned counts the entries previousResult stepped over when it
+	// had to scan, so a test can see a render pass never does.
+	prevScanned int
+	styleName   string // glamour standard style: "dark" or "light"
+	styles      *styles
 	// cwd shortens the absolute paths the agent writes into notices and
 	// verdicts, the way tool lines already shorten theirs.
 	cwd string
@@ -520,12 +526,20 @@ func (t *transcript) entryAtLine(line int) *entry {
 }
 
 // previousResult is the last result of the same tool before e, or "".
+// Inside a render pass it is the pass's running record (see render);
+// outside one — a single entry drawn on its own — the transcript is
+// scanned.
 func (t *transcript) previousResult(e *entry) string {
+	if t.prevByTool != nil {
+		return t.prevByTool[e.call.Name]
+	}
 	for i := len(t.entries) - 1; i >= 0; i-- {
+		t.prevScanned++
 		if t.entries[i] != e {
 			continue
 		}
 		for j := i - 1; j >= 0; j-- {
+			t.prevScanned++
 			p := t.entries[j]
 			if p.kind == entryTool && p.call.Name == e.call.Name && p.done && !p.isError {
 				return strings.TrimRight(p.output, "\n")
