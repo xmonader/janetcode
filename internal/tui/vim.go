@@ -21,6 +21,14 @@ type vimState struct {
 	reg     string // the last deleted text, for p
 	regLine bool   // reg was a whole line (dd), so p puts it below
 	undo    []vimSnap
+	// insertFrom is the composer as the current insert began, and
+	// insertSaved says the command that began it (cw, cc, o, …) already
+	// put its own undo step on the stack, so what is typed is part of that
+	// change. A plain i, a, I or A saved nothing: leaving insert mode saves
+	// insertFrom, so u takes back what was typed rather than skipping over
+	// it to the edit before.
+	insertFrom  vimSnap
+	insertSaved bool
 }
 
 type vimSnap struct {
@@ -34,7 +42,7 @@ const vimUndoCap = 100
 // setVim turns vim mode on or off; on starts in insert mode so typing
 // carries on as before.
 func (m *model) setVim(on bool) {
-	m.vim = vimState{on: on}
+	m.vim = vimState{on: on, insertFrom: vimSnap{text: m.input.Value()}}
 }
 
 // vimKey handles a key in vim mode. In insert mode only esc is its: it
@@ -51,6 +59,9 @@ func (m *model) vimKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		if name == "esc" && !m.turn.running {
 			m.vim.normal = true
 			m.vim.pending = ""
+			if !m.vim.insertSaved && m.input.Value() != m.vim.insertFrom.text {
+				m.vimSave(m.vim.insertFrom)
+			}
 			text, pos := m.vimText()
 			if pos > 0 && text[pos-1] != '\n' {
 				m.vimMoveTo(pos - 1)
@@ -74,13 +85,15 @@ func (m *model) vimKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, false // cancels the turn, as it always has
 		}
 		return nil, true // esc in normal mode is a no-op, not "clear the input"
-	case name == "backspace":
+	case name == "backspace", name == "ctrl+h":
+		// ^H too: left to the textarea it deleted text in normal mode.
 		m.vimCommand('h')
 		return nil, true
 	case msg.Type == tea.KeyRunes && !msg.Alt:
 		for _, r := range msg.Runes {
 			m.vimCommand(r)
 		}
+		m.vimClamp()
 		m.layout()
 		m.refresh(false)
 		return nil, true
@@ -123,15 +136,12 @@ func (m *model) vimMoveTo(pos int) {
 		m.input.CursorUp()
 	}
 	for m.input.Line() < row {
-		before := m.input.Line()
+		// A soft-wrapped line takes one step per screen row; a step that
+		// does not move at all is the last row of the text.
+		line, off := m.input.Line(), m.input.LineInfo().RowOffset
 		m.input.CursorDown()
-		if m.input.Line() == before {
-			// A soft-wrapped row takes several steps; one that does not
-			// move at all is the last row.
-			li := m.input.LineInfo()
-			if li.RowOffset+1 >= li.Height {
-				break
-			}
+		if m.input.Line() == line && m.input.LineInfo().RowOffset == off {
+			break
 		}
 	}
 	m.input.SetCursor(col)
@@ -140,18 +150,39 @@ func (m *model) vimMoveTo(pos int) {
 // vimSet replaces the text and puts the cursor at pos, saving what was
 // there for u.
 func (m *model) vimSet(old []rune, oldPos int, text []rune, pos int) {
-	m.vim.undo = append(m.vim.undo, vimSnap{string(old), oldPos})
-	if len(m.vim.undo) > vimUndoCap {
-		m.vim.undo = m.vim.undo[1:]
-	}
+	m.vimSave(vimSnap{string(old), oldPos})
 	m.input.SetValue(string(text))
 	m.vimMoveTo(pos)
 }
 
-// vimInsert leaves normal mode at pos.
-func (m *model) vimInsert(pos int) {
+// vimSave puts one state on the undo stack.
+func (m *model) vimSave(s vimSnap) {
+	m.vim.undo = append(m.vim.undo, s)
+	if len(m.vim.undo) > vimUndoCap {
+		m.vim.undo = m.vim.undo[1:]
+	}
+}
+
+// vimInsert leaves normal mode at pos. saved says the command already
+// put its undo step on the stack (see insertFrom).
+func (m *model) vimInsert(pos int, saved bool) {
+	text, cur := m.vimText()
 	m.vim.normal = false
+	m.vim.insertFrom, m.vim.insertSaved = vimSnap{string(text), cur}, saved
 	m.vimMoveTo(pos)
+}
+
+// vimClamp keeps the normal-mode cursor on a character: a motion that
+// ran off the end of a line (w on its last word, dw of the last word)
+// left it past the end, where x and D found nothing to act on.
+func (m *model) vimClamp() {
+	if !m.vim.normal {
+		return
+	}
+	text, pos := m.vimText()
+	if ls, le := lineBounds(text, pos); le > ls && pos > le-1 {
+		m.vimMoveTo(le - 1)
+	}
 }
 
 // runeClass is vim's idea of a word: a run of letters, digits and _, or
@@ -278,7 +309,7 @@ func (m *model) vimCommand(r rune) {
 		s, e := innerWord(text, pos)
 		m.vimSet(text, pos, m.cut(text, s, e, false), s)
 		if op == "ci" {
-			m.vimInsert(s)
+			m.vimInsert(s, true)
 		}
 		return
 	case "d", "c":
@@ -291,7 +322,7 @@ func (m *model) vimCommand(r rune) {
 			}
 			if op == "c" { // cc: empty the line, keep it
 				m.vimSet(text, pos, m.cut(text, ls, le, false), ls)
-				m.vimInsert(ls)
+				m.vimInsert(ls, true)
 				return
 			}
 			// dd: the whole line and its newline.
@@ -322,12 +353,12 @@ func (m *model) vimCommand(r rune) {
 			e = min(e, max(le, pos))
 			m.vimSet(text, pos, m.cut(text, pos, e, false), pos)
 			if op == "c" {
-				m.vimInsert(pos)
+				m.vimInsert(pos, true)
 			}
 		case '$':
 			m.vimSet(text, pos, m.cut(text, pos, le, false), pos)
 			if op == "c" {
-				m.vimInsert(pos)
+				m.vimInsert(pos, true)
 			}
 		}
 		return
@@ -389,26 +420,26 @@ func (m *model) vimCommand(r rune) {
 	case 'D', 'C':
 		m.vimSet(text, pos, m.cut(text, pos, le, false), max(ls, pos-1))
 		if r == 'C' {
-			m.vimInsert(pos)
+			m.vimInsert(pos, true)
 		}
 	case 'i':
-		m.vimInsert(pos)
+		m.vimInsert(pos, false)
 	case 'a':
-		m.vimInsert(min(pos+1, le))
+		m.vimInsert(min(pos+1, le), false)
 	case 'I':
 		i := ls
 		for i < le && unicode.IsSpace(text[i]) {
 			i++
 		}
-		m.vimInsert(i)
+		m.vimInsert(i, false)
 	case 'A':
-		m.vimInsert(le)
+		m.vimInsert(le, false)
 	case 'o':
 		m.vimSet(text, pos, splice(text, le, "\n"), le+1)
-		m.vimInsert(le + 1)
+		m.vimInsert(le+1, true)
 	case 'O':
 		m.vimSet(text, pos, splice(text, ls, "\n"), ls)
-		m.vimInsert(ls)
+		m.vimInsert(ls, true)
 	case 'p':
 		if m.vim.reg == "" {
 			return

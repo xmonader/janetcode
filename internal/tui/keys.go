@@ -86,9 +86,24 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// to do what it does at the prompt.
 	}
 	if msg.Paste {
-		if text := cleanPaste(string(msg.Runes)); bigPaste(text) {
+		// A paste is text, never the second key of a chord.
+		if m.chord != "" {
+			m.chord, m.status = "", ""
+		}
+		// Every paste is cleaned, not only the big ones: the textarea
+		// turns \r and \n each into a line break, so text copied with
+		// CRLF line endings arrived double-spaced.
+		text := cleanPaste(string(msg.Runes))
+		if bigPaste(text) {
 			return m.chipPaste(text)
 		}
+		// Through the textarea's own update, which scrolls it to the
+		// cursor; InsertString alone left a long paste showing its head.
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(text), Paste: true})
+		m.layout()
+		m.refresh(false)
+		return cmd, true
 	}
 	name := keyName(msg)
 	if m.chord != "" {
@@ -262,6 +277,9 @@ var actionKeys = map[keymap.Action]keyAction{
 // backspace takes a paste chip whole, and is backspace everywhere.
 var fixedKeys = map[string]keyAction{
 	"backspace": (*model).keyBackspace,
+	// ^H: what ctrl+backspace sends in most terminals, and backspace
+	// itself in some. The textarea deletes a character for it either way.
+	"ctrl+h": (*model).keyBackspace,
 }
 
 // keyNewline inserts a line break. The textarea has its own binding for
@@ -284,6 +302,9 @@ func (m *model) keyInterrupt(tea.KeyMsg) (tea.Cmd, bool) {
 	}
 	if !m.turn.running && m.input.Value() != "" {
 		m.input.Reset()
+		// Cleared, not put back: a later ↑ starts again from the newest
+		// prompt and esc has no draft to restore.
+		m.hist.leave()
 		m.status = "input cleared · ctrl+c again to quit"
 		m.quitArmedAt = time.Now()
 		m.layout()
@@ -459,7 +480,7 @@ func (m *model) keyComplete(tea.KeyMsg) (tea.Cmd, bool) {
 // keyUp moves the completion highlight, takes back the last queued
 // message, or steps up through the history, in that order.
 func (m *model) keyUp(tea.KeyMsg) (tea.Cmd, bool) {
-	if m.moveMenu(-1) {
+	if !m.recalling() && m.moveMenu(-1) {
 		return nil, true
 	}
 	if m.turn.running && len(m.turn.queued) > 0 && m.input.Value() == "" {
@@ -473,7 +494,9 @@ func (m *model) keyUp(tea.KeyMsg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 	}
-	if m.input.Line() == 0 {
+	// Only from the top row: on a long line that wraps, ↑ first climbs
+	// its screen rows, as it does between the lines of a multi-line one.
+	if m.input.Line() == 0 && m.input.LineInfo().RowOffset == 0 {
 		if text, ok := m.hist.back(m.input.Value()); ok {
 			m.setInput(text)
 			return nil, true
@@ -483,16 +506,25 @@ func (m *model) keyUp(tea.KeyMsg) (tea.Cmd, bool) {
 }
 
 func (m *model) keyDown(tea.KeyMsg) (tea.Cmd, bool) {
-	if m.moveMenu(1) {
+	if !m.recalling() && m.moveMenu(1) {
 		return nil, true
 	}
-	if m.input.Line() == m.input.LineCount()-1 {
+	if li := m.input.LineInfo(); m.input.Line() == m.input.LineCount()-1 && li.RowOffset+1 >= li.Height {
 		if text, ok := m.hist.forward(); ok {
 			m.setInput(text)
 			return nil, true
 		}
 	}
 	return nil, false
+}
+
+// recalling reports whether the input is a history entry as ↑ or ↓
+// recalled it. ↑ and ↓ then keep walking the history: a recalled
+// "/help" opens the command menu, and the arrows used to move its
+// highlight instead, so the history could not be walked past a command.
+func (m *model) recalling() bool {
+	h := &m.hist
+	return h.idx < len(h.entries) && m.input.Value() == h.recall(h.idx)
 }
 
 // keyPageUp and keyPageDown page the transcript. With text in the input
@@ -525,7 +557,7 @@ func (m *model) pageKeyPages(msg tea.KeyMsg) bool {
 // keyEnter takes the completion if one is highlighted, then sends what
 // is in the box: a command, a shell line, a queued prompt, or a turn.
 func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
-	if c, idx := m.menu(); len(c) > 0 && !m.comp.args && strings.TrimSpace(m.input.Value()) != c[idx].name {
+	if c, idx := m.menu(); len(c) > 0 && !m.comp.args && !completed(m.input.Value(), c[idx].name) {
 		m.complete()
 		m.layout()
 		m.refresh(false)
@@ -569,6 +601,18 @@ func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
 		return m.shell(strings.TrimSpace(text[1:])), true
 	}
 	return m.submit(text), true
+}
+
+// completed reports whether the input already says what the highlighted
+// completion would make it: the whole command, or an @path typed out in
+// full. Enter then sends rather than adding the space a tab would, which
+// made "explain @README.md" take two presses to send.
+func completed(v, name string) bool {
+	if strings.TrimSpace(v) == name {
+		return true
+	}
+	word, ok := mentionAtEnd(v)
+	return ok && "@"+word == name
 }
 
 // setInput replaces what is being typed with a recalled line, leaving

@@ -194,8 +194,10 @@ func (m *model) editorDone(msg editorDoneMsg) {
 		m.refresh(false)
 		return
 	}
-	// Editors end a file with a newline the prompt never had.
-	text := strings.TrimRight(string(data), "\r\n")
+	// Editors end a file with a newline the prompt never had. One that
+	// saves CRLF would come back double-spaced: the textarea makes \r and
+	// \n each a line break.
+	text := strings.ReplaceAll(strings.TrimRight(string(data), "\r\n"), "\r\n", "\n")
 	m.setInput(text)
 	m.status = "edited in " + editorCommand(os.Getenv)[0] + " · enter sends it"
 	m.refresh(false)

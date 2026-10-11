@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestDefaultsResolve(t *testing.T) {
@@ -73,5 +75,25 @@ func TestResolveRefuses(t *testing.T) {
 	// action moves too.
 	if _, err := Resolve(parse(t, `{"effort": "ctrl+t", "agents": "alt+a"}`)); err != nil {
 		t.Fatalf("a swap was refused: %v", err)
+	}
+}
+
+// TestAltKeepsTheCaseOfItsCharacter: bubbletea names alt+shift+e
+// "alt+E". Lower-casing every key bound alt+e instead, which collided
+// with effort's default and named a key the user had not written.
+func TestAltKeepsTheCaseOfItsCharacter(t *testing.T) {
+	m, err := Resolve(parse(t, `{"agents": "Alt+E", "history_search": "CTRL+R"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	upper := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'E'}, Alt: true}
+	if a, _ := m.Lookup(upper.String()); a != Agents {
+		t.Fatalf("%s = %q, want agents", upper.String(), a)
+	}
+	if a, _ := m.Lookup("alt+e"); a != Effort {
+		t.Fatalf("alt+e = %q, want effort still", a)
+	}
+	if a, _ := m.Lookup("ctrl+r"); a != HistorySearch {
+		t.Fatalf("ctrl+r = %q", a)
 	}
 }

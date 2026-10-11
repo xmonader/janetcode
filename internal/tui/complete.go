@@ -97,12 +97,10 @@ func (m *model) completeSession(partial string) []command {
 		return nil
 	}
 	var out []command
-	n := 0
 	for _, in := range infos {
 		if in.Meta.ID == m.opts.Session.Meta.ID || in.Messages == 0 {
 			continue
 		}
-		n++
 		name := "/resume " + in.Meta.ID
 		if partial != "" && !strings.Contains(strings.ToLower(in.Meta.ID+" "+in.Label()), strings.ToLower(partial)) {
 			continue

@@ -183,10 +183,14 @@ func (m *model) complete() bool {
 	}
 	name := c[idx].name
 	if idx == 0 && len(c) > 1 {
+		// Only the rows that carry on from what is typed: the fuzzy rows
+		// after them do not, and counting them shortened "/co" to "/".
 		for _, o := range c[1:] {
-			name = commonPrefix(name, o.name)
+			if strings.HasPrefix(o.name, word) {
+				name = commonPrefix(name, o.name)
+			}
 		}
-		if name == word { // nothing to extend: take the highlighted one
+		if name == word || !strings.HasPrefix(name, word) { // nothing to extend: take the highlighted one
 			name = c[idx].name
 		}
 	}

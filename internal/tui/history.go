@@ -137,6 +137,14 @@ func (h *historyState) cancel() (string, bool) {
 	return h.draft, true
 }
 
+// leave stops browsing without handing anything back: the input was
+// cleared, so there is no draft to restore and the next step up starts
+// from the newest prompt again.
+func (h *historyState) leave() {
+	h.idx = len(h.entries)
+	h.draft = ""
+}
+
 // histPath is the history file for one working directory, keyed by a hash
 // of the path so two projects with the same base name never share one.
 func histPath(sessionsDir, cwd string) string {
