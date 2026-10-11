@@ -518,7 +518,7 @@ func (m *model) keyDown(tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if li := m.input.LineInfo(); m.input.Line() == m.input.LineCount()-1 && li.RowOffset+1 >= li.Height {
-		if text, ok := m.hist.forward(); ok {
+		if text, ok := m.hist.forward(m.input.Value()); ok {
 			m.setInput(text)
 			return nil, true
 		}
@@ -532,7 +532,7 @@ func (m *model) keyDown(tea.KeyMsg) (tea.Cmd, bool) {
 // highlight instead, so the history could not be walked past a command.
 func (m *model) recalling() bool {
 	h := &m.hist
-	return h.idx < len(h.entries) && m.input.Value() == h.recall(h.idx)
+	return h.idx < len(h.entries) && m.input.Value() == h.shown(h.idx)
 }
 
 // keyPageUp and keyPageDown page the transcript. With text in the input

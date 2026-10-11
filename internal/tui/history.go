@@ -50,6 +50,11 @@ type historyState struct {
 	file    string
 	idx     int    // == len(entries) when not browsing
 	draft   string // input saved while browsing
+	// edits holds what the input said at an entry when the browse
+	// stepped off it, if that differs from the entry: as in a shell, an
+	// edited recall comes back edited on the way back to it, until the
+	// browse ends. The entries themselves never change.
+	edits map[int]string
 	// lastUser is the prompt of the running or last turn.
 	lastUser string
 	// expand puts paste chips back into a prompt (model.inflatePastes).
@@ -90,6 +95,7 @@ func (h *historyState) remember(text string) {
 	}
 	h.idx = len(h.entries)
 	h.draft = ""
+	h.edits = nil
 }
 
 // recall renders one history entry back into the input's own language.
@@ -101,30 +107,59 @@ func (h *historyState) recall(i int) string {
 	return e.Text
 }
 
-// back steps to the previous prompt, saving the draft on the way in. It
-// reports whether there was one to step to.
-func (h *historyState) back(draft string) (string, bool) {
+// shown is what the input holds at entry i: the edit made to it during
+// this browse, or the entry as recalled.
+func (h *historyState) shown(i int) string {
+	if e, ok := h.edits[i]; ok {
+		return e
+	}
+	return h.recall(i)
+}
+
+// keep records what the input says as the browse steps off the entry it
+// is on, so an edit to a recalled prompt is not lost to ↑ or ↓.
+func (h *historyState) keep(cur string) {
+	if h.idx >= len(h.entries) {
+		return
+	}
+	if cur == h.recall(h.idx) {
+		delete(h.edits, h.idx)
+		return
+	}
+	if h.edits == nil {
+		h.edits = map[int]string{}
+	}
+	h.edits[h.idx] = cur
+}
+
+// back steps to the previous prompt, saving the draft on the way in (or
+// the edit to the entry it leaves). It reports whether there was one to
+// step to.
+func (h *historyState) back(cur string) (string, bool) {
 	if len(h.entries) == 0 || h.idx == 0 {
 		return "", false
 	}
 	if h.idx == len(h.entries) {
-		h.draft = draft
+		h.draft = cur
+	} else {
+		h.keep(cur)
 	}
 	h.idx--
-	return h.recall(h.idx), true
+	return h.shown(h.idx), true
 }
 
 // forward steps back towards the draft, which is what the last step
-// hands back.
-func (h *historyState) forward() (string, bool) {
+// hands back, keeping the edit to the entry it leaves.
+func (h *historyState) forward(cur string) (string, bool) {
 	if h.idx >= len(h.entries) {
 		return "", false
 	}
+	h.keep(cur)
 	h.idx++
 	if h.idx == len(h.entries) {
 		return h.draft, true
 	}
-	return h.recall(h.idx), true
+	return h.shown(h.idx), true
 }
 
 // cancel leaves the history, handing back what was being typed before
@@ -134,6 +169,7 @@ func (h *historyState) cancel() (string, bool) {
 		return "", false
 	}
 	h.idx = len(h.entries)
+	h.edits = nil
 	return h.draft, true
 }
 
@@ -143,6 +179,7 @@ func (h *historyState) cancel() (string, bool) {
 func (h *historyState) leave() {
 	h.idx = len(h.entries)
 	h.draft = ""
+	h.edits = nil
 }
 
 // histPath is the history file for one working directory, keyed by a hash
