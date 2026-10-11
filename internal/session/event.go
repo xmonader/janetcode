@@ -85,9 +85,6 @@ const (
 	// (internal/agent/conflict.go): Extra carries a proof.Conflict with
 	// whether the harness confirmed the cited test exists and fails.
 	TypeConflict = "turn/conflict"
-	// TypeBlindTest records the blind tester's run on a turn
-	// (internal/agent/blindtest.go): Extra carries a proof.BlindTest.
-	TypeBlindTest = "verify/blindtest"
 	// TypeFollowup records the next prompt the follow-up suggestion
 	// predicted (Output), for comparison with the one the user sent.
 	TypeFollowup = "followup/suggest"

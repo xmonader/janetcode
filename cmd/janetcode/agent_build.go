@@ -529,7 +529,6 @@ func (b *agentBuilder) stepCore() error {
 		ag.SpecReview = true
 		ag.TestGuard = true
 		ag.TestLedger = true
-		ag.BlindTest = blindTester(d.cfg)
 	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	if d.cfg.ConflictExit {

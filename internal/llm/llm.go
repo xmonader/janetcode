@@ -153,12 +153,6 @@ type Request struct {
 	// was configured with one, that). A provider whose request shape has
 	// no such field ignores it, so setting it is always safe.
 	Effort string
-	// ReasoningEffort is sent verbatim as reasoning_effort by the
-	// OpenAI-compatible provider, which otherwise sends no tier (see its
-	// wire.go). Empty omits it. Only a caller that has been told the server
-	// takes the field sets it; a server that rejects it is learned once and
-	// the field dropped.
-	ReasoningEffort string
 	// Schema, when set, constrains the reply to JSON matching it. A
 	// provider that cannot do this ignores it and the caller parses as
 	// before, so setting it is always safe; ask for it where a malformed

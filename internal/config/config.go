@@ -237,13 +237,6 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
-	// BlindTester names the model slot a headless run's blind tester
-	// BlindTesterEffort is sent as reasoning_effort on the blind tester's
-	// call (low, medium, high); empty sends none. Reasoning models on
-	// OpenAI-compatible servers need it to write checks at all.
-	BlindTesterEffort string `json:"blind_tester_effort,omitempty"`
-	// uses (see blindtester.go); empty or "off" is off.
-	BlindTester string `json:"blind_tester,omitempty"`
 	// FlakeQuarantine reruns a red test command of the model's, on the
 	// tree as it is and on the tree before the turn's first change, and
 	// tells the model when the result flips. Off by default: it reruns

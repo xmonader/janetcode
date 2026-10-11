@@ -674,24 +674,6 @@ probe is rerun through the bash tool, under the session's sandbox, and
 only when the permission rules would let that call run without asking.
 `JANETCODE_OFF=probes` turns it off.
 
-`blind_tester` (default off) is a clean-room tester for headless (`-p`)
-runs. When a turn that changed files ends with its checks green, one
-model call is sent the request, the prose files at the top of the
-project that the turn did not write (`BRIEF.md`, `README.md`) and the
-names of the files the turn found — never the code or the transcript —
-and writes up to eight checks, one per rule the task states. They run in
-a throwaway git worktree of the tree as it stands, through the bash tool
-and only when the permission rules would let the call run without asking.
-A check that prints a `VIOLATION:` line has found a broken rule; one that
-crashes without it says nothing and is not reported. When rules are
-broken the turn goes back once, told only which rules (never the checks
-or their output); when it ends again the failed checks are rerun, with no
-model call, and the proof note records what held, what failed and what
-the round fixed. The value names the model slot it runs on: `on` or
-`cheap` (the cheap slot, `route_cheap`), `strong`, `advisor` or `main`;
-an unset slot is the session's own model. It needs a git repository.
-`JANETCODE_OFF=blindtest` turns it off.
-
 `flake_quarantine` (default off): when a test command the model ran
 comes back red, the harness runs it again once on the tree as it is and,
 when the turn ran the same command before its first change, once more on

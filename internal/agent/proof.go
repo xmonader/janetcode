@@ -104,7 +104,6 @@ func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committ
 			Mutation:  foldMutation(events, tn),
 			Integrity: foldLedger(events, tn),
 			Conflict:  foldConflict(events, tn),
-			BlindTest: foldBlindTest(events, tn),
 		}
 	}
 	return proof.Build(sessionID, a.Settings().Model, repoRoot, inputs, outcomes, versions), versions, nil

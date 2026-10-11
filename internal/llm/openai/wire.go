@@ -84,9 +84,6 @@ type wireRequest struct {
 	// would need per-dialect detection and a rejection retry of its own;
 	// until then the tier applies to Anthropic models and /effort says so.
 	ResponseFormat *wireResponseFormat `json:"response_format,omitempty"`
-	// ReasoningEffort is llm.Request.ReasoningEffort, sent only when a
-	// caller asked for it by name.
-	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	// PromptCacheKey routes the request to a cache shard. Without a stable
 	// key an agent loop's growing prefix can be load-balanced onto a
 	// different shard from one turn to the next and re-billed as fresh, so

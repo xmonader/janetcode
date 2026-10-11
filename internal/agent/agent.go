@@ -303,9 +303,6 @@ type Agent struct {
 	// tests failing against the code, or a branch on a value only a test
 	// holds (testledger.go).
 	TestLedger bool
-	// BlindTest, when set, has a model that sees only the task write
-	// checks at the end of a green turn (blindtest.go); nil is off.
-	BlindTest *BlindTester
 	// ConflictExit, when set, accepts a CONFLICT: line ending a turn as a
 	// claim that the task and a test disagree, and ends the turn on it
 	// once the cited test is confirmed failing (conflict.go). The prompt
@@ -728,7 +725,6 @@ type turnGates struct {
 	diagRounds, cutReplies    int
 	specReviewed              bool
 	ledger                    ledgerState
-	blind                     blindGateState
 	difffuzz                  difffuzzGateState
 	// conflicted: the turn ended on a confirmed CONFLICT, past the gates
 	// that would send it back to make the cited test pass.
@@ -1078,9 +1074,6 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	if !g.conflicted && a.specReview(outcome, &g.specReviewed, emit) {
-		return false
-	}
-	if !g.conflicted && a.blindTestGate(ctx, outcome, &g.blind, emit) {
 		return false
 	}
 	if g.specReviewed {

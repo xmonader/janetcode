@@ -78,7 +78,6 @@ type dialect struct {
 	noCacheControl   bool // server rejects cache_control / array content
 	noCacheKey       bool // server rejects prompt_cache_key
 	noJSONSchema     bool // server rejects response_format json_schema
-	noEffort         bool // server rejects reasoning_effort
 	// maxOut is the largest output limit the server accepts, learned from a
 	// 400 that refused a larger one; 0 until then. lastMax is the limit the
 	// last request asked for, the fallback when the refusal names none.
@@ -409,9 +408,6 @@ func (p *Provider) applyDialect(w wireRequest) wireRequest {
 	if p.dialect.noCacheKey {
 		w.PromptCacheKey = ""
 	}
-	if p.dialect.noEffort {
-		w.ReasoningEffort = ""
-	}
 	if p.dialect.noCacheControl {
 		stripCacheControl(&w)
 	}
@@ -442,9 +438,6 @@ func (p *Provider) learnDialect(err error) bool {
 		return true
 	case !p.dialect.noStreamOptions && strings.Contains(msg, "stream_options"):
 		p.dialect.noStreamOptions = true
-		return true
-	case !p.dialect.noEffort && strings.Contains(msg, "reasoning_effort"):
-		p.dialect.noEffort = true
 		return true
 	case !p.dialect.noCacheKey && strings.Contains(msg, "prompt_cache_key"):
 		p.dialect.noCacheKey = true

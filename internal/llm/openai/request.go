@@ -24,7 +24,7 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 	if err := req.Validate(); err != nil {
 		return wireRequest{}, err
 	}
-	w := wireRequest{Model: req.Model, MaxTokens: req.MaxTokens, Stream: true, ReasoningEffort: req.ReasoningEffort}
+	w := wireRequest{Model: req.Model, MaxTokens: req.MaxTokens, Stream: true}
 	if req.Schema != nil && len(req.Schema.JSON) > 0 {
 		w.ResponseFormat = &wireResponseFormat{
 			Type:       "json_schema",
