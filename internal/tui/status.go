@@ -569,9 +569,9 @@ func (m *model) footerView() string {
 			col = min(col, max(16, m.width/3))
 			for i := start; i < end; i++ {
 				cmd := c[i]
-				mark, name, help := "  ", m.styles.key.Render(cmd.name), m.styles.faint.Render(cmd.help)
+				mark, name, help := "  ", m.styles.key.Render(cmd.name), m.styles.faint.Render(m.boundKeysIn(cmd.name, cmd.help+cmd.keyHelp))
 				if i == idx {
-					mark, name, help = m.styles.accent.Render("▸ "), m.styles.key.Bold(true).Render(cmd.name), m.styles.dim.Render(cmd.help)
+					mark, name, help = m.styles.accent.Render("▸ "), m.styles.key.Bold(true).Render(cmd.name), m.styles.dim.Render(m.boundKeysIn(cmd.name, cmd.help+cmd.keyHelp))
 				}
 				head := name
 				if cmd.args != "" {

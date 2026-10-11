@@ -25,6 +25,9 @@ import (
 
 type command struct {
 	name, args, help string
+	// keyHelp is the description's clause naming a terminal key; it is
+	// shown with the key the user bound (boundKeysIn).
+	keyHelp string
 	// argsFor lists the completions for this command's argument, when
 	// they can be enumerated.
 	argsFor func(m *model, partial string) []command
@@ -49,7 +52,7 @@ var argCompleters = map[string]func(m *model, partial string) []command{
 var commands = func() []command {
 	out := make([]command, 0, len(slash.Commands))
 	for _, c := range slash.Commands {
-		out = append(out, command{name: c.Name, args: c.Args, help: c.Help, argsFor: argCompleters[c.Name]})
+		out = append(out, command{name: c.Name, args: c.Args, help: c.Help, keyHelp: c.KeyHelp, argsFor: argCompleters[c.Name]})
 	}
 	return out
 }()

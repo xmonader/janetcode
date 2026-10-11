@@ -9,6 +9,10 @@ type Command struct {
 	Name string `json:"name"`
 	Args string `json:"args"`
 	Help string `json:"help"`
+	// KeyHelp is the clause of the description that names a terminal
+	// key (" alt+e cycles it"). The terminal appends it with the key the
+	// user bound; the web UI has none of these keys and leaves it off.
+	KeyHelp string `json:"-"`
 	// Idle marks a command that waits for the running turn to finish.
 	Idle bool `json:"idle,omitempty"`
 }
@@ -67,7 +71,7 @@ var Commands = withIdle([]Command{
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
-	{Name: "/checkpoints", Args: "", Help: "the restore points: each turn that changed something, what its checkpoint covers (whole tree or file copies), whether it is complete; enter previews restoring to before it (esc esc opens it too)"},
+	{Name: "/checkpoints", Args: "", Help: "the restore points: each turn that changed something, what its checkpoint covers (whole tree or file copies), whether it is complete; enter previews restoring to before it", KeyHelp: " (esc esc opens it too)"},
 	{Name: "/dryrun", Args: "[on|off|show|apply [n,m…]|discard]", Help: "dry run: the model plans and edits a preview, commands that change things are recorded but not run; show reviews it with diffs, apply writes the files (undoable), discard drops them"},
 	{Name: "/memory", Args: "[words | show <name> | about <path> | history <name> | current]", Help: "what janetcode remembers about this project"},
 	{Name: "/dream", Args: "", Help: "consolidate overlapping auto-memory entries; does not touch what you /remembered"},
@@ -75,7 +79,7 @@ var Commands = withIdle([]Command{
 	{Name: "/init", Args: "[force]", Help: "write the project's starter instruction file from what this repository shows: languages, declared commands, layout; force overwrites an existing one"},
 	{Name: "/skills", Args: "", Help: "skill files available to the model, what each costs in tokens and which have fired this session"},
 	{Name: "/curator", Args: "[list | pin <name> | archive <name> | restore <name>]", Help: "pin, archive or restore auto-generated skills"},
-	{Name: "/followup", Args: "[on|off]", Help: "ghost-text next-prompt after a turn; tab accepts"},
+	{Name: "/followup", Args: "[on|off]", Help: "ghost-text next-prompt after a turn", KeyHelp: "; tab accepts"},
 	{Name: "/rules", Args: "", Help: "path-scoped project rules: what brings each in, and which have been sent this session"},
 	{Name: "/remember", Args: "<fact>", Help: "add a fact to the project memory"},
 	{Name: "/forget", Args: "<n>", Help: "remove memory entry n"},
@@ -93,12 +97,12 @@ var Commands = withIdle([]Command{
 	{Name: "/connect", Args: "", Help: "connect to a provider (preset or custom API) and pick a model"},
 	{Name: "/model", Args: "[name | cheap|strong|advisor|vision [name|off]]", Help: "pick a model from a list, or set one by name; a slot name picks the model that slot uses, and an unset slot is the session's own"},
 	{Name: "/routing", Args: "", Help: "toggle step routing for this session: while off, every model call goes to the session's own model"},
-	{Name: "/effort", Args: "[tier|up|down]", Help: "how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it. alt+e cycles it (the keybindings config key can move it)"},
+	{Name: "/effort", Args: "[tier|up|down]", Help: "how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it", KeyHelp: "; alt+e cycles it (the keybindings config key can move it)"},
 	{Name: "/usage", Args: "", Help: "tokens and cost for this session"},
 	{Name: "/budget", Args: "[usd|off]", Help: "stop the session once it has spent this much; alone says what the ceiling is and what is left"},
 	{Name: "/export", Args: "[file.md]", Help: "write this session as a Markdown transcript"},
 	{Name: "/theme", Args: "[name]", Help: "switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved"},
-	{Name: "/verbose", Args: "", Help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
+	{Name: "/verbose", Args: "", Help: "toggle expanded tool output for the whole transcript", KeyHelp: " (ctrl+o expands one turn)"},
 	{Name: "/vim", Args: "[on|off]", Help: "toggle vim mode for the prompt: esc for normal mode (hjkl, w/b/e, 0/^/$, x, dd, dw, cw, ciw, D, C, p, u), i/a/I/A/o/O to insert; vim_mode in the config starts every session in it"},
 	{Name: "/hints", Args: "[on|off]", Help: "one-time hints about features this session could have used; alone says how many have been given"},
 	{Name: "/eval", Args: "keep [name] [--check cmd] [--base rev] [--self-contained]", Help: "keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project's verify.json"},

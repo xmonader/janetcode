@@ -291,10 +291,14 @@ func TestAPromptQueuedBehindARecipeIsSent(t *testing.T) {
 	if len(typed) != 1 || typed[0] != "after the recipe" {
 		t.Fatalf("prompts sent = %q", typed)
 	}
+	// finish saves the session title after the turn is marked idle;
+	// returning before that write raced the temp dir's removal.
 	waitFor(t, func() bool {
 		s.mu.Lock()
-		defer s.mu.Unlock()
-		return !s.running
+		running := s.running
+		s.mu.Unlock()
+		sess := s.sess()
+		return !running && sess.Label() != sess.Meta.ID
 	})
 }
 

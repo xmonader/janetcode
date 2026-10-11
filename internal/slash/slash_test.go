@@ -1,6 +1,9 @@
 package slash
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestIdleFlags checks that Commands carries Idle exactly for the
 // commands idleOnly names, from the moment the package is initialised.
@@ -26,5 +29,17 @@ func TestIdleFlags(t *testing.T) {
 	}
 	if c, ok := Lookup("/help"); !ok || c.Idle {
 		t.Errorf("/help must run mid-turn: %+v", c)
+	}
+}
+
+// The shared descriptions are also the web UI's, which has none of the
+// terminal's keys: a key the terminal binds is named only in KeyHelp.
+func TestSharedHelpNamesNoTerminalKey(t *testing.T) {
+	for _, c := range Commands {
+		for _, k := range []string{"alt+e", "ctrl+o", "esc esc", "; tab accepts"} {
+			if strings.Contains(c.Help, k) {
+				t.Errorf("%s help names %q; put that clause in KeyHelp", c.Name, k)
+			}
+		}
 	}
 }

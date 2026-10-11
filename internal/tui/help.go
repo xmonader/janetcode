@@ -144,7 +144,7 @@ func (m *model) helpText() string {
 			seen[n] = true
 			// A description the catalogue has (the everyday group's) is
 			// shown in the interface's language; the rest stay English.
-			desc := strings.ReplaceAll(descStyle.Render(m.boundKeysIn(c.name, i18n.T(c.help))), "\n", "\n"+strings.Repeat(" ", col))
+			desc := strings.ReplaceAll(descStyle.Render(m.boundKeysIn(c.name, i18n.T(c.help)+i18n.T(c.keyHelp))), "\n", "\n"+strings.Repeat(" ", col))
 			if len(c.name) > 10 || len(c.args) > 8 {
 				// Too wide for the columns: the description starts on
 				// its own line rather than wrapping from wherever the
@@ -280,7 +280,7 @@ var helpKeys = []struct {
 	action   keymap.Action
 	drop     string
 }{
-	{"/effort", "alt+e", keymap.Effort, " alt+e cycles it (the keybindings config key can move it)"},
+	{"/effort", "alt+e", keymap.Effort, "; alt+e cycles it (the keybindings config key can move it)"},
 	{"/verbose", "ctrl+o", keymap.Expand, " (ctrl+o expands one turn)"},
 	{"/checkpoints", "esc esc", keymap.Cancel, " (esc esc opens it too)"},
 	{"/followup", "tab", keymap.Complete, "; tab accepts"},

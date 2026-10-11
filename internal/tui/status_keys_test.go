@@ -25,3 +25,19 @@ func TestStatusLinesNameTheBoundKeys(t *testing.T) {
 		t.Fatalf("default keymap changed the text: %q", def)
 	}
 }
+
+// The command menu showed /effort's "alt+e cycles it" whatever the keymap
+// said; it now shows the bound key, as /help does.
+func TestCommandMenuNamesTheBoundKey(t *testing.T) {
+	h := newHarness(t)
+	km, err := keymap.Resolve(keymap.Overrides{"effort": {"f6"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.m.keys = km
+	c, _ := lookup("/effort")
+	got := h.m.boundKeysIn(c.name, c.help+c.keyHelp)
+	if strings.Contains(got, "alt+e") || !strings.Contains(got, "f6 cycles it") {
+		t.Fatalf("menu help = %q", got)
+	}
+}
