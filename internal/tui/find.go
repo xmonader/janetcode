@@ -54,6 +54,6 @@ func (m *model) find(q string) {
 	}
 	m.finder.at = next
 	m.viewport.SetYOffset(next)
-	m.pinned = m.viewport.AtBottom()
+	m.syncPinned()
 	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
 }

@@ -170,7 +170,7 @@ func (m *model) mouseSelect(msg tea.MouseMsg) bool {
 		}
 		if m.drag.moved {
 			m.viewport.setSelection(m.drag.at, c)
-			m.pinned = m.viewport.AtBottom()
+			m.syncPinned()
 			m.refresh(false)
 		}
 		return true
