@@ -83,3 +83,12 @@ func TestPlaceholderFollowsTheTheme(t *testing.T) {
 		t.Fatalf("after /theme: placeholder %v, faint %v", got, want)
 	}
 }
+
+func TestHelpNamesEveryCompletedCommand(t *testing.T) {
+	got := completedCommands()
+	for n := range argCompleters {
+		if !strings.Contains(got, n) {
+			t.Errorf("help omits %s: %s", n, got)
+		}
+	}
+}

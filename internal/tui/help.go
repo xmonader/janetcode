@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -65,7 +66,7 @@ func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString(i18n.T("keys") + "\n")
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
-	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of /resume, /model, /forget, /undo, /open and /diff\n")
+	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of " + completedCommands() + "\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · esc esc on an empty prompt lists the checkpoints to rewind to · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
 	sb.WriteString("  ctrl+x writes the prompt in $EDITOR; what you save becomes the prompt\n")
@@ -163,4 +164,15 @@ func (m *model) keysHelpText() string {
 	sb.WriteString("reverse search (" + m.keys.Label(keymap.HistorySearch) + "): type to narrow · again for an older match · enter keeps it · esc puts back what you had\n")
 	sb.WriteString("vim mode (/vim, vim_mode): esc normal · h j k l w b e 0 ^ $ gg G move · x dd dw cw ciw diw D C p u edit · i a I A o O insert")
 	return sb.String()
+}
+
+// completedCommands names the commands whose argument tab completes, from
+// the table itself: a hand-kept list here had fallen five behind.
+func completedCommands() string {
+	names := make([]string, 0, len(argCompleters))
+	for n := range argCompleters {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
