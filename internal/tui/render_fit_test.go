@@ -75,3 +75,47 @@ func TestFitWidthReopensTheStyleAfterABreak(t *testing.T) {
 		t.Fatalf("tab not expanded: %q", fitWidth(s, 40))
 	}
 }
+
+// TestNoCursorControlReachesTheFrame: a progress bar's carriage return in
+// a tool's output went to the terminal as it was, sending the cursor back
+// to the left edge mid-frame so the rest of the line was drawn over the
+// indent and the text before it. So did a BEL or a backspace, anywhere.
+func TestNoCursorControlReachesTheFrame(t *testing.T) {
+	h := newHarness(t)
+	m := h.m
+	call := &agent.ToolCall{ID: "c1", Name: "bash", Input: json.RawMessage(`{"command":"ls"}`)}
+	m.transcript.apply(agent.Event{Kind: agent.EvToolStart, Call: call})
+	m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: call, Output: "progress 10%\rprogress 100%\r\nbell\x07 bad\b\b\bwow\n\x1b[31mred\x1b[0m 5%\r\x1b[31mred\x1b[0m 99%"})
+	m.transcript.user("user\x07 text")
+	m.transcript.apply(agent.Event{Kind: agent.EvText, Text: "reply\x07 text"})
+	m.transcript.apply(agent.Event{Kind: agent.EvTurnDone})
+	m.refresh(true)
+	v := m.View()
+	if strings.ContainsAny(v, "\r\x07\b") {
+		t.Fatalf("a cursor control reached the frame: %q", v)
+	}
+	p := plain(v)
+	for _, want := range []string{"progress 100%", "bell wow", "red 99%", "user text", "reply text"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("frame lacks %q:\n%s", want, p)
+		}
+	}
+	if strings.Contains(p, "10%") || strings.Contains(p, "5%") {
+		t.Errorf("an overwritten progress line survived:\n%s", p)
+	}
+}
+
+func TestOverstrike(t *testing.T) {
+	for in, want := range map[string]string{
+		"AAAA 10%\rBB":    "BBAA 10%",
+		"abc\b\bX":        "aXc",
+		"x\x07y\x0bz":     "xyz",
+		"plain":           "plain",
+		"done\r":          "done",
+		"\x1b[1mA\rB\x07": "B",
+	} {
+		if got := displayText(in); got != want {
+			t.Errorf("displayText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

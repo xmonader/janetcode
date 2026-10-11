@@ -146,7 +146,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if o.expand(e) {
 			max = expandedLines
 		}
-		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
+		body, diag := splitDiagnostics(strings.TrimRight(displayText(e.output), "\n"))
 		out := ""
 		switch lines := t.toolLines(e, body, o, max); {
 		case e.isError:
