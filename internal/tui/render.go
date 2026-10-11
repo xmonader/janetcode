@@ -144,7 +144,7 @@ func (t *transcript) render(o renderOpts) string {
 		}
 		if t.needsRender(e, o, now) {
 			start := time.Now()
-			e.rendered = t.renderEntry(e, width, o)
+			e.rendered = fitWidth(t.renderEntry(e, width, o), width)
 			e.renderCost = time.Since(start)
 			e.width = width
 			e.final = e.done
@@ -567,6 +567,10 @@ func renderCode(sty *styles, text string, width int) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
+		// A tab measures as nothing but is drawn four columns wide, so a
+		// tab-indented line (any Go file in /diff) was cut too late and
+		// then wrapped.
+		l = strings.ReplaceAll(l, "\t", tabStop)
 		if width > 6 && lipgloss.Width(l) > width-2 {
 			// truncateLine already marks the cut; adding another ellipsis
 			// here ended every long line in "……".
@@ -732,6 +736,80 @@ func truncateLine(s string, max int) string {
 	}
 	// Width-aware: colour codes take no columns and a rune is never split.
 	return ansi.Truncate(s, max, "…")
+}
+
+// tabStop is what a tab is drawn as: lipgloss turns each into four spaces
+// when the viewport renders the frame, so every measurement before that
+// has to see the same four columns rather than the zero a width function
+// gives a control character.
+const tabStop = "    "
+
+// fitWidth makes every line of a rendered entry fit width columns. The
+// renderers wrap the text they are given, but not everything they emit
+// is wrappable text: glamour leaves a word longer than the line (a URL,
+// a long identifier in a code block) whole, and tool output and git's
+// patches carry tabs that measure as nothing. A line wider than the
+// viewport was folded again by the viewport itself, after the transcript
+// had counted its lines, so every such line pushed the bottom of the
+// transcript off the screen — while pinned, the newest output was the
+// part that could not be seen — and put the mouse's row-to-line mapping
+// out by one. Here such a line is broken at the width instead, and a
+// style open at the break is closed there and reopened on the next line,
+// so each line stands on its own as the viewport draws it.
+func fitWidth(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		if strings.IndexByte(l, '\t') >= 0 {
+			l = strings.ReplaceAll(l, "\t", tabStop)
+		}
+		if ansi.StringWidth(l) <= width {
+			out = append(out, l)
+			continue
+		}
+		open := ""
+		for _, part := range strings.Split(ansi.Wrap(l, width, ""), "\n") {
+			next := open + part
+			open = activeSGR(open, part)
+			if open != "" {
+				next += "\x1b[0m"
+			}
+			out = append(out, next)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// activeSGR is the run of SGR sequences still in force after s, given
+// the run that was in force before it: a reset empties it, any other
+// SGR is added to it.
+func activeSGR(prev, s string) string {
+	open := prev
+	for i := 0; i < len(s); {
+		j := strings.Index(s[i:], "\x1b[")
+		if j < 0 {
+			break
+		}
+		start := i + j
+		k := start + 2
+		for k < len(s) && (s[k] < 0x40 || s[k] > 0x7e) {
+			k++
+		}
+		if k >= len(s) {
+			break
+		}
+		if s[k] == 'm' {
+			if params := s[start+2 : k]; params == "" || params == "0" {
+				open = ""
+			} else {
+				open += s[start : k+1]
+			}
+		}
+		i = k + 1
+	}
+	return open
 }
 
 func indent(s, prefix string) string {
