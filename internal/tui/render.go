@@ -48,6 +48,9 @@ type renderOpts struct {
 	// preview computes what a call would do, for a call whose arguments
 	// have finished streaming but which has not run yet.
 	preview func(name string, input []byte) string
+	// touches resolves the files a call edits, so a preview can wait for
+	// an earlier edit of the same file in the reply to run.
+	touches func(name string, input []byte) []string
 	// noMermaid keeps ```mermaid blocks as source instead of drawing
 	// them: Off["mermaid"] / JANETCODE_OFF=mermaid, the pre-feature
 	// behaviour.
@@ -136,6 +139,12 @@ func (t *transcript) render(o renderOpts) string {
 	// separator before the next entry as a blank top row, in the one
 	// window too short to spare it.
 	first := true
+	// The pass keeps each tool's latest result as it goes, so a tool
+	// entry's previous result is a lookup rather than a scan back through
+	// the transcript: a full re-render (a resize, a theme) was quadratic
+	// in the number of tool calls.
+	t.prevByTool = make(map[string]string)
+	defer func() { t.prevByTool = nil }()
 	for _, e := range t.entries {
 		if e.kind == entryBanner && o.tight {
 			// Nothing optional survives in a window this short.
@@ -185,6 +194,9 @@ func (t *transcript) render(o renderOpts) string {
 		sb.WriteString(out)
 		sb.WriteByte('\n')
 		line++
+		if e.kind == entryTool && e.done && !e.isError {
+			t.prevByTool[e.call.Name] = strings.TrimRight(e.output, "\n")
+		}
 	}
 	t.lastRender = sb.Len()
 	return sb.String()
@@ -351,6 +363,11 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 		if out == "" {
 			out = t.renderTable(src, width)
 		}
+		if out == "" && codeFenceBlock(src) {
+			if code, err := t.renderCodeBlock(src, width); err == nil {
+				out = code
+			}
+		}
 		if out == "" {
 			var err error
 			out, err = t.renderer.Render(joinListSoftBreaks(src))
@@ -501,10 +518,24 @@ func splitMarkdownBlocks(text string) []string {
 		}
 		cur.Reset()
 	}
+	// own is whether the open fence started at the margin: such a fence is
+	// a block of its own even with no blank line around it, so it can be
+	// rendered as code (see renderCodeBlock) rather than wrapped as prose.
+	own := false
 	for _, line := range strings.SplitAfter(text, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if !inFence && isFenceAtMargin(line) {
+				flush()
+				own = true
+			}
 			inFence = !inFence
+			if !inFence && own {
+				cur.WriteString(line)
+				flush()
+				own = false
+				continue
+			}
 		}
 		if trimmed == "" && !inFence {
 			flush()
@@ -514,6 +545,60 @@ func splitMarkdownBlocks(text string) []string {
 	}
 	flush()
 	return blocks
+}
+
+// isFenceAtMargin reports whether a line opens a fence at column 0.
+func isFenceAtMargin(line string) bool {
+	return strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~")
+}
+
+// codeFenceBlock reports whether a markdown block is one fenced code
+// block and nothing else.
+func codeFenceBlock(src string) bool {
+	lines := strings.Split(strings.TrimRight(src, "\n"), "\n")
+	if len(lines) < 2 || !isFenceAtMargin(lines[0]) {
+		return false
+	}
+	last := strings.TrimSpace(lines[len(lines)-1])
+	return strings.HasPrefix(last, "```") || strings.HasPrefix(last, "~~~")
+}
+
+// renderCodeBlock renders a fenced code block without glamour's word
+// wrap. glamour wraps a whole document at spaces and punctuation, code
+// blocks included, so at a narrow width `fmt.Println(` was split after
+// `fmt.` and continued at the document's margin, out of the code's
+// indent. Here glamour is given a line wide enough for the longest code
+// line, the padding it adds is dropped, and a line wider than the text
+// column is cut at the width and continued under its own indent by
+// fitWidth, keeping its colour. Tabs are expanded first: glamour measures
+// a tab as no columns at all.
+func (t *transcript) renderCodeBlock(src string, width int) (string, error) {
+	src = strings.ReplaceAll(src, "\t", tabStop)
+	widest := 0
+	for _, l := range strings.Split(src, "\n") {
+		widest = max(widest, ansi.StringWidth(l))
+	}
+	// Room for the document's and the code block's margins on both sides;
+	// rounded up so a stream of growing lines reuses one renderer.
+	wrap := max(width-2, (widest+16+63)/64*64)
+	if t.codeRenderer == nil || t.codeWrap != wrap {
+		r, err := glamour.NewTermRenderer(glamour.WithStyles(markdownStyle(t.styles.col, t.styleName == "dark")), glamour.WithWordWrap(wrap))
+		if err != nil {
+			return "", err
+		}
+		t.codeRenderer, t.codeWrap = r, wrap
+	}
+	out, err := t.codeRenderer.Render(src)
+	if err != nil || wrap == width-2 {
+		// Every line fitted the text column: glamour wrapped nothing and
+		// padded to the column, as it does prose.
+		return out, err
+	}
+	lines := strings.Split(out, "\n")
+	for i, l := range lines {
+		lines[i] = trimStyledRight(l)
+	}
+	return fitWidth(strings.Join(lines, "\n"), width-2), nil
 }
 
 // errorBlock renders an error as "✗ first line" with every following line

@@ -94,8 +94,10 @@ func TestCutWordsCountsRunes(t *testing.T) {
 }
 
 func TestSplitMarkdownBlocks(t *testing.T) {
+	// A fence at the margin is a block of its own even with no blank line
+	// before it, so it is drawn as code rather than wrapped with the prose.
 	got := splitMarkdownBlocks("a\n\nb\n```\nx\n\ny\n```\n\nc")
-	if len(got) != 3 || got[1] != "b\n```\nx\n\ny\n```" || got[2] != "c" {
+	if len(got) != 4 || got[1] != "b" || got[2] != "```\nx\n\ny\n```" || got[3] != "c" {
 		t.Fatalf("got %q", got)
 	}
 }

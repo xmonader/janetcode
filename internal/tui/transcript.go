@@ -88,6 +88,10 @@ type entry struct {
 	// livePreview is the diff computed while the call was still being
 	// written, kept against the input it came from so it is computed once.
 	livePreview, livePreviewFor string
+	// liveWait is the ID of an earlier call of the same reply that edits
+	// the same file and has not run yet: until it has, a preview of this
+	// one would be a diff against content that is about to change.
+	liveWait string
 	// lineFrom and lineTo are the entry's line range in the last rendered
 	// transcript, so a mouse click can be traced back to it.
 	lineFrom, lineTo int
@@ -127,11 +131,21 @@ type mdChunk struct {
 
 // transcript is the ordered list of things shown in the viewport.
 type transcript struct {
-	entries   []*entry
-	renderer  *glamour.TermRenderer
-	rWidth    int
-	styleName string // glamour standard style: "dark" or "light"
-	styles    *styles
+	entries  []*entry
+	renderer *glamour.TermRenderer
+	rWidth   int
+	// codeRenderer draws fenced code blocks at codeWrap, a width wide
+	// enough that glamour never word-wraps the code (see renderCodeBlock).
+	codeRenderer *glamour.TermRenderer
+	codeWrap     int
+	// prevByTool is each tool's latest successful result among the
+	// entries a render pass has drawn so far, nil outside a pass.
+	prevByTool map[string]string
+	// prevScanned counts the entries previousResult stepped over when it
+	// had to scan, so a test can see a render pass never does.
+	prevScanned int
+	styleName   string // glamour standard style: "dark" or "light"
+	styles      *styles
 	// cwd shortens the absolute paths the agent writes into notices and
 	// verdicts, the way tool lines already shorten theirs.
 	cwd string
@@ -162,6 +176,8 @@ func (t *transcript) restyle(style string, sty *styles) {
 	t.styles = sty
 	t.renderer = nil
 	t.rWidth = 0
+	t.codeRenderer = nil
+	t.codeWrap = 0
 	for _, e := range t.entries {
 		e.rendered = ""
 		e.width = 0
@@ -274,6 +290,14 @@ func (t *transcript) apply(ev agent.Event) {
 		t.flashUntil = e.ended.Add(flashFor)
 		end := present.EndOf(e.call.Name, string(e.call.Input), ev.Output, ev.IsError, ev.Duration)
 		e.output, e.isError, e.dur = end.Output, end.Failed, end.Label
+		// A later edit of the same file was waiting for this one to run
+		// before showing its preview; nothing of its own has changed, so
+		// its cached render has to be dropped for it to be drawn again.
+		for _, w := range t.entries {
+			if w.kind == entryTool && w.liveWait == e.call.ID {
+				w.rendered = ""
+			}
+		}
 	case agent.EvDiscard:
 		t.dropOpen()
 	case agent.EvTextBlockDone:
@@ -514,12 +538,20 @@ func (t *transcript) entryAtLine(line int) *entry {
 }
 
 // previousResult is the last result of the same tool before e, or "".
+// Inside a render pass it is the pass's running record (see render);
+// outside one — a single entry drawn on its own — the transcript is
+// scanned.
 func (t *transcript) previousResult(e *entry) string {
+	if t.prevByTool != nil {
+		return t.prevByTool[e.call.Name]
+	}
 	for i := len(t.entries) - 1; i >= 0; i-- {
+		t.prevScanned++
 		if t.entries[i] != e {
 			continue
 		}
 		for j := i - 1; j >= 0; j-- {
+			t.prevScanned++
 			p := t.entries[j]
 			if p.kind == entryTool && p.call.Name == e.call.Name && p.done && !p.isError {
 				return strings.TrimRight(p.output, "\n")
