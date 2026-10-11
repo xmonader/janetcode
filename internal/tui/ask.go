@@ -269,7 +269,7 @@ func (m *model) nextUnansweredTab() {
 
 func (m *model) askView(height int) string {
 	s := m.asking
-	w := min(dialogWidth, m.width-4)
+	w := modalBoxWidth(m.width)
 	inner := w - 4
 	var lines []string
 	add := func(t string) { lines = append(lines, truncateLine(t, inner)) }

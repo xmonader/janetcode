@@ -77,10 +77,21 @@ func clipHeight(s string, n int) string {
 	return strings.Join(lines[:n], "\n")
 }
 
+// minModalWidth is the narrowest box a modal draws, whatever the window:
+// its border, padding and a few cells of text. Sized from the window
+// alone, the box's inner width went negative under eight columns and
+// strings.Repeat panicked on the rule under the search field.
+const minModalWidth = 8
+
+// modalBoxWidth is the width of a modal's box in a window width wide.
+func modalBoxWidth(width int) int {
+	return max(min(dialogWidth, width-4), minModalWidth)
+}
+
 // connectView draws the modal centred in the body area.
 func (m *model) connectView(height int) string {
 	c := m.connect
-	w := min(dialogWidth, m.width-4)
+	w := modalBoxWidth(m.width)
 	inner := w - 4 // border + padding
 	c.field.Width = inner - 3
 	var lines []string
@@ -264,17 +275,23 @@ func fits(rows []row, start, idx, budget int) bool {
 // headings included, so a short terminal gets a shorter list rather than
 // a box taller than the screen.
 func renderRows(sty *styles, rows []row, idx, inner, budget int) []string {
+	if len(rows) == 0 {
+		return nil
+	}
 	if budget <= 0 {
 		budget = dialogRows
 	}
 	widths := columnWidths(rows, inner-4)
 	// Section headings take a line too, so the window that holds the
-	// highlight is found by walking the start back until idx is drawn.
-	start := 0
-	if idx >= budget {
-		start = idx - budget + 1
-	}
-	for start > 0 && !fits(rows, start, idx, budget) {
+	// highlight is found by walking the start forward, towards idx, until
+	// idx is drawn. The walk starts at the top as well: from 0 a heading
+	// could push the highlighted row out of a short window, which then
+	// showed a list with no highlight in it. It stops at idx, because past
+	// it idx is never drawn — and walking on ran start off the end of the
+	// list, which panicked a one-row window.
+	idx = min(max(idx, 0), len(rows)-1)
+	start := max(idx-budget+1, 0)
+	for start < idx && !fits(rows, start, idx, budget) {
 		start++
 	}
 	var out []string
@@ -283,14 +300,19 @@ func renderRows(sty *styles, rows []row, idx, inner, budget int) []string {
 		section = rows[start-1].section
 	}
 	shown := 0
+draw:
 	for i := start; i < len(rows) && len(out) < budget; i++ {
 		r := rows[i]
 		if r.section != "" && r.section != section {
-			if len(out)+2 > budget {
-				break // a heading with no row under it says nothing
-			}
 			section = r.section
-			out = append(out, sty.section.Render(strings.ToUpper(section)))
+			switch {
+			case len(out)+2 <= budget:
+				out = append(out, sty.section.Render(strings.ToUpper(section)))
+			case i != idx:
+				break draw // a heading with no row under it says nothing
+			}
+			// A window too short for the highlighted row's heading still
+			// draws the row: it is the one the user is choosing.
 		}
 		shown++
 		// The last column takes what is left after the tag.

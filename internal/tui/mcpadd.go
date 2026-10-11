@@ -249,6 +249,14 @@ func (m *model) openMCPAdd() tea.Cmd {
 		},
 		placeholder: "stdio, http or sse",
 		enter: func(r row, _ string) (int, string) {
+			// The settings typed for one transport are not the other's: a
+			// stdio command's KEY=value pairs are its environment, and
+			// carried over to a remote server they were sent to it as
+			// request headers, tokens and all.
+			// (http and sse both take headers.) A stdio draft has no Type.
+			if (r.name == "stdio") != (d.cfg.Type == "") {
+				clear(d.pairs)
+			}
 			d.cfg = mcp.ServerConfig{}
 			if r.name != "stdio" {
 				d.cfg.Type = r.name

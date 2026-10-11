@@ -91,6 +91,12 @@ type permissionMsg struct {
 	ctx   context.Context
 	call  agent.ToolCall
 	reply chan verdict
+	// draft is what was in the composer when the prompt came up. The
+	// prompt's key line is drawn only in an empty composer, and n turns
+	// the composer into the denial reason, so a message being typed when
+	// the prompt arrived hid the keys and was then wiped by n. It is put
+	// aside for the prompt and put back when the prompt closes.
+	draft string
 }
 
 // waitedOn reports whether the caller is known to be waiting for this
@@ -99,6 +105,15 @@ func (p *permissionMsg) waitedOn() bool { return p.ctx != nil && p.ctx.Err() == 
 
 // showPermission puts a prompt up.
 func (m *model) showPermission(msg permissionMsg) {
+	// The ask dialog owns the composer while it is up (an "Other" answer
+	// is typed there) and keeps a draft of its own; this prompt leaves it
+	// be.
+	if m.asking == nil {
+		msg.draft = m.input.Value()
+		if msg.draft != "" {
+			m.setInput("")
+		}
+	}
 	m.pending = &msg
 	m.rung = msg.call.RuleIndex
 	m.turn.setPhase("waiting for your approval")
@@ -169,11 +184,22 @@ func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) 
 // out was to guess that enter would deny.
 func (m *model) closePending() {
 	hadImpact := m.pending != nil && m.pending.call.Impact != ""
+	draft := ""
+	if m.pending != nil {
+		draft = m.pending.draft
+	}
+	wasDenying := m.denying
+	if wasDenying {
+		m.input.Reset() // the reason went with the answer, or nowhere
+	}
 	m.pending = nil
 	m.denying = false
 	m.pendingClosedAt = time.Now()
-	if hadImpact {
-		m.layout() // give the impact row back to the transcript
+	switch {
+	case draft != "":
+		m.setInput(draft) // lays out too
+	case hadImpact || wasDenying:
+		m.layout() // give the impact row, and the reason's rows, back
 	}
 }
 

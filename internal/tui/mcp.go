@@ -126,10 +126,12 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 				}
 			}
 			m.startTurn("rendering prompt from " + st.Name)
-			send, life, promptName := m.send, m.life, p.Name
+			// The rendering is the turn's first step, so esc stops it the
+			// way it stops a turn: through the turn's cancel.
+			ctx, cancel := context.WithTimeout(m.life, 60*time.Second)
+			m.turn.cancel = cancel
+			send, promptName := m.send, p.Name
 			go func() {
-				ctx, cancel := context.WithTimeout(life, 60*time.Second)
-				defer cancel()
 				text, err := c.GetPrompt(ctx, promptName, args)
 				send(mcpPromptMsg{command: name, text: text, err: err})
 			}()
@@ -137,6 +139,31 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 		}
 	}
 	return nil, false
+}
+
+// finishMCPPrompt ends the rendering runMCPPrompt started and sends what
+// it rendered as the user's turn — unless the user cancelled it. esc
+// said "cancelling…" and gave the queue back, but nothing stopped the
+// request, and when it answered the prompt was submitted all the same.
+func (m *model) finishMCPPrompt(msg mcpPromptMsg) tea.Cmd {
+	cancelled := m.turn.cancelling || errors.Is(msg.err, context.Canceled)
+	m.turn.finish()
+	m.turn.setPhase("")
+	switch {
+	case cancelled:
+		m.transcript.errorf("%s: cancelled", msg.command)
+		m.status = "cancelled"
+		m.restoreQueued()
+	case msg.err != nil:
+		m.transcript.errorf("%s: %v", msg.command, msg.err)
+		cmd := m.sendQueued()
+		m.refresh(false)
+		return cmd
+	default:
+		return m.submit(msg.text)
+	}
+	m.refresh(false)
+	return nil
 }
 
 // mcpCommand answers /mcp. It returns a command when what was asked for

@@ -279,15 +279,7 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		return m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt), true
 
 	case mcpPromptMsg:
-		m.turn.running = false
-		m.turn.setPhase("")
-		if msg.err != nil {
-			m.transcript.errorf("%s: %v", msg.command, msg.err)
-			cmd := m.sendQueued()
-			m.refresh(false)
-			return cmd, true
-		}
-		return m.submit(msg.text), true
+		return m.finishMCPPrompt(msg), true
 
 	case memoryMsg:
 		if msg.err != nil {
@@ -466,10 +458,7 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 	case shellDoneMsg:
 		m.finishShell(msg)
-		var cmd tea.Cmd
-		if next, ok := m.turn.dequeue(); ok {
-			cmd = m.submit(next)
-		}
+		cmd := m.sendQueued()
 		m.refresh(false)
 		return cmd, true
 	}
