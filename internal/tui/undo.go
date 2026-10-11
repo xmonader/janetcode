@@ -36,7 +36,7 @@ func (m *model) undoChange(n int) {
 		path = m.relPath(c.Path)
 	}
 	m.transcript.info(fmt.Sprintf("%s#%d: %s", noteUndo, n, done))
-	m.opts.Agent.AddContext(fmt.Sprintf("I undid change #%d (%s) on my own; later changes to the file stayed.", n, path))
+	m.opts.Agent.AddHarnessContext(fmt.Sprintf("I undid change #%d (%s) on my own; later changes to the file stayed.", n, path))
 }
 
 // changesCommand lists the session's changes, or one change's hunks.
@@ -209,7 +209,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		return
 	}
 	if cmd == "/redo" {
-		m.opts.Agent.AddContext("I reapplied the file changes I had undone:\n" + strings.Join(done, "\n"))
+		m.opts.Agent.AddHarnessContext("I reapplied the file changes I had undone:\n" + strings.Join(done, "\n"))
 		m.status = fmt.Sprintf("redid %s · /undo reverts them again", textfmt.Plural(len(done), "file change"))
 		return
 	}
@@ -218,7 +218,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		// agent put one note in their place, so nothing more to add.
 		m.note(fmt.Sprintf("the undone turn's %s removed from the model's context as well", textfmt.Plural(n, "message")))
 	} else {
-		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
+		m.opts.Agent.AddHarnessContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	}
 	more := "no earlier turn to undo"
 	if n := len(m.opts.Agent.Checkpoints()); n > 0 {
