@@ -237,16 +237,6 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
-	// FlakeQuarantine reruns a red test command of the model's, on the
-	// tree as it is and on the tree before the turn's first change, and
-	// tells the model when the result flips. Off by default: it reruns
-	// commands while the model waits.
-	FlakeQuarantine bool `json:"flake_quarantine,omitempty"`
-	// FixCache remembers, per repository, the change that made a check's
-	// error go away and shows it when the error recurs in a later
-	// session. Off by default: it writes under the data directory and
-	// changes what the model reads.
-	FixCache bool `json:"fix_cache,omitempty"`
 	// Speculate runs the follow-up suggestion's predicted prompt ahead of
 	// the user, on route_cheap in a throwaway checkout under a small cost
 	// cap, and adopts its changes if the user sends that prompt. Off by

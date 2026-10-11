@@ -97,10 +97,6 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetScopeJustify(cfg.ScopeJustify)
 	case "probe_ledger":
 		a.SetProbeLedger(cfg.ProbeLedger)
-	case "flake_quarantine":
-		a.SetFlakeQuarantine(cfg.FlakeQuarantine)
-	case "fix_cache":
-		a.SetFixCache(cfg.FixCache)
 	case "speculate":
 		a.SetSpeculate(cfg.Speculate)
 	case "plan_file":

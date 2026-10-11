@@ -219,16 +219,6 @@ type Agent struct {
 	// snapshot export in tests.
 	probeExec    func(ctx context.Context, cmd string) probeResult
 	probePreTree func(ctx context.Context) string
-	// FlakeQuarantine reruns a red test command of the model's and tells
-	// it when the result flips. See flake.go.
-	FlakeQuarantine bool
-	flaky           flakeState
-	// FixCache stores, per repository under FixCacheDir, the change that
-	// made a check's error go away, and shows it when the error recurs.
-	// See fixcache.go.
-	FixCache    bool
-	FixCacheDir string
-	fixc        fixCacheState
 	// ProbeMemory keeps the ledger's discriminating probes in the
 	// repository and replays them in later sessions. See probememory.go.
 	ProbeMemory bool
