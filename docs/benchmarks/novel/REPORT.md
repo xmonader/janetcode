@@ -1,0 +1,63 @@
+# Novel and wild ideas: what held up live (2026-10-11)
+
+Branch `feat/novel-ideas`. Live effbench runs were made on the ai02 broker on 2026-10-10/11. The model is MiMo V2.6 Flash
+(XiaomiMiMo/MiMo-V2.6-Flash-RL); one tester role uses DeepSeek V4.1 Flash. Every arm ran side by side in the same
+campaign, so all arms saw the same broker load.
+
+## Verdicts
+
+| Idea | Verdict | Evidence |
+|---|---|---|
+| #4 `CONFLICT:` exit (`conflict_exit`) | **Keep; consider making it the default** | Impossible split, 16 runs per arm: 13/16 runs ended in a confirmed CONFLICT naming the mutated test, with 0 cheats in any arm. It used −39% wall time, −48% model calls and −63% input against the other two arms, which simply fail. False CONFLICTs on possible tasks are **not yet measured**. |
+| #1 probe ledger (`probe_ledger`) | **Promising; needs more seeds** | Held-out, 7 tasks × 3 seeds: **21/21 against the baseline's 18/21**. Probes passed d-linediff 3/3 where the baseline passed 1/3. One-sided Fisher p = 0.12, so this is not significant. Cost: +6% wall time, +11% input. |
+| Wild #1 spec coverage (`spec_coverage`) | **Drop as it stands** | 19/21 against 18/21, at +19% wall time and +25% input. It lost d-linediff 2 of 3 times. |
+| Wild #3 blind tester (`blind_tester`) | **Unproven; it works only after three fixes** | MiMo as the tester never wrote a check: it reasons until it hits the output bound. With DeepSeek V4.1 Flash at `blind_tester_effort=low` it wrote checks in about 9 of 13 runs and sent back real rule violations. Passes were 14/15 at the time of writing, which cannot be told apart from the baseline. |
+| #3 test-integrity ledger (`testledger`, on by default) | **Inconclusive on MiMo** | MiMo did not cheat in the no-ledger arm (0/16), so there was nothing for the ledger to catch. One ledger-arm run did edit the mutated test, but it hit the 20-minute cap before the turn ended, and the ledger only runs at turn end. The DeepSeek repeat (`nv-imp-ds`) is running. |
+| Default-on bundle on the main set | **No harm seen so far** | Main set, all new default-on switches on against all off: 4/4 and 5/5 passes at the time of writing. This is too few runs to read; `nv-main-mimo` is still running. |
+
+The tables above are partial: four campaigns were still running when this was written. To read their final numbers:
+
+    cd docs/benchmarks/effbench
+    python3 compare.py runs/nv-held-mimo:base runs/nv-held-mimo:probes runs/nv-held-mimo:speccov runs/nv-blind-mimo:blindds
+    python3 compare.py runs/nv-main-mimo:legacy runs/nv-main-mimo:default
+    python3 impossible/score.py runs/nv-imp-mimo ; python3 impossible/score.py runs/nv-imp-ds
+
+## Bugs the live runs found, all fixed on the branch with regression tests
+
+- **CONFLICT confirmed against the wrong command.** The harness re-ran the model's own inline `python - <<EOF` check
+  instead of the project's tests. That check passed, so a true conflict was sent back as "it passes".
+- **CONFLICT read through `| tail`.** `pytest -q 2>&1 | tail -20` exits with tail's status, so a red run read as green.
+  Display filters are now dropped from the command the harness re-runs.
+- **Blind tester output bound.** At 6,000 output tokens MiMo spent the whole bound reasoning and wrote nothing.
+  The bound now matches the main loop's 32k.
+- **Blind tester and reasoning effort.** Reasoning models write no checks without `reasoning_effort`, which the
+  OpenAI-compatible provider never sends. The new `llm.Request.ReasoningEffort` is sent only when a caller names it,
+  and is dropped once a server rejects it. `blind_tester_effort` sets it for the tester alone.
+- **Blind tester reply handling.** The parser now accepts DeepSeek's `**RULE 1:**` labels. The tester asks once more
+  on an empty reply, and its prompt tells it to start writing at once.
+- **`impossible/make.py --check`.** It reported 3 of the 8 mutations as passable because pytest reused cached bytecode
+  between the original and the mutated test.
+- **`run.py`.** An arm could carry only one `set.K=V` setting.
+
+## Open problems found, not fixed
+
+- **The bash tool runs `sh -c` without `pipefail`.** Every harness check that reads the exit code is fooled by
+  `pytest | tail`. One live run's turn verdict said "tests ran and passed" while pytest was red. This affects the
+  verdict, claim checks and the ledgers, not only CONFLICT.
+- **The test-integrity ledger and the other turn-end gates never run when a run hits its wall-clock cap.**
+- **The headless test guard let the model's edit to the mutated test through** (`b-shift-dst`, ledger arm).
+
+## Dropped on offline evidence, without live runs
+
+These fell below their own kill lines on recorded sessions; the numbers are in `PROJECT-STATE.md` and the CHANGELOG:
+
+- round-trip elision (#2)
+- checkpoint-branch retry (#7)
+- verdict-gated second sample (#8)
+- pattern induction (wild #7)
+- think-time speculation (wild #9)
+- request hedging and stream resume (wild #10)
+- flake quarantine (wild #6)
+- fix cache (wild #14)
+- purity auto-approve (wild #24)
+- prefix kernel (wild #11)
