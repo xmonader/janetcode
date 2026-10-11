@@ -149,21 +149,20 @@ func (m *model) chipPaste(text string) (tea.Cmd, bool) {
 }
 
 // handleDenyKey collects the optional reason for a denial: enter sends
-// it, esc denies silently, anything else is text.
+// it, esc denies silently, anything else is text. Closing the prompt
+// clears the reason and puts back whatever was being typed before it.
 func (m *model) handleDenyKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	switch keyName(msg) {
 	case "enter":
 		m.answer(agent.Deny, strings.TrimSpace(m.input.Value()))
-		m.input.Reset()
-		m.layout()
 	case "esc":
 		m.answer(agent.Deny, "")
-		m.input.Reset()
-		m.layout()
 	case "ctrl+c":
-		m.answer(agent.Deny, "")
-		m.input.Reset()
+		// As c at the prompt: the whole turn stops, and the prompts
+		// behind this one from the same turn are not put up.
+		m.answer(agent.Deny, agent.CancelledReason)
 		m.cancelTurn()
+		m.nextPermission()
 	default:
 		return nil, false // let the textarea take it
 	}
