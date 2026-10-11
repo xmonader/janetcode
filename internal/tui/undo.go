@@ -213,10 +213,15 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		m.status = fmt.Sprintf("redid %s · /undo reverts them again", textfmt.Plural(len(done), "file change"))
 		return
 	}
+	// The turn's messages may have left the context with its files. That
+	// is said on the same status line as the rest: a note of its own was
+	// overwritten by the line below before it was ever drawn, so the user
+	// never learned the model had forgotten the turn.
+	forgot, redo := "", "/redo reapplies"
 	if n := m.opts.Agent.LastUndoRemoved(); n > 0 {
-		// The turn's messages left the context with its files; the
-		// agent put one note in their place, so nothing more to add.
-		m.note(fmt.Sprintf("the undone turn's %s removed from the model's context as well", textfmt.Plural(n, "message")))
+		// The agent put one note in their place, so nothing more to add.
+		// /redo puts the files back but not the messages.
+		forgot, redo = fmt.Sprintf(" and the turn's %s", textfmt.Plural(n, "message")), "/redo reapplies the files"
 	} else {
 		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	}
@@ -224,7 +229,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	if n := len(m.opts.Agent.Checkpoints()); n > 0 {
 		more = textfmt.Plural(n, "more turn") + " can still be undone"
 	}
-	m.status = fmt.Sprintf("undid %s · %s · /redo reapplies", textfmt.Plural(len(done), "file change"), more)
+	m.status = fmt.Sprintf("undid %s%s · %s · %s", textfmt.Plural(len(done), "file change"), forgot, more, redo)
 }
 
 // undoAboutMsg carries the result of "/undo about <description>" back
