@@ -246,10 +246,6 @@ type Config struct {
 	// off. Off by default: it builds and fuzzes while the model waits and
 	// can send a turn back.
 	DiffFuzz int `json:"diff_fuzz,omitempty"`
-	// ObservedPurity runs bash commands under strace and lets a command
-	// line seen to change nothing in 3 runs in a repository run there
-	// without asking. Off by default: it changes who answers a prompt.
-	ObservedPurity bool `json:"observed_purity,omitempty"`
 	// ScopeJustify asks the model for a one-line reason after an edit
 	// outside the task's inferred scope that stated none; the answer is
 	// recorded as the edit's justification. Off by default: it adds a

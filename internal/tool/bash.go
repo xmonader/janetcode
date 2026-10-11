@@ -146,9 +146,6 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if t.WS == nil || t.WS.Local() {
-		wrapCommand(ctx, cmd) // a side-effect monitor, when the agent asked for one (cmdwrap.go)
-	}
 	cmd.WaitDelay = 2 * time.Second
 	out := &swapBuffer{max: maxCommandOutput}
 	cmd.Stdout = out

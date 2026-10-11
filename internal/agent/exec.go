@@ -510,8 +510,7 @@ func (a *Agent) mustPrompt(t tool.Tool, u *llm.Block, mustAsk bool, verdict perm
 	modes := a.Settings()
 	autoEdit := (modes.AutoEdits || modes.AutoMode) && editTool(u.Name)
 	autoSafe := modes.AutoMode && a.autoAllows(*u)
-	return !modes.AutoApprove && !autoEdit && !autoSafe && !a.sessionAllows(u.Name) && verdict != perm.Allowed && !hookAllowed &&
-		!a.purityAllows(*u)
+	return !modes.AutoApprove && !autoEdit && !autoSafe && !a.sessionAllows(u.Name) && verdict != perm.Allowed && !hookAllowed
 }
 
 // ask puts the call to the user and records what came back. suggested is
@@ -715,9 +714,8 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	manifests := a.manifestsBefore(t, u)
 	squats := a.squatBefore(t, u)
-	out, images, err := a.runSafely(a.purityCtx(ctx, u), t, u.Input)
+	out, images, err := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
-	a.purityAfter(u, err, emit)
 	if hit := a.proxyCanaryHit(emit); hit != nil {
 		return "", nil, true, hit
 	}
