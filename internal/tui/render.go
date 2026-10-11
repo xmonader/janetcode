@@ -586,8 +586,10 @@ func (t *transcript) renderCodeBlock(src string, width int) (string, error) {
 		t.codeRenderer, t.codeWrap = r, wrap
 	}
 	out, err := t.codeRenderer.Render(src)
-	if err != nil {
-		return "", err
+	if err != nil || wrap == width-2 {
+		// Every line fitted the text column: glamour wrapped nothing and
+		// padded to the column, as it does prose.
+		return out, err
 	}
 	lines := strings.Split(out, "\n")
 	for i, l := range lines {
