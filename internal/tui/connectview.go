@@ -77,10 +77,21 @@ func clipHeight(s string, n int) string {
 	return strings.Join(lines[:n], "\n")
 }
 
+// minModalWidth is the narrowest box a modal draws, whatever the window:
+// its border, padding and a few cells of text. Sized from the window
+// alone, the box's inner width went negative under eight columns and
+// strings.Repeat panicked on the rule under the search field.
+const minModalWidth = 8
+
+// modalBoxWidth is the width of a modal's box in a window width wide.
+func modalBoxWidth(width int) int {
+	return max(min(dialogWidth, width-4), minModalWidth)
+}
+
 // connectView draws the modal centred in the body area.
 func (m *model) connectView(height int) string {
 	c := m.connect
-	w := min(dialogWidth, m.width-4)
+	w := modalBoxWidth(m.width)
 	inner := w - 4 // border + padding
 	c.field.Width = inner - 3
 	var lines []string

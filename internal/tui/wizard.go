@@ -199,7 +199,7 @@ func (m *model) wizardEnter() tea.Cmd {
 func (m *model) wizardView(height int) string {
 	w := m.wiz
 	s := w.step()
-	width := min(dialogWidth, m.width-4)
+	width := modalBoxWidth(m.width)
 	inner := width - 4
 	w.field.Width = inner - 3
 	var lines []string
