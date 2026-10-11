@@ -169,12 +169,16 @@ func (m *model) agentsCommand(arg string) {
 	kids := m.overlayKids()
 	switch {
 	case arg != "":
-		m.ov.child = arg
 		for i, k := range kids {
 			if k.ID == arg {
-				m.ov.idx = i
+				m.ov.idx, m.ov.child = i, arg
 				break
 			}
+		}
+		if m.ov.child == "" {
+			// The list, saying so: it used to open as though the
+			// subagent had been found.
+			m.ov.note = "no subagent " + arg
 		}
 	case len(kids) == 1:
 		m.ov.child = kids[0].ID

@@ -277,8 +277,11 @@ func (m *model) agentsListView(height int) string {
 	head := []string{
 		fit(m.styles.key.Render("Subagents")),
 		fit(m.styles.dim.Render("this session · live · enter opens the transcript · ctrl+t")),
-		"",
 	}
+	if m.ov.note != "" {
+		head = append(head, fit(m.styles.warn.Render(m.ov.note)))
+	}
+	head = append(head, "")
 	foot := []string{fit(m.styles.faint.Render(`↑↓ choose · enter open · k cancel · esc close · /agents cancel <id>`))}
 	kids := m.overlayKids()
 	if len(kids) == 0 {
@@ -653,6 +656,15 @@ var jobStdinTimeout = 3 * time.Second
 
 // jobsCommand opens the live jobs overlay, or kills one by number.
 func (m *model) jobsCommand(args []string) {
+	if len(args) == 1 && (args[0] == "kill" || args[0] == "stdin") {
+		// The verb alone named job "kill" and opened an empty pane.
+		usage := "usage: /jobs kill <n>"
+		if args[0] == "stdin" {
+			usage = "usage: /jobs stdin <n> <text>"
+		}
+		m.transcript.errorf("%s", usage)
+		return
+	}
 	if len(args) >= 2 && args[0] == "stdin" {
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
@@ -698,15 +710,21 @@ func (m *model) jobsCommand(args []string) {
 	jobs := m.overlayJobList()
 	switch {
 	case len(args) == 1:
-		m.ov.child = args[0]
-		if n, err := strconv.Atoi(args[0]); err == nil {
-			for i, j := range jobs {
-				if j.ID == n {
-					m.ov.idx = i
-					break
-				}
+		n, err := strconv.Atoi(args[0])
+		found := false
+		for i, j := range jobs {
+			if err == nil && j.ID == n {
+				m.ov.idx, found = i, true
+				break
 			}
 		}
+		if !found {
+			// The list, saying so: it used to open as though the job
+			// had been found.
+			m.ov.note = "no job " + args[0]
+			return
+		}
+		m.ov.child = strconv.Itoa(n)
 	case len(jobs) == 1:
 		m.ov.child = strconv.Itoa(jobs[0].ID)
 	}

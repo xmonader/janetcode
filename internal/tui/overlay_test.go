@@ -45,3 +45,30 @@ func TestJobsOverlayKeepsTheHighlightOnScreen(t *testing.T) {
 		t.Fatalf("wrapped highlight is off screen:\n%s", v)
 	}
 }
+
+// A /jobs or /agents argument naming nothing used to open the list in
+// silence: "/jobs kill" with no number became a pane for job "kill", and
+// a mistyped id showed the list as though it had been found.
+func TestJobsAndAgentsSayWhatTheyCouldNotFind(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Jobs = &tool.Jobs{Dir: t.TempDir()}
+	for _, line := range []string{"/jobs kill", "/jobs stdin"} {
+		h.m.command(line)
+		if h.m.ov.kind != "" {
+			t.Fatalf("%q opened the overlay instead of saying how to use it", line)
+		}
+		if !transcriptHas(h.m, "usage: "+line+" <n>") {
+			t.Fatalf("%q: no usage line:\n%s", line, plain(h.m.View()))
+		}
+	}
+	h.m.command("/jobs 99")
+	if v := plain(h.m.View()); h.m.ov.kind != overlayJobs || !strings.Contains(v, "no job 99") {
+		t.Fatalf("/jobs 99:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	attachTask(h)
+	h.m.command("/agents zz")
+	if v := plain(h.m.View()); h.m.ov.kind != overlayAgents || !strings.Contains(v, "no subagent zz") {
+		t.Fatalf("/agents zz:\n%s", v)
+	}
+}
