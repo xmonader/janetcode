@@ -278,7 +278,11 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.closePending()
 		m.nextPermission()
 	}
-	if m.asking != nil {
+	// A question whose wait ran out is the exception: the turn went on
+	// without it, and the agent is still listening for a late answer,
+	// which it hands the model with the next message. It stays up until
+	// it is answered or dismissed, as its own line says.
+	if m.asking != nil && !m.asking.proceeded {
 		m.finishAsk()
 	}
 	m.turn.setPhase("")
