@@ -108,7 +108,12 @@ func isTokenDelta(e llm.Event) bool {
 
 func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt callRoute, emit func(Event)) (*llm.Response, error) {
 	start := time.Now()
-	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
+	reqTokens := a.EstimateTokens()
+	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), reqTokens)
+	// streamedOut and streamedThink hold what the call produced, so a
+	// call cancelled mid-stream (which returns no usage) can still be
+	// counted: see cancelledUsage.
+	var streamedOut, streamedThink strings.Builder
 	// firstToken is when the provider produced anything at all. A call
 	// that never streams a token (a non-streaming provider, a failure)
 	// leaves it zero, and the split is reported as unknown rather than
@@ -137,6 +142,12 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		}
 		if firstToken.IsZero() && isTokenDelta(e) {
 			firstToken = time.Now()
+		}
+		switch e.Type {
+		case llm.EventTextDelta, llm.EventToolUseDelta:
+			streamedOut.WriteString(e.Text)
+		case llm.EventThinkingDelta:
+			streamedThink.WriteString(e.Text)
 		}
 		forward(e, emit)
 		if plan.note(e) {
@@ -190,6 +201,14 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	}
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()
+	}
+	// A call the user cancelled after the provider began answering was
+	// billed; its estimate goes in the totals the way a subagent's spend
+	// does, past the prompt-cache ledger, which compares real figures
+	// call to call. One cancelled before any token has nothing to show it
+	// was processed, and is not billed by guesswork.
+	if err != nil && ctx.Err() != nil && !firstToken.IsZero() {
+		a.addSideUsage(model, cancelledUsage(reqTokens, streamedOut.String(), streamedThink.String()))
 	}
 	if err != nil {
 		a.debugf("call failed after %s: %v", time.Since(start).Round(time.Millisecond), err)

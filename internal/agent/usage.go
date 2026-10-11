@@ -216,3 +216,19 @@ func (a *Agent) addSideUsage(model string, u llm.Usage) {
 	a.noteModel(model, u)
 	a.usageMu.Unlock()
 }
+
+// cancelledUsage estimates what a model call cancelled mid-stream cost.
+// The provider had read the request and was generating, so both sides
+// were billed, but a cancelled stream ends before the frame that carries
+// the usage and every provider returns none. Leaving it out made the
+// session's ↑/↓ counts and its cost claim that the cut-off answer was
+// free. reqTokens is the request estimate the call was made with; out
+// and thinking are what it streamed.
+func cancelledUsage(reqTokens int, out, thinking string) llm.Usage {
+	think := estimateTokens(thinking)
+	return llm.Usage{
+		InputTokens:     max(reqTokens, 0),
+		OutputTokens:    estimateTokens(out) + think,
+		ReasoningTokens: think,
+	}
+}
