@@ -36,6 +36,7 @@ type overlayState struct {
 	scroll int    // line offset in the open pane
 	follow bool   // keep the open pane pinned to the tail
 	note   string // kill/error line inside a jobs overlay
+	top    int    // first list line shown, when the list is taller than the window
 }
 
 // open puts a panel up, at the top of its list.
@@ -272,49 +273,92 @@ func (m *model) todosOverlayView(height int) string {
 func (m *model) agentsListView(height int) string {
 	w := min(dialogWidth, m.width-4)
 	inner := w - 4
-	var lines []string
-	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(m.styles.key.Render("Subagents"))
-	add(m.styles.dim.Render("this session · live · enter opens the transcript · ctrl+t"))
-	add("")
+	fit := func(s string) string { return truncateLine(s, inner) }
+	head := []string{
+		fit(m.styles.key.Render("Subagents")),
+		fit(m.styles.dim.Render("this session · live · enter opens the transcript · ctrl+t")),
+		"",
+	}
+	foot := []string{fit(m.styles.faint.Render(`↑↓ choose · enter open · k cancel · esc close · /agents cancel <id>`))}
 	kids := m.overlayKids()
 	if len(kids) == 0 {
-		add(m.styles.dim.Render("no subagents yet"))
-		add(m.styles.faint.Render("the model starts one with the task tool · /agents new <brief> starts one now"))
-	} else {
-		if m.ov.idx >= len(kids) {
-			m.ov.idx = len(kids) - 1
-		}
-		for i, k := range kids {
-			state, stateStyle := "done", m.styles.ok
-			if !k.Done {
-				state, stateStyle = "running", m.styles.warn
-			}
-			age := textfmt.Duration(time.Since(k.Started))
-			mark := "  "
-			if i == m.ov.idx {
-				mark = m.styles.accent.Render("▸ ")
-			}
-			add(mark + fmt.Sprintf("%s  %s  %s  %s",
-				m.styles.key.Render(k.ID),
-				stateStyle.Render(fmt.Sprintf("%-7s", state)),
-				m.styles.faint.Render(age),
-				k.Description))
-			if k.Last != "" {
-				label := "last"
-				if !k.Done {
-					label = "now"
-				}
-				add("    " + m.styles.dim.Render(label+": "+k.Last))
-			}
-			if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
-				add("    " + m.styles.faint.Render(fmt.Sprintf("tokens in=%s out=%s",
-					textfmt.Tokens(k.Usage.InputTokens), textfmt.Tokens(k.Usage.OutputTokens))))
-			}
-			add("")
-		}
+		head = append(head,
+			fit(m.styles.dim.Render("no subagents yet")),
+			fit(m.styles.faint.Render("the model starts one with the task tool · /agents new <brief> starts one now")))
+		return m.listBox(height, w, head, nil, foot)
 	}
-	add(m.styles.faint.Render(`↑↓ choose · enter open · k cancel · esc close · /agents cancel <id>`))
+	if m.ov.idx >= len(kids) {
+		m.ov.idx = len(kids) - 1
+	}
+	items := make([][]string, len(kids))
+	for i, k := range kids {
+		state, stateStyle := "done", m.styles.ok
+		if !k.Done {
+			state, stateStyle = "running", m.styles.warn
+		}
+		age := textfmt.Duration(time.Since(k.Started))
+		mark := "  "
+		if i == m.ov.idx {
+			mark = m.styles.accent.Render("▸ ")
+		}
+		lines := []string{fit(mark + fmt.Sprintf("%s  %s  %s  %s",
+			m.styles.key.Render(k.ID),
+			stateStyle.Render(fmt.Sprintf("%-7s", state)),
+			m.styles.faint.Render(age),
+			k.Description))}
+		if k.Last != "" {
+			label := "last"
+			if !k.Done {
+				label = "now"
+			}
+			lines = append(lines, fit("    "+m.styles.dim.Render(label+": "+k.Last)))
+		}
+		if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
+			lines = append(lines, fit("    "+m.styles.faint.Render(fmt.Sprintf("tokens in=%s out=%s",
+				textfmt.Tokens(k.Usage.InputTokens), textfmt.Tokens(k.Usage.OutputTokens)))))
+		}
+		items[i] = append(lines, "")
+	}
+	return m.listBox(height, w, head, items, foot)
+}
+
+// listBox draws a list panel: head, the items, foot, in the dialog box,
+// centred. The box does not grow past height: when the items are taller
+// than the room left, a window of them is shown that keeps the
+// highlighted item (m.ov.idx) whole, with a line above and below saying
+// what is out of sight. Clipping the whole box instead, as these panels
+// did, cut the bottom off — the highlight walked off the screen with the
+// key line under it.
+func (m *model) listBox(height, w int, head []string, items [][]string, foot []string) string {
+	var body []string
+	selStart, selEnd := 0, 0
+	for i, it := range items {
+		if i == m.ov.idx {
+			selStart, selEnd = len(body), len(body)+len(it)
+		}
+		body = append(body, it...)
+	}
+	room := height - m.styles.dialog.GetVerticalFrameSize() - len(head) - len(foot)
+	if len(body) > room {
+		win := max(room-2, 1) // two lines say what is above and below
+		m.ov.top = min(m.ov.top, selStart)
+		if selEnd > m.ov.top+win {
+			m.ov.top = min(selEnd-win, selStart)
+		}
+		m.ov.top = max(min(m.ov.top, len(body)-win), 0)
+		end := min(m.ov.top+win, len(body))
+		above, below := "", ""
+		if m.ov.top > 0 {
+			above = m.styles.faint.Render(fmt.Sprintf("  ↑ %d more lines", m.ov.top))
+		}
+		if end < len(body) {
+			below = m.styles.faint.Render(fmt.Sprintf("  ↓ %d more lines", len(body)-end))
+		}
+		body = append(append([]string{above}, body[m.ov.top:end]...), below)
+	} else {
+		m.ov.top = 0
+	}
+	lines := append(append(append([]string{}, head...), body...), foot...)
 	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
@@ -502,42 +546,46 @@ func (m *model) killOverlayJob(id int) {
 func (m *model) jobsListView(height int) string {
 	w := min(dialogWidth, m.width-4)
 	inner := w - 4
-	var lines []string
-	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(m.styles.key.Render("Jobs"))
-	add(m.styles.dim.Render("this session · live · enter tails the log"))
-	if m.ov.note != "" {
-		add(m.styles.warn.Render(m.ov.note))
+	fit := func(s string) string { return truncateLine(s, inner) }
+	head := []string{
+		fit(m.styles.key.Render("Jobs")),
+		fit(m.styles.dim.Render("this session · live · enter tails the log")),
 	}
-	add("")
+	if m.ov.note != "" {
+		head = append(head, fit(m.styles.warn.Render(m.ov.note)))
+	}
+	head = append(head, "")
+	foot := []string{fit(m.styles.faint.Render("↑↓ choose · enter open · k kill · esc close"))}
 	jobs := m.overlayJobList()
 	if len(jobs) == 0 {
-		add(m.styles.dim.Render("no background jobs"))
-		add(m.styles.faint.Render("the model starts one with bash background:true (a dev server, a long build)"))
-	} else {
-		if m.ov.idx >= len(jobs) {
-			m.ov.idx = len(jobs) - 1
+		head = append(head,
+			fit(m.styles.dim.Render("no background jobs")),
+			fit(m.styles.faint.Render("the model starts one with bash background:true (a dev server, a long build)")))
+		return m.listBox(height, w, head, nil, foot)
+	}
+	if m.ov.idx >= len(jobs) {
+		m.ov.idx = len(jobs) - 1
+	}
+	items := make([][]string, len(jobs))
+	for i, j := range jobs {
+		state, stateStyle := "done", m.styles.ok
+		if !j.Done {
+			state, stateStyle = "running", m.styles.warn
 		}
-		for i, j := range jobs {
-			state, stateStyle := "done", m.styles.ok
-			if !j.Done {
-				state, stateStyle = "running", m.styles.warn
-			}
-			mark := "  "
-			if i == m.ov.idx {
-				mark = m.styles.accent.Render("▸ ")
-			}
-			add(mark + fmt.Sprintf("%s  %s  %s",
+		mark := "  "
+		if i == m.ov.idx {
+			mark = m.styles.accent.Render("▸ ")
+		}
+		items[i] = []string{
+			fit(mark + fmt.Sprintf("%s  %s  %s",
 				m.styles.key.Render(fmt.Sprintf("job %d", j.ID)),
 				stateStyle.Render(fmt.Sprintf("%-7s", state)),
-				j.Command))
-			add("    " + m.styles.faint.Render(j.Summary()))
-			add("")
+				j.Command)),
+			fit("    " + m.styles.faint.Render(j.Summary())),
+			"",
 		}
 	}
-	add(m.styles.faint.Render("↑↓ choose · enter open · k kill · esc close"))
-	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
-	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
+	return m.listBox(height, w, head, items, foot)
 }
 
 func (m *model) jobDetailView(height int) string {
