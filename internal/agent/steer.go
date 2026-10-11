@@ -18,20 +18,6 @@ func (a *Agent) Steer(text string) {
 	a.queueSteer(text)
 }
 
-// QueueHarnessNote queues text the harness wrote for the running turn,
-// delivered before the turn's next model call marked synthetic, as a
-// path-scoped rule is. The checkpoint-branch retry uses it to tell the
-// live part of a branch what the failed attempt tried (see
-// internal/rollout): it is queued while the recorded prefix is replayed,
-// so it rides with that prefix's last tool results instead of moving or
-// rewriting anything already sent.
-func (a *Agent) QueueHarnessNote(text string) {
-	if strings.TrimSpace(text) == "" {
-		return
-	}
-	a.queueHarness(text)
-}
-
 // deliverSteering hands any queued notes to the model. It runs on the
 // turn goroutine, just before the call that will read them.
 func (a *Agent) deliverSteering(emit func(Event)) {

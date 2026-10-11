@@ -171,9 +171,6 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{whatIfRun && o.bg, "--what-if and --bg do not combine"},
 		{o.fork && o.resume == "" && !o.cont, "--fork copies the session --resume or --continue opens; name one"},
 		{whatIfRun && o.whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
-		{(o.branchRetry || o.secondSample) && o.promptText == "", "--branch-retry and --second-sample need a headless prompt (-p)"},
-		{(o.branchRetry || o.secondSample) && (o.watchCmd != "" || o.jsonSchema != "" || o.bg || o.inFormat == string(headless.InputStreamJSON)), "--branch-retry and --second-sample do not combine with --watch, --json-schema, --bg or --input-format stream-json"},
-		{(o.branchRetry || o.secondSample) && (o.resume != "" || o.cont || o.recoverTurn || o.wtBranch != ""), "--branch-retry and --second-sample start a fresh session for the extra attempt; they do not combine with --resume, --continue, --recover or --worktree"},
 	} {
 		if bad.holds {
 			return fmt.Errorf("%w: %s", headless.ErrBadInput, bad.msg)

@@ -82,10 +82,6 @@ type Options struct {
 	// Recover carries on the turn the resumed session died in, instead of
 	// sending Prompt (--recover; see agent.ContinueInterrupted).
 	Recover bool
-	// Rollout, when set, may draw one more attempt at the prompt once the
-	// run has ended (--branch-retry, --second-sample; see rollout.go).
-	// Only a plain -p run (with or without --until) takes it.
-	Rollout *Rollout
 
 	// printer, when set, renders each event in text mode instead of
 	// printEvent: the screen-reader conversation's labelled lines.
@@ -118,9 +114,6 @@ func Run(ctx context.Context, opts Options) error {
 	err := runFormat(ctx, opts, format, rec)
 	if err != nil && errors.Is(context.Cause(ctx), ErrWallTime) && !errors.Is(err, ErrWallTime) {
 		err = fmt.Errorf("%w (%s)", ErrWallTime, opts.MaxWallTime)
-	}
-	if opts.Rollout != nil && opts.Input == nil && opts.Watch == "" && !opts.Recover && len(opts.JSONSchema) == 0 {
-		err = secondAttempt(ctx, opts, rec, err)
 	}
 	rec.dossier = failureDossier(opts, rec, err)
 	rec.finish(opts.Agent, err)

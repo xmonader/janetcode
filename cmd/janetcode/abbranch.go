@@ -16,17 +16,14 @@ import (
 // recording and the same calls share an identical history up to there, so
 // the variance the first replies cause is gone from the comparison; it
 // suits a harness change that only acts late in a run (a gate, the spec
-// review, compaction). It is branchFrom without a note, and with the
-// recording's absolute paths moved from the directory it ran in to this
-// one (replay.Rebase), since a benchmark arm runs in a fresh workspace.
+// review, compaction). The recording's absolute paths are moved from the
+// directory it ran in to this one (replay.Rebase), since a benchmark arm
+// runs in a fresh workspace.
 //
 // Opt-in, being a flag: it replaces the model for the first calls.
-func abBranch(ag *agent.Agent, path string, calls int, cwd string, rollout bool) error {
+func abBranch(ag *agent.Agent, path string, calls int, cwd string) error {
 	if path == "" {
 		return nil
-	}
-	if rollout {
-		return errors.New("--ab-replay cannot be combined with --branch-retry or --second-sample: the extra attempt would replay the recording a second time")
 	}
 	if calls <= 0 {
 		return errors.New("--ab-replay needs --ab-replay-calls N, the number of recorded model calls to replay before going live")

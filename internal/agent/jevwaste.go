@@ -41,10 +41,6 @@ var mutatingTools = map[string]bool{
 	"replace_lines": true,
 }
 
-// MutatingTool reports whether a tool of this name changes the tree, by
-// the same table the dead-tail rule uses.
-func MutatingTool(name string) bool { return mutatingTools[name] }
-
 // WasteLabels labels every tool call of one recorded run, in call order.
 // passed says whether the run reached its goal, which the dead-tail rule
 // needs: a run that passed has no dead tail by definition.

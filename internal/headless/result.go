@@ -97,10 +97,6 @@ type CLIResult struct {
 	// model requests, memory and skills attached, and how many
 	// secret-shaped values were redacted first (see internal/egress).
 	Egress []egress.Report `json:"egress,omitempty"`
-	// Rollout is the opt-in second attempt's account (--branch-retry,
-	// --second-sample): what fired, what was drawn and which attempt's
-	// tree was kept. Omitted when nothing fired.
-	Rollout *CLIRollout `json:"rollout,omitempty"`
 	// Scope is the run's edits against the scope inferred from its task
 	// (internal/scope): the files outside it with their justification,
 	// and the creep share. Omitted when the task named nothing.

@@ -45,8 +45,8 @@ func (p *Provider) Name() string { return "replay" }
 
 // Free clears the usage the recording carries, so the responses it serves
 // count as what they cost this time: nothing. --what-if keeps it, to say
-// what the whole session would have cost; the branch retry clears it,
-// since its result object reports what the run bought.
+// what the whole session would have cost; --ab-replay clears it, since
+// its result object reports what the run bought.
 func (p *Provider) Free() {
 	for _, r := range p.responses {
 		r.Usage = llm.Usage{}
@@ -177,10 +177,9 @@ func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
 
 // UntilCall is Until with the boundary at a model call instead of a user
 // turn: it answers with the first calls recorded responses, then
-// delegates every later call to live. It is the checkpoint-branch retry's
-// mechanism (see internal/rollout): a headless run is one user turn, so
-// the point a branch starts from lies inside that turn, after the step
-// where the run stopped exploring.
+// delegates every later call to live. It is --ab-replay's mechanism: a
+// headless run is one user turn, so the point a branch starts from lies
+// inside that turn.
 //
 // served, when set, runs once, right after the last recorded response has
 // been handed out and before the tool calls it carries run: the moment

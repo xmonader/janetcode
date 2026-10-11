@@ -48,8 +48,6 @@ var flagWhen = map[string]string{
 	"off-peak-by":            "batch work nobody is waiting on, on a provider that discounts its quiet hours",
 	"off-peak-estimate":      "telling --off-peak-by how long the run takes, so the deadline holds",
 	"ab-replay-calls":        "choosing how much of the recorded run both A/B arms share before they go live",
-	"branch-retry":           "an unattended run that would rather spend a second attempt than end stuck, without paying again for the exploring the first one did",
-	"second-sample":          "an unattended run where a confident wrong answer costs more than a second attempt does",
 	"watch":                  "you want failures fixed as you save, without pressing enter",
 	"provider":               "this run should go somewhere other than the configured backend",
 	"model":                  "one run on a different model without changing the config",

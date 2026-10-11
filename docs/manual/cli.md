@@ -53,9 +53,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--sessions` | list the sessions recorded for this directory |
 | `--worktree <branch>` | run the session in a git worktree on that branch |
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |
-| `--branch-retry` | with `-p`, opt-in: a run that ends badly gets one branch from the step where it stopped exploring. See [A second attempt](#a-second-attempt) |
 | `--off-peak-by <deadline>` | wait for the model's off-peak hours that still finish by the deadline, then run `-p` or `--eval` (`--off-peak-estimate` says how long it takes). See [Off-peak scheduling](#off-peak-scheduling) |
-| `--second-sample` | with `-p`, opt-in: a run that finishes green on weak evidence gets one more attempt from the start. See [A second attempt](#a-second-attempt) |
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
 | `--mcp-serve` | serve janetcode as an MCP server on stdio: one tool, `janetcode_task`, runs a prompt in this directory and returns the answer, session id, verdict and usage. Read-only unless `--auto-edits`, `--auto` or `--yolo` is given; see [Extending](extending.md#janetcode-as-an-mcp-server) |
@@ -230,45 +228,6 @@ comes out unwrapped. Supported keywords: `type`, `properties`,
 `const`, the numeric and length bounds, `pattern`, `uniqueItems`,
 `anyOf`/`oneOf`/`allOf`/`not`, and local `$ref` into `$defs` or
 `definitions`. Unknown keywords are ignored; a remote `$ref` is refused.
-
-## A second attempt
-
-Two opt-in flags let a `-p` run spend one more attempt when its own
-evidence says the first one went wrong. At most one extra attempt is
-drawn per run, and both cost model calls, which is why neither is on by
-default.
-
-- `--branch-retry` fires when the run ends badly: stuck repeating a call,
-  out of model calls (`--max-turns`) or tool calls (`--max-tool-calls`),
-  or with the project's verify gate or the `--until` check still red. The
-  branch starts at the *critical step*, the last model call before the
-  first edit that looked at something new (a file read, a directory
-  listed, a search). The calls up to there are replayed from the session
-  recording at no cost, and the branch goes live from the next one. It
-  is told in one line what the failed attempt did and how it ended. A run
-  that edited before it explored anything has nothing to branch from, and
-  then no attempt is drawn. A budget, wall-clock or provider failure never
-  fires it.
-- `--second-sample` fires when the run finishes green but the verdict
-  says the model's claim is not shown (overclaimed), the last check was
-  run before the last edit (stale), or a gaming signal was raised. The
-  second attempt starts from scratch.
-
-The attempts run one after the other in the same directory, never side by
-side. The first attempt's tree is snapshotted, the tree is put back to
-the session's recorded start state (so the directory must be a git
-repository), and the second attempt runs as a fresh `janetcode` with the
-same flags. The better tree is then kept, judged on the harness's own
-facts in this order: a clean end, a green gate, a verdict that stands,
-fewer gaming signals, and a smaller share of wasted tool calls. No model
-judges, and a tie keeps the first attempt. The losing tree stays
-available as a snapshot named on stderr. The result object gains a
-`rollout` field (trigger, branch point, both candidates, the winner and
-the deciding key). Its usage and cost include the extra attempt, and its
-answer and exit code are those of the attempt whose tree was kept.
-`--max-cost` covers both attempts. The flags do not combine with
-`--resume`, `--continue`, `--recover`, `--worktree`, `--watch`,
-`--json-schema`, `--bg` or a stream-json conversation.
 
 ## Off-peak scheduling
 

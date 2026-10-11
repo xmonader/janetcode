@@ -44,7 +44,7 @@ func TestABBranchReplaysIntoThisWorkspaceThenGoesLive(t *testing.T) {
 	path := abBranchRecording(t, oldDir)
 	live := &abBranchLive{}
 	ag := &agent.Agent{Provider: live, Tools: tool.NewRegistry(tool.WriteFile{Root: newDir}), Model: "m", AutoApprove: true}
-	if err := abBranch(ag, path, 1, newDir, false); err != nil {
+	if err := abBranch(ag, path, 1, newDir); err != nil {
 		t.Fatal(err)
 	}
 	if err := ag.Run(context.Background(), "do it", nil); err != nil {
@@ -65,19 +65,17 @@ func TestABBranchRefusesWhatCannotBranch(t *testing.T) {
 	path := abBranchRecording(t, "/old")
 	ag := &agent.Agent{Provider: &abBranchLive{}, Model: "m"}
 	for _, c := range []struct {
-		calls   int
-		rollout bool
-		want    string
+		calls int
+		want  string
 	}{
-		{0, false, "--ab-replay-calls N"},
-		{2, false, "nothing would run live"},
-		{1, true, "--branch-retry"},
+		{0, "--ab-replay-calls N"},
+		{2, "nothing would run live"},
 	} {
-		if err := abBranch(ag, path, c.calls, "/new", c.rollout); err == nil || !strings.Contains(err.Error(), c.want) {
-			t.Fatalf("calls=%d rollout=%v: %v", c.calls, c.rollout, err)
+		if err := abBranch(ag, path, c.calls, "/new"); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("calls=%d: %v", c.calls, err)
 		}
 	}
-	if err := abBranch(ag, "", 3, "/new", true); err != nil {
+	if err := abBranch(ag, "", 3, "/new"); err != nil {
 		t.Fatalf("no --ab-replay is a no-op: %v", err)
 	}
 }
