@@ -210,7 +210,6 @@ type Agent struct {
 	// apart from the old code at every later gate. See probes.go.
 	ProbeLedger bool
 	probes      probeLedger
-	specCov     specCovState // spec-coverage matrix and example harvesting; see speccov.go
 	// FingerprintDir, when set, runs the behavioural model fingerprint at
 	// the start of the session's first turn, keeping references there
 	// (fingerprint.go). Empty is off: it is six extra model calls.
@@ -1042,10 +1041,6 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		a.noteEffort(effortTrouble)
 		return false
 	}
-	if !g.conflicted && a.specExampleGate(ctx, emit) {
-		a.noteEffort(effortTrouble)
-		return false
-	}
 	if !g.conflicted && a.acceptVerifyGate(ctx, &g.accept, emit) {
 		a.stepRoute.taint("an acceptance check failed and was sent back")
 		a.noteEffort(effortTrouble)
@@ -1157,9 +1152,6 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	}
 	if a.EffortControlOn() {
 		a.noteEffort(stepEffortSignal(uses, results, a.effort.edited))
-	}
-	if note := a.specCovStepNote(emit); note != "" && len(results) > 0 {
-		results[len(results)-1].Text += "\n\n" + note
 	}
 	tr := llm.ToolResultMessage(results...)
 	tr.Blocks = append(tr.Blocks, images...)

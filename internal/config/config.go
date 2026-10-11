@@ -244,14 +244,6 @@ type Config struct {
 	BlindTesterEffort string `json:"blind_tester_effort,omitempty"`
 	// uses (see blindtester.go); empty or "off" is off.
 	BlindTester string `json:"blind_tester,omitempty"`
-	// SpecCoverage tells the model, at a turn's first tool step, which
-	// rules and examples of the task text no public test names anything
-	// of. Off by default: it adds text to what the model reads.
-	SpecCoverage bool `json:"spec_coverage,omitempty"`
-	// SpecExamples runs the task text's worked examples at the gate and
-	// sends a turn back when one fails. Off by default: it runs commands
-	// taken from the task text and can send a turn back.
-	SpecExamples bool `json:"spec_examples,omitempty"`
 	// FlakeQuarantine reruns a red test command of the model's, on the
 	// tree as it is and on the tree before the turn's first change, and
 	// tells the model when the result flips. Off by default: it reruns

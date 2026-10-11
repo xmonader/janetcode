@@ -94,8 +94,6 @@ var setters = map[string]setter{
 	"probe_ledger":           boolKey(func(c *Config) *bool { return &c.ProbeLedger }),
 	"blind_tester":           blindTesterKey,
 	"blind_tester_effort":    blindTesterEffortKey,
-	"spec_coverage":          boolKey(func(c *Config) *bool { return &c.SpecCoverage }),
-	"spec_examples":          boolKey(func(c *Config) *bool { return &c.SpecExamples }),
 	"flake_quarantine":       boolKey(func(c *Config) *bool { return &c.FlakeQuarantine }),
 	"fix_cache":              boolKey(func(c *Config) *bool { return &c.FixCache }),
 	"speculate":              boolKey(func(c *Config) *bool { return &c.Speculate }),

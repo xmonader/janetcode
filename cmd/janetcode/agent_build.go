@@ -549,8 +549,6 @@ func (b *agentBuilder) stepCore() error {
 	ag.Localize = tree.Run
 	ag.SubagentMerge = d.cfg.SubagentMerge
 	ag.ProbeLedger = d.cfg.ProbeLedger
-	ag.SetSpecCoverage(d.cfg.SpecCoverage)
-	ag.SetSpecExamples(d.cfg.SpecExamples)
 	ag.FlakeQuarantine = d.cfg.FlakeQuarantine
 	ag.FixCache, ag.FixCacheDir = d.cfg.FixCache, fixCacheDir()
 	ag.Speculate = d.cfg.Speculate

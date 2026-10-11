@@ -692,33 +692,6 @@ the round fixed. The value names the model slot it runs on: `on` or
 an unset slot is the session's own model. It needs a git repository.
 `JANETCODE_OFF=blindtest` turns it off.
 
-`spec_coverage` (default off) reads the task text — the prompt and any
-Markdown or text document it names that exists in the project, such as
-`BRIEF.md` — for the rules and worked examples it states: bullets, table
-rows, sentences with must/never/exactly and the like, and `lhs -> rhs` or
-`$ command` lines in code blocks. Each one's literals and identifiers are
-looked for in the project's test files, and at the turn's first tool step
-the model is told which rules no public test names anything of ("R7
-[Errors] a step that is not a positive integer | `invalid step 'S'`"):
-graded tests probably check those. It makes no model call; it is off by
-default because it adds text to what the model reads. The note is given
-once per task text. `JANETCODE_OFF=speccov` turns it off.
-
-`spec_examples` (default off) compiles the worked examples of the same
-task text into checks, where both sides can be read without guessing: a
-Python call with a literal answer (`evaluate("1+2") -> 3`, run under the
-imports the task text and the Python tests use), or a shell command with
-the output lines that follow it (an annotation such as `(stderr, exit 1)`
-is honoured; a placeholder or `...` skips the example). At the end of a
-turn that changed something they run through the bash tool, under the
-sandbox and only when the permission rules allow the call without asking.
-A failing one sends the turn back with both answers, at most twice a turn,
-and one left failing into the next turn is dropped; one that cannot run
-here (a name the imports do not explain, a missing command) is dropped
-without counting as a failure. With `probe_ledger` on, the passing ones
-join the ledger and are replayed at every later gate.
-`JANETCODE_OFF=specexamples` turns it off.
-
 `flake_quarantine` (default off): when a test command the model ran
 comes back red, the harness runs it again once on the tree as it is and,
 when the turn ran the same command before its first change, once more on

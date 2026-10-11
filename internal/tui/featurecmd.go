@@ -96,20 +96,6 @@ var featureSwitches = []featureSwitch{
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
 	{
-		name:  "spec-coverage",
-		key:   "spec_coverage",
-		what:  "the model is told which rules of the task text no public test reaches",
-		on:    func(cfg *config.Config) bool { return cfg.SpecCoverage },
-		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
-	},
-	{
-		name:  "spec-examples",
-		key:   "spec_examples",
-		what:  "worked examples in the task text run at the gate; a failing one sends the turn back",
-		on:    func(cfg *config.Config) bool { return cfg.SpecExamples },
-		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
-	},
-	{
 		name:  "subagent-merge",
 		key:   "subagent_merge",
 		what:  "the harness merges a subagent's edits, sends conflicts back once",
