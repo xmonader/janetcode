@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -35,9 +36,14 @@ var briefHelp = []struct{ name, text string }{
 func (m *model) briefHelpText() string {
 	var sb strings.Builder
 	sb.WriteString(i18n.T("keys") + "\n")
-	sb.WriteString("  " + i18n.T("enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit") + "\n")
+	k := m.keys.First
+	helpLine(&sb,
+		keyed(k(keymap.Submit), i18n.T("%s send")),
+		keyed(k(keymap.Newline), i18n.T("%s newline")),
+		keyed(k(keymap.Cancel), i18n.T("%s cancel the turn")),
+		keyed(k(keymap.Quit), i18n.T("%s quit")))
 	sb.WriteString("  " + i18n.T("@path attaches a file · !command runs it and shares the output") + "\n")
-	sb.WriteString("  " + i18n.T("shift+tab changes what asks first") + "\n")
+	helpLine(&sb, keyed(k(keymap.ModeCycle), i18n.T("%s changes what asks first")))
 	sb.WriteString("  " + i18n.T("permission prompt: y allow · a this session · n deny · c cancel") + "\n")
 	sb.WriteString("\n" + i18n.T("commands") + "\n")
 	for _, b := range briefHelp {
@@ -65,19 +71,53 @@ func (m *model) briefHelpText() string {
 func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString(i18n.T("keys") + "\n")
-	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
-	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of " + completedCommands() + "\n")
-	sb.WriteString("  esc cancel the turn (or clear the input) · esc esc on an empty prompt lists the checkpoints to rewind to · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
-	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
-	sb.WriteString("  ctrl+x writes the prompt in $EDITOR; what you save becomes the prompt\n")
-	sb.WriteString("  ctrl+g moves a command running in the foreground to the background: it becomes a job and keeps running, and the turn goes on\n")
-	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
-	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
+	// Every key named here is the one bound in this session: with the
+	// keybindings moved, the sheet used to send people to the defaults.
+	// An action with no key is left out rather than called "unbound".
+	k, every := m.keys.First, m.keyNames
+	helpLine(&sb,
+		keyed(every(keymap.Submit), "%s send"),
+		keyed(every(keymap.Newline), "%s newline"),
+		keyed(m.keyPair(keymap.HistoryPrev, keymap.HistoryNext), "%s recall prompts, or move in an open menu"),
+		keyed(m.keyPair(keymap.Complete, keymap.Submit), "%s accept a menu row"))
+	helpLine(&sb, "/command names match on their letters in order (/rsm finds /resume)",
+		keyed(k(keymap.Complete), "%s completes the argument of "+completedCommands()))
+	escEsc := ""
+	if e := k(keymap.Cancel); e != "" {
+		escEsc = e + " " + e
+	}
+	helpLine(&sb,
+		keyed(k(keymap.Cancel), "%s cancel the turn (or clear the input)"),
+		keyed(escEsc, "%s on an empty prompt lists the checkpoints to rewind to"),
+		keyed(k(keymap.Interrupt), "%s cancel, or when idle twice to quit"),
+		keyed(k(keymap.Quit), "%s quit"))
+	scroll := "mouse wheel scroll"
+	if p := m.keyPair(keymap.PageUp, keymap.PageDown); p != "" {
+		scroll = p + " or " + scroll
+	}
+	helpLine(&sb, scroll,
+		keyed(k(keymap.Expand), "%s expand the last turn (again folds it)"),
+		"click a tool line or a thought to fold or unfold it",
+		"/verbose does the whole transcript",
+		keyed(k(keymap.Redraw), "%s redraw"))
+	helpLine(&sb, keyed(k(keymap.Background), "%s moves a command running in the foreground to the background: it becomes a job and keeps running, and the turn goes on"))
+	helpLine(&sb, "typing while the model works queues the message; it is sent when the turn ends",
+		keyed(k(keymap.Steer), "%s hands it to the running turn instead"),
+		keyed(k(keymap.HistoryPrev), "%s takes the last queued one back"),
+		keyed(k(keymap.Cancel), "%s cancels and gives them all back"))
+	helpLine(&sb, "@path attaches a file, image or directory listing to the prompt",
+		keyed(k(keymap.Complete), "%s completes the path"),
+		keyed(k(keymap.PasteImage), "%s pastes a clipboard image"))
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	fmt.Fprintf(&sb, "  %s cycles ask → plan → auto → yolo · %s cycles how hard the model thinks (/effort) · %s opens the subagents overlay (/agents)\n",
-		m.keys.Label(keymap.ModeCycle), m.keys.Label(keymap.Effort), m.keys.Label(keymap.Agents))
-	fmt.Fprintf(&sb, "  %s searches the prompt history as you type · %s writes the prompt in $VISUAL/$EDITOR · /vim edits the prompt the vim way · /help keys lists every key and its action (the keybindings config key moves them)\n",
-		m.keys.Label(keymap.HistorySearch), m.keys.Label(keymap.ExternalEditor))
+	helpLine(&sb,
+		keyed(every(keymap.ModeCycle), "%s cycles ask → plan → auto → yolo"),
+		keyed(every(keymap.Effort), "%s cycles how hard the model thinks (/effort)"),
+		keyed(every(keymap.Agents), "%s opens the subagents overlay (/agents)"))
+	helpLine(&sb,
+		keyed(every(keymap.HistorySearch), "%s searches the prompt history as you type"),
+		keyed(every(keymap.ExternalEditor), "%s writes the prompt in $VISUAL/$EDITOR; what you save becomes the prompt"),
+		"/vim edits the prompt the vim way",
+		"/help keys lists every key and its action (the keybindings config key moves them)")
 	sb.WriteString(i18n.T("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn") + "\n")
 	all := m.allCommands()
 	byName := map[string]command{}
@@ -104,7 +144,7 @@ func (m *model) helpText() string {
 			seen[n] = true
 			// A description the catalogue has (the everyday group's) is
 			// shown in the interface's language; the rest stay English.
-			desc := strings.ReplaceAll(descStyle.Render(i18n.T(c.help)), "\n", "\n"+strings.Repeat(" ", col))
+			desc := strings.ReplaceAll(descStyle.Render(m.boundKeysIn(c.name, i18n.T(c.help))), "\n", "\n"+strings.Repeat(" ", col))
 			if len(c.name) > 10 || len(c.args) > 8 {
 				// Too wide for the columns: the description starts on
 				// its own line rather than wrapping from wherever the
@@ -175,4 +215,84 @@ func completedCommands() string {
 	}
 	sort.Strings(names)
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
+// keyNames is every key bound to an action, "" when there is none.
+func (m *model) keyNames(a keymap.Action) string {
+	return strings.Join(m.keys.Keys(a), " / ")
+}
+
+// keyPair names the first keys of two actions as "up/down", or the one
+// that is bound, or "" when neither is.
+func (m *model) keyPair(a, b keymap.Action) string {
+	ka, kb := m.keys.First(a), m.keys.First(b)
+	switch {
+	case ka != "" && kb != "":
+		return ka + "/" + kb
+	case ka != "":
+		return ka
+	}
+	return kb
+}
+
+// keyed fills a "%s does this" phrase with a key, or is "" when the key
+// is: a phrase about an action with no key would send the reader looking
+// for one.
+func keyed(key, phrase string) string {
+	if key == "" {
+		return ""
+	}
+	return fmt.Sprintf(phrase, key)
+}
+
+// helpLine writes one indented line of the parts that are left, joined by
+// dots, and nothing when none are.
+func helpLine(sb *strings.Builder, parts ...string) {
+	var kept []string
+	for _, p := range parts {
+		if p != "" {
+			kept = append(kept, p)
+		}
+	}
+	if len(kept) > 0 {
+		sb.WriteString("  " + strings.Join(kept, " · ") + "\n")
+	}
+}
+
+// helpKeys are the default keys the command table's descriptions name,
+// which /help rewrites to the keys this session has. drop is the English
+// clause that goes when the action has no key at all; a translation
+// without it says "unbound" in the key's place instead.
+var helpKeys = []struct {
+	cmd, key string
+	action   keymap.Action
+	drop     string
+}{
+	{"/effort", "alt+e", keymap.Effort, " alt+e cycles it (the keybindings config key can move it)"},
+	{"/verbose", "ctrl+o", keymap.Expand, " (ctrl+o expands one turn)"},
+	{"/checkpoints", "esc esc", keymap.Cancel, " (esc esc opens it too)"},
+	{"/followup", "tab", keymap.Complete, "; tab accepts"},
+}
+
+// boundKeysIn rewrites the default key a command's description names to
+// the key bound to that action.
+func (m *model) boundKeysIn(cmd, desc string) string {
+	for _, hk := range helpKeys {
+		if hk.cmd != cmd {
+			continue
+		}
+		bound := m.keys.First(hk.action)
+		if bound == "" {
+			if strings.Contains(desc, hk.drop) {
+				desc = strings.Replace(desc, hk.drop, "", 1)
+				continue
+			}
+			bound = "unbound"
+		} else if hk.key == "esc esc" {
+			bound += " " + bound
+		}
+		re := regexp.MustCompile(`(^|[\s(])` + regexp.QuoteMeta(hk.key) + `($|[\s),.;:])`)
+		desc = re.ReplaceAllString(desc, "${1}"+strings.ReplaceAll(bound, "$", "$$")+"${2}")
+	}
+	return desc
 }
