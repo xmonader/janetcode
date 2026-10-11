@@ -424,7 +424,7 @@ func (t *transcript) loadHistory(msgs []llm.Message) {
 		for _, b := range m.Blocks {
 			switch {
 			case m.Role == llm.RoleUser && b.Type == llm.BlockText:
-				t.user(b.Text)
+				t.historyUser(b)
 			case b.Type == llm.BlockText:
 				t.add(&entry{kind: entryAssistant, text: b.Text, done: true})
 			case b.Type == llm.BlockToolUse:

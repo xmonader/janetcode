@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -29,7 +30,11 @@ func (m *model) pasteImage() {
 	if v != "" && !strings.HasSuffix(v, " ") && !strings.HasSuffix(v, "\n") {
 		m.input.InsertString(" ")
 	}
-	m.input.InsertString("@" + path + " ")
+	tok, ok := prompt.Mention(path)
+	if !ok {
+		tok = "@" + path
+	}
+	m.input.InsertString(tok + " ")
 	m.layout()
 	m.status = fmt.Sprintf("attached clipboard image (%s) · send when ready", textfmt.Bytes(int64(len(data))))
 	m.refresh(false)

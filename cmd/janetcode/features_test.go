@@ -99,7 +99,7 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 		{MutatingTurns: 3},
 		{DeniedCount: 3, DeniedShape: "bash(git push *)"},
 		{ApprovedCount: 3, ApprovedShape: "bash(go test *)"},
-		{Promotable: true, SlowCommandSeconds: 42},
+		{Promotable: true, BackgroundKey: "ctrl+g", SlowCommandSeconds: 42},
 		{ContextPct: 70, Spent: true, CostKnown: true},
 		{PasteLines: 80},
 		{CostUSD: 1.5},

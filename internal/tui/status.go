@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/i18n"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -299,8 +300,8 @@ func (m *model) statusView() string {
 		hint := quietNote(m.turn.quietFor()) + " · esc to cancel"
 		// Only while there is something to promote: a key that does
 		// nothing is worse than no key.
-		if len(m.opts.Running.List()) > 0 {
-			hint += " · ctrl+g backgrounds it"
+		if k := m.keys.First(keymap.Background); k != "" && len(m.opts.Running.List()) > 0 {
+			hint += " · " + k + " backgrounds it"
 		}
 		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText()+" · "+el+hint)
 	case m.status != "":

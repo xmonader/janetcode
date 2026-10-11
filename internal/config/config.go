@@ -574,7 +574,10 @@ func (c *Config) PriceFor(model string) *llm.Price {
 		}
 	}
 	if best == "" {
-		if m := c.MetaFor(model); m.Price != nil {
+		// An all-zero listing price (saved by /connect before MetaOf
+		// dropped it) is unknown, not free; only an explicit "prices"
+		// entry can say a model costs nothing.
+		if m := c.MetaFor(model); m.Price != nil && !zeroPrice(m.Price) {
 			return m.Price
 		}
 		if c.RatesTable != nil {

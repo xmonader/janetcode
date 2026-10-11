@@ -38,16 +38,8 @@ func (m *model) completions() []command {
 			return c.argsFor(m, strings.TrimLeft(arg, " "))
 		}
 	}
-	if word, ok := mentionAtEnd(v); ok {
-		var out []command
-		for _, p := range prompt.CompletePath(m.opts.Cwd, word) {
-			help := "file"
-			if strings.HasSuffix(p, "/") {
-				help = "directory"
-			}
-			out = append(out, command{name: "@" + p, help: help})
-		}
-		return out
+	if word, _, quoted, ok := prompt.MentionAtEnd(v); ok {
+		return mentionRows(prompt.CompletePath(m.opts.Cwd, word), quoted)
 	}
 	return nil
 }
@@ -126,14 +118,38 @@ func (m *model) skillRows() []command {
 	return out
 }
 
-// mentionAtEnd returns the partial path of an @mention that ends the input.
-func mentionAtEnd(v string) (string, bool) {
-	i := strings.LastIndexAny(v, " \n\t")
-	word := v[i+1:]
-	if !strings.HasPrefix(word, "@") {
-		return "", false
+// mentionRows turns completed paths into @mention rows. A path with a
+// space in it is offered quoted, @"my notes.md", the form the mention
+// parser reads back; offered bare it was inserted and never attached.
+// When one row needs quoting (or the user opened a quote) every row is
+// quoted, so the rows keep a common prefix a second tab can extend, and
+// a directory's quote is left open for the path to go on. A path no
+// mention can name is not offered at all.
+func mentionRows(paths []string, quoted bool) []command {
+	for _, p := range paths {
+		if tok, ok := prompt.Mention(p); ok && strings.HasPrefix(tok, `@"`) {
+			quoted = true
+		}
 	}
-	return word[1:], true
+	var out []command
+	for _, p := range paths {
+		tok, ok := prompt.Mention(p)
+		if !ok {
+			continue
+		}
+		help := "file"
+		if strings.HasSuffix(p, "/") {
+			help = "directory"
+		}
+		if quoted {
+			tok = `@"` + p
+			if help == "file" {
+				tok += `"`
+			}
+		}
+		out = append(out, command{name: tok, help: help})
+	}
+	return out
 }
 
 const menuRows = 8
@@ -174,6 +190,10 @@ func (m *model) complete() bool {
 	v := m.input.Value()
 	i := strings.LastIndexAny(v, " \n\t")
 	head, word := v[:i+1], v[i+1:]
+	// A quoted mention has spaces in it: what is replaced starts at its @.
+	if _, start, _, ok := prompt.MentionAtEnd(v); ok && !m.comp.args {
+		head, word = v[:start], v[start:]
+	}
 	// Most argument menus (/open, /resume, /model, /forget, /undo) offer
 	// the whole line, command included, not the word being typed: those
 	// replace the input rather than its last word. Appending them left
@@ -190,7 +210,7 @@ func (m *model) complete() bool {
 				name = commonPrefix(name, o.name)
 			}
 		}
-		if name == word || !strings.HasPrefix(name, word) { // nothing to extend: take the highlighted one
+		if len(name) <= len(word) || !strings.HasPrefix(name, word) { // nothing to extend: take the highlighted one
 			name = c[idx].name
 		}
 	}

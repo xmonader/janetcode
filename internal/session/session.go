@@ -466,7 +466,23 @@ var syntheticPrefixes = []string{
 	"I undid change #",
 	"I reapplied the file changes",
 	"I reverted the file changes",
+	"The user undid the previous turn",
 	"/recipe run ",
+}
+
+// HarnessNote reports whether a user message is one of the notes the
+// harness writes on the user's behalf (an undo, a redo, a shared "!"
+// command, a goal round): text that should read as a note about what
+// happened, not as a prompt someone typed. Unlike Synthetic it does not
+// treat every bracketed message as machinery, since a person may well
+// type "[WIP] keep going".
+func HarnessNote(text string) bool {
+	for _, p := range syntheticPrefixes {
+		if strings.HasPrefix(text, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // Synthetic reports whether a user message is machinery rather than
@@ -475,12 +491,7 @@ func Synthetic(text string) bool {
 	if strings.HasPrefix(text, "[") || strings.HasPrefix(text, "<") {
 		return true
 	}
-	for _, p := range syntheticPrefixes {
-		if strings.HasPrefix(text, p) {
-			return true
-		}
-	}
-	return false
+	return HarnessNote(text)
 }
 
 func AutoTitle(msgs []llm.Message) string {

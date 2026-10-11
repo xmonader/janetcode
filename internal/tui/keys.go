@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/keymap"
+	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -618,8 +619,8 @@ func completed(v, name string) bool {
 	if strings.TrimSpace(v) == name {
 		return true
 	}
-	word, ok := mentionAtEnd(v)
-	return ok && "@"+word == name
+	_, start, _, ok := prompt.MentionAtEnd(v)
+	return ok && v[start:] == name
 }
 
 // setInput replaces what is being typed with a recalled line, leaving

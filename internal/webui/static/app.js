@@ -812,7 +812,7 @@
   });
   function composedText() {
     const typed = input.value.trim();
-    const mentions = chips.map((p) => "@" + p).join(" ");
+    const mentions = chips.map(mentionOf).join(" ");
     return [mentions, typed].filter(Boolean).join("\n");
   }
   form.addEventListener("submit", async (ev) => {
@@ -862,12 +862,19 @@
     } catch (_) {}
     hist.idx = -1;
   }
+  // A path with a space in it is mentioned quoted, @"my notes.md", the
+  // form the server's mention parser reads; bare it never attached.
+  function mentionOf(p) {
+    return /\s/.test(p) ? '@"' + p + '"' : "@" + p;
+  }
   function acWord() {
     const pos = input.selectionStart;
     const before = input.value.slice(0, pos);
-    const m = before.match(/(^|\s)@([^\s@]*)$/);
+    const q = before.match(/(^|\s)@"([^"\n]*)$/);
+    if (q) return { start: pos - q[2].length - 1, partial: q[2], quoted: true };
+    const m = before.match(/(^|\s)@([^\s@"]*)$/);
     if (!m) return null;
-    return { start: pos - m[2].length, partial: m[2] };
+    return { start: pos - m[2].length, partial: m[2], quoted: false };
   }
   function acHide() { ac.hidden = true; acItems = []; acStart = -1; }
   function acDraw() {
@@ -895,9 +902,13 @@
     const p = acItems[acIdx];
     if (!w || !p) return;
     const tail = input.value.slice(input.selectionStart);
-    const sep = p.endsWith("/") ? "" : " ";
-    input.value = input.value.slice(0, acStart) + p + sep + tail;
-    input.selectionStart = input.selectionEnd = acStart + p.length + sep.length;
+    const dir = p.endsWith("/");
+    let text = p;
+    // A directory's quote stays open so the path can go on.
+    if (w.quoted || /\s/.test(p)) text = '"' + p + (dir ? "" : '"');
+    const sep = dir ? "" : " ";
+    input.value = input.value.slice(0, acStart) + text + sep + tail;
+    input.selectionStart = input.selectionEnd = acStart + text.length + sep.length;
     acHide();
     resize();
     input.focus();
@@ -2121,7 +2132,7 @@
       const r = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await r.json();
       if (!r.ok) { statusEl.textContent = typeof data === "string" ? data : r.statusText; return; }
-      const refs = (data.paths || []).map((p) => "@" + p).join(" ");
+      const refs = (data.paths || []).map(mentionOf).join(" ");
       input.value = (input.value ? input.value.replace(/\s+$/, "") + " " : "") + refs + " ";
       resize();
       input.focus();
