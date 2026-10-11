@@ -160,6 +160,8 @@ func (s *server) loop(arg string) {
 	case arg == "off":
 		n := cron.CancelAll()
 		s.notice(fmt.Sprintf("cancelled %d loops", n))
+	case arg == "cancel":
+		s.errf("usage: /loop cancel <id> (/loop lists them; /loop off cancels all)")
 	case strings.HasPrefix(arg, "cancel "):
 		id := strings.TrimSpace(strings.TrimPrefix(arg, "cancel "))
 		if !cron.Cancel(id) {
@@ -168,12 +170,10 @@ func (s *server) loop(arg string) {
 		}
 		s.notice("cancelled " + id)
 	default:
-		every := 5 * time.Minute
-		prompt := arg
-		if f, rest, ok := strings.Cut(arg, " "); ok {
-			if d, err := agent.ParseEvery(f); err == nil {
-				every, prompt = d, strings.TrimSpace(rest)
-			}
+		every, prompt, err := agent.LoopArg(arg)
+		if err != nil {
+			s.errf("loop: %v", err)
+			return
 		}
 		id, err := cron.Add(every, prompt)
 		if err != nil {

@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -257,21 +256,9 @@ func (m *model) loopCommand(arg string) {
 			m.note("cancelled " + id)
 		}
 	default:
-		every := 5 * time.Minute
-		prompt := arg
-		// A lone duration is an interval with no prompt, not a prompt:
-		// "/loop 10m" armed a loop sending "10m" to the model.
-		f, rest, _ := strings.Cut(arg, " ")
-		if d, err := agent.ParseEvery(f); err == nil {
-			every, prompt = d, strings.TrimSpace(rest)
-		} else if _, perr := time.ParseDuration(f); perr == nil {
-			// A duration out of range is still a duration: "/loop 1s
-			// ping" armed "1s ping" every five minutes.
+		every, prompt, err := agent.LoopArg(arg)
+		if err != nil {
 			m.transcript.errorf("loop: %v", err)
-			break
-		}
-		if prompt == "" {
-			m.transcript.errorf("usage: /loop [duration] <prompt> · /loop %s needs something to send", arg)
 			break
 		}
 		id, err := cron.Add(every, prompt)

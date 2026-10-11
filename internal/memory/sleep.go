@@ -54,6 +54,9 @@ func SleepD(ctx context.Context, p llm.Provider, model string, in SleepInput, ex
 	if len(in.Facts) == 0 {
 		return nil, 0, nil
 	}
+	if p == nil {
+		return nil, 0, fmt.Errorf("sleep: no provider (run /connect)")
+	}
 	var rec strings.Builder
 	fmt.Fprintf(&rec, "Session %s.\n", in.SessionID)
 	if in.Goal != "" {

@@ -561,6 +561,11 @@ func sortedKeys(m map[string]bool) []string {
 func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string, schema *llm.Schema) (*llm.Response, error) {
 	msgs := append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, instruction+"\n\nReply with text only; do not call tools."))
 	s := a.Settings()
+	if s.Provider == nil {
+		// Every front-end can ask before a provider is connected; the
+		// TUI's /compact crashed here.
+		return nil, errors.New("compact: no provider (run /connect)")
+	}
 	resp, err := s.Provider.Stream(ctx, llm.Request{
 		Model:     s.Model,
 		System:    a.systemPrompt(),
