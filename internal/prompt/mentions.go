@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -142,20 +144,76 @@ func attachmentBody(full string, fi os.FileInfo) string {
 	return string(buf)
 }
 
-// mentionPaths returns the paths named by @tokens in text, in order.
+// mentionPaths returns the paths named by @tokens in text, in order. A
+// mention starts at an "@" that opens a word and runs to the next space,
+// less trailing punctuation; a path with a space in it is written quoted,
+// @"my notes.md", which is how completion inserts one.
 func mentionPaths(text string) []string {
 	var paths []string
-	for _, f := range strings.Fields(text) {
-		if !strings.HasPrefix(f, "@") || len(f) < 2 {
+	for i := 0; i < len(text); i++ {
+		if text[i] != '@' {
 			continue
 		}
-		p := strings.TrimRight(f[1:], ",.:;!?)]}'\"`")
-		if p == "" {
+		if r, _ := utf8.DecodeLastRuneInString(text[:i]); i > 0 && !unicode.IsSpace(r) {
 			continue
 		}
-		paths = append(paths, p)
+		rest := text[i+1:]
+		if strings.HasPrefix(rest, `"`) {
+			if j := strings.IndexByte(rest[1:], '"'); j > 0 && !strings.Contains(rest[1:1+j], "\n") {
+				paths = append(paths, rest[1:1+j])
+				i += 2 + j
+				continue
+			}
+			// An unclosed quote: read the rest of the word bare.
+			rest, i = rest[1:], i+1
+		}
+		end := strings.IndexFunc(rest, unicode.IsSpace)
+		if end < 0 {
+			end = len(rest)
+		}
+		if p := strings.TrimRight(rest[:end], ",.:;!?)]}'\"`"); p != "" {
+			paths = append(paths, p)
+		}
+		i += end
 	}
 	return paths
+}
+
+// Mention is the @token that names path: bare when it can be, quoted
+// when the path has a space in it. ok is false for a path no mention can
+// name (one with a quote or a line break in it).
+func Mention(path string) (token string, ok bool) {
+	if path == "" || strings.ContainsAny(path, "\"\n\r") {
+		return "", false
+	}
+	if strings.IndexFunc(path, unicode.IsSpace) >= 0 {
+		return `@"` + path + `"`, true
+	}
+	return "@" + path, true
+}
+
+// MentionAtEnd finds an @mention being typed at the end of v: the partial
+// path typed so far, the byte offset where the mention starts, and
+// whether it was opened with a quote. A closed quoted mention is finished
+// and does not count.
+func MentionAtEnd(v string) (partial string, start int, quoted, ok bool) {
+	if q := strings.LastIndex(v, `@"`); q >= 0 {
+		r, _ := utf8.DecodeLastRuneInString(v[:q])
+		tail := v[q+2:]
+		if (q == 0 || unicode.IsSpace(r)) && !strings.ContainsAny(tail, "\"\n") {
+			return tail, q, true, true
+		}
+	}
+	i := strings.LastIndexFunc(v, unicode.IsSpace)
+	word := v[i+1:]
+	if i >= 0 {
+		_, size := utf8.DecodeRuneInString(v[i:])
+		word = v[i+size:]
+	}
+	if !strings.HasPrefix(word, "@") || strings.HasPrefix(word, `@"`) {
+		return "", 0, false, false
+	}
+	return word[1:], len(v) - len(word), false, true
 }
 
 // CompletePath lists entries under cwd that could complete the partial path
