@@ -58,6 +58,9 @@ type evalOptions struct {
 	// prompt records a replaced or extended system prompt, so an A/B of
 	// the prompt itself can be told apart in the results file.
 	prompt prompt.Override
+	// seq is --eval-sequential: the gate whose always-valid verdict
+	// against the baseline may end the run early ("" runs every round).
+	seq string
 }
 
 // evalVariant is the label a results file records for a run: --eval-label
@@ -155,7 +158,10 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
 		return ag, nil
 	}}
-	results := r.Run(ctx, tasks)
+	results, err := seqRun(ctx, r, tasks, baseline, o.seq)
+	if err != nil {
+		return err
+	}
 	passed := eval.Report(os.Stdout, results)
 	// Which tools the model actually reached for. A tool that is never
 	// called is not a feature however well it works, and only a set of
@@ -171,6 +177,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			fmt.Fprintln(os.Stdout, "note: fewer than 3 runs per task on one side; this set swings 21% between identical runs, so read the intervals, not the point estimates.")
 		}
 		eval.WriteComparison(os.Stdout, eval.Compare(baseline.Results, results))
+		eval.WriteSequential(os.Stdout, eval.CompareSequential(baseline.Results, results, 0.05))
 	}
 	if o.jsonOut != "" {
 		if err := eval.WriteFile(o.jsonOut, eval.File{Model: cfg.Provider + "/" + cfg.Model, Variant: variant, Results: results, Prompt: promptRecord(o.prompt)}); err != nil {
@@ -226,6 +233,7 @@ func reportEval(path, base string) error {
 	}
 	fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", blabel, b.When.Format("2006-01-02 15:04"))
 	eval.WriteComparison(os.Stdout, eval.Compare(b.Results, f.Results))
+	eval.WriteSequential(os.Stdout, eval.CompareSequential(b.Results, f.Results, 0.05))
 	return nil
 }
 

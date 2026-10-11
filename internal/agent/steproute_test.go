@@ -68,6 +68,15 @@ func TestAllMechanicalStepRequiresACleanAllMechanicalBatch(t *testing.T) {
 	if allMechanicalStep(mixed, mixedResults) {
 		t.Fatal("a step with a non-mechanical call should not be mechanical")
 	}
+	// A red check: the bash tool reports a non-zero exit in its text, not
+	// as an error, so the exit line is what disqualifies the step.
+	check := []llm.Block{mechUse("bash", `{"command":"go test ./..."}`)}
+	if allMechanicalStep(check, []llm.Block{{Type: llm.BlockToolResult, Text: "FAIL\n[exit code 1]"}}) {
+		t.Fatal("a check that exited 1 should not be mechanical")
+	}
+	if !allMechanicalStep(check, []llm.Block{{Type: llm.BlockToolResult, Text: "ok\n[exit code 0]"}}) {
+		t.Fatal("a check that exited 0 should be mechanical")
+	}
 }
 
 // routableAgent builds a minimal Agent wired for routeStep's rules: two

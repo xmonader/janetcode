@@ -35,7 +35,11 @@ var noMatchExit = map[string]string{
 // it means "nothing found" rather than an error, and "" otherwise. Only
 // exit 1 is special: grep's exit 2 is a real failure (an unreadable file, a
 // bad pattern), and so is every other non-zero code from these programs.
+// The one other exception is 141, a pipeline whose reader stopped early.
 func NoMatchMeaning(command string, exit int) string {
+	if exit == sigpipeExit {
+		return sigpipeMeaning(command)
+	}
 	if exit != 1 {
 		return ""
 	}
@@ -58,9 +62,32 @@ func NoMatchMeaning(command string, exit int) string {
 	return meaning
 }
 
+// sigpipeExit is 128+SIGPIPE: under pipefail, what `git log | head -3`
+// exits with once head has what it wants and git is killed for writing on.
+const sigpipeExit = 141
+
+// sigpipeMeaning excuses exit 141 when a pipeline's reader stopped early
+// on purpose, which is no failure: the rest of the pipeline exited 0, or
+// pipefail would have reported that stage instead. A test run is never
+// excused, since the run was cut off before it could say how it ended.
+func sigpipeMeaning(command string) string {
+	if !strings.Contains(command, "|") || shell.IsTestRun(command) {
+		return ""
+	}
+	for _, elem := range splitLists(command) {
+		if len(splitPipes(elem)) > 1 {
+			return "a later stage of the pipeline stopped reading early"
+		}
+	}
+	return ""
+}
+
 // exitCandidates lists the commands whose status could be the line's exit
-// status: the last stage of each pipeline, for every ;/&&/||-separated
-// element. Wrappers (sudo, env, timeout…) are peeled the way Classify
+// status, one per ;/&&/||-separated element. The shell runs with
+// pipefail, so a pipeline exits with its last failing stage: exit 1 from
+// `grep x f | wc -l` is grep's. A pipeline's candidate is its last stage
+// that answers with exit 1 (grep, diff, test), or its last stage when no
+// stage does. Wrappers (sudo, env, timeout…) are peeled the way Classify
 // peels them, so `timeout 5 grep x f` is judged as grep.
 func exitCandidates(command string) []string {
 	var out []string
@@ -69,13 +96,26 @@ func exitCandidates(command string) []string {
 		if len(stages) == 0 {
 			continue
 		}
-		last := strings.TrimSpace(stages[len(stages)-1])
-		if last == "" {
-			continue
+		name := ""
+		for i := len(stages) - 1; i >= 0; i-- {
+			stage := strings.TrimSpace(stages[i])
+			if stage == "" {
+				continue
+			}
+			n := leadingCommand(shell.Words(stage), 0)
+			if name == "" && i == len(stages)-1 {
+				name = n
+				if n == "" {
+					return nil
+				}
+			}
+			if _, ok := noMatchExit[n]; ok {
+				name = n
+				break
+			}
 		}
-		name := leadingCommand(shell.Words(last), 0)
 		if name == "" {
-			return nil
+			continue
 		}
 		out = append(out, name)
 	}
@@ -206,6 +246,9 @@ func exitNote(command string, exit int) string {
 	if m := NoMatchMeaning(command, exit); m != "" {
 		// The "[exit code N]" shape is kept verbatim so everything that
 		// reads it — placeholders, verdicts, loop detection — still does.
+		if exit == sigpipeExit {
+			return fmt.Sprintf("\n[exit code %d] %s; for this command that is not a failure", exit, m)
+		}
 		return fmt.Sprintf("\n[exit code 1] %s; for this command that is an answer, not a failure", m)
 	}
 	return fmt.Sprintf("\n[exit code %d]", exit)

@@ -39,7 +39,7 @@ func (a *Agent) AttachProof(ctx context.Context, root, sha string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	r, err := a.buildProof(ctx, root, sha, committed)
+	r, versions, err := a.buildProof(ctx, root, sha, committed)
 	if err != nil {
 		return "", err
 	}
@@ -49,7 +49,11 @@ func (a *Agent) AttachProof(ctx context.Context, root, sha string) (string, erro
 	if err := proof.Attach(ctx, root, sha, r); err != nil {
 		return "", err
 	}
-	return proof.Summary(r), nil
+	sum := proof.Summary(r)
+	if err := a.attachEvidence(ctx, root, sha, r, versions); err != nil {
+		sum += "\nevidence: not signed: " + err.Error()
+	}
+	return sum, nil
 }
 
 // buildProof turns this session's tracked changes (see provenance.go) and
@@ -61,11 +65,12 @@ func (a *Agent) AttachProof(ctx context.Context, root, sha string) (string, erro
 // from one that only shares its path with an earlier commit (see
 // proof.changeLandedIn) happen here too, via proof.CommittedFileVersions,
 // keeping every git call behind the proof package as everywhere else in
-// this file.
-func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committed []string) (proof.Record, error) {
+// this file. The versions are returned too, for the signed evidence
+// built beside the note (see evidence.go).
+func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committed []string) (proof.Record, map[string]proof.FileVersions, error) {
 	versions, err := proof.CommittedFileVersions(ctx, repoRoot, commit, committed)
 	if err != nil {
-		return proof.Record{}, err
+		return proof.Record{}, nil, err
 	}
 	var sessionID string
 	if sess, ok := a.Log.(*session.Session); ok {
@@ -96,10 +101,12 @@ func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committ
 		outcomes[tn] = proof.TurnOutcomeInput{
 			Verdict: string(o.Verdict), Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
-			Mutation: foldMutation(events, tn),
+			Mutation:  foldMutation(events, tn),
+			Integrity: foldLedger(events, tn),
+			Conflict:  foldConflict(events, tn),
 		}
 	}
-	return proof.Build(sessionID, a.Settings().Model, repoRoot, inputs, outcomes, versions), nil
+	return proof.Build(sessionID, a.Settings().Model, repoRoot, inputs, outcomes, versions), versions, nil
 }
 
 // mutationExtra mirrors the Extra JSON internal/mutate's Report.Event
@@ -219,7 +226,7 @@ func (a *Agent) attachCommitProof(ctx context.Context, sha string, emit func(Eve
 	if err != nil {
 		return false
 	}
-	r, err := a.buildProof(ctx, root, sha, committed)
+	r, versions, err := a.buildProof(ctx, root, sha, committed)
 	if err != nil {
 		emit(Event{Kind: EvNotice, Text: "proof: could not read " + proof.Short(sha) + "'s content to attach evidence: " + err.Error()})
 		return false
@@ -230,6 +237,9 @@ func (a *Agent) attachCommitProof(ctx context.Context, sha string, emit func(Eve
 	if err := proof.Attach(ctx, root, sha, r); err != nil {
 		emit(Event{Kind: EvNotice, Text: "proof: could not attach evidence to " + proof.Short(sha) + ": " + err.Error()})
 		return false
+	}
+	if err := a.attachEvidence(ctx, root, sha, r, versions); err != nil {
+		emit(Event{Kind: EvNotice, Text: "proof: could not sign evidence for " + proof.Short(sha) + ": " + err.Error()})
 	}
 	return true
 }

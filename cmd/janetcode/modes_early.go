@@ -95,12 +95,27 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		return true, mcpServeMode(o)
 	case o.pluginCmd != "":
 		return true, pluginMode(os.Stdout, o.pluginCmd, fs.Args())
+	case o.runSessionRef:
+		cwd, err := os.Getwd()
+		if err != nil {
+			return true, err
+		}
+		return true, runSessionRefFlag(os.Stdout, cwd, fs.Args())
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {
 			return true, err
 		}
 		return true, runProofFlag(os.Stdout, cwd, strings.TrimSpace(strings.Join(fs.Args(), " ")))
+	case o.runWhyBroke:
+		cwd, err := os.Getwd()
+		if err != nil {
+			return true, err
+		}
+		// Each probe runs the test; ctrl+c ends the bisection.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return true, runWhyBrokeFlag(ctx, os.Stdout, cwd, fs.Args())
 	default:
 		return false, nil
 	}

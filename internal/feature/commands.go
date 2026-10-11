@@ -26,6 +26,7 @@ var commandWhen = map[string]string{
 	"/perf":            "a session felt slow and you want to know what was slow about it",
 	"/undo":            "the model changed the wrong thing; this puts every file back as it was before the turn, or /undo about <description> reverts only the changes that match it",
 	"/changes":         "you want to review what this session wrote, turn by turn, before trusting it",
+	"/tour":            "a turn changed more than you will read line by line, and you want the risky hunks first and the churn out of the way",
 	"/blame":           "a file looks wrong and you want to know which turn wrote which line",
 	"/redo":            "the undo was the mistake",
 	"/mcp":             "a project ships .mcp.json, or a remote server needs a login",

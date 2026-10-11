@@ -115,6 +115,7 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil && errors.Is(context.Cause(ctx), ErrWallTime) && !errors.Is(err, ErrWallTime) {
 		err = fmt.Errorf("%w (%s)", ErrWallTime, opts.MaxWallTime)
 	}
+	rec.dossier = failureDossier(opts, rec, err)
 	rec.finish(opts.Agent, err)
 	return err
 }
@@ -212,6 +213,12 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 	for round := 1; ; round++ {
 		if err := turn(ctx, opts, rec, blocks); err != nil {
 			return err
+		}
+		if c := ag.Conflict(); c != nil && c.Verified {
+			// Before --until: its check is the test the model says
+			// cannot pass, and another round would be spent on it.
+			fmt.Fprintf(opts.Stderr, "[conflict] %s fails and contradicts the task: %s\n", safe(c.Test), safeLine(c.Why, 200))
+			return fmt.Errorf("%w: %s", ErrConflict, c.Test)
 		}
 		if opts.MaxCostUSD > 0 {
 			if spent, ok := rec.spentUSD(); ok && spent >= opts.MaxCostUSD {
@@ -326,7 +333,7 @@ func remember(ctx context.Context, opts Options) {
 			xs = memory.StampEvidence(xs, fmt.Sprintf("%s#~%d", s.Meta.ID, ev[len(ev)-1].Seq))
 		}
 	}
-	changed, err := opts.Memory.Apply(xs)
+	changed, err := opts.Memory.Apply(memory.MarkTainted(xs, ag.Tainted()))
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
 	}
@@ -355,7 +362,7 @@ func sleepSession(ctx context.Context, opts Options) {
 		fmt.Fprintf(opts.Stderr, "[memory] sleep failed: %v\n", err)
 		return
 	}
-	changed, err := opts.Memory.ApplyWith(xs, "sleep")
+	changed, err := opts.Memory.ApplyWith(memory.MarkTainted(xs, opts.Agent.Tainted()), "sleep")
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
 	}

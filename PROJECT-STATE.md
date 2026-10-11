@@ -42,6 +42,37 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   fallback). Live: Serper, Exa, list-models; bwrap/editor/drag via pty.
   Not live: Tavily, SearXNG (no key/instance).
 
+- Novel ideas 2026-10-10 (branch feat/novel-ideas, not on master): all 13
+  from reports/Janetcode novel engineering ideas.md built, unit-tested, no
+  live runs. Default on (deterministic): claimcheck, tour, testledger,
+  evidence (--proof verify), taint/honeytoken/depgate. Opt-in: probe_ledger,
+  elide_checks, conflict_exit, localize_failures, effort_control,
+  subagent_merge, --branch-retry, --second-sample. Offline pre-screens:
+  elide 37% (<60% kill), claimcheck 3% (<10%), tour 0.2% mechanical
+  (<20%), second-sample trigger precision 23% (<40%), branch-retry 0
+  branch points; probes 75% of r13 runs, 23/32 with a discriminating one.
+  Impossible-effbench split: docs/benchmarks/effbench/impossible. Next:
+  live A/Bs on ai02. Further ideas: reports/Janetcode wild ideas.md.
+  Dropped on that evidence and their code removed (2026-10-11):
+  elide_checks, --branch-retry, --second-sample.
+
+- Wild ideas 2026-10-10 (same branch): all 25 from reports/Janetcode wild
+  ideas.md built, unit-tested, no live runs. Default on: numclaim, scope,
+  dossier, typosquat. Opt-in: spec_coverage, spec_examples, blind_tester,
+  diff_fuzz, flake_quarantine, fix_cache, speculate, plan_file, hedge_provider,
+  stream_resume, fingerprint, probe_memory, read_blame, observed_purity,
+  preresolve, prefix_kernel, scope_justify; flags --eval-sequential,
+  --ab-replay, --off-peak-by, --session-ref, --why-broke. Weak pre-screens:
+  pattern induction 5.6% (<10%, not wired), speculation proxy 1%, hedging
+  0 rescues, flake flips ~0, fix-cache 0.6%, purity 2.9% prompts saved.
+  Dropped and their code removed (2026-10-11): on those pre-screens,
+  pattern induction, speculate, hedge_provider/stream_resume,
+  flake_quarantine, fix_cache, observed_purity and prefix_kernel; on the
+  live runs (docs/benchmarks/novel/REPORT.md), spec_coverage/spec_examples
+  (19/21 vs 18/21 at +19% wall) and blind_tester (20/21, same as a second
+  baseline, +18% wall). The lists above are what was built, not what is
+  left.
+
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does

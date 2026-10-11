@@ -2,10 +2,12 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -107,20 +109,38 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	// it. It goes in before the feedback so the model reads the failure
 	// last, closest to its next call.
 	a.adviseOnGateFailure(ctx, feedback, emit)
+	// Which of the turn's hunks did it, worked out by the harness rather
+	// than left for the model to guess (see localize.go). Only on a
+	// repair round: a reminder of failures the turn did not cause
+	// returned above.
+	if res.Failed != "" {
+		feedback += a.localizeFailure(ctx, res.Output, emit)
+	}
 	a.appendHarnessText(feedback)
 	return true
 }
 
 // logGate records each command a gate ran as a session.TypeGate event,
 // so the verdict fold (see FoldOutcomeIn) counts a gate's runs as checks
-// the turn ran. A passing command's output is not kept by verify.Runner,
-// so only a failure carries one.
+// the turn ran. Only a failure's output is kept on the event; every run
+// also carries its exit code and a digest of what it printed in Extra
+// (proof.GateRun), which signed evidence records and `--proof verify`
+// compares a re-run against.
 func (a *Agent) logGate(source string, res verify.Result) {
+	root := a.RootDir()
+	runs := map[string]json.RawMessage{}
+	for _, r := range res.Runs {
+		gr := proof.GateRun{Exit: r.Exit}
+		gr.Output, gr.OutputPartial = proof.OutputDigest(r.Output, root)
+		if b, err := json.Marshal(gr); err == nil {
+			runs[r.Name] = b
+		}
+	}
 	for _, c := range res.Passed {
-		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: c, Source: source})
+		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: c, Source: source, Extra: runs[c]})
 	}
 	if res.Failed != "" {
-		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: res.Failed, Output: res.Output, IsError: true, Source: source})
+		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: res.Failed, Output: res.Output, IsError: true, Source: source, Extra: runs[res.Failed]})
 	}
 }
 

@@ -73,6 +73,49 @@ type Turn struct {
 	// Mutation is the mutation-testing score for this turn, when one was
 	// logged (see internal/mutate.Report.Event and TurnOutcomeInput.Mutation).
 	Mutation *Mutation `json:"mutation,omitempty"`
+	// Integrity is the turn's test-integrity ledger, when one was kept.
+	Integrity *Integrity `json:"integrity,omitempty"`
+	// Conflict is the spec/test contradiction the turn ended on, when it
+	// ended on one.
+	Conflict *Conflict `json:"conflict,omitempty"`
+}
+
+// Integrity is what a turn did to the tests that judged it: the test
+// files it changed and added, how many existing assertions it changed,
+// whether the tests as they were before the turn still pass against its
+// code, and which of its source lines branch on a value only a test holds
+// (internal/agent's testledger.go keeps it).
+type Integrity struct {
+	TestsModified      []string `json:"tests_modified,omitempty"`
+	TestsAdded         int      `json:"tests_added"`
+	AssertionsModified int      `json:"assertions_modified"`
+	// Replay is the command the original tests were run with against the
+	// turn's code, ReplayFailed whether that run failed, and
+	// ReplaySkipped why no replay ran although tests were modified.
+	Replay        string   `json:"replay,omitempty"`
+	ReplayFailed  bool     `json:"replay_failed,omitempty"`
+	ReplaySkipped string   `json:"replay_skipped,omitempty"`
+	LiteralFlags  []string `json:"literal_flags,omitempty"`
+	// SentBack says the turn was sent back once on these findings.
+	SentBack bool `json:"sent_back,omitempty"`
+}
+
+// Clean reports a ledger with nothing against the turn.
+func (i Integrity) Clean() bool {
+	return !i.ReplayFailed && len(i.LiteralFlags) == 0
+}
+
+// Conflict is a CONFLICT: claim (the task and a test disagree) with what
+// the harness made of it: Exists says the cited test was found in the
+// project, Red that it was failing when the turn ended, Verified both.
+type Conflict struct {
+	Test     string `json:"test"`
+	Spec     string `json:"spec,omitempty"`
+	Why      string `json:"why,omitempty"`
+	Exists   bool   `json:"exists"`
+	Red      bool   `json:"red"`
+	Verified bool   `json:"verified"`
+	Note     string `json:"note,omitempty"`
 }
 
 // Mutation is a turn's mutation-testing score: how many of the small
@@ -140,6 +183,10 @@ type TurnOutcomeInput struct {
 	// latest session.TypeMutation event logged for that turn, or nil when
 	// none was.
 	Mutation *Mutation
+	// Integrity and Conflict are folded from the turn's latest
+	// session.TypeTestLedger and session.TypeConflict events.
+	Integrity *Integrity
+	Conflict  *Conflict
 }
 
 // Build assembles a Record from one session's tracked changes and turn
@@ -199,7 +246,7 @@ func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes ma
 		turns = append(turns, Turn{
 			Turn: tn, Verdict: o.Verdict, Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
-			Mutation: o.Mutation,
+			Mutation: o.Mutation, Integrity: o.Integrity, Conflict: o.Conflict,
 		})
 	}
 	return Record{
@@ -502,6 +549,22 @@ func Summary(r Record) string {
 		fmt.Fprintf(&b, "%s turn %d%s: %s: %s", verdictMark(t.Verdict), t.Turn, who, t.Verdict, t.Why)
 		if t.Mutation != nil {
 			fmt.Fprintf(&b, " · mutations %d/%d caught", t.Mutation.Killed, t.Mutation.Total)
+		}
+		if i := t.Integrity; i != nil {
+			fmt.Fprintf(&b, " · tests: %d modified, %d added, %d assertions changed", len(i.TestsModified), i.TestsAdded, i.AssertionsModified)
+			if i.ReplayFailed {
+				b.WriteString(", originals fail")
+			}
+			if n := len(i.LiteralFlags); n > 0 {
+				fmt.Fprintf(&b, ", %d test-literal branch(es)", n)
+			}
+		}
+		if c := t.Conflict; c != nil {
+			state := "unconfirmed"
+			if c.Verified {
+				state = "confirmed red"
+			}
+			fmt.Fprintf(&b, " · CONFLICT %s (%s)", c.Test, state)
 		}
 		b.WriteString("\n")
 	}

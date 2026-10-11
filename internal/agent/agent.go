@@ -15,10 +15,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/depcheck"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/localize"
 	"github.com/xmonader/janetcode/internal/plan"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/taint"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -189,6 +193,41 @@ type Agent struct {
 	VerifyBaseline bool
 	// baseline is this turn's pre-edit verification run.
 	baseline *baselineRun
+	// LocalizeFailures attaches causal patch minimisation and a ranked
+	// list of suspicious functions to a red test run that follows a
+	// multi-hunk edit. Off by default: it reruns tests. See localize.go.
+	LocalizeFailures bool
+	// Localize runs one localization; the composition root sets it to
+	// internal/localize/tree.Run, which owns the throwaway worktree the
+	// loop does not import (the mutation runner's arrangement). Nil
+	// leaves LocalizeFailures with nothing to run.
+	Localize func(context.Context, localize.Request) localize.Report
+	// localized is this turn's localization state.
+	localized localizeState
+	// ProbeLedger keeps the model's inline checks, classifies them
+	// against the pre-edit tree and replays the ones that tell the change
+	// apart from the old code at every later gate. See probes.go.
+	ProbeLedger bool
+	probes      probeLedger
+	// FingerprintDir, when set, runs the behavioural model fingerprint at
+	// the start of the session's first turn, keeping references there
+	// (fingerprint.go). Empty is off: it is six extra model calls.
+	FingerprintDir  string
+	fingerprintDone atomic.Bool
+	// probeExec and probePreTree stand in for the bash tool and the
+	// snapshot export in tests.
+	probeExec    func(ctx context.Context, cmd string) probeResult
+	probePreTree func(ctx context.Context) string
+	// ProbeMemory keeps the ledger's discriminating probes in the
+	// repository and replays them in later sessions. See probememory.go.
+	ProbeMemory bool
+	probeMem    probeMemState
+	// probeMemRepoDir stands in for the user's repository in tests.
+	probeMemRepoDir string
+	// ReadBlame notes on a read_file result the lines an earlier agent
+	// turn wrote, and why. See readblame.go.
+	ReadBlame      bool
+	readBlameCache readBlameState
 	// StrongModel is the strong slot of the cheap/default/strong trio
 	// (RouteCheap / Model / StrongModel). Empty means there is no tier to
 	// escalate to and the cascade cannot fire.
@@ -248,6 +287,33 @@ type Agent struct {
 	// (testguard.go).
 	TestGuard   bool
 	testGuarded map[string]bool
+	// TestLedger, when set, keeps the test-integrity ledger for a turn
+	// that changed files and sends it back once on a finding: original
+	// tests failing against the code, or a branch on a value only a test
+	// holds (testledger.go).
+	TestLedger bool
+	// ConflictExit, when set, accepts a CONFLICT: line ending a turn as a
+	// claim that the task and a test disagree, and ends the turn on it
+	// once the cited test is confirmed failing (conflict.go). The prompt
+	// line that offers it is the caller's to add (ConflictPrompt).
+	ConflictExit bool
+	// ScopeJustify asks for a one-line reason after an out-of-scope edit
+	// that stated none (scopecontract.go); scopes is the session's
+	// scope contract, kept whatever ScopeJustify says.
+	ScopeJustify bool
+	scopes       scopeLedger
+	conflict     *proof.Conflict
+	// taint is the session's untrusted-content label (taint.go), shared
+	// with the subagents it starts; taintHosts are the hosts the user
+	// let a tainted turn reach. canaryHit is the host a planted
+	// honeytoken was sent to, once one was.
+	taint      *taint.Tracker
+	taintMu    sync.Mutex
+	taintHosts map[string]bool
+	canaryHit  atomic.Pointer[string]
+	// DepRegistry, when set, replaces the public registries the
+	// dependency check asks (depgate.go); tests use a fake.
+	DepRegistry depcheck.Registry
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -287,6 +353,29 @@ type Agent struct {
 	// TurnOutcome.StaleCheck). Off by default: it changes what a turn
 	// does, and every eval baseline here was measured without it.
 	StaleCheckNudge bool
+	// NumericClaimsNudge sends a turn back once when its answer states a number no measurement backs (numclaim.go).
+	NumericClaimsNudge bool
+	// DiffFuzz is how many seconds a refactor's changed Go functions are fuzzed against their pre-turn selves; zero is off (difffuzz.go).
+	DiffFuzz int
+	// EffortControl lets the effort controller set each call's reasoning
+	// tier from the turn's own signals, at or below Effort (effortctl.go).
+	// Off by default: it changes what every call asks for, and it acts
+	// only on a provider whose prompt cache does not key on the tier.
+	EffortControl bool
+	// SubagentMerge has the harness merge an editing subagent's work
+	// back into the project when it finishes, instead of handing the
+	// patch to the model to apply: its read-set is validated and its
+	// edits merged with whatever changed meanwhile when they commute,
+	// and what does not is sent back to the subagent once (see
+	// occmerge.go and internal/occ). Off by default: it writes to the
+	// project without the model's say, and its repair round is a model
+	// call.
+	SubagentMerge bool
+	// PlanFile has the harness send the user's edits to
+	// .janetcode/plan.md to the model between steps (planfile.go). Off
+	// by default.
+	PlanFile bool
+	planfile planfileState
 	// DecisionsSessionOutcome enables the session-end outcome
 	// classification (config decisions.session_outcome, item 9). It is
 	// log-only: nothing in the harness changes because of the answer,
@@ -319,6 +408,13 @@ type Agent struct {
 	// as a git note (see proof.go). It does not gate /proof or --proof,
 	// which attach on request regardless. Config default is on.
 	ProofNotes bool
+	// Evidence signs the evidence statement attached beside each proof
+	// note (see evidence.go and internal/proof's evidence.go): an in-toto
+	// statement of what demonstrated the commit, which `janetcode --proof
+	// verify` re-runs. Nil attaches no evidence; the CLI sets a
+	// proof.KeySigner over the local key. The "evidence" behaviour turns
+	// it off.
+	Evidence proof.Signer
 	// ReadOnly hides mutating tools from the model and refuses them if
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
@@ -485,6 +581,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		return errors.New("no provider")
 	}
 	ctx, endEgress := a.egressTurn(ctx, blocks)
+	ctx = a.taintTurn(ctx)
+	a.fingerprintSession(ctx, emit)
 	defer endEgress()
 	// A continuation has no prompt of its own: the prompt hooks saw the
 	// dead turn's, and nothing new is submitted.
@@ -553,6 +651,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.checkIntegrity(emit)
 		a.reportJobs(emit)
 		a.reportForks(emit)
+		a.planfileCheck(emit)
 		a.deliverSteering(emit)
 		a.stepN++
 		a.logEvent(session.Event{Type: session.TypeStepStart, Turn: a.turnN, Step: a.stepN})
@@ -567,6 +666,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			return err
 		}
 		a.noteCut(resp)
+		a.noteEffort(replyEffortSignal(resp, a.planCutNow))
 		if a.refuseTruncatedCalls(resp, emit) {
 			continue
 		}
@@ -597,9 +697,15 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 type turnGates struct {
 	stops, needs, corrections int
 	verify, accept            gateState
+	probes                    probeGateState
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
 	specReviewed              bool
+	ledger                    ledgerState
+	difffuzz                  difffuzzGateState
+	// conflicted: the turn ended on a confirmed CONFLICT, past the gates
+	// that would send it back to make the cited test pass.
+	conflicted, conflictNudged bool
 }
 
 // openTurn is everything that has to happen once, before the first model
@@ -615,7 +721,9 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.resetDiagnostics()
 	a.outBoost = 0
 	a.planCuts, a.planCutNow = 0, false
+	a.effort.start(a.Settings().Effort)
 	a.reviewSteps = -1
+	a.conflict = nil
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -742,7 +850,7 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true,
 		Message: &msg, Usage: &u, Model: a.lastCallModel, Served: served, Mismatch: mismatch,
 		Slot: a.lastCallSlot, Provider: a.lastCallProvider, Route: a.lastCallRoute, RouteWhy: a.lastCallWhy,
-		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds()})
+		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds(), Effort: a.lastCallEffort})
 	emit(Event{Kind: EvTextBlockDone})
 	// The ceiling is asked about here, while the call just paid for
 	// is in the totals and before its tools are run.
@@ -890,19 +998,38 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	if a.diagnosticsGate(&g.diagRounds, emit) {
 		return false
 	}
-	if !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
-		a.stepRoute.taint("a verification check failed and was sent back")
+	// Before the checks: a confirmed CONFLICT ends the turn with the
+	// cited test red, and the gates below would send it back to make
+	// that test pass by whatever means.
+	if a.conflictGate(ctx, resp.Message.Text(), g, emit) {
 		return false
 	}
-	if a.acceptVerifyGate(ctx, &g.accept, emit) {
+	if !g.conflicted && !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
+		a.stepRoute.taint("a verification check failed and was sent back")
+		a.noteEffort(effortTrouble)
+		return false
+	}
+	if !g.conflicted && a.probeGate(ctx, &g.probes, emit) {
+		a.stepRoute.taint("a probe the model had passed failed and was sent back")
+		a.noteEffort(effortTrouble)
+		return false
+	}
+	if !g.conflicted && a.acceptVerifyGate(ctx, &g.accept, emit) {
 		a.stepRoute.taint("an acceptance check failed and was sent back")
+		a.noteEffort(effortTrouble)
+		return false
+	}
+	if !g.conflicted && a.testLedgerGate(ctx, &g.ledger, emit) {
+		return false
+	}
+	if !g.conflicted && a.diffFuzzGate(ctx, &g.difffuzz, emit) {
 		return false
 	}
 	// What the turn actually demonstrated, decided from what the harness
 	// watched rather than from what was written. A claim the turn does
 	// not support is put back to the model once.
 	outcome := a.Outcome()
-	if !a.Off["verdict"] && outcome.Overclaimed() && g.corrections == 0 {
+	if !g.conflicted && !a.Off["verdict"] && outcome.Overclaimed() && g.corrections == 0 {
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
 		a.appendHarnessText(outcome.Correction())
@@ -914,14 +1041,20 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	// and bounded by the same one-correction-a-turn counter, because the
 	// expensive mistake here is nagging a turn that is genuinely finished
 	// into another round of model calls.
-	if a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
+	if !g.conflicted && a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
 		a.appendHarnessText(outcome.StaleCheckNote())
 		return false
 	}
-	if a.specReview(outcome, &g.specReviewed, emit) {
+	if a.numclaimGate(resp.Message.Text(), g, emit) {
 		return false
+	}
+	if !g.conflicted && a.specReview(outcome, &g.specReviewed, emit) {
+		return false
+	}
+	if g.specReviewed {
+		a.noteReviewClaims(resp.Message.Text(), emit)
 	}
 	a.logOutcome(outcome)
 	// A goal closed in a turn whose checks came back red is put back to
@@ -986,6 +1119,9 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	if note := a.reviewStepNote(); note != "" && len(results) > 0 {
 		results[len(results)-1].Text += "\n\n" + note
 		emit(Event{Kind: EvNotice, Text: "the review has used its calls; asking the model to wrap up"})
+	}
+	if a.EffortControlOn() {
+		a.noteEffort(stepEffortSignal(uses, results, a.effort.edited))
 	}
 	tr := llm.ToolResultMessage(results...)
 	tr.Blocks = append(tr.Blocks, images...)

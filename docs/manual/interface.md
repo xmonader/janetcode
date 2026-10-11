@@ -571,7 +571,8 @@ feature has to be on before filling one changes anything, is in
 [Configuration](configuration.md) under "The model slots".
 
 `/features` is that second half: the cascade (`escalate`), the forced
-advisor (`advisor`), the stale-check nudge (`stale-nudge`) and the four
+advisor (`advisor`), the stale-check nudge (`stale-nudge`), the subagent
+merge-back (`subagent-merge`) and the four
 decision consumers, each with what it is set to and what still stands in
 its way — a filled strong slot with `escalate` off says so rather than
 looking like a working cascade. `/features <name> on|off` changes one and
@@ -1199,6 +1200,77 @@ simply cannot connect. `JANETCODE_SANDBOX_BACKEND` and
 `JANETCODE_SANDBOX_IMAGE` pick the backend and docker image for a run,
 as `/sandbox landlock` and `/sandbox <image>` do in a session.
 
+### Untrusted content: the tainted session
+
+Every tool result is labelled by where it came from. Your prompt and
+your repository's files are trusted. These are not: fetch_url, web
+search, MCP tools, files under a dependency directory (`vendor/`,
+`node_modules/`, `third_party/`, `site-packages/`, the Go module cache
+and the like, read with read_file, grep or `cat`), and bash that fetches
+(`curl`, `wget`) or prints an issue or pull request (`gh issue view`,
+`gh pr view`, `gh api`). Any of those can carry instructions someone
+else wrote. Once one is in the context the session is *tainted*, the
+status line says so, and from then on these calls ask first, whatever
+the mode (`/yolo`, `/auto` and allow rules included):
+
+- a bash command that can reach the network: `curl`, `ssh`, `git push`,
+  `npm install`, `pip install`, `go get`, a `python -c` that opens a URL;
+- a change to CI configuration (`.github/workflows/`, `.gitlab-ci.yml`
+  and the rest), a credential file (`.env`, `*.pem`, `.npmrc`, ...), a
+  protected path, or janetcode's own settings, rules and hooks;
+- a call that sends data to a host outside `egress.allow` (fetch_url,
+  web search, a remote MCP server). A yes covers that host for the rest
+  of the session.
+
+The prompt says where the argument came from when it can be traced:
+"this curl URL came from vendor/acme/README.md:40". With nobody to ask
+(a headless run) these calls are refused, which leaves egress at the
+allow list. When the other two legs of the lethal trifecta are up as
+well (secrets a command can read, and no egress policy), the badge reads
+`trifecta: egress asks`. Network commands are recognised by what they
+spell, so a command can still reach a host it does not name; an egress
+policy with the sandbox on is what holds bash to the allow list for
+every host. `/egress` lists what tainted the session. A memory the model or the extractor learns in a tainted
+session waits for `/memory approve` even with `memory_confirm` off. A
+resumed session is labelled again from its history; `/clear` starts
+clean. `JANETCODE_OFF=taint` turns all of this off.
+
+Every command the model runs also carries two honeytoken variables,
+`DEPLOY_TOKEN_BACKUP` and `PROD_DB_PASSWORD_RO`, with random values that
+exist nowhere else (never shadowing a variable you have set). A tool
+call whose arguments hold one, or a request through the egress proxy
+that carries one (in the URL, headers, the first 64 KB of a plain HTTP
+body, or the CONNECT host), stops the run: only a command sending the
+environment somewhere can hold them. Inside a TLS tunnel the proxy
+cannot see, and without the proxy a sandboxed command is not watched.
+`JANETCODE_OFF=honeytoken` stops planting them.
+
+An edit that adds a dependency to `go.mod`, `package.json` or a
+`requirements*.txt` has each new name looked up in its public registry
+(the Go module proxy, or the one `GOPROXY` names; npm; PyPI). A name
+that does not exist, or that was first published under 30 days ago,
+gets a line on the edit's result: models invent package names, and
+someone may have registered the invention. It never refuses the edit.
+Lookups take at most five seconds an edit, go through the egress policy,
+skip `GOPRIVATE`/`GONOPROXY` modules and `GOPROXY=off`, and fail open.
+`JANETCODE_OFFLINE=1` skips them; `JANETCODE_OFF=depgate` turns the check
+off.
+
+A typosquat is registered, so the registry lookup passes it. An edit
+that adds an import to Go, Python or JavaScript/TypeScript source, or a
+requirement to one of those manifests, also has each new name compared,
+offline, with the names this machine already knows: the project's own
+dependencies and `node_modules`, the Python modules beside the file, the
+Go module cache, and a short list of well-known packages and standard
+libraries. A name one keystroke from a known one (`reqeusts`), with
+lookalike letters (`jeIlyfish`), a different case
+(`github.com/Sirupsen/logrus`), a different separator, or a decoration
+bolted on (`nodemailer-js`, `github.com/boltdb-go/bolt`) gets a
+`[typosquat check]` line on the edit's result naming what it resembles.
+A name that is itself known is never flagged, however close it is to
+another (`react` and `preact`). It never refuses the edit.
+`JANETCODE_OFF=typosquat` turns it off.
+
 With `memory_confirm` on (or `/memory confirm on` for the session), what
 the model or the extractor decides to remember waits instead of being
 saved: `/memory pending` lists each with where it was learned, its scope
@@ -1482,6 +1554,33 @@ patch inline, and the patch saved to a file so it can be applied with
 your deny rules still apply inside the worktree. This needs a git
 repository.
 
+With `subagent_merge` on (`/features subagent-merge on`, off by
+default) the harness merges the subagent's work into the project itself
+when it finishes, which is what makes several editing subagents started
+in one step safe to run on the same files. Every file the subagent read,
+and every grep and glob it ran, is its read-set; at merge-back the
+harness checks it against the project as it is now, since another
+subagent or the main agent may have changed it meanwhile:
+
+- a file both changed is merged when the two sets of edits touch
+  different declarations (Go is parsed with the standard parser, other
+  languages with a tree-sitter grammar in a `-tags treesitter` build,
+  everything else by line ranges, more strictly). Two subagents that each
+  added an import, or each appended a function, are merged too;
+- a file it read and did not edit only matters when the other change
+  touched a declaration its own edits use; a grep or glob only when its
+  answer would now differ.
+
+What merges is written to the project with a checkpoint and a `/changes`
+record, so `/undo` reverts it like any edit, and the turn's verify gate
+runs. What does not is sent back to the subagent once, with both sides'
+diffs, in a checkout brought up to date with the project; if it still
+conflicts, the project is left alone and the main agent gets the work as
+a patch against the current project. Merge-back never asks: when a write
+to one of the files would need your approval (no `/auto` or `/edits`, an
+ask or deny rule, a protected path), the patch comes back the old way.
+Commands the subagent ran through bash are not part of its read-set.
+
 ### A whole session in a worktree
 
 `--worktree <branch>` runs the session in a `git worktree` checked out
@@ -1683,6 +1782,43 @@ as changes themselves. Turn-level `/undo`, `/undo turn n` (which
 rewinds the conversation too) and `/redo` still restore whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
+### Review tour and comprehension debt: /tour
+
+`/tour` reads the last turn that changed files the way a reviewer should:
+riskiest hunk first instead of file by file. Each file's change is shown
+as one net diff (a hunk rewritten three times is read once, in its final
+form), and every hunk carries the intent the model stated for the change
+that wrote it. Hunks are ranked by kind, then by reach: a change to what
+the program does comes before a test edit, which comes before a
+comment-only one, and within a kind the hunk in a file whose touched
+symbols are used in more places comes first (the same count the impact
+line on a permission prompt shows). Mechanical churn — a hunk whose
+tokens are identical on both sides (reformatting), or that only renames
+identifiers consistently to names no changed file used before — is
+collapsed behind a count; `/tour all` lists it after the rest. `/tour 3`
+tours turn 3. The classification is token equality, never a model's
+opinion, and errs towards "behaviour": an import that now names a
+different symbol, or a swap to a name already in use, is not a rename.
+
+After a turn with more than one hunk, a line under it says what the tour
+holds (`review: 4 hunks (3 behaviour, 1 test) · 12 lines mechanical
+collapsed · /tour`).
+
+The comprehension-debt meter counts the changed lines this session that
+were approved without anyone reading them whole, per directory: a change
+approved by auto mode or a rule, or at a prompt whose diff was clipped and
+not expanded (ctrl+o), is debt; one approved with its whole diff on
+screen, or shown afterwards by `/tour` or `/changes n`, is not.
+Mechanical hunks, undos, and changes since undone never count. It appears
+at the end of `/tour`, under `/changes` and in `/stats`, in the terminal
+and the web UI alike, e.g. `comprehension debt: 1200 lines approved
+unread · 900 in pkg/auth, 300 in cmd`. What was read is not kept across
+`--resume`, so a resumed session counts its earlier changes as unread.
+
+All of it is computed from the change record without a model call.
+`JANETCODE_OFF=tour` (or `--off tour`) turns the tour line, `/tour` and
+the meter off.
+
 ### Undo by description
 
 `/undo about <description>` finds which of this session's changes match a
@@ -1859,7 +1995,8 @@ already be on the remote) but warns —
 `N noted commit(s) are not on <remote> yet; push your branch too`.
 
 <sub>Under the hood, `/proof push` runs `git push <remote>
-refs/notes/janetcode`; `/proof fetch` runs `git fetch <remote>
+refs/notes/janetcode` (plus `refs/notes/janetcode-evidence` when there is
+signed evidence, below); `/proof fetch` runs `git fetch <remote>
 refs/notes/janetcode:refs/notes/janetcode` and adds
 `+refs/notes/janetcode:refs/notes/janetcode` to `remote.<remote>.fetch`.
 `git log --notes=janetcode` reads them inline once fetched.</sub>
@@ -1890,6 +2027,87 @@ during `--amend` or a rebase, no further action needed. Because the two
 `notes.rewrite.*` keys are only ever set when they were previously unset,
 an explicit `false` you (or another tool) put there on purpose is never
 overridden.
+
+#### Signed evidence: re-run what a commit claims
+
+Beside each proof note janetcode attaches a second note, under
+`refs/notes/janetcode-evidence`, that a machine can check rather than a
+person read: an [in-toto](https://in-toto.io) Statement v1 with the
+predicate type `https://janetcode.dev/change-evidence/v1`, whose subject
+is the commit's tree (`{"gitTree": <sha>}`), wrapped in a DSSE envelope
+and signed with a local ed25519 key. It records, for each session that
+contributed and each of its turns that wrote a committed file:
+
+- every verification command the turn ran (its own checks and the
+  turn-end gates'), the latest run of each, with its exit code, a sha256
+  of its normalised output, the sandbox profile it ran under, and whether
+  the turn edited files after it ran;
+- the model asked for, every model and provider that answered, and the
+  serving-model provenance verdict (`match`, `mismatch`, `unknown`);
+- the sha256 of the turn's prompt and of the system prompt;
+- who approved each call that changed a committed file (a rule, a mode,
+  the user);
+- the sha256 of every committed test file as it was before the commit
+  (`absent` for a new one);
+- the sandbox profile and a hash of its definition.
+
+`janetcode --proof verify [commit]` checks it: the signature against the
+keys this machine trusts, that the subject is the commit's own tree (an
+amend that changed a file carries the note along and then fails here),
+then re-runs each recorded command in a throwaway checkout of the commit
+under its recorded sandbox profile and compares exit code and normalised
+output (timings, paths, temp directories, addresses and `(cached)` are
+normalised away; test names, counts, messages and line numbers are not).
+Each claim comes back `reproduced`, `exit reproduced` (the recorded output
+was cut or not kept), `output differs`, `diverged` (the exit code
+changed), `not re-run` (a held-out acceptance gate, or a sandbox this
+machine cannot provide), or `unverified assertion`: a check the proof
+note lists, or a turn where the model said it verified, with no recorded
+run behind it. A commit with a proof note and no evidence shows every
+check as an unverified assertion. It exits 1 when the evidence does not
+hold — no evidence, a signature that is invalid or from a key not
+trusted here, another tree, or a re-run that exited differently.
+
+```
+janetcode --proof verify HEAD~2
+/proof verify            # in a session: signature, subject and records only, nothing re-run
+janetcode --proof key    # this machine's public key, for another machine's trusted file
+```
+
+The key is created on the first commit that gets evidence, at
+`<config>/evidence/ed25519.key` (mode 0600). A machine trusts its own key
+and every `<key id> <base64 key>` line in `<config>/evidence/trusted`;
+`--proof key` prints this machine's line. Signing is local and offline;
+the signer is an interface, so keyless signing (Sigstore) can be added
+without changing the format. `/proof push` and `/proof fetch` move the
+evidence with the notes.
+
+The evidence is for a reviewer: nothing in it reaches the model, and it
+costs a few git calls per commit. It rides on `proof_notes`;
+`JANETCODE_OFF=evidence` turns off just the evidence.
+
+### Sessions as git refs
+
+`janetcode --session-ref save [id]` keeps a session in the repository, as
+a commit under `refs/janetcode/sessions/<id>` (default: the latest session
+in this directory). It holds the transcript, the proof records and signed
+evidence of the last 50 commits that name the session, and the probes it
+left in the probe memory, under 1 MB: a transcript that does not fit has
+its long strings (tool output, file contents, images) clipped until it
+does, its structure kept whole. Saving again replaces the record and keeps
+the old one as its parent.
+
+```
+janetcode --session-ref list                # saved sessions, newest first
+janetcode --session-ref show <id>           # what a record holds
+janetcode --session-ref push [remote]       # sessions and probe memory
+janetcode --session-ref fetch [remote] [id] # someone else's
+janetcode --session-ref open <id>           # then --show / --what-if read it
+```
+
+Nothing is pushed or fetched unless asked. `open` writes the transcript
+among the local sessions and never over one already there; a reviewer can
+then read it with `--show` and re-run its evidence with `--proof verify`.
 
 ### Recipes: replay a turn for free
 
@@ -2480,6 +2698,11 @@ A follow-up suggestion is off by default. `/followup on` (or
 not the session system prompt, not the tool schemas — and puts 2–12 words
 in the input box as ghost text. Tab accepts it. `/followup off` silences
 it for the session.
+
+With `plan_file` on, `.janetcode/plan.md` is a plan you can edit while a
+turn runs: the change reaches the model before its next call, with a
+"plan file: ... changed" notice in the transcript, and the turn keeps
+going.
 
 `read_many_files` concatenates several text files (or a glob) in one
 call. It stays behind `tool_search` so it does not sit on every request.
@@ -3081,6 +3304,39 @@ anything never waits; its baseline is stopped when it ends. A verify file
 with `mutate` gets no baseline, since the full run does not do mutation
 testing. Off by default until measured (`docs/benchmarks/orient-baseline`);
 `--eval-off baseline` turns it off for one run.
+
+#### Which hunk did it: `localize_failures`
+
+Off by default; `"localize_failures": true` (or `/features localize on`,
+or `--set localize_failures=true` for one headless run) turns it on.
+
+When a test run comes back red after the turn changed two or more hunks
+-- the gate's run, or the model's own `go test` through bash -- janetcode
+works out which of those hunks broke it before the model reads the
+failure. In a throwaway git worktree it puts the files the turn changed
+back as the turn found them, re-applies the turn's hunks in subsets and
+reruns only the failing tests, narrowing by delta debugging to the
+fewest hunks that still fail them. It then runs the failing package's
+tests one at a time with coverage and ranks the functions the failing
+tests executed by Ochiai suspiciousness. Both are appended to the failing
+output:
+
+```
+[localize] Of the 3 hunks this turn changed, 1 is enough to make TestMul fail on the code as the turn found it; with the other 2 hunks alone it passes (6 reruns in a clean copy).
+- hunk 2 of 3: calc/calc.go line 13
+    -	return a * b
+    +	return a + b
+Most suspicious functions (Ochiai, from 3 tests run alone with coverage):
+- 1.00 calc/calc.go:12 Mul (failing tests ran it 1, passing 0), edited this turn
+```
+
+Nothing is attached when the failing tests also fail without the turn's
+edits (the turn did not cause them), when the failure does not reproduce
+in the clean copy, or when the output names no test a known runner
+reports. The runner is `go test` for now. One localization is bounded to
+a minute and its text to 2 KB, a turn localizes at most three times, and
+the same edits failing the same tests are not localized twice. No model
+is called; the cost is the reruns, which the model waits for.
 
 ### Diagnostics from language servers
 

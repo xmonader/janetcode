@@ -14,10 +14,12 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/impact"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/localize/tree"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
@@ -142,6 +144,21 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 		ix, _ := repo.Get(ctx)
 		in := impact.Input{Path: path, Old: before, New: after, Cwd: cd.Dir(), LSP: diag, RepoIndex: ix, Checks: checks()}
 		return impact.Analyze(ctx, in).Line()
+	}
+}
+
+// reachHook is the review tour's measure of how far one file's change
+// reaches (see agent.Agent.Reach): the references to every symbol whose
+// definition it touches, counted the way the impact line before a
+// permission prompt counts them.
+func reachHook(cd *agent.CD, diag *lsp.Manager, repo *repomap.Cache) func(ctx context.Context, path, before, after string) int {
+	return func(ctx context.Context, path, before, after string) int {
+		ix, _ := repo.Get(ctx)
+		n := 0
+		for _, s := range impact.Analyze(ctx, impact.Input{Path: path, Old: before, New: after, Cwd: cd.Dir(), LSP: diag, RepoIndex: ix}).Symbols {
+			n += s.Refs
+		}
+		return n
 	}
 }
 
@@ -498,12 +515,23 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
+	// Signed evidence beside each proof note: the local key is created on
+	// the first commit that gets one, not here.
+	if dir, err := proof.DefaultKeyDir(); err == nil {
+		ag.Evidence = proof.NewKeySigner(dir)
+	}
 	if b.d.headless {
 		ag.PlanBudget = planBudgetChars
 		ag.SpecReview = true
 		ag.TestGuard = true
+		ag.TestLedger = true
 	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
+	if d.cfg.ConflictExitEnabled() {
+		// Fixed for the session, so the prompt prefix stays cacheable.
+		ag.ConflictExit = true
+		ag.System = withConflictRule(ag.System)
+	}
 	ag.Sandbox = b.sb
 	ag.Cron = b.cron
 	ag.Jobs = d.jobs
@@ -511,6 +539,17 @@ func (b *agentBuilder) stepCore() error {
 	ag.Route = d.models
 	ag.RouteCheap = d.cfg.RouteCheap
 	ag.StaleCheckNudge = d.cfg.StaleCheckNudge
+	ag.EffortControl = d.cfg.EffortControl
+	ag.LocalizeFailures = d.cfg.LocalizeFailures
+	ag.Localize = tree.Run
+	ag.SubagentMerge = d.cfg.SubagentMerge
+	ag.ProbeLedger = d.cfg.ProbeLedger
+	ag.PlanFile = d.cfg.PlanFile
+	ag.FingerprintDir = fingerprintDir(d.cfg)
+	ag.ProbeMemory, ag.ReadBlame = d.cfg.ProbeMemory, d.cfg.ReadBlame
+	ag.NumericClaimsNudge = d.cfg.NumericClaimsNudge
+	ag.DiffFuzz = d.cfg.DiffFuzz
+	ag.ScopeJustify = d.cfg.ScopeJustify
 	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	b.task.Parent = ag
 	return nil
@@ -696,6 +735,7 @@ func (b *agentBuilder) stepTurnHooks() error {
 		}
 		return nil
 	})
+	ag.Reach = reachHook(b.cd, b.diag, b.repo)
 	predictor, err := agent.LoadPredictor(filepath.Join(b.d.cfgDir, "critic.json"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
@@ -703,6 +743,7 @@ func (b *agentBuilder) stepTurnHooks() error {
 	ag.Predictor = predictor
 	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem),
 		firstTurnRepo(ag, b.cd, b.ws, b.seen, b.off["inline"], repomap.TurnPrep(b.repo, 0)))
+	wirePreresolve(b)
 	return nil
 }
 
@@ -780,4 +821,14 @@ func openSnapshots(dir, sessDir string) *snapshot.Repo {
 		return nil
 	}
 	return repo
+}
+
+// withConflictRule puts the CONFLICT line at the end of the standing rules,
+// above the environment: inside the cached prefix, and before any text the
+// user appends, which stays last.
+func withConflictRule(system string) string {
+	if i := strings.Index(system, prompt.EnvironmentHeading); i >= 0 {
+		return system[:i] + agent.ConflictPrompt + "\n" + system[i:]
+	}
+	return system + "\n" + agent.ConflictPrompt
 }

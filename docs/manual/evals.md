@@ -76,10 +76,10 @@ checked against its own published data.
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled.
 The names are the list `--eval-off` prints on a misspelling (and the
-usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `coach`, `critic`, `extratools`,
-`faults`, `headlesscore`, `impact`, `inline`, `intent`, `keeprevert`, `ladder`, `leanprompt`, `lineedit`, `loops`,
-`memoryrank`, `mermaid`, `opentodos`, `oversized`, `plan`, `planbudget`, `proof`, `protected`, `prune`, `recipe`,
-`repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `specreview`, `syntax`, `testguard`, `thenrun`, `todo`, `undoabout`,
+usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `claimcheck`, `coach`, `critic`, `depgate`, `evidence`, `extratools`,
+`faults`, `headlesscore`, `honeytoken`, `impact`, `inline`, `intent`, `keeprevert`, `ladder`, `leanprompt`, `lineedit`, `loops`,
+`memoryrank`, `mermaid`, `numclaim`, `opentodos`, `oversized`, `plan`, `planbudget`, `probes`, `proof`, `protected`, `prune`, `recipe`,
+`repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `specreview`, `syntax`, `taint`, `testguard`, `testledger`, `thenrun`, `todo`, `tour`, `undoabout`,
 `verdict`, `verify`, `working`. The variant name is recorded in the results file so
 a comparison says what it compared. The same names work as
 `JANETCODE_OFF=script` for a real session.
@@ -183,7 +183,7 @@ you do not intend to push, or hand a task to someone who has no access to
 | 51–62 | `evals/*.json`, tagged `multistep` | the discriminating set (below) |
 | 31–35 | `evals/large/` | 1M-token corpora, for context behaviour |
 | 41–43 | `evals/session/` | multi-prompt sessions, for what survives across turns |
-| 51–59 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on |
+| 51–60 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on. 60 asks for three parallel editing subagents whose changes overlap in one file, the case `subagent_merge` is for |
 | 61 | `evals/explore/` | one change to find in a repository too big to read |
 | 71–73 | `evals/gated/` | long tasks that ship a strict `.janetcode/verify.json` (build + vet + gofmt + tests), so `--eval-gate` has a gate that can actually fail |
 | 81–86 | `evals/hard/` | six gap tasks ported from the mixai research repository: small Python programs whose stated behaviour a cheap model gets subtly wrong (occurs check, vector-clock concurrency, integer cent splitting, a regex engine that may not import `re`, deterministic topological order, a PN-counter merge). Each ships its `pytest` specification as a `locked` file, so an edit to the test is restored before grading, and a `.janetcode/verify.json` that runs the same tests inside the run, so `--eval-gate` has a gate that fails exactly when the task is unsolved. This is the set an escalation or advisor arm is measured on, because the easy sets are passed by every model |
@@ -450,6 +450,82 @@ by moonshot, not xiaomi (tool ids tool_24)" — and each assistant event
 in the session log carries `served` when it changes and `mismatch` when
 it disagrees.
 
+## Stopping an A/B when it is decided
+
+The bootstrap interval `--eval-compare` prints is a fixed-sample test: it
+means what it says only if the number of runs was chosen before the first
+one ran. Looked at after every round, and stopped the first time it reads
+"significant", it reports an effect that is not there far more often than
+5% of the time. So a comparison also prints a sequential verdict that may
+be read after every pair:
+
+```
+sequential (mSPRT, always-valid at 0.025 per gate): 32 paired run(s), 31 scored in both arms
+  dropped pairs: 0 lost in base only · 1 in current only · 0 in both (infrastructure or another vendor's model; counted, not scored)
+  pass rate: 2 won · 3 lost · 26 tied · p=0.75 · undecided: keep running or call it no detectable effect
+  output tokens: ×0.59 over 31 pair(s), 23 fewer · 8 more · p=0.118 · undecided: keep running or call it no detectable effect
+```
+
+A pair is the same task at the same run index in both arms: the same seed
+and the same starting files. The pass-rate gate reads only the pairs where
+one arm passed and the other failed; the output-token gate reads which arm
+wrote fewer output tokens. Both are a mixture likelihood ratio against a
+fair coin, exact rather than approximate, each held to 0.025 so the two
+together stay at 0.05. A pair where either arm was lost to the provider or
+answered by another vendor's model is counted against that arm and kept
+out, so an arm that loses more runs to the broker is visible.
+
+`--eval-sequential pass|output|any` uses it to stop: the rounds run one at
+a time (every task once, then every task again, up to `--eval-runs`), and
+the run ends after the first round where the chosen gate is decided:
+
+```sh
+janetcode --eval evals --eval-runs 10 --eval-compare base.json \
+  --eval-sequential output --eval-json new.json
+```
+
+It needs a baseline with as many runs per task, since a round with nothing
+to pair against cannot move the test. It is less eager than the bootstrap:
+re-analysed over 17 past effbench A/Bs, the bootstrap called six output-token
+differences significant at their full size and the sequential test three.
+No pass-rate difference in any of them was decisive by either test.
+
+## A/B arms that branch mid-run
+
+Two independent runs of one task differ from the first reply on, and most
+of the spread between arms comes from there: across the effbench r10–r13
+janetcode runs, the two seeds of a task disagreed on the verdict in 7 of 64
+pairs and their output tokens differed by a factor of e^0.87 (one standard
+deviation of the log ratio). A harness change that only acts late in a run
+— a gate, the spec review, compaction — has to be seen through all of it.
+
+`--ab-replay <session.jsonl> --ab-replay-calls K` (with `-p`) takes the
+first K model replies from a recorded run of the same task instead of the
+model: they cost nothing, their tool calls re-execute against this run's
+own workspace (absolute paths in them are moved from the recording's
+directory to this one), and the run goes live from call K+1. Two arms given
+the same recording and the same K start from an identical history and an
+identical tree, so their difference is the change, not the first replies.
+The recorded tree must be the same starting point: a benchmark's seeded
+workspace is; a tool whose output varies run to run (a timing test) can
+still make the replayed results differ slightly from the recording's.
+
+The effbench driver does this for every janetcode arm:
+
+```sh
+./run.py --campaign ab-gate --model mimo --seeds 2 \
+  --arms janetcode:base=$PWD/runs/janetcode-r13,janetcode:gate=$PWD/runs/janetcode-new \
+  --branch-from jc-mimo-r13 --branch-at 0.5
+```
+
+`--branch-at` below 1 is a fraction of each recording's calls (the median
+run wrote 57% of its output tokens in the first half of its calls, so half
+is a large share of the run frozen), at 1 or more a call count. A unit with
+no recording, or a branch point outside it, runs unbranched in every arm
+alike, and each branched unit writes `branch.json` beside its result. Only
+janetcode arms can replay, so a pi arm is refused. Nothing has measured how
+much variance this removes yet: no branched campaign has been run.
+
 ## Every eval flag
 
 The environment variables above are what `make eval` sets; each is a flag
@@ -464,6 +540,7 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-json <file>` | write the run's numbers for a later comparison |
 | `--eval-report <file>` | re-read a saved results file and print it again |
 | `--eval-compare <file>` | pair against a baseline results file and print the delta with a bootstrap interval |
+| `--eval-sequential <gate>` | with `--eval-compare`: run rounds one at a time and stop when the always-valid test on `pass`, `output` or `any` is decided (see [Stopping an A/B](#stopping-an-ab-when-it-is-decided)) |
 | `--eval-label <text>` | name this variant, so two runs can be told apart in a results file |
 | `--eval-keep` | keep the work directory of every task, to look at one that failed |
 | `--eval-off <behaviour>` | turn one harness behaviour off for the run: an ablation |

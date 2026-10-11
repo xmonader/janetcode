@@ -20,10 +20,10 @@ func TestShellForPicksByOS(t *testing.T) {
 			return "", errors.New("not found")
 		}
 	}
-	if s := shellFor("linux", only("bash", "sh")); s.Name != "bash" || s.Path != "/bin/bash" || strings.Join(s.Args, " ") != "-c" {
+	if s := shellFor("linux", only("bash", "sh")); s.Name != "bash" || s.Path != "/bin/bash" || strings.Join(s.Args, " ") != "-o pipefail -c" {
 		t.Fatalf("linux: %+v", s)
 	}
-	if s := shellFor("linux", only("sh")); s.Name != "sh" || s.Path != "sh" {
+	if s := shellFor("linux", only("sh")); s.Name != "sh" || s.Path != "sh" || strings.Join(s.Args, " ") != "-c" {
 		t.Fatalf("linux without bash: %+v", s)
 	}
 	if s := shellFor("windows", only("powershell")); s.Name != "PowerShell" || s.Path != "/bin/powershell" || !s.encoded {
@@ -73,7 +73,7 @@ func TestOverrideNamesAPosixShell(t *testing.T) {
 		t.Fatal("blank JANETCODE_SHELL should not override")
 	}
 	s, ok := Override(`C:\Program Files\Git\bin\bash.exe`)
-	if !ok || s.Name != "bash" || strings.Join(s.Args, " ") != "-c" || s.encoded {
+	if !ok || s.Name != "bash" || strings.Join(s.Args, " ") != "-o pipefail -c" || s.encoded {
 		t.Fatalf("git bash: %+v", s)
 	}
 	s, _ = Override(`C:\tools\busybox64.exe`)

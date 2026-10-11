@@ -7,6 +7,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/localize/tree"
 	"github.com/xmonader/janetcode/internal/settingsapply"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -82,5 +83,18 @@ func wireEvalGate(ag *agent.Agent, root string, cfg *config.Config, off map[stri
 	// measured arm once while the eval agent never set it, so an arm that
 	// turns it on in the config now actually gets it.
 	ag.StaleCheckNudge = cfg.StaleCheckNudge
+	// The effort controller likewise, so an arm that sets
+	// effort_control is the arm it says it is.
+	ag.EffortControl = cfg.EffortControl
+	// Localization rides the gate too, and is measured the same way.
+	ag.LocalizeFailures = cfg.LocalizeFailures
+	ag.Localize = tree.Run
+	ag.SubagentMerge = cfg.SubagentMerge
+	ag.ProbeLedger = cfg.ProbeLedger
+	ag.FingerprintDir = fingerprintDir(cfg)
+	ag.ProbeMemory, ag.ReadBlame = cfg.ProbeMemory, cfg.ReadBlame
+	ag.NumericClaimsNudge = cfg.NumericClaimsNudge
+	ag.DiffFuzz = cfg.DiffFuzz
+	ag.ScopeJustify = cfg.ScopeJustify
 	settingsapply.WireDecisions(cfg, ag, off)
 }

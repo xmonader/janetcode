@@ -390,6 +390,31 @@ func (r *Repo) Moved(ctx context.Context, s Snap) (bool, error) {
 	return head != s.Head || s.Root != "" && s.Root != r.Root, nil
 }
 
+// Export writes the tree a snapshot recorded into dir, which must exist
+// and should be empty, without touching the work tree, HEAD or the real
+// index. Files that were ignored when the snapshot was taken are not in
+// it, so neither are they in dir. The probe ledger runs a check against
+// the code as it was before a turn's first change this way.
+func (r *Repo) Export(ctx context.Context, s Snap, dir string) error {
+	if s.Commit == "" {
+		return errors.New("snapshot has no commit")
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	idx, cleanup, err := r.tempIndex()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	if _, err := r.run(ctx, idx, "read-tree", s.Commit); err != nil {
+		return err
+	}
+	_, err = r.run(ctx, idx, "checkout-index", "-a", "-f", "--prefix="+abs+string(filepath.Separator))
+	return err
+}
+
 // Drop deletes the ref anchoring a snapshot so gc can reclaim it.
 func (r *Repo) Drop(ctx context.Context, s Snap) {
 	if s.Commit != "" {

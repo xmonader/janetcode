@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,8 +28,15 @@ type AttachFunc func(ctx context.Context, root, sha string) (string, error)
 // not nil. dir may be anywhere inside the repository. Errors are worded
 // "proof ...: ...".
 func Exec(ctx context.Context, dir string, a Args, attach AttachFunc) (cmdresult.Result, error) {
-	ctx, cancel := context.WithTimeout(ctx, ExecTimeout)
+	timeout := ExecTimeout
+	if a.Action == ActionVerify && !a.Static {
+		timeout = VerifyTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if a.Action == ActionKey {
+		return keyResult()
+	}
 	root, err := Root(ctx, dir)
 	if err != nil && gitx.ExitCode(err) <= 0 {
 		return cmdresult.Result{}, fmt.Errorf("proof: %w", err) // git itself did not run
@@ -55,6 +63,8 @@ func Exec(ctx context.Context, dir string, a Args, attach AttachFunc) (cmdresult
 			return cmdresult.Result{}, fmt.Errorf("proof fetch: %w", err)
 		}
 		return cmdresult.Result{Notes: []string{"fetched proof notes from " + a.Remote + " · future fetches from it will bring them too"}}, nil
+	case ActionVerify:
+		return verifyResult(ctx, root, a)
 	}
 	text, sha, err := Show(ctx, root, a.Commit, attach)
 	if errors.Is(err, ErrNoCommit) {
@@ -67,6 +77,54 @@ func Exec(ctx context.Context, dir string, a Args, attach AttachFunc) (cmdresult
 		return cmdresult.Result{Notes: []string{"no proof for " + Short(sha)}}, nil
 	}
 	return cmdresult.Result{Sheet: text, SheetTitle: "proof"}, nil
+}
+
+// VerifyTimeout bounds `janetcode --proof verify`, which re-runs every
+// recorded command: CommandTimeout each, and this for all of them.
+const VerifyTimeout = time.Hour
+
+// verifyResult runs VerifyEvidence for /proof verify and --proof verify.
+// Evidence that does not hold — no evidence, a bad or untrusted
+// signature, another tree, a re-run that exited differently — is
+// reported in the result's Error after the sheet, so the CLI can exit
+// non-zero while still printing what it found.
+func verifyResult(ctx context.Context, root string, a Args) (cmdresult.Result, error) {
+	commit := strings.TrimSpace(a.Commit)
+	if commit == "" {
+		commit = "HEAD"
+	}
+	rep, err := VerifyEvidence(ctx, root, commit, VerifyOptions{Run: !a.Static})
+	if errors.Is(err, ErrNoCommit) {
+		return cmdresult.Result{}, err
+	}
+	if err != nil {
+		return cmdresult.Result{}, fmt.Errorf("proof verify: %w", err)
+	}
+	res := cmdresult.Result{Sheet: VerifySummary(rep), SheetTitle: "proof verify"}
+	if a.Static {
+		res.Notes = append(res.Notes, "static check only; `janetcode --proof verify "+Short(rep.Commit)+"` from a shell re-runs the recorded commands")
+	}
+	if !rep.OK() {
+		res.Error = "the evidence on " + Short(rep.Commit) + " does not hold"
+	}
+	return res, nil
+}
+
+// keyResult is /proof key: the local evidence key's trusted-file line,
+// creating the key if this machine has none yet.
+func keyResult() (cmdresult.Result, error) {
+	dir, err := DefaultKeyDir()
+	if err != nil {
+		return cmdresult.Result{}, fmt.Errorf("proof key: %w", err)
+	}
+	pub, err := NewKeySigner(dir).PublicKey()
+	if err != nil {
+		return cmdresult.Result{}, fmt.Errorf("proof key: %w", err)
+	}
+	return cmdresult.Result{
+		Sheet: TrustLine(pub), SheetTitle: "evidence key", Plain: true,
+		Notes: []string{"another machine verifies this one's evidence once that line is in its " + filepath.Join(dir, trustedFile)},
+	}, nil
 }
 
 // Show returns the Summary of the proof note on commit (default HEAD) in

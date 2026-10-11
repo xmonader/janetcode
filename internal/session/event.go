@@ -76,6 +76,15 @@ const (
 	// TypeEgress records what one turn sent off the machine (see
 	// internal/egress): Output carries the report as JSON.
 	TypeEgress = "egress/turn"
+	// TypeTestLedger records a turn's test-integrity ledger (see
+	// internal/agent/testledger.go): Extra carries a proof.Integrity,
+	// the latest one per turn standing. A proof record folds it into
+	// proof.Turn.Integrity.
+	TypeTestLedger = "verify/ledger"
+	// TypeConflict records a CONFLICT: line the model ended a turn with
+	// (internal/agent/conflict.go): Extra carries a proof.Conflict with
+	// whether the harness confirmed the cited test exists and fails.
+	TypeConflict = "turn/conflict"
 )
 
 // Gate sources on a TypeGate event.
@@ -161,11 +170,15 @@ type Event struct {
 	// call the session's own model answered, which is reported as no
 	// route: a slot that resolves to the main model never gets this far
 	// (routeStep refuses it), so its calls read exactly like main's.
-	Slot     string          `json:"slot,omitempty"`
-	Provider string          `json:"provider,omitempty"`
-	Route    string          `json:"route,omitempty"`
-	RouteWhy string          `json:"route_why,omitempty"`
-	Extra    json.RawMessage `json:"extra,omitempty"`
+	Slot     string `json:"slot,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Route    string `json:"route,omitempty"`
+	RouteWhy string `json:"route_why,omitempty"`
+	// Effort is the reasoning tier the effort controller gave a
+	// TypeAssistant event's call (see internal/agent/effortctl.go).
+	// Empty when the controller did not set it.
+	Effort string          `json:"effort,omitempty"`
+	Extra  json.RawMessage `json:"extra,omitempty"`
 }
 
 // live returns the indexes of the surface events that still reach the

@@ -285,6 +285,10 @@ var dispatch = map[string]cmdHandler{
 		m.changesCommand(fields[1:])
 		return nil, false
 	},
+	"/tour": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.transcript.code(m.opts.Agent.TourText(m.life, cmdArg(text, fields), m.opts.Cwd))
+		return nil, false
+	},
 	"/blame": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.blameCommand(cmdArg(text, fields))
 		return nil, false

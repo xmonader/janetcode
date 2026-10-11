@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/gaming"
@@ -184,8 +185,9 @@ func runFailed(e session.Event) bool {
 	switch code := e.Output[last[2]:last[3]]; {
 	case code == "0":
 		return false
-	case code == "1" && tool.NoMatchMeaning(shell.CommandOf(e.Arguments), 1) != "":
-		return false
+	case code == "1" || code == "141":
+		n, _ := strconv.Atoi(code)
+		return tool.NoMatchMeaning(shell.CommandOf(e.Arguments), n) == ""
 	}
 	return true
 }

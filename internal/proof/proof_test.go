@@ -212,8 +212,18 @@ func TestEnsureRewriteConfigLeavesAnExplicitSettingAlone(t *testing.T) {
 		t.Fatalf("EnsureRewriteConfig (second call): %v", err)
 	}
 	out := gitIn(t, root, "config", "--get-all", "notes.rewriteRef")
-	if n := strings.Count(out, NotesRef); n != 1 {
-		t.Fatalf("notes.rewriteRef has %d copies of %s, want 1: %q", n, NotesRef, out)
+	// Line by line: the evidence ref is listed too, and has the proof
+	// ref as a prefix.
+	for _, ref := range []string{NotesRef, EvidenceRef} {
+		n := 0
+		for _, l := range strings.Split(out, "\n") {
+			if strings.TrimSpace(l) == ref {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Fatalf("notes.rewriteRef has %d copies of %s, want 1: %q", n, ref, out)
+		}
 	}
 }
 

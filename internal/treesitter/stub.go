@@ -16,3 +16,7 @@ func Parser() repomap.Parser { return nil }
 // Supported reports whether a grammar is compiled in for the file. Without
 // the build tag, none is.
 func Supported(string) bool { return false }
+
+// Spans returns the top-level node spans of a file. Without the build
+// tag there is no grammar, so the caller falls back to line ranges.
+func Spans(string, []byte) ([][2]int, bool) { return nil, false }

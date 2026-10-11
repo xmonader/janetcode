@@ -53,6 +53,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--sessions` | list the sessions recorded for this directory |
 | `--worktree <branch>` | run the session in a git worktree on that branch |
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |
+| `--off-peak-by <deadline>` | wait for the model's off-peak hours that still finish by the deadline, then run `-p` or `--eval` (`--off-peak-estimate` says how long it takes). See [Off-peak scheduling](#off-peak-scheduling) |
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
 | `--mcp-serve` | serve janetcode as an MCP server on stdio: one tool, `janetcode_task`, runs a prompt in this directory and returns the answer, session id, verdict and usage. Read-only unless `--auto-edits`, `--auto` or `--yolo` is given; see [Extending](extending.md#janetcode-as-an-mcp-server) |
@@ -66,6 +67,9 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--backup <file>` | write the config directory (config, permission rules, MCP trust and logins) and the data directory (sessions, memory, archives) to one tar.gz, mode 0600: it holds your API keys. Symlinks are left out |
 | `--restore <file>` | put a `--backup` archive back. Files it holds are overwritten, files it lacks are left alone, and the files it replaces are first saved to `janetcode-before-restore-<time>.tar.gz` beside it, so `--restore` on that file undoes it. An archive with a path outside config/ and data/, or anything but plain files, is refused before anything is written |
 | `--proof [commit]` | print the proof note attached to a commit (default `HEAD`): which session, turn and intent wrote each of its files, and what actually demonstrated the work; "no proof for `<sha>`" when none is attached, then exit |
+| `--proof verify [commit]` | check the commit's signed evidence (see [Signed evidence](interface.md#signed-evidence-re-run-what-a-commit-claims)): the signature, that it is about this commit's tree, and every recorded check re-run in a throwaway checkout under its recorded sandbox profile, compared by exit code and normalised output. Claims with no record are listed as unverified assertions. Exits 1 when the evidence does not hold |
+| `--proof key` | print this machine's evidence public key as a line for another machine's `<config>/evidence/trusted` |
+| `--why-broke <test> [session]` | find the change in a session after which a test started failing, then exit. The test is a name (`TestParse` in a Go module, `tests/test_a.py::test_b` or a `-k` word in a Python project) or a quoted command; the session defaults to the newest one here. Each state is rebuilt in a throwaway directory from the session's recorded start snapshot plus its file changes up to that point, so the culprit can sit inside one squashed commit; the report names the change, its turn's prompt, the intent the model gave, its diff, the test's output there and, when a proof note says so, the commit it landed in. When the start plus every recorded change passes, the break came from a shell command or a hand edit and the search moves to the snapshots taken before each turn, ending at the work tree as it is now. No model call; the work tree, HEAD and index are never touched |
 | `--recipe <name> [k=v ...]` | replay a saved recipe (`.janetcode/recipes/<name>.json`, see [Recipes](interface.md#recipes-replay-a-turn-for-free)) as tool calls, no model call and no tokens unless a step fails or, once every step has succeeded, the project's own [verify gate](interface.md#verification-gates) fails; `k=v` substitutes the recipe's parameters. Either failure hands over to the configured model the way `-p` running under `--until` does, or exits non-zero without one. MCP servers are started first only when a step calls one of their tools |
 | `--init` | write a starter config file |
 | `--init-project` | write a starter `JANETCODE.md` for this repository, from its languages, declared commands and layout, and exit. An existing one is never overwritten; `/init force` in a session replaces it. See [Project instructions](configuration.md#project-instructions) |
@@ -225,6 +229,40 @@ comes out unwrapped. Supported keywords: `type`, `properties`,
 `anyOf`/`oneOf`/`allOf`/`not`, and local `$ref` into `$defs` or
 `definitions`. Unknown keywords are ignored; a remote `$ref` is refused.
 
+## Off-peak scheduling
+
+`--off-peak-by <deadline>` holds a `-p` run or an `--eval` until the
+model's cheapest hours that still let it finish by the deadline, given
+`--off-peak-estimate` (default 30m) for how long it takes; alone, it only
+waits and exits 0, so it can go in front of any batch job:
+
+```sh
+janetcode --off-peak-by 08:00 --off-peak-estimate 4h --model deepseek-chat && ./run.py ...
+```
+
+The deadline is an RFC 3339 time, a local `HH:MM` (the next one) or a
+duration (`8h`). The deadline always wins: a run that cannot fit a window
+starts where the most of it falls inside one, or now. It prints one line
+saying which, on stderr.
+
+Which providers discount and when is data, not code: `offpeak.json` in the
+config directory, a JSON array of windows, replaces the built-in table:
+
+```json
+[{"provider": "deepseek", "models": ["deepseek-chat"], "start": "16:30", "end": "00:30",
+  "multiplier": 0.5, "until": "2025-09-05T16:00:00Z"}]
+```
+
+`start` and `end` are UTC and may cross midnight, `multiplier` is the
+fraction of the peak price paid, `models` match by substring, and `from` /
+`until` bound the dates. The built-in table holds only DeepSeek's old
+16:30–00:30 UTC discount, which DeepSeek withdrew on 2025-09-05, so out of
+the box the flag finds no window in force and says so; it pays off once a
+provider you use publishes one. Priced at those old DeepSeek rates, the
+r13 effbench campaign (64 runs, both arms) would have cost $4.39 as run —
+it ran 01:56–05:40 UTC, entirely at peak — and $2.19 inside the window,
+which its 3h44m fits.
+
 ## Exit codes
 
 | code | meaning |
@@ -239,7 +277,29 @@ comes out unwrapped. Supported keywords: `type`, `properties`,
 | 55 | the run reached `--max-cost` |
 | 56 | the run reached `--max-wall-time` |
 | 57 | the run reached `--max-tool-calls` |
+| 58 | the run ended on a confirmed `CONFLICT:` (`conflict_exit`): the task and a test contradict each other. Not an error: `is_error` is false and the result object's `conflict` holds the cited test, the task's words, the reason and what the harness checked |
 | 130 | interrupted, as a shell reports a SIGINT |
 
 The code is also in the `exit_code` field of the result object, so a
 caller reading only stdout still has it.
+
+### Test integrity in a headless run
+
+A headless run refuses its first write to each test file (`testguard`),
+and when a turn that changed files is about to end it keeps a
+test-integrity ledger (`testledger`): any test file the turn changed is
+run again in its original form, in a throwaway copy of the tree, with the
+turn's last passing test command (or the project's verify commands); and
+the source lines the turn added are scanned for branches on a value only
+a test holds (`if code == "SAVE-17"` where neither the task text nor the
+file had `SAVE-17`). Either finding sends the turn back once, naming the
+test or the line. The counts (tests modified and added, assertions
+changed, whether the originals pass, the flagged lines) go on the session
+log and into the commit's proof note. `JANETCODE_OFF=testledger` turns it
+off.
+
+With `--set conflict_exit=true` the model may end a turn with
+`CONFLICT: <test id> | <the task's words> | <why>` when a test
+contradicts the task. The harness runs the tests once more: a claim
+naming a test that exists and fails ends the run with exit 58; any other
+is sent back once and then judged like any turn.

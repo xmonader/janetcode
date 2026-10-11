@@ -35,7 +35,13 @@ func (a *Agent) specReview(outcome TurnOutcome, reviewed *bool, emit func(Event)
 	*reviewed = true
 	a.reviewSteps = 0
 	emit(Event{Kind: EvNotice, Text: "the turn is done; asking the model to check the change against the task once"})
-	a.appendHarnessText(specReviewNote)
+	note := specReviewNote
+	// The probe ledger's vacuous probes point the review at the rules
+	// the model believes it checked and did not.
+	if facts := a.probeReviewFacts(); facts != "" {
+		note += "\n\n" + facts
+	}
+	a.appendHarnessText(note)
 	return true
 }
 

@@ -182,11 +182,81 @@ type Config struct {
 	// negative disables the bound.
 	StreamIdleTimeout int `json:"stream_idle_timeout,omitempty"`
 	StreamMaxDuration int `json:"stream_max_duration,omitempty"`
+	// Fingerprint sends a few canary prompts with known answers at the
+	// start of a session and compares the replies with the fingerprint
+	// stored for the route, to catch a gateway serving another model, or
+	// a quantised build, under the requested name (provenance.Take). Off
+	// by default: six small model calls per session.
+	Fingerprint bool `json:"fingerprint,omitempty"`
 	// StaleCheckNudge sends a turn back once when the turn's checks
 	// passed, it edited again afterwards, and it then said it was done:
 	// everything that passed, passed against a tree the turn has since
 	// changed. Off by default, and bounded to one nudge a turn.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
+	// EffortControl lets the harness set each call's reasoning tier from
+	// the turn's signals — low to start, a rung up after a failed edit, a
+	// red check or a loop, halved after progress — never above effort.
+	// Off by default, and idle on a provider that sends no tier or whose
+	// prompt cache keys on it (Anthropic).
+	EffortControl bool `json:"effort_control,omitempty"`
+	// LocalizeFailures attaches, to a red test run after a turn changed
+	// more than one hunk, the fewest of those hunks that still make the
+	// failing tests fail (delta debugging in a throwaway worktree) and
+	// the functions the failing tests ran ranked by Ochiai. Off by
+	// default: it reruns tests, up to a minute, while the model waits.
+	LocalizeFailures bool `json:"localize_failures,omitempty"`
+	// ConflictExit offers the model a CONFLICT: line for a task whose
+	// tests contradict it: a confirmed one (the cited test exists and
+	// fails) ends the turn, and a headless run with exit status 58,
+	// instead of a turn spent making that test pass. On unless set to
+	// false: live, it ended 29 of 32 impossible-task runs naming the
+	// contradicting test, and none of 40 runs on tasks that can be done.
+	ConflictExit *bool `json:"conflict_exit,omitempty"`
+	// SubagentMerge has the harness merge an editing subagent's work into
+	// the project when it finishes: its read-set is validated, edits that
+	// commute with what changed meanwhile are applied, and conflicts go
+	// back to the subagent for one repair round. Off by default: it writes
+	// to the project without the model applying a patch, and the repair
+	// round is a model call.
+	SubagentMerge bool `json:"subagent_merge,omitempty"`
+	// ProbeLedger keeps the model's inline checks: each is classified
+	// against the tree as it was before the turn's first change, and the
+	// ones that fail there and pass now are replayed at every later gate.
+	// Off by default: it reruns commands and can send a turn back.
+	ProbeLedger bool `json:"probe_ledger,omitempty"`
+	// PlanFile sends the user's edits to .janetcode/plan.md to the model
+	// between steps, only the change. Off by default: it adds text to the
+	// conversation, from a file a cloned repository may have brought.
+	PlanFile bool `json:"plan_file,omitempty"`
+	// ProbeMemory keeps the probe ledger's discriminating probes in the
+	// repository (refs/janetcode/probes) and replays them at the gate of
+	// later sessions; it turns the probe ledger on with it. Off by
+	// default: it writes a ref and can send a turn back.
+	ProbeMemory bool `json:"probe_memory,omitempty"`
+	// ReadBlame appends to a read_file result one line per range of the
+	// shown lines an earlier agent turn wrote with a stated intent. Off
+	// by default: it changes what the model reads.
+	ReadBlame bool `json:"read_blame,omitempty"`
+	// NumericClaimsNudge sends a turn back once when its answer states a
+	// number ("40% faster", "coverage 85%") no measurement in the session
+	// backs. Off by default: the send-back is a model call; the notice
+	// naming such numbers is always on (JANETCODE_OFF=numclaim).
+	NumericClaimsNudge bool `json:"numeric_claims_nudge,omitempty"`
+	// DiffFuzz is how many seconds a behaviour-preserving turn's changed
+	// Go functions are fuzzed against the code before the turn; zero is
+	// off. Off by default: it builds and fuzzes while the model waits and
+	// can send a turn back.
+	DiffFuzz int `json:"diff_fuzz,omitempty"`
+	// ScopeJustify asks the model for a one-line reason after an edit
+	// outside the task's inferred scope that stated none; the answer is
+	// recorded as the edit's justification. Off by default: it adds a
+	// line to a tool result. The scope report itself is always kept.
+	ScopeJustify bool `json:"scope_justify,omitempty"`
+	// Preresolve sends, with a fresh session's first message in a
+	// repository too big to inline whole, the definitions of the files
+	// and identifiers the request names and the tests that exercise them
+	// (internal/preresolve). Off by default: it changes the prompt.
+	Preresolve bool `json:"preresolve,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on in interactive sessions and off
 	// in a headless -p run, where the extraction and the session-end
@@ -448,6 +518,10 @@ func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }
 // ProofNotesEnabled reports whether commits made this session get proof
 // notes attached automatically.
 func (c *Config) ProofNotesEnabled() bool { return c.ProofNotes == nil || *c.ProofNotes }
+
+// ConflictExitEnabled reports whether the CONFLICT: exit is offered:
+// unset means on.
+func (c *Config) ConflictExitEnabled() bool { return c.ConflictExit == nil || *c.ConflictExit }
 
 // UpdateCheckEnabled reports whether the TUI says when a release is out.
 func (c *Config) UpdateCheckEnabled() bool { return c.UpdateCheck == nil || *c.UpdateCheck }

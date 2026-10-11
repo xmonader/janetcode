@@ -47,6 +47,9 @@ type WorkingMemory struct {
 	Notes string
 
 	seen map[string]bool // tool_use ids already counted
+	// proofs are the calls compacted so far, what the facts are checked
+	// against at each compaction (see claimcheck.go).
+	proofs []witness
 }
 
 // FileNote is a file the agent changed, with a hash of its content at
@@ -391,6 +394,9 @@ func (w *WorkingMemory) Render() string {
 	section("Next", w.Next)
 	if w.Notes != "" {
 		b.WriteString("\nNotes:\n" + w.Notes + "\n")
+	}
+	if tagged(w.Facts) {
+		b.WriteString("\n" + claimLegend + "\n")
 	}
 	b.WriteString("\n" + faultDiscipline + "\n")
 	return strings.TrimRight(b.String(), "\n")

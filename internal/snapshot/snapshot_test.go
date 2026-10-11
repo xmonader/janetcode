@@ -299,3 +299,42 @@ func TestRestoreWithCancelledContext(t *testing.T) {
 		t.Fatal("Open with a cancelled ctx succeeded")
 	}
 }
+
+// Export writes the snapshot's tree somewhere else and leaves the work
+// tree, its status and the files changed since exactly as they were.
+func TestExportWritesTheSnapshotTreeElsewhere(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	r, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "a.txt"), "a2\n")
+	write(t, filepath.Join(root, "sub/new.txt"), "new\n")
+	write(t, filepath.Join(root, "ignored.log"), "log\n")
+	s, err := r.Take(ctx, "pre-edit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "a.txt"), "a3\n")
+	before := status(t, root)
+	dir := t.TempDir()
+	if err := r.Export(ctx, s, dir); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(filepath.Join(dir, "a.txt")); got != "a2\n" {
+		t.Errorf("a.txt = %q, want the snapshot's a2", got)
+	}
+	if got := read(filepath.Join(dir, "sub", "new.txt")); got != "new\n" {
+		t.Errorf("an untracked file the snapshot held is missing: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "ignored.log")); !errors.Is(err, os.ErrNotExist) {
+		t.Error("an ignored file is not in the snapshot and must not be exported")
+	}
+	if read(filepath.Join(root, "a.txt")) != "a3\n" || status(t, root) != before {
+		t.Fatal("Export touched the work tree or the index")
+	}
+	if err := r.Export(ctx, Snap{}, dir); err == nil {
+		t.Fatal("a snapshot without a commit exported")
+	}
+}

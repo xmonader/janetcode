@@ -42,6 +42,18 @@ type Extracted struct {
 	// a window of prose, so the caller stamps every candidate with the
 	// session and watermark it was read from (see StampEvidence).
 	Evidence []string `json:"-"`
+	// Tainted is set by the harness when the window it was read from held
+	// untrusted content (see MarkTainted and Entry.Tainted).
+	Tainted bool `json:"-"`
+}
+
+// MarkTainted marks every candidate as learned from a tainted context,
+// when tainted is set, so each is held for the user's confirmation.
+func MarkTainted(xs []Extracted, tainted bool) []Extracted {
+	for i := range xs {
+		xs[i].Tainted = xs[i].Tainted || tainted
+	}
+	return xs
 }
 
 // SeqList is a list of record-line numbers the model cited. It accepts
@@ -216,6 +228,7 @@ func (s *Store) ApplyWith(xs []Extracted, source string) ([]Entry, error) {
 			Body: x.Body, Source: source, Evidence: x.Evidence,
 			Concerns: cleanConcerns(x.Concerns),
 			Replaces: x.Replaces,
+			Tainted:  x.Tainted,
 		}
 		e, status, err := s.Put(e)
 		if err != nil {

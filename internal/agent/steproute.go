@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 )
 
@@ -89,7 +90,11 @@ func allMechanicalStep(uses, results []llm.Block) bool {
 		return false
 	}
 	for i, u := range uses {
-		if !stepMechanical(u.Name, u.Input, results[i].IsError) {
+		// The bash tool reports a non-zero exit in its text, not as an
+		// error, so a red check reads as clean unless the exit line is
+		// read too (runFailed, the verdict's own test).
+		failed := runFailed(session.Event{IsError: results[i].IsError, Output: results[i].Text, Arguments: string(u.Input)})
+		if !stepMechanical(u.Name, u.Input, failed) {
 			return false
 		}
 	}

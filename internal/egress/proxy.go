@@ -1,6 +1,7 @@
 package egress
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,6 +37,13 @@ type Proxy struct {
 	Ask func(host string) bool
 	// Dial replaces the upstream dialer (tests).
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	// Canaries, when set, are the honeytokens planted in the commands'
+	// environment (see Canary). A request that carries one — in the
+	// CONNECT target, a plain request's URL, headers or the first 64 KB of
+	// its body — is refused, and OnCanary is told which host it was for.
+	// What travels inside a TLS tunnel is not visible here.
+	Canaries func() []Canary
+	OnCanary func(host string)
 
 	mu        sync.Mutex
 	listeners map[string]net.Listener // by listen IP
@@ -171,6 +179,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host := strings.ToLower(r.URL.Hostname())
+	if p.canaryIn(w, r, host) {
+		return
+	}
 	if !p.decide(host) {
 		p.refuse(w, host)
 		return
@@ -209,6 +220,9 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host = strings.ToLower(strings.Trim(host, "[]"))
+	if p.canaryIn(w, r, host) {
+		return
+	}
 	if !p.decide(host) {
 		p.refuse(w, host)
 		return
@@ -258,6 +272,44 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 	client.Close()
 	up.Close()
 	p.rec().Add(Entry{Kind: KindCommand, Host: host, What: proxyWhat, Bytes: sent.Load()})
+}
+
+// canaryPeek is how much of a plain request's body is searched for a
+// honeytoken. An exfiltration sends the environment, which fits.
+const canaryPeek = 64 << 10
+
+// canaryIn refuses a request that carries a honeytoken and reports it.
+// The body it read to look is put back in front of the rest.
+func (p *Proxy) canaryIn(w http.ResponseWriter, r *http.Request, host string) bool {
+	if p.Canaries == nil {
+		return false
+	}
+	cs := p.Canaries()
+	if len(cs) == 0 {
+		return false
+	}
+	var sb strings.Builder
+	sb.WriteString(r.Host + "\n" + r.URL.String() + "\n")
+	for k, vs := range r.Header {
+		sb.WriteString(k + ": " + strings.Join(vs, ",") + "\n")
+	}
+	if r.Method != http.MethodConnect && r.Body != nil {
+		head, _ := io.ReadAll(io.LimitReader(r.Body, canaryPeek))
+		sb.Write(head)
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(head), r.Body), r.Body}
+	}
+	if _, hit := MatchCanary(cs, sb.String()); !hit {
+		return false
+	}
+	p.rec().Add(Entry{Kind: KindCommand, Host: host, What: proxyWhat + ": honeytoken", Blocked: true})
+	if p.OnCanary != nil {
+		p.OnCanary(host)
+	}
+	http.Error(w, "janetcode egress proxy: this request carried a planted honeytoken and was refused; the run is stopped", http.StatusForbidden)
+	return true
 }
 
 type counter struct {

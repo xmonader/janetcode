@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/dossier"
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/proof"
+	"github.com/xmonader/janetcode/internal/scope"
 )
 
 // The result object is defined here, by the package that writes it; the
@@ -51,8 +54,13 @@ type CLIResult struct {
 	PermissionDenials int     `json:"permission_denials"`
 	// Verdict is what the turn demonstrated, computed from what the
 	// harness watched rather than from what the model claimed.
-	Verdict    string `json:"verdict,omitempty"`
-	DurationMS int64  `json:"duration_ms"`
+	Verdict string `json:"verdict,omitempty"`
+	// Conflict is the CONFLICT the last turn ended on (conflict_exit):
+	// the cited test, the task's words, why, and whether the harness
+	// confirmed the test exists and fails. Only a confirmed one sets
+	// exit status 58.
+	Conflict   *proof.Conflict `json:"conflict,omitempty"`
+	DurationMS int64           `json:"duration_ms"`
 	// Recoveries is the harness's repair work: what it had to rescue for
 	// the run to get this far. A run with a clean result and three
 	// recoveries is not the same run as one with none, and a benchmark
@@ -89,6 +97,13 @@ type CLIResult struct {
 	// model requests, memory and skills attached, and how many
 	// secret-shaped values were redacted first (see internal/egress).
 	Egress []egress.Report `json:"egress,omitempty"`
+	// Scope is the run's edits against the scope inferred from its task
+	// (internal/scope): the files outside it with their justification,
+	// and the creep share. Omitted when the task named nothing.
+	Scope *scope.Report `json:"scope,omitempty"`
+	// Dossier is a failed run's hand-off (internal/dossier), also written
+	// beside the session log as <id>.dossier.md. Omitted on success.
+	Dossier *dossier.Dossier `json:"dossier,omitempty"`
 	// DryRun is the preview a --dry-run run built instead of changing
 	// anything: the files it would change with their diffs, and every
 	// call it recorded rather than made. Omitted outside a dry run.

@@ -265,6 +265,9 @@ func (r *root) headlessMode() error {
 	} else if extra := pipedStdin(); extra != "" {
 		text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 	}
+	if err := abBranch(ag, o.abReplay, o.abCalls, cwd); err != nil {
+		return err
+	}
 	var schema json.RawMessage
 	if o.jsonSchema != "" {
 		var err error

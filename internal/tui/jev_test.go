@@ -167,6 +167,9 @@ func TestJevProviderPickerOffersTheEndpointList(t *testing.T) {
 // /features lists the slots and the switches, and changes one.
 func TestFeaturesListsAndToggles(t *testing.T) {
 	h, cfg, path := jevHarness(t)
+	// Tall enough for the whole list: a switch added later must not
+	// push the slots off the top of the view.
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 60})
 	h.keys("/features")
 	h.enter()
 	v := plain(h.m.View())

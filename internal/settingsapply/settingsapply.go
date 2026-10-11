@@ -87,6 +87,26 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		ApplyAskWait(cfg, a)
 	case "stale_check_nudge":
 		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
+	case "effort_control":
+		a.SetEffortControl(cfg.EffortControl)
+	case "localize_failures":
+		a.SetLocalizeFailures(cfg.LocalizeFailures)
+	case "subagent_merge":
+		a.SetSubagentMerge(cfg.SubagentMerge)
+	case "scope_justify":
+		a.SetScopeJustify(cfg.ScopeJustify)
+	case "probe_ledger":
+		a.SetProbeLedger(cfg.ProbeLedger)
+	case "plan_file":
+		a.SetPlanFile(cfg.PlanFile)
+	case "probe_memory":
+		a.SetProbeMemory(cfg.ProbeMemory)
+	case "read_blame":
+		a.SetReadBlame(cfg.ReadBlame)
+	case "numeric_claims_nudge":
+		a.SetNumericClaimsNudge(cfg.NumericClaimsNudge)
+	case "diff_fuzz":
+		a.SetDiffFuzz(cfg.DiffFuzz)
 	case "escalate_after":
 		a.SetEscalateAfter(cfg.EscalateAfter)
 	case "advisor_mode", "advisor_max_consults":

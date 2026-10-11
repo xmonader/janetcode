@@ -195,7 +195,7 @@ func evalMode(o *options, cfg *config.Config, prov llm.Provider) (bool, error) {
 	}
 	return true, runEval(ctx, cfg, prov, evalOptions{path: o.evalPath, jobs: o.evalJobs, only: o.evalOnly, jsonOut: o.evalJSON, keep: o.evalKeep,
 		runs: o.evalRuns, compare: o.evalCompare, off: o.evalOff, route: o.evalRoute, label: o.evalLabel, prompt: ov,
-		timeout: o.evalTimeout, maxTurns: o.evalTurns, noToolLimit: o.evalNoLimit, strictProvenance: o.evalStrict, compactAt: o.evalCompact, facts: o.evalFacts, factsBlind: o.evalBlind, gate: o.evalGate})
+		timeout: o.evalTimeout, maxTurns: o.evalTurns, noToolLimit: o.evalNoLimit, strictProvenance: o.evalStrict, compactAt: o.evalCompact, facts: o.evalFacts, factsBlind: o.evalBlind, gate: o.evalGate, seq: o.evalSeq})
 }
 
 // openSession resumes the session --resume or --continue names, or starts

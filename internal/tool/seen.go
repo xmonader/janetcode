@@ -16,6 +16,11 @@ import (
 type Seen struct {
 	mu     sync.Mutex
 	hashes map[string]string
+	// reads is the read-set: the hash of each file the first time a read
+	// tool showed it, kept apart from hashes because a write moves those
+	// on. An editing subagent's merge-back checks it against the project
+	// to find what changed under the subagent (see internal/occ).
+	reads map[string]string
 }
 
 func hashBytes(b []byte) string {
@@ -35,6 +40,46 @@ func (s *Seen) Record(path string, data []byte) {
 	}
 	s.hashes[path] = hashBytes(data)
 }
+
+// RecordRead is Record for a read tool: it also enters the file in the
+// read-set, once, with the content the agent first saw.
+func (s *Seen) RecordRead(path string, data []byte) {
+	if s == nil {
+		return
+	}
+	h := hashBytes(data)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.hashes == nil {
+		s.hashes = map[string]string{}
+	}
+	s.hashes[path] = h
+	if s.reads == nil {
+		s.reads = map[string]string{}
+	}
+	if _, ok := s.reads[path]; !ok {
+		s.reads[path] = h
+	}
+}
+
+// Reads is a copy of the read-set: every path a read tool showed, with
+// the hash of what it first showed.
+func (s *Seen) Reads() map[string]string {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]string, len(s.reads))
+	for p, h := range s.reads {
+		out[p] = h
+	}
+	return out
+}
+
+// HashBytes is the hash Seen records, for a caller comparing content
+// against a read-set entry.
+func HashBytes(b []byte) string { return hashBytes(b) }
 
 // Forget drops a path (after the file is deleted, or on undo).
 func (s *Seen) Forget(path string) {

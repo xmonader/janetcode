@@ -151,7 +151,7 @@ func failedCommand(e session.Event) bool {
 	if e.Name != "bash" && e.Name != "job" {
 		return false
 	}
-	return strings.Contains(e.Output, "[exit code") && !strings.Contains(e.Output, "an answer, not a failure")
+	return strings.Contains(e.Output, "[exit code") && !strings.Contains(e.Output, "not a failure")
 }
 
 // capSleepFacts keeps every goal, verdict, critic and refusal line and

@@ -11,8 +11,8 @@ import (
 )
 
 // runProofFlag implements `janetcode --proof [commit | push [remote] |
-// fetch [remote]]` through proof.Exec, the same code /proof runs in a live
-// session. Unlike /proof it never attaches a note (it passes no
+// fetch [remote] | verify [commit] | key]` through proof.Exec, the same
+// code /proof runs in a live session. Unlike /proof it never attaches a note (it passes no
 // AttachFunc): there is no session's tracked changes to build one from
 // here, only whatever an earlier session already left on the commit.
 func runProofFlag(w io.Writer, cwd, args string) error {
@@ -30,6 +30,11 @@ func runProofFlag(w io.Writer, cwd, args string) error {
 	}
 	for _, n := range res.Notes {
 		fmt.Fprintln(w, n)
+	}
+	if res.Error != "" {
+		// --proof verify on evidence that does not hold: the report is
+		// printed above, and the status says it failed.
+		return errors.New("--proof: " + res.Error)
 	}
 	return nil
 }

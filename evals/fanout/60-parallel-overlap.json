@@ -1,0 +1,19 @@
+{
+  "name": "60-parallel-overlap",
+  "prompt": "Make three changes to pkg/registry.go. Delegate each one to its own editing subagent (the task tool with edit: true), starting all three in the same step so they run in parallel, then make sure the combined result builds and `go test ./...` passes. 1) Put trims surrounding whitespace from the name before storing it, and rejects a name that is empty after trimming. 2) Names are case-insensitive: Put and Get both fold the name to lower case. 3) Names returns the names sorted.",
+  "files": {
+    "go.mod": "module example.com/pkg\n\ngo 1.22\n",
+    "pkg/registry.go": "package pkg\n\nimport \"fmt\"\n\n// Registry holds named entries.\ntype Registry struct {\n\titems map[string]string\n}\n\n// New returns an empty registry.\nfunc New() *Registry { return &Registry{items: map[string]string{}} }\n\n// Put stores value under name.\nfunc (r *Registry) Put(name, value string) error {\n\tif name == \"\" {\n\t\treturn fmt.Errorf(\"empty name\")\n\t}\n\tr.items[name] = value\n\treturn nil\n}\n\n// Get returns the value stored under name.\nfunc (r *Registry) Get(name string) (string, bool) {\n\tv, ok := r.items[name]\n\treturn v, ok\n}\n\n// Names lists the stored names.\nfunc (r *Registry) Names() []string {\n\tvar out []string\n\tfor n := range r.items {\n\t\tout = append(out, n)\n\t}\n\treturn out\n}\n",
+    "pkg/registry_test.go": "package pkg\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestPutTrimsAndRejectsBlank(t *testing.T) {\n\tr := New()\n\tif err := r.Put(\"   \", \"x\"); err == nil {\n\t\tt.Fatal(\"a blank name was accepted\")\n\t}\n\tif err := r.Put(\"  alpha \", \"1\"); err != nil {\n\t\tt.Fatal(err)\n\t}\n\tif v, ok := r.Get(\"alpha\"); !ok || v != \"1\" {\n\t\tt.Fatalf(\"Get(alpha) = %q, %v\", v, ok)\n\t}\n}\n\nfunc TestNamesAreCaseInsensitive(t *testing.T) {\n\tr := New()\n\tr.Put(\"Beta\", \"2\")\n\tif v, ok := r.Get(\"BETA\"); !ok || v != \"2\" {\n\t\tt.Fatalf(\"Get(BETA) = %q, %v\", v, ok)\n\t}\n\tr.Put(\"beta\", \"3\")\n\tif got := r.Names(); len(got) != 1 {\n\t\tt.Fatalf(\"Names() = %v, want one name\", got)\n\t}\n}\n\nfunc TestNamesSorted(t *testing.T) {\n\tr := New()\n\tfor _, n := range []string{\"c\", \"a\", \"b\"} {\n\t\tr.Put(n, n)\n\t}\n\tif got := r.Names(); !reflect.DeepEqual(got, []string{\"a\", \"b\", \"c\"}) {\n\t\tt.Fatalf(\"Names() = %v\", got)\n\t}\n}\n"
+  },
+  "locked": [
+    "pkg/registry_test.go"
+  ],
+  "check": "go test ./...",
+  "timeout": 600,
+  "tags": [
+    "fanout",
+    "edit",
+    "parallel"
+  ]
+}

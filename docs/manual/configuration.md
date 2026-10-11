@@ -114,6 +114,24 @@ other live keys (`model`, `max_tokens`, `compact_at`, `auto_approve`) do.
 model that refuses the tier asked for is served the one below it, and the
 session shows any tier above the default on its status line.
 
+`effort_control` (experimental, default off) lets the harness set each
+call's tier from the turn itself instead of asking every call for
+`effort`. A turn starts at `low`; a step that went wrong — a failed edit,
+a check that came back red, a loop note, a verify gate sending the turn
+back — raises it one rung; a step that made progress — a green check, the
+turn's first edit to a file — halves the distance above `low`; and a
+reply the plan budget or the output limit cut goes straight back to
+`low`. `effort` is the ceiling (`high` when it is unset), and a turn
+changes the tier at most four times. It acts only where the provider
+sends a tier and its prompt cache does not key on it, which today is the
+`responses` provider: on Anthropic a change of effort invalidates the
+cached messages, Gemini's cache is not documented either way, and an
+OpenAI-compatible server is not sent a tier at all, so there the
+controller says once that it is idle and every call asks for `effort`.
+The tier it chose is recorded as `effort` on each assistant event of the
+session log. `/features effort-ctl on|off` and `--set
+effort_control=true` turn it on for a session.
+
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
@@ -548,7 +566,9 @@ against — the setting exists for a repository where a third-party git
 notes ref is unwelcome, or a CI checkout where the write would fail
 anyway. `/config proof_notes=false` sets it for one session; `/proof`
 still attaches on request regardless, since that is something you asked
-for directly.
+for directly. The signed evidence attached beside each note (see
+"Signed evidence" in [Interface](interface.md)) rides on the same
+setting; `JANETCODE_OFF=evidence` keeps the notes and drops the evidence.
 
 ### Model fallback
 
@@ -583,6 +603,137 @@ the evidence stated, sharing the same one-correction-a-turn budget as
 the overclaim gate: the expensive mistake here is nagging a finished
 turn into another round of model calls. A turn that never ran anything
 is already `unverified` and already sent back, and is not nudged twice.
+
+`conflict_exit` (default off) offers the model a way out of a task
+whose tests contradict it: one prompt line, and a `CONFLICT: <test id> |
+<the task's words> | <why>` line in its final answer. The harness checks
+the claim rather than taking it: the cited test must exist in the
+project and fail when the turn ends. A confirmed conflict ends the turn
+without the verify gate and the reviews that would send it back to make
+that test pass, is recorded in the proof note, and ends a `-p` run with
+exit 58; an unconfirmed one is sent back once. Off by default because it
+changes the prompt, and a model that reads it as an escape hatch from a
+hard task costs passes (measure with
+`docs/benchmarks/effbench/impossible`).
+
+`subagent_merge` (default off) has the harness merge an editing
+subagent's work (`task` with `edit: true`) into the project when it
+finishes, instead of handing the patch to the model to `git apply`. The
+subagent's read-set — the files it read, the greps and globs it ran — is
+checked against what changed in the project meanwhile; edits that touch
+different declarations than the concurrent change are merged with no
+model call, and what collides is sent back to the subagent for one
+repair round with both sides' diffs. It is off by default because it
+writes to the project without the main model applying anything, and
+because the repair round is a model call; it never writes where a write
+would need your approval. See "Editing subagents in a worktree" in
+[the interface manual](interface.md).
+
+`plan_file` (default off) makes `.janetcode/plan.md` a live plan. Edit
+it in your own editor while the agent works: before each model call the
+harness compares it with what it last saw and sends the model only the
+change, as a diff with a line of context, marked as the harness's. The
+first look in a session sends the plan whole; deleting the file is said;
+blank-line and trailing-space edits are not changes; the agent's own
+edits to the file are not sent back to it as yours. It is off by default
+because it adds text to the conversation, and a plan file that came
+with a cloned repository is not one you wrote.
+
+`probe_ledger` (default off) keeps the inline checks the model runs
+after it edits — a `python3 - <<'EOF'` script with asserts, a `node -e`
+that throws — instead of letting them vanish. At the end of a turn that
+changed something, each new one that still passes is run again against
+the tree as it was before the turn's first change (exported from the undo
+snapshot into a temporary directory). One that fails there and passes now
+tells the change apart from the old code: it is frozen in harness state,
+where no edit can reach it, and replayed at every later gate; when a later
+edit breaks it the turn goes back with its output, at most twice a turn,
+and one left failing into the next turn is dropped as declined. One that
+passes on the old code too is vacuous, and the spec review is told so. A
+probe is rerun through the bash tool, under the session's sandbox, and
+only when the permission rules would let that call run without asking.
+`JANETCODE_OFF=probes` turns it off.
+
+`probe_memory` (default off, and it turns `probe_ledger` on with it)
+keeps the ledger's discriminating probes beyond the session, in the
+repository under `refs/janetcode/probes` — a ref that is never checked
+out and never moved by a plain `git push` or `git fetch`. Each entry is
+the command with the workspace path taken out, the intent of the change
+it told apart and the session that made it. The first gate of a later
+session arms up to eight of them, newest first, but only those that pass
+on the tree as it was before that turn's first change: a remembered probe
+that already fails there says nothing about the turn and is left out.
+The armed ones are replayed like the ledger's own; one the turn breaks
+sends it back with "remembered from an earlier session …, which made it
+pass: <intent>", and one the model leaves failing into the next turn is
+retired from the memory as well. It runs through the bash tool under the
+same sandbox and permission rules as the ledger. `janetcode --session-ref
+probes` lists the memory, `--session-ref push` / `fetch` move it (a fetch
+merges the remote's probes into yours). `JANETCODE_OFF=probememory`
+turns it off.
+
+`read_blame` (default off) adds a note to a `read_file` result when the
+lines shown include a range an earlier agent turn wrote for a stated
+reason: `L12–19 turn 2 (#5, 2026-10-01): guard a non-positive page size ·
+checked by go test ./...` for this session's own changes, `L12–19 commit
+1a2b3c4 (verified): …` for lines a committed session wrote (from its proof
+note). Only ranges of two lines or more with an intent are noted, never
+the running turn's own, never an undone change or a file edited outside
+the session since; at most four ranges and 480 bytes a read. It changes
+what the model reads, so it is opt-in; `JANETCODE_OFF=readblame` turns it
+off.
+
+`numeric_claims_nudge` (default off) sends a turn back once when its
+answer states a number that no measurement in the session backs. The
+check itself is always on and only reports (see "Numbers in the answer"
+in [the sessions manual](sessions.md)); this key adds the send-back,
+which asks the model to measure the number — before and after, for a
+speed or memory change — or to say it is an estimate. It shares the
+verdict's one correction a turn.
+
+`diff_fuzz` (default 0, off) is how many seconds to fuzz a refactor. When
+the request (or a `BRIEF.md`/`TASK.md` at the project root) says the
+change keeps behaviour the same — "refactor", "optimise", "clean up" with
+nothing new asked for beside it, or "without changing behaviour" in so
+many words — a turn that changed Go code is, before it ends, compared
+with the code as it was before the turn: the module is copied to a
+temporary directory, the package as it was is written beside the new one
+under an alias import path, and a generated `testing.F` harness calls
+each changed exported function (and each that calls one) on both with
+the same inputs, seeded with the literals the package and its tests hold.
+The first input they disagree on sends the turn back once, naming the
+call and both results. Functions that disagree with themselves on an
+input (time, randomness) skip it. Methods, generic functions and
+parameters of the package's own types are not compared yet; nothing is
+written to the project, and the build runs with `GOPROXY=off`. It runs
+outside the session's sandbox, like the test ledger's replay.
+
+```json
+{ "diff_fuzz": 20, "numeric_claims_nudge": true }
+```
+
+`scope_justify` (default off) asks for a reason when an edit leaves the
+task's scope. The scope itself is always inferred (see "Scope contracts"
+in [Sessions](sessions.md#scope-contracts)); with this key on, the
+result of an out-of-scope edit that came with no stated intent gets one
+line asking the model why the change is needed, and its answer is
+recorded as that edit's justification. It is off by default because it
+adds a line to what the model sees.
+
+`preresolve` (default off) looks up what a fresh session's first message
+names before the model sees it, in a repository too big to be sent whole
+(over 40 files or 32 KB). A path that is an indexed file, or the tail of
+exactly one, is sent whole when it is 6 KB or less (and counts as read),
+else as an outline of its definitions. A backticked name, or a code-shaped
+one in the prose (`parseConfig`, `max_retries`, `Cache.Get`), defined in
+at most three files, is sent as its definition's excerpt with the comment
+above it — Go measured by its own parser, Python by indentation, the rest
+by braces, at most 60 lines — followed by up to two test functions that
+mention it. A plain word counts only when it is part of exactly one
+compound definition name in the whole index ("refund" for
+`RefundWindowDays`). Everything goes in one `<resolved>` block of at most
+12 KB, after the repository map. Nothing runs: no model, no command, no
+language server.
 
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
@@ -711,7 +862,9 @@ key=value` or through the two commands that group them:
 
 - `/features` lists the slots and the switches that use them --
   `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
-  `stale-nudge` (`stale_check_nudge`) and the four decision consumers --
+  `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`),
+  `localize` (`localize_failures`), `subagent-merge` (`subagent_merge`),
+  `plan-file` (`plan_file`) and the four decision consumers --
   with what each is set to and what still stands in its way.
   `/features <name> on|off` changes one.
 - `/jev` is the decisions block: see below.
@@ -913,6 +1066,7 @@ characters is quoted in any later assistant message.
 The point of the report is to bound a context-curation change before
 building it: exploration share is the ceiling on what pre-selection can
 save, and the stale share is the ceiling on what pruning could recover.
+
 `docs/notes/jev.md` records the measured ceilings.
 
 ### Stream watchdog
@@ -928,6 +1082,26 @@ disable it.
 
 ```json
 { "stream_idle_timeout": 240, "stream_max_duration": 900 }
+```
+
+### The model fingerprint (experimental)
+
+An opt-in check that the route serves the model it names. It is off by
+default, because it sends requests you did not ask for.
+
+`fingerprint` sends six canary prompts with known answers at the start of a
+session's first turn (who trained you, a multiplication, a reversed word, a
+letter count, a capital, a sequence) and compares the replies with the
+fingerprint stored for that provider and model under
+`~/.local/share/janetcode/fingerprints/`. The first session on a route
+records the reference. A model that names a maker other than the requested
+model's vendor, gets two canaries wrong that it used to get right, or
+changes the shape of most of its replies is reported as a notice; the turn
+goes on. A mismatching fingerprint is never stored over the reference;
+delete the file to accept a change.
+
+```json
+{ "fingerprint": true }
 ```
 
 ### Hook limits

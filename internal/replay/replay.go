@@ -43,6 +43,16 @@ func (p *Provider) Remaining() int { return len(p.responses) - p.at }
 
 func (p *Provider) Name() string { return "replay" }
 
+// Free clears the usage the recording carries, so the responses it serves
+// count as what they cost this time: nothing. --what-if keeps it, to say
+// what the whole session would have cost; --ab-replay clears it, since
+// its result object reports what the run bought.
+func (p *Provider) Free() {
+	for _, r := range p.responses {
+		r.Usage = llm.Usage{}
+	}
+}
+
 // Stream returns the next recorded response. Running out means the code
 // under test asked for more model calls than the recording holds, which is
 // a behaviour change worth failing on rather than papering over.
@@ -165,6 +175,25 @@ func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
 	return &untilProvider{recorded: recorded, cutoff: cutoff, live: live}
 }
 
+// UntilCall is Until with the boundary at a model call instead of a user
+// turn: it answers with the first calls recorded responses, then
+// delegates every later call to live. It is --ab-replay's mechanism: a
+// headless run is one user turn, so the point a branch starts from lies
+// inside that turn.
+//
+// served, when set, runs once, right after the last recorded response has
+// been handed out and before the tool calls it carries run: the moment
+// for the caller to queue what the live part should be told (the agent
+// delivers queued harness text with those tool results, before the first
+// live call) and to restore any guardrail it held off while replaying. A
+// calls of zero or less is pure live from the first call, and served
+// never runs; calls beyond the recording serve all of it and then go
+// live.
+func UntilCall(recorded *Provider, calls int, live llm.Provider, served func()) llm.Provider {
+	cutoff := min(max(calls, 0), len(recorded.responses))
+	return &untilProvider{recorded: recorded, cutoff: cutoff, live: live, served: served}
+}
+
 // untilProvider is Until's provider. It never switches back to recorded
 // once live has answered a call: from the moment turn N is reached, the
 // rest of the run is live, even for the model calls of a turn already
@@ -174,6 +203,9 @@ type untilProvider struct {
 	cutoff   int
 	live     llm.Provider
 	switched bool
+	// served runs once the last recorded response has been handed out
+	// (see UntilCall); nil for Until.
+	served func()
 }
 
 func (p *untilProvider) Name() string {
@@ -185,7 +217,12 @@ func (p *untilProvider) Name() string {
 
 func (p *untilProvider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	if !p.switched && p.recorded.at < p.cutoff {
-		return p.recorded.Stream(ctx, req, emit)
+		r, err := p.recorded.Stream(ctx, req, emit)
+		if err == nil && p.recorded.at == p.cutoff && p.served != nil {
+			p.served()
+			p.served = nil
+		}
+		return r, err
 	}
 	p.switched = true
 	return p.live.Stream(ctx, req, emit)

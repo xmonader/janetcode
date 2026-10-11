@@ -136,6 +136,10 @@ func walkOn(ws *Workspace, ctx context.Context, root, dir string, fn func(rel st
 	})
 }
 
+// GlobRegexp is the matcher glob and grep's glob filter use, for a caller
+// that has to decide what one of their calls would have matched.
+func GlobRegexp(pattern string) (*regexp.Regexp, error) { return globToRegexp(pattern) }
+
 // globToRegexp converts a glob with **, *, ?, {a,b} into an anchored regexp.
 func globToRegexp(pattern string) (*regexp.Regexp, error) {
 	if strings.TrimSpace(pattern) == "" {

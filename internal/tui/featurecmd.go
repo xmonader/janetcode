@@ -81,6 +81,28 @@ var featureSwitches = []featureSwitch{
 		on:    func(cfg *config.Config) bool { return cfg.StaleCheckNudge },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},
+	{
+		name:  "effort-ctl",
+		key:   "effort_control",
+		what:  "reasoning tier follows the turn: up on trouble, halved on progress",
+		on:    func(cfg *config.Config) bool { return cfg.EffortControl },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
+	{
+		name:  "localize",
+		key:   "localize_failures",
+		what:  "a red test run after a multi-hunk edit names the hunks that did it",
+		on:    func(cfg *config.Config) bool { return cfg.LocalizeFailures },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
+	{
+		name:  "subagent-merge",
+		key:   "subagent_merge",
+		what:  "the harness merges a subagent's edits, sends conflicts back once",
+		on:    func(cfg *config.Config) bool { return cfg.SubagentMerge },
+		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
+	},
+	{name: "plan-file", key: "plan_file", what: "your edits to .janetcode/plan.md reach the model between steps", on: func(cfg *config.Config) bool { return cfg.PlanFile }, value: func(_ *config.Config, on bool) string { return onOffWord(on) }},
 }
 
 // decisionSwitches builds the consumer switches from the config package's
@@ -194,10 +216,20 @@ func featureNames() []string {
 	return out
 }
 
+// featureNameWidth is the widest switch name, so the on/off column
+// lines up however long a new switch's name is.
+func featureNameWidth() int {
+	w := 12
+	for _, f := range allFeatureSwitches() {
+		w = max(w, len(f.name))
+	}
+	return w
+}
+
 // featureLine is one switch's state, with what still stands in its way.
 func (m *model) featureLine(f featureSwitch) string {
 	cfg := m.opts.Config
-	line := fmt.Sprintf("%-12s %-3s  %s", f.name, onOffWord(f.on(cfg)), f.what)
+	line := fmt.Sprintf("%-*s %-3s  %s", featureNameWidth(), f.name, onOffWord(f.on(cfg)), f.what)
 	if f.caveat != nil {
 		if c := f.caveat(cfg); c != "" {
 			line += " · " + c

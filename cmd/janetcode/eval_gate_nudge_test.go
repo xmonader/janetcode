@@ -18,5 +18,10 @@ func TestWireEvalGateCarriesTheStaleCheckNudge(t *testing.T) {
 		if ag.StaleCheckNudge != want {
 			t.Errorf("config stale_check_nudge=%v reached the eval agent as %v", want, ag.StaleCheckNudge)
 		}
+		ag = &agent.Agent{}
+		wireEvalGate(ag, t.TempDir(), &config.Config{EffortControl: want}, map[string]bool{"decisions": true}, "")
+		if ag.EffortControl != want {
+			t.Errorf("config effort_control=%v reached the eval agent as %v", want, ag.EffortControl)
+		}
 	}
 }

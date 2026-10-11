@@ -101,6 +101,11 @@ type Entry struct {
 	Pending    bool
 	Replaces   string
 	MergesInto string
+	// Tainted marks an entry learned while untrusted content (a fetched
+	// page, a dependency's README, an MCP answer) was in the context: it
+	// is held for the user's confirmation even when Confirm is off (see
+	// needsConfirm and package taint).
+	Tainted bool
 }
 
 // Closed reports whether a correction has retired the entry: it stopped

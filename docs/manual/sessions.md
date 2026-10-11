@@ -305,6 +305,40 @@ the record does not drift from compaction to compaction, and a model
 that answers in prose anyway has its text kept as notes. The eval
 switch `working` restores the old prose handoff note for comparison.
 
+The facts in that record are then held to the calls the harness watched,
+the way a turn's verdict holds the final answer. A fact that says the
+tests pass is judged by the last check that ran; one that says
+`parse_row is defined in ledger/parse.py` by the file as it is now; one
+that names a command in backticks by that command's last run. A fact
+with evidence ends with a pointer, `(evidence: ctx-14, call 7)`, that
+`expand_output {"id":"ctx-14","grep":"7"}` resolves; one nothing showed
+becomes `unverified: …`; one the evidence contradicts (tests said to pass
+whose last run was red, a name no longer in the file) is dropped, with a
+notice. Facts of any other shape (judgements, descriptions) pass through
+as written. A subagent's report gets the same check against the
+subagent's own calls before the parent reads it (its transcript is
+archived so the pointers resolve, and only when the report claims
+something checkable), and the summary a spec review ends on gets a
+notice for what it claims that no call showed. None of this calls a
+model, and none of it runs in a session that never compacts or delegates.
+`JANETCODE_OFF=claimcheck` turns it off.
+
+Numbers in the answer get the same treatment as "tests pass". A number
+with a unit that says what it measures — "40% faster", "2x", "allocations
+halved", "120 ns/op", "coverage 85%", "4.2 MB" — is held against the
+session's commands: it needs a measurement of its kind (a benchmark or a
+`time`/`hyperfine` run, `-benchmem` or a profiler, a coverage run,
+`ls -l`/`du`), run after the last edit, whose output holds the number;
+a change ("40% faster") needs a run before the edits and one after whose
+numbers give it, or a `benchstat`/`hyperfine` comparison that states it.
+A `benchstat` whose every delta is `~` backs nothing. Numbers nothing
+backs are named in a notice beside the answer ("unverified numbers in
+the answer: "40%": no benchmark or timing run in this session") and on
+the session log; hedged numbers ("could be 2x faster"), durations with no
+word about speed ("125 tests pass (0.2s)"), versions and counts are left
+alone. It calls no model; `numeric_claims_nudge` adds a send-back, and
+`JANETCODE_OFF=numclaim` turns it off.
+
 Edits are refused when a file changed on disk since the agent last read
 or wrote it (you edited it, a formatter ran, another session touched it):
 the model is told to read it again. Files it has never read are not
@@ -323,6 +357,60 @@ An MCP server that exposes more than six tools has them registered
 their names in the `tool_search` description and loads the ones it needs
 by keyword, after which they stay available. The `task` subagent tool takes
 an optional `tools` list so a narrow job gets a narrow toolset.
+
+## Scope contracts
+
+When the first edit of a request lands, janetcode infers the request's
+expected blast radius from its own words: the files and directories it
+names (and, one level down, those named by a document it points at, such
+as "read BRIEF.md"), widened to the rest of each named file's directory,
+the files that import it, and the tests whose names carry its stem. A
+file the session itself created is left out, so a new module importing a
+named one does not widen the scope. Nothing is refused. The first edit
+to each file outside the scope is recorded on the session log as a
+`scope` notice carrying the reason the model gave for the call (its
+provenance intent), or "no justification given". Dependency manifests
+and lock files (`go.mod`, `package.json`, `Cargo.lock`, ...) are counted
+apart, neither in scope nor out. A request that names no file has no
+contract and no creep figure.
+
+A headless run's result object carries it as `scope`: what the task
+named, how many files the contract covers, how many the run edited, the
+ones outside with their justification, and `creep`, the share of the
+non-incidental files edited that fell outside. The config key
+`scope_justify` asks the model for a reason when an out-of-scope edit
+stated none (see [Configuration](configuration.md)).
+`JANETCODE_OFF=scope` turns all of this off.
+
+## Failure dossier
+
+A headless run that fails (an error, or a last turn whose verdict is
+`check failed`, `not demonstrated` or `vacuous`) leaves a hand-off beside
+its session log, `<id>.dossier.md`, and carries the same content in its
+result object as `dossier`:
+
+- the smallest reproduction: the last red check, narrowed to the tests
+  it named when the runner's one-test form is known (`go test -run`,
+  pytest node ids, `cargo test --exact`), with an output filter such as
+  `| tail -5` dropped; anything more compound is given as it ran;
+- the hypotheses tried: each batch of edits between two checks, with
+  the intent the model gave for it and the check after it as the
+  evidence (`ruled out`, `worse` when more tests failed than before,
+  `held`, or `unchecked`);
+- the last red output, tail-clipped;
+- the best state reached, when an earlier check had fewer failures than
+  the last one: the change it came after, the changes made since, and a
+  `--what-if <id> --from-turn <n>` line that replays the session to that
+  turn.
+
+It is folded from what the session already recorded, with no model call
+and nothing rerun, and written to the data directory, never into the
+project. A run that changed nothing and checked nothing leaves none. A
+confirmed CONFLICT is a finished run and leaves none either.
+`JANETCODE_OFF=dossier` turns it off.
+
+To find where a test that fails now started failing inside a session,
+see `--why-broke` in the [command line reference](cli.md).
 
 ## What if: replaying a session with one thing changed
 

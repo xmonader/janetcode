@@ -121,6 +121,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	a.usageMu.Unlock()
 	plan := a.newPlanWatch()
 	burst := a.newBurstWatch()
+	effort, steered := a.callEffort(prov, emit)
 	callCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	resp, err := prov.Stream(callCtx, llm.Request{
@@ -129,7 +130,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		Messages:  a.bridgeImages(ctx, a.Messages, model, emit),
 		Tools:     defs,
 		MaxTokens: a.maxTokens(),
-		Effort:    a.Settings().Effort,
+		Effort:    effort,
 	}, func(e llm.Event) {
 		if e.Type == llm.EventRetried && e.Retry != nil {
 			a.stats.retried(e.Retry.Attempts)
@@ -177,6 +178,10 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		a.lastCallSlot = rt.slot
 		a.lastCallRoute = rt.kind
 		a.lastCallWhy = rt.why
+		a.lastCallEffort = ""
+		if steered {
+			a.lastCallEffort = effort
+		}
 		a.lastCallProvider = ""
 		if prov != nil {
 			a.lastCallProvider = prov.Name()

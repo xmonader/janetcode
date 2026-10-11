@@ -114,7 +114,7 @@ func (t ReadManyFiles) Run(ctx context.Context, input json.RawMessage) (string, 
 			fmt.Fprintf(&sb, "===== %s =====\n(error: binary file, %d bytes)\n\n", rel, len(data))
 			continue
 		}
-		t.Seen.Record(p, data)
+		t.Seen.RecordRead(p, data)
 		text, shape := decodeText(data)
 		fmt.Fprintf(&sb, "===== %s =====\n", rel)
 		sb.WriteString(text)

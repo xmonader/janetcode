@@ -44,6 +44,7 @@ const dedupedResult = "[deduped: identical call above returned this output]"
 // answer — and the error that stopped it is returned rather than dropped.
 func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, []llm.Block, error) {
 	a.setEmitter(emit)
+	defer a.noteSubagentMerges()
 	results := make([]llm.Block, len(uses))
 	filled := make([]bool, len(uses))
 	var (
@@ -281,6 +282,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// the way out (see logPermission).
 	var basis string
 	defer func() { a.logPermission(t, u, basis, refusal, err) }()
+	// A planted honeytoken in the arguments is never a call to put to
+	// anyone: nothing legitimate holds one. The run stops here, before a
+	// hook could see or rewrite it.
+	if err := a.canaryCall(*u, emit); err != nil {
+		basis = "honeytoken"
+		return nil, "", err
+	}
 	hookNotes, hookAllowed, hookMustAsk, hookRefusal := a.preToolHook(ctx, u, call, emit)
 	if hookRefusal != "" {
 		basis = "pre-tool hook"
@@ -308,6 +316,16 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case why != "":
 		mustAsk, egressAsk = true, true
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
+	}
+	// A tainted turn asks about the calls an injection is after — the
+	// network, CI and credential files, janetcode's own settings —
+	// whatever the mode, and for a read-only call too (see taint.go). The
+	// warning says where the argument came from when it can.
+	taintWhy, taintHosts := a.taintGate(t, *u)
+	taintAsk := taintWhy != ""
+	if taintAsk {
+		mustAsk = true
+		call.Warning = strings.TrimPrefix(call.Warning+"; "+taintWhy, "; ")
 	}
 	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
@@ -367,7 +385,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	if !sensitive && !egressAsk && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+	if !sensitive && !egressAsk && !taintAsk && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
 		basis = a.shortcutBasis(t, u, verdict, rule, hookAllowed)
 		return hookNotes, "", nil
 	}
@@ -393,6 +411,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	if r := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); r != "" {
 		return nil, r, nil
 	}
+	a.taintApprove(taintHosts)
 	return hookNotes, "", nil
 }
 
@@ -693,13 +712,21 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if checkingCommit {
 		commitPreHead = a.headForCommitCheck(ctx)
 	}
+	manifests := a.manifestsBefore(t, u)
+	squats := a.squatBefore(t, u)
 	out, images, err := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
+	if hit := a.proxyCanaryHit(emit); hit != nil {
+		return "", nil, true, hit
+	}
 	if err == nil {
 		out += a.dryShellNote(u.Name)
+		out += a.checkDeps(ctx, manifests, emit)
+		out += a.squatCheck(squats, emit)
 	}
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
+		out += a.scopeAfter(u, intent, pend)
 	}
 	a.bashAuditAfter(ctx, u, shellBefore)
 	if ctx.Err() != nil && err != nil {
@@ -776,7 +803,12 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			out, isErr = msg, true
 		}
 	}
+	// Read off the whole output before stash may archive it: the failing
+	// test lines are what localization starts from.
+	located := a.localizeBash(ctx, u.Name, u.Input, out, isErr, emit)
+	blamed := a.readBlame(ctx, u.Name, u.Input, out, isErr)
 	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
+	out += located + blamed
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}
@@ -804,6 +836,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
 	a.noteToolEgress(ctx, u.Name, u.Input, out)
+	a.noteTaint(u.Name, u.Input, out, emit)
 	if isErr {
 		images = nil
 	}
@@ -953,6 +986,12 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	}
 	_, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
+		if errors.Is(err, egress.ErrCanary) {
+			// The script is told; the call that ran the script ends
+			// the run when it returns (proxyCanaryHit).
+			where := "a script's " + name + " call"
+			a.canaryHit.Store(&where)
+		}
 		return "Error: " + err.Error(), true, false
 	}
 	if deny != "" {
@@ -974,6 +1013,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	out, _, runErr := a.runSafely(ctx, t, u.Input)
 	a.bashAuditAfter(ctx, u, shellBefore)
 	dur := time.Since(start)
+	// What a script read enters the context through the script's own
+	// output, so it labels the session like a direct call would.
+	a.noteTaint(name, u.Input, out, emit)
 	isErr := runErr != nil
 	if isErr {
 		out = "Error: " + runErr.Error()
