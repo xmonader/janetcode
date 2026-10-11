@@ -755,18 +755,6 @@ compound definition name in the whole index ("refund" for
 12 KB, after the repository map. Nothing runs: no model, no command, no
 language server.
 
-`prefix_kernel` (default off) makes every session on one commit start
-from the same bytes, so a provider's prompt cache matches a second
-session from its first call rather than its second. The system prompt
-keeps its usual head, then the project's instruction files, then a map
-of the committed tree ranked by structure alone (for a repository over
-40 files); the working directory, date and branch move to an
-`<environment>` block at the end of the first message. The map is stored
-under the data directory's `kernels/`, keyed by the hash of the committed
-tree, so two checkouts of the same content share it; a dirty tree reads a
-stored map but never stores its own. After `/cd` the session goes back to
-the usual prompt for the new directory.
-
 `route_cheap` is a model name; empty (the default) is off. When set, a
 turn's mechanical steps — reading a file, listing a directory, grep, a
 check command that already passed — are sent to it instead of the

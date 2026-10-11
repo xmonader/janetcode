@@ -13,9 +13,9 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 )
 
-// kernelTestRepo fills dir with a committed Go module of n files, too
+// preresolveTestRepo fills dir with a committed Go module of n files, too
 // many to be sent whole, one of which defines RetryBudget.
-func kernelTestRepo(t *testing.T, dir string, n int) {
+func preresolveTestRepo(t *testing.T, dir string, n int) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
@@ -40,10 +40,9 @@ func kernelTestRepo(t *testing.T, dir string, n int) {
 	}
 }
 
-func TestPrefixKernelAndPreresolveWiring(t *testing.T) {
+func TestPreresolveWiring(t *testing.T) {
 	d, sess := buildTestDeps(t)
-	kernelTestRepo(t, d.cwd, 45)
-	d.cfg.PrefixKernel = true
+	preresolveTestRepo(t, d.cwd, 45)
 	d.cfg.Preresolve = true
 	b, err := buildAgent(d, sess, nil)
 	if err != nil {
@@ -51,16 +50,6 @@ func TestPrefixKernelAndPreresolveWiring(t *testing.T) {
 	}
 	t.Cleanup(b.close)
 	ag := b.agent
-
-	if strings.Contains(ag.System, prompt.EnvironmentHeading) || strings.Contains(ag.System, d.cwd) {
-		t.Fatalf("the kernel prompt still carries the environment:\n%s", ag.System)
-	}
-	if !strings.Contains(ag.System, "[repository map of the committed tree") {
-		t.Fatalf("the kernel prompt has no map of the committed tree:\n%s", ag.System)
-	}
-	if got, _ := filepath.Glob(filepath.Join(filepath.Dir(d.sessDir), "kernels", "*.map")); len(got) != 1 {
-		t.Fatalf("the kernel map was not stored beside the sessions: %v", got)
-	}
 
 	blocks, note := ag.Prepare(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "Make RetryBudget triple n instead."}})
 	if !strings.Contains(note, "resolved from the request: 1 definition(s)") {
@@ -75,17 +64,13 @@ func TestPrefixKernelAndPreresolveWiring(t *testing.T) {
 	if !resolved {
 		t.Fatalf("the definition was not attached: %+v", blocks)
 	}
-	last := blocks[len(blocks)-1]
-	if !last.Synthetic || !strings.HasPrefix(last.Text, "<environment>") || !strings.Contains(last.Text, d.cwd) {
-		t.Fatalf("the environment is not the last block of the first message: %q", last.Text)
-	}
 }
 
-// Off, neither changes anything: the usual prompt, and no resolved block
-// or environment note in the first message.
-func TestPrefixKernelAndPreresolveOffByDefault(t *testing.T) {
+// Off, it changes nothing: the usual prompt, and no resolved block in the
+// first message.
+func TestPreresolveOffByDefault(t *testing.T) {
 	d, sess := buildTestDeps(t)
-	kernelTestRepo(t, d.cwd, 45)
+	preresolveTestRepo(t, d.cwd, 45)
 	b, err := buildAgent(d, sess, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +81,7 @@ func TestPrefixKernelAndPreresolveOffByDefault(t *testing.T) {
 	}
 	blocks, _ := b.agent.Prepare(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "Make RetryBudget triple n instead."}})
 	for _, bl := range blocks {
-		if strings.HasPrefix(bl.Text, "<resolved>") || strings.HasPrefix(bl.Text, "<environment>") {
+		if strings.HasPrefix(bl.Text, "<resolved>") {
 			t.Fatalf("an off feature attached %q", bl.Text[:20])
 		}
 	}
@@ -105,7 +90,7 @@ func TestPrefixKernelAndPreresolveOffByDefault(t *testing.T) {
 // A repository sent whole needs nothing resolved: the hook stands aside.
 func TestPreresolveStandsAsideForAnInlinedRepo(t *testing.T) {
 	d, sess := buildTestDeps(t)
-	kernelTestRepo(t, d.cwd, 3)
+	preresolveTestRepo(t, d.cwd, 3)
 	d.cfg.Preresolve = true
 	b, err := buildAgent(d, sess, nil)
 	if err != nil {

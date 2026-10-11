@@ -746,7 +746,6 @@ func (b *agentBuilder) stepTurnHooks() error {
 	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem),
 		firstTurnRepo(ag, b.cd, b.ws, b.seen, b.off["inline"], repomap.TurnPrep(b.repo, 0)))
 	wirePreresolve(b)
-	wirePrefixKernel(b) // last: its note ends the first message
 	return nil
 }
 

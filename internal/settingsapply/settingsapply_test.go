@@ -171,7 +171,6 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"lean_tools":    "read via cfg.LeanTools() when tools are built for a request",
 		"theme":         "read from cfg.Theme by the front-end's theme picker",
 		"preresolve":    "read from cfg.Preresolve when the session's turn preparation is wired: it acts on a first message only",
-		"prefix_kernel": "read from cfg.PrefixKernel when the session's system prompt is built: changing it mid-session would break the cached prefix it exists for",
 		"hints":         "read via cfg.ShowHints() by the hint engine",
 		"memory":        "read via cfg.AutoMemory() where memory extraction is scheduled",
 		"followup":      "read via cfg.FollowupEnabled() by the terminal after a turn",

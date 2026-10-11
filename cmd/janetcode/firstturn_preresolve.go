@@ -10,7 +10,6 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/preresolve"
-	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -67,39 +66,4 @@ func attachedWhole(blocks []llm.Block) bool {
 		}
 	}
 	return false
-}
-
-// wirePrefixKernel switches the session to the prefix kernel (config
-// prefix_kernel; see prompt.KernelSections): the system prompt loses its
-// environment and gains the committed tree's map, and the environment
-// goes to the end of the first user message instead, below everything a
-// second session on the same commit would send identically. It must be
-// the last hook wired, so the note is the last block of that message.
-//
-// Whatever stepCore appended after the prompt (the conflict-exit line) is
-// kept as it was. A /cd rebuilds the usual prompt for the new directory,
-// which is the right prompt to have there: the cached prefix is lost to
-// the move either way.
-func wirePrefixKernel(b *agentBuilder) {
-	if !b.d.cfg.PrefixKernel {
-		return
-	}
-	ag, d := b.ag, b.d
-	usual := prompt.SystemWith(d.cwd, d.promptOverride)
-	if !strings.HasPrefix(ag.System, usual) {
-		return // something rebuilt the prompt; leave it alone
-	}
-	store := ""
-	if d.sessDir != "" {
-		store = filepath.Join(filepath.Dir(d.sessDir), "kernels")
-	}
-	m, _ := repomap.Kernel(context.Background(), b.repo, store)
-	ag.System = prompt.KernelSystem(d.cwd, d.promptOverride, m) + ag.System[len(usual):]
-	cwd := d.cwd
-	ag.Prepare = chainPrep(ag.Prepare, func(_ context.Context, blocks []llm.Block) ([]llm.Block, string) {
-		if len(ag.Messages) != 0 || strings.TrimSpace(firstTextOf(blocks)) == "" {
-			return blocks, ""
-		}
-		return append(blocks, llm.Block{Type: llm.BlockText, Text: prompt.EnvironmentNote(cwd), Synthetic: true}), ""
-	})
 }

@@ -101,7 +101,6 @@ var setters = map[string]setter{
 	"observed_purity":        boolKey(func(c *Config) *bool { return &c.ObservedPurity }),
 	"scope_justify":          boolKey(func(c *Config) *bool { return &c.ScopeJustify }),
 	"preresolve":             boolKey(func(c *Config) *bool { return &c.Preresolve }),
-	"prefix_kernel":          boolKey(func(c *Config) *bool { return &c.PrefixKernel }),
 	// Zero is off for both of these: a cascade that has not been asked
 	// for is not a cascade with a budget of nothing.
 	"escalate_after":       countKey("escalate_after", func(c *Config) *int { return &c.EscalateAfter }),
