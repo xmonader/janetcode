@@ -213,6 +213,12 @@ func (m *model) memoryCommand(cmd, arg string) {
 		}
 		var sb strings.Builder
 		switch {
+		case arg == "show" || arg == "about" || arg == "history":
+			// The verb alone is a verb missing its argument: it was
+			// searched for as a word, and "nothing matches \"show\"".
+			what := map[string]string{"show": "<name>", "about": "<path>", "history": "<name>"}[arg]
+			m.transcript.errorf("usage: /memory %s %s", arg, what)
+			return
 		case strings.HasPrefix(arg, "show "):
 			e, ok := store.Get(strings.TrimSpace(strings.TrimPrefix(arg, "show ")))
 			if !ok {
