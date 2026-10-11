@@ -2697,11 +2697,7 @@ A follow-up suggestion is off by default. `/followup on` (or
 `"followup": true` in the config) asks a cheap side query after a turn —
 not the session system prompt, not the tool schemas — and puts 2–12 words
 in the input box as ghost text. Tab accepts it. `/followup off` silences
-it for the session. With `speculate` on as well (`/features speculate
-on`), the suggested prompt is run ahead on the cheap model in a separate
-checkout while you read; sending it unchanged adopts that work, and the
-turn says "adopted the speculative run" or why it was discarded (see
-`speculate` in [configuration](configuration.md)).
+it for the session.
 
 With `plan_file` on, `.janetcode/plan.md` is a plan you can edit while a
 turn runs: the change reaches the model before its next call, with a

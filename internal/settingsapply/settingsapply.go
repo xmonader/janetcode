@@ -97,8 +97,6 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetScopeJustify(cfg.ScopeJustify)
 	case "probe_ledger":
 		a.SetProbeLedger(cfg.ProbeLedger)
-	case "speculate":
-		a.SetSpeculate(cfg.Speculate)
 	case "plan_file":
 		a.SetPlanFile(cfg.PlanFile)
 	case "probe_memory":

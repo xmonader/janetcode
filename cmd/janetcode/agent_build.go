@@ -269,9 +269,6 @@ func (b builtAgent) close() {
 		// language servers: a fork still running would otherwise go on
 		// asking a manager that has already shut down.
 		b.task.Close(ctx)
-		if b.agent != nil {
-			b.agent.DiscardSpeculation()
-		}
 		b.diag.Close()
 	}
 	if b.once == nil {
@@ -548,7 +545,6 @@ func (b *agentBuilder) stepCore() error {
 	ag.Localize = tree.Run
 	ag.SubagentMerge = d.cfg.SubagentMerge
 	ag.ProbeLedger = d.cfg.ProbeLedger
-	ag.Speculate = d.cfg.Speculate
 	ag.PlanFile = d.cfg.PlanFile
 	ag.FingerprintDir = fingerprintDir(d.cfg)
 	ag.ProbeMemory, ag.ReadBlame = d.cfg.ProbeMemory, d.cfg.ReadBlame

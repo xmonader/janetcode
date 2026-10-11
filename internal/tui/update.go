@@ -255,7 +255,6 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 	case followupMsg:
 		if msg.gen == m.followupGen && m.followupOn && !m.turn.running && strings.TrimSpace(m.input.Value()) == "" {
 			m.followup = msg.text
-			m.speculate(msg.text)
 			m.refresh(false)
 		}
 		return nil, true

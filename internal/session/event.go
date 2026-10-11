@@ -85,9 +85,6 @@ const (
 	// (internal/agent/conflict.go): Extra carries a proof.Conflict with
 	// whether the harness confirmed the cited test exists and fails.
 	TypeConflict = "turn/conflict"
-	// TypeFollowup records the next prompt the follow-up suggestion
-	// predicted (Output), for comparison with the one the user sent.
-	TypeFollowup = "followup/suggest"
 )
 
 // Gate sources on a TypeGate event.

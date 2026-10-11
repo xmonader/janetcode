@@ -379,10 +379,6 @@ type Agent struct {
 	// project without the model's say, and its repair round is a model
 	// call.
 	SubagentMerge bool
-	// Speculate runs the predicted follow-up ahead of the user on the
-	// cheap model in a throwaway checkout (speculate.go). Off by default.
-	Speculate bool
-	spec      specState
 	// PlanFile has the harness send the user's edits to
 	// .janetcode/plan.md to the model between steps (planfile.go). Off
 	// by default.
@@ -606,7 +602,6 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	defer func() { a.turnEndHooks(ctx, err) }()
 	maxIter := a.openTurn(ctx, blocks, emit)
-	a.specResolve(ctx, blocks, emit)
 	turnBegan := time.Now()
 	defer func() { a.stats.turnTook(time.Since(turnBegan)) }()
 	defer a.endTurn(ctx)

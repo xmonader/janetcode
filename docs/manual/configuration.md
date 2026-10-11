@@ -629,26 +629,6 @@ because the repair round is a model call; it never writes where a write
 would need your approval. See "Editing subagents in a worktree" in
 [the interface manual](interface.md).
 
-`speculate` (default off) runs the follow-up suggestion ahead of you.
-When a turn ends and `followup` has put a predicted next prompt in the
-input box, janetcode runs that prompt on `route_cheap` in a throwaway
-git checkout of the project while you read the reply, capped at $0.05 a
-run. Its file edits stay in the checkout; it may run only the commands
-your permission rules already allow. If the prompt you send is that one
-(case, spacing and a trailing full stop aside), its changes are written
-into the project before the turn's first model call, under the turn's
-undo checkpoint, and the main model is told they are there and reviews
-them rather than writing them. Anything else you send, a change to any
-of those files in the project meanwhile, or any other message added to
-the conversation throws the run away. It needs `followup` on and a
-priced `route_cheap`, starts only for a single clear step (not a
-question, not one with "or", not a commit, push, install or deletion),
-and only when `max_cost` has room for the cap. An unadopted run is spend
-on a prompt nobody sent, which is why it is off. Each suggestion is now
-recorded on the session log (`followup/suggest`), and
-`go run ./cmd/specscreen ~/.local/share/janetcode/sessions` reports how
-often the next prompt matched it.
-
 `plan_file` (default off) makes `.janetcode/plan.md` a live plan. Edit
 it in your own editor while the agent works: before each model call the
 harness compares it with what it last saw and sends the model only the
@@ -915,8 +895,7 @@ key=value` or through the two commands that group them:
 - `/features` lists the slots and the switches that use them --
   `escalate` (`escalate_after`), `advisor` (`advisor_mode`),
   `stale-nudge` (`stale_check_nudge`), `effort-ctl` (`effort_control`),
-  `localize` (`localize_failures`),
-  `subagent-merge` (`subagent_merge`), `speculate` (`speculate`),
+  `localize` (`localize_failures`), `subagent-merge` (`subagent_merge`),
   `plan-file` (`plan_file`) and the four decision consumers --
   with what each is set to and what still stands in its way.
   `/features <name> on|off` changes one.

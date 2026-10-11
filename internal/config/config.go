@@ -237,11 +237,6 @@ type Config struct {
 	// ones that fail there and pass now are replayed at every later gate.
 	// Off by default: it reruns commands and can send a turn back.
 	ProbeLedger bool `json:"probe_ledger,omitempty"`
-	// Speculate runs the follow-up suggestion's predicted prompt ahead of
-	// the user, on route_cheap in a throwaway checkout under a small cost
-	// cap, and adopts its changes if the user sends that prompt. Off by
-	// default: an unadopted run is spend on a prompt nobody sent.
-	Speculate bool `json:"speculate,omitempty"`
 	// PlanFile sends the user's edits to .janetcode/plan.md to the model
 	// between steps, only the change. Off by default: it adds text to the
 	// conversation, from a file a cloned repository may have brought.
