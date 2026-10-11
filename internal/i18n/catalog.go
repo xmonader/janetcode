@@ -8,9 +8,14 @@ var source = []string{
 	"keys",
 	"commands",
 	"yours",
-	"enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit",
+	// Each key phrase starts with the key bound to it (%s), so a moved
+	// key reads right and an unbound one is left out.
+	"%s send",
+	"%s newline",
+	"%s cancel the turn",
+	"%s quit",
 	"@path attaches a file · !command runs it and shares the output",
-	"shift+tab changes what asks first",
+	"%s changes what asks first",
 	"permission prompt: y allow · a this session · n deny · c cancel",
 	"pick a provider and paste a key",
 	"switch the model",
@@ -179,12 +184,15 @@ var source = []string{
 }
 
 var spanish = map[string]string{
-	"keys":     "teclas",
-	"commands": "comandos",
-	"yours":    "los tuyos",
-	"enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit": "enter envía · ctrl+j nueva línea · esc cancela el turno · ctrl+d sale",
+	"keys":               "teclas",
+	"commands":           "comandos",
+	"yours":              "los tuyos",
+	"%s send":            "%s envía",
+	"%s newline":         "%s nueva línea",
+	"%s cancel the turn": "%s cancela el turno",
+	"%s quit":            "%s sale",
 	"@path attaches a file · !command runs it and shares the output":  "@ruta adjunta un archivo · !comando lo ejecuta y comparte la salida",
-	"shift+tab changes what asks first":                               "shift+tab cambia qué pide permiso primero",
+	"%s changes what asks first":                                      "%s cambia qué pide permiso primero",
 	"permission prompt: y allow · a this session · n deny · c cancel": "permisos: y permitir · a esta sesión · n denegar · c cancelar",
 	"pick a provider and paste a key":                                 "elegir un proveedor y pegar una clave",
 	"switch the model":                                                "cambiar de modelo",
@@ -346,12 +354,15 @@ var spanish = map[string]string{
 }
 
 var french = map[string]string{
-	"keys":     "touches",
-	"commands": "commandes",
-	"yours":    "les vôtres",
-	"enter send · ctrl+j newline · esc cancel the turn · ctrl+d quit": "entrée envoie · ctrl+j nouvelle ligne · échap annule le tour · ctrl+d quitte",
+	"keys":               "touches",
+	"commands":           "commandes",
+	"yours":              "les vôtres",
+	"%s send":            "%s envoie",
+	"%s newline":         "%s nouvelle ligne",
+	"%s cancel the turn": "%s annule le tour",
+	"%s quit":            "%s quitte",
 	"@path attaches a file · !command runs it and shares the output":  "@chemin joint un fichier · !commande l'exécute et partage la sortie",
-	"shift+tab changes what asks first":                               "maj+tab change ce qui demande d'abord",
+	"%s changes what asks first":                                      "%s change ce qui demande d'abord",
 	"permission prompt: y allow · a this session · n deny · c cancel": "autorisation : y autoriser · a cette session · n refuser · c annuler",
 	"pick a provider and paste a key":                                 "choisir un fournisseur et coller une clé",
 	"switch the model":                                                "changer de modèle",
