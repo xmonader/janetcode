@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -223,11 +224,17 @@ func (m *model) complete() bool {
 	return true
 }
 
+// commonPrefix is the longest prefix a and b share, cut back to a whole
+// character: café.txt and cafè.txt share the first byte of é and è, and
+// that half character went into the input.
 func commonPrefix(a, b string) string {
 	n := min(len(a), len(b))
 	i := 0
 	for i < n && a[i] == b[i] {
 		i++
+	}
+	for i > 0 && i < len(a) && !utf8.RuneStart(a[i]) {
+		i--
 	}
 	return a[:i]
 }
