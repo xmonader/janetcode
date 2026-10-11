@@ -283,9 +283,7 @@ func (m *model) resume(arg string) {
 	m.opts.Session = sess
 	m.opts.CD.SetSession(sess)
 	m.opts.Agent.Usage = llm.Usage{}
-	if err := m.opts.Agent.OpenSession(sess, history); err != nil {
-		m.transcript.errorf("%v", err)
-	}
+	openErr := m.opts.Agent.OpenSession(sess, history)
 	m.titleGen++ // a title generated for the session we just left must not land here
 	m.transcript = newTranscriptStyled(m.transcript.styleName, m.styles)
 	// As /clear does: without it every verdict and notice after a resume
@@ -293,6 +291,11 @@ func (m *model) resume(arg string) {
 	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
+	// Into the new transcript: written before it, the error (an undo file
+	// that would not load, say) was thrown away with the old one.
+	if openErr != nil {
+		m.transcript.errorf("%v", openErr)
+	}
 	m.noteInterrupted()
 	m.lastTurn, m.lastTurnTokens = "", ""
 	m.lastVerdict = ""
