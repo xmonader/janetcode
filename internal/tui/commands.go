@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/mcp"
@@ -346,7 +347,7 @@ func (m *model) command(text string) tea.Cmd {
 	// alias of an idle-only command straight past the check.
 	if m.turn.running {
 		if c, ok := slash.Lookup(slash.Canonical(fields[0])); ok && c.Idle {
-			m.transcript.errorf("%s waits for the turn to finish (esc cancels it, ctrl+s steers it)", fields[0])
+			m.transcript.errorf("%s", m.waitsForTurn(fields[0]))
 			m.refresh(false)
 			return nil
 		}
@@ -411,9 +412,19 @@ func (m *model) waitForTurn(name string) bool {
 	if !m.turn.running {
 		return false
 	}
-	m.transcript.errorf("%s waits for the turn to finish (esc cancels it, ctrl+s steers it)", name)
+	m.transcript.errorf("%s", m.waitsForTurn(name))
 	m.refresh(false)
 	return true
+}
+
+// waitsForTurn says an idle-only command must wait, naming the bound keys
+// that cancel or steer the turn instead.
+func (m *model) waitsForTurn(name string) string {
+	msg := name + " waits for the turn to finish"
+	if how := joinKept(", ", keyed(m.keys.First(keymap.Cancel), "%s cancels it"), keyed(m.keys.First(keymap.Steer), "%s steers it")); how != "" {
+		msg += " (" + how + ")"
+	}
+	return msg
 }
 
 // /help alone is the keys-and-commands sheet it has always been.

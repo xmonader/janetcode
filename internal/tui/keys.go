@@ -303,7 +303,7 @@ func (m *model) keyNewline(tea.KeyMsg) (tea.Cmd, bool) {
 // keyInterrupt is ctrl+c in three stages: cancel a running turn, else
 // clear typed text, else quit. A second press while a cancel is pending
 // forces the quit.
-func (m *model) keyInterrupt(tea.KeyMsg) (tea.Cmd, bool) {
+func (m *model) keyInterrupt(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if m.turn.running && !m.turn.cancelling {
 		m.cancelTurn()
 		return nil, true
@@ -313,7 +313,7 @@ func (m *model) keyInterrupt(tea.KeyMsg) (tea.Cmd, bool) {
 		// Cleared, not put back: a later ↑ starts again from the newest
 		// prompt and esc has no draft to restore.
 		m.hist.leave()
-		m.status = "input cleared · ctrl+c again to quit"
+		m.status = "input cleared · " + keyName(msg) + " again to quit"
 		m.quitArmedAt = time.Now()
 		m.layout()
 		m.refresh(false)
@@ -323,7 +323,7 @@ func (m *model) keyInterrupt(tea.KeyMsg) (tea.Cmd, bool) {
 	// seconds does it. An accidental ctrl+c must not close a session.
 	if !m.turn.running && time.Since(m.quitArmedAt) > quitArmWindow {
 		m.quitArmedAt = time.Now()
-		m.status = "ctrl+c again to quit"
+		m.status = keyName(msg) + " again to quit"
 		m.refresh(false)
 		return nil, true
 	}
@@ -376,13 +376,13 @@ func (m *model) keyEscape(tea.KeyMsg) (tea.Cmd, bool) {
 }
 
 // keyFold is ctrl+o: fold or unfold the whole of the last turn.
-func (m *model) keyFold(tea.KeyMsg) (tea.Cmd, bool) {
+func (m *model) keyFold(msg tea.KeyMsg) (tea.Cmd, bool) {
 	m.noteUse("ctrl+o")
 	switch expanded, any := m.transcript.toggleLastTurn(); {
 	case !any:
 		m.status = "nothing folded in the last turn · /verbose expands every turn"
 	case expanded:
-		m.status = "expanded the last turn · ctrl+o folds it again, click a line to fold one"
+		m.status = "expanded the last turn · " + keyName(msg) + " folds it again, click a line to fold one"
 	default:
 		m.status = "folded the last turn"
 	}
@@ -427,13 +427,13 @@ func (m *model) keyBackground(tea.KeyMsg) (tea.Cmd, bool) {
 // keySteer is ctrl+s: say something to the turn that is running, rather
 // than queueing it for the next one. The agent holds the note and hands
 // it to the model before its next call.
-func (m *model) keySteer(tea.KeyMsg) (tea.Cmd, bool) {
+func (m *model) keySteer(msg tea.KeyMsg) (tea.Cmd, bool) {
 	text := strings.TrimSpace(m.input.Value())
 	switch {
 	case !m.turn.running:
-		m.status = "ctrl+s steers a running turn; there is none · enter sends"
+		m.status = joinKept(" · ", keyName(msg)+" steers a running turn; there is none", keyed(m.keys.First(keymap.Submit), "%s sends"))
 	case text == "":
-		m.status = "type what the model should do differently, then ctrl+s"
+		m.status = "type what the model should do differently, then " + keyName(msg)
 	default:
 		m.noteUse("ctrl+s")
 		m.opts.Typed.Note(text)
@@ -498,7 +498,7 @@ func (m *model) keyUp(tea.KeyMsg) (tea.Cmd, bool) {
 		m.turn.queued = m.turn.queued[:len(m.turn.queued)-1]
 		m.input.CursorEnd()
 		m.layout()
-		m.status = "took the queued message back · enter queues it again, ctrl+s steers this turn"
+		m.status = joinKept(" · ", "took the queued message back", joinKept(", ", keyed(m.keys.First(keymap.Submit), "%s queues it again"), keyed(m.keys.First(keymap.Steer), "%s steers this turn")))
 		m.refresh(false)
 		return nil, true
 	}
@@ -594,7 +594,9 @@ func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
 		m.hist.remember(text)
 		m.input.Reset()
 		m.layout()
-		m.status = fmt.Sprintf("queued %d · sends when this turn ends · ctrl+s would have steered it into this turn instead · esc cancels the turn and restores it", len(m.turn.queued))
+		m.status = joinKept(" · ", fmt.Sprintf("queued %d", len(m.turn.queued)), "sends when this turn ends",
+			keyed(m.keys.First(keymap.Steer), "%s would have steered it into this turn instead"),
+			keyed(m.keys.First(keymap.Cancel), "%s cancels the turn and restores it"))
 		m.noteHint(func(s *hints.State) { s.Queued = true })
 		m.refresh(false)
 		return nil, true

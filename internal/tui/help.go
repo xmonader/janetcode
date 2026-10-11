@@ -245,6 +245,18 @@ func keyed(key, phrase string) string {
 	return fmt.Sprintf(phrase, key)
 }
 
+// joinKept joins the parts that are not empty: status lines built from
+// keyed phrases drop the clause of an unbound action.
+func joinKept(sep string, parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, sep)
+}
+
 // helpLine writes one indented line of the parts that are left, joined by
 // dots, and nothing when none are.
 func helpLine(sb *strings.Builder, parts ...string) {

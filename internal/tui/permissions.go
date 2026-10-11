@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/i18n"
+	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/present"
 	"github.com/xmonader/janetcode/internal/trust"
@@ -354,8 +355,8 @@ func (m *model) permissionKeysAt(tool, rule, learned string, expandable bool, ru
 		ladder = fmt.Sprintf(" ←→ %d/%d", rung+1, rungs)
 	}
 	long := []seg{{"y", " " + i18n.T("allow once")}, {"a", " " + i18n.Tf("always for %s this session", tool)}, {"r", " " + i18n.Tf("save rule %s", rule+ladder+note)}, {"n", " " + i18n.T("deny (and say why)")}, {"c", " " + i18n.T("cancel the turn")}}
-	if expandable {
-		long = append(long, seg{"", "(ctrl+o expands)"})
+	if k := m.keys.First(keymap.Expand); expandable && k != "" {
+		long = append(long, seg{"", "(" + k + " expands)"})
 	}
 	if s, w := render(long, "   "); w <= room {
 		return s
