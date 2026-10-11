@@ -89,8 +89,6 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.SetStaleCheckNudge(cfg.StaleCheckNudge)
 	case "effort_control":
 		a.SetEffortControl(cfg.EffortControl)
-	case "elide_checks":
-		a.SetElideChecks(cfg.ElideChecks)
 	case "localize_failures":
 		a.SetLocalizeFailures(cfg.LocalizeFailures)
 	case "subagent_merge":

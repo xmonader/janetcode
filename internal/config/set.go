@@ -88,7 +88,6 @@ var setters = map[string]setter{
 	"ask_timeout_unattended": askWaitKey("ask_timeout_unattended", func(c *Config) *string { return &c.AskTimeoutUnattended }),
 	"stale_check_nudge":      boolKey(func(c *Config) *bool { return &c.StaleCheckNudge }),
 	"effort_control":         boolKey(func(c *Config) *bool { return &c.EffortControl }),
-	"elide_checks":           boolKey(func(c *Config) *bool { return &c.ElideChecks }),
 	"localize_failures":      boolKey(func(c *Config) *bool { return &c.LocalizeFailures }),
 	"conflict_exit":          boolKey(func(c *Config) *bool { return &c.ConflictExit }),
 	"subagent_merge":         boolKey(func(c *Config) *bool { return &c.SubagentMerge }),

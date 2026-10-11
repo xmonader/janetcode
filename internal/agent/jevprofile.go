@@ -189,9 +189,6 @@ type CallProfile struct {
 	// Waste counts tool calls under each by-construction waste label.
 	Waste map[string]int
 
-	// Elide is the round-trip elision pre-screen (elidescreen.go).
-	Elide ElideScreen
-
 	// Points is one row per run, so a report can put a spread on any of
 	// these rates instead of quoting a pooled number as if it were exact.
 	Points []RunPoint
@@ -244,7 +241,6 @@ func (p *CallProfile) Add(o *CallProfile) {
 	for k, v := range o.Waste {
 		p.Waste[k] += v
 	}
-	p.Elide.Add(o.Elide)
 	p.Points = append(p.Points, o.Points...)
 }
 
@@ -370,7 +366,6 @@ func ProfileRun(model string, events []session.Event, staleAfter int, passed boo
 	point.BeforeFirstEdit = p.CallsBeforeFirstEdit
 	point.InputTokens = p.InputTokens
 	p.Points = []RunPoint{point}
-	p.Elide = ScreenElision(events)
 
 	for _, r := range results {
 		p.Results++

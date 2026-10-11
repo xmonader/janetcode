@@ -545,7 +545,6 @@ func (b *agentBuilder) stepCore() error {
 	ag.RouteCheap = d.cfg.RouteCheap
 	ag.StaleCheckNudge = d.cfg.StaleCheckNudge
 	ag.EffortControl = d.cfg.EffortControl
-	ag.ElideChecks = d.cfg.ElideChecks
 	ag.LocalizeFailures = d.cfg.LocalizeFailures
 	ag.Localize = tree.Run
 	ag.SubagentMerge = d.cfg.SubagentMerge
