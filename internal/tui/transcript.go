@@ -88,6 +88,10 @@ type entry struct {
 	// livePreview is the diff computed while the call was still being
 	// written, kept against the input it came from so it is computed once.
 	livePreview, livePreviewFor string
+	// liveWait is the ID of an earlier call of the same reply that edits
+	// the same file and has not run yet: until it has, a preview of this
+	// one would be a diff against content that is about to change.
+	liveWait string
 	// lineFrom and lineTo are the entry's line range in the last rendered
 	// transcript, so a mouse click can be traced back to it.
 	lineFrom, lineTo int
@@ -286,6 +290,14 @@ func (t *transcript) apply(ev agent.Event) {
 		t.flashUntil = e.ended.Add(flashFor)
 		end := present.EndOf(e.call.Name, string(e.call.Input), ev.Output, ev.IsError, ev.Duration)
 		e.output, e.isError, e.dur = end.Output, end.Failed, end.Label
+		// A later edit of the same file was waiting for this one to run
+		// before showing its preview; nothing of its own has changed, so
+		// its cached render has to be dropped for it to be drawn again.
+		for _, w := range t.entries {
+			if w.kind == entryTool && w.liveWait == e.call.ID {
+				w.rendered = ""
+			}
+		}
 	case agent.EvDiscard:
 		t.dropOpen()
 	case agent.EvTextBlockDone:

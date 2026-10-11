@@ -229,6 +229,7 @@ func (m *model) refresh(resized bool) {
 		verbose:   m.verbose,
 		cap:       outputCap(m.viewport.Height),
 		preview:   m.previewCall,
+		touches:   m.touchesCall,
 		renderer:  m.toolRenderer,
 		tight:     m.tight(),
 		noMermaid: m.opts.Agent != nil && m.opts.Agent.Off["mermaid"],

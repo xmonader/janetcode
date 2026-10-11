@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -37,6 +38,9 @@ func toolStamp(e *entry, o renderOpts) string {
 	if e.livePreviewFor != "" {
 		b.WriteByte(' ')
 		b.WriteString(e.livePreviewFor)
+	}
+	if e.liveWait != "" {
+		b.WriteString(" w" + e.liveWait)
 	}
 	return b.String()
 }
@@ -109,11 +113,22 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		}
 	}
 	sb.WriteString(name + " " + t.styles.dim.Render(summary))
-	if !e.done && !e.running && !pendingHere && o.preview != nil && (e.call.Name == "edit_file" || e.call.Name == "write_file" || e.call.Name == "notebook_edit") {
+	if !e.done && !e.running && !pendingHere && o.preview != nil && liveEdit(e.call.Name) {
 		// The arguments are complete but the call has not run: show what
 		// it would do now, while the model is still writing the rest of
 		// the turn, rather than after the fact.
-		if raw := e.inputJSON(); json.Valid([]byte(raw)) {
+		raw := e.inputJSON()
+		e.liveWait = ""
+		if json.Valid([]byte(raw)) {
+			if by := t.earlierEditOfSameFile(e, []byte(raw), o); by != nil {
+				// Its preview would be a diff against the file before the
+				// earlier edit, which the model wrote this one after.
+				e.liveWait = by.call.ID
+				e.livePreview, e.livePreviewFor = "", ""
+				sb.WriteString("\n" + t.styles.faint.Render("  preview shown once the earlier edit of this file runs"))
+			}
+		}
+		if e.liveWait == "" && json.Valid([]byte(raw)) {
 			if e.livePreviewFor != raw {
 				e.livePreview, e.livePreviewFor = o.preview(e.call.Name, []byte(raw)), raw
 			}
@@ -173,6 +188,65 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		}
 	}
 	return t.finishTool(e, sb.String(), width, o)
+}
+
+// liveEdit reports whether a tool's call is previewed while it streams.
+func liveEdit(name string) bool {
+	return name == "edit_file" || name == "write_file" || name == "notebook_edit"
+}
+
+// earlierEditOfSameFile finds an earlier call of e's reply that edits a
+// file e edits and has not finished running, or nil. The reply is what
+// follows the last line the user typed.
+func (t *transcript) earlierEditOfSameFile(e *entry, input []byte, o renderOpts) *entry {
+	at := -1
+	for i := len(t.entries) - 1; i >= 0; i-- {
+		if t.entries[i] == e {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return nil
+	}
+	var mine []string
+	for i := at - 1; i >= 0; i-- {
+		p := t.entries[i]
+		if p.kind == entryUser {
+			return nil
+		}
+		if p.kind != entryTool || p.done || !liveEdit(p.call.Name) {
+			continue
+		}
+		if mine == nil {
+			if mine = touchedFiles(o, e.call.Name, input); len(mine) == 0 {
+				return nil
+			}
+		}
+		for _, f := range touchedFiles(o, p.call.Name, []byte(p.inputJSON())) {
+			for _, g := range mine {
+				if f == g {
+					return p
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// touchedFiles is the files a call edits, as the tool resolves them, or
+// the cleaned "path" argument when there is no tool to ask.
+func touchedFiles(o renderOpts, name string, input []byte) []string {
+	if o.touches != nil {
+		return o.touches(name, input)
+	}
+	var in struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(input, &in) != nil || in.Path == "" {
+		return nil
+	}
+	return []string{filepath.Clean(in.Path)}
 }
 
 func (t *transcript) finishTool(e *entry, body string, width int, o renderOpts) string {
@@ -464,6 +538,27 @@ func (m *model) previewCall(name string, input []byte) string {
 		return ""
 	}
 	return out
+}
+
+// touchesCall is the files a call would edit, as its tool resolves them
+// (see tool.Toucher), or nil.
+func (m *model) touchesCall(name string, input []byte) []string {
+	if m.opts.Agent == nil || m.opts.Agent.Tools == nil {
+		return nil
+	}
+	t, ok := m.opts.Agent.Tools.Get(name)
+	if !ok {
+		return nil
+	}
+	tc, ok := t.(tool.Toucher)
+	if !ok {
+		return nil
+	}
+	paths, err := tc.Touches(input)
+	if err != nil {
+		return nil
+	}
+	return paths
 }
 
 // toolRenderer finds the tool behind a call when it knows how to present

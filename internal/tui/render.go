@@ -48,6 +48,9 @@ type renderOpts struct {
 	// preview computes what a call would do, for a call whose arguments
 	// have finished streaming but which has not run yet.
 	preview func(name string, input []byte) string
+	// touches resolves the files a call edits, so a preview can wait for
+	// an earlier edit of the same file in the reply to run.
+	touches func(name string, input []byte) []string
 	// noMermaid keeps ```mermaid blocks as source instead of drawing
 	// them: Off["mermaid"] / JANETCODE_OFF=mermaid, the pre-feature
 	// behaviour.
