@@ -458,10 +458,7 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 	case shellDoneMsg:
 		m.finishShell(msg)
-		var cmd tea.Cmd
-		if next, ok := m.turn.dequeue(); ok {
-			cmd = m.submit(next)
-		}
+		cmd := m.sendQueued()
 		m.refresh(false)
 		return cmd, true
 	}

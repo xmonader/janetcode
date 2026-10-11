@@ -160,5 +160,5 @@ func (m *model) sendQueued() tea.Cmd {
 	if !ok {
 		return nil
 	}
-	return m.submit(next)
+	return m.runQueued(next)
 }

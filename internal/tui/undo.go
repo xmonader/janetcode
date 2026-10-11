@@ -277,11 +277,7 @@ func (m *model) endSideWork(ok bool) tea.Cmd {
 	m.turn.finish()
 	m.turn.setPhase("")
 	m.term.turnEnded(ok, m.status)
-	next, queued := m.turn.dequeue()
-	if !queued {
-		return nil
-	}
-	return m.submit(next)
+	return m.sendQueued()
 }
 
 // finishUndoAbout shows the preview and, when it found anything to

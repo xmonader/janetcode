@@ -349,8 +349,18 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.restoreQueued()
 		return nil
 	}
-	next, _ := m.turn.dequeue()
-	return m.submit(next)
+	return m.sendQueued()
+}
+
+// runQueued sends one prompt that waited behind a turn. A "!command" is
+// queued like a prompt when typed during a turn, and it is run as the
+// command it is: submitted, it reached the model as the text "!go test
+// ./...", which ran nothing.
+func (m *model) runQueued(text string) tea.Cmd {
+	if cmdline, ok := strings.CutPrefix(text, "!"); ok {
+		return m.shell(strings.TrimSpace(cmdline))
+	}
+	return m.submit(text)
 }
 
 // restoreQueued puts queued messages back in the input, under whatever is
