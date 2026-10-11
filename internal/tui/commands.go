@@ -797,6 +797,12 @@ func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.errorf("wait for the current turn to finish before compacting")
 		return nil, false
 	}
+	// The summary is a model call. Handed no provider it dereferenced
+	// nil on the compaction goroutine and the whole program died.
+	if m.opts.Agent.Settings().Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect (/compact-fast prunes without one)")
+		return nil, false
+	}
 	return m.compact(), true
 }
 

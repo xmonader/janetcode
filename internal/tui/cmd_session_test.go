@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
 
@@ -39,5 +41,22 @@ func TestResumeKeepsTheOpenError(t *testing.T) {
 	}
 	if !transcriptHas(h.m, other.UndoPath()) {
 		t.Fatalf("the undo file error was lost:\n%s", plain(h.m.View()))
+	}
+}
+
+// /compact with no provider connected started the summary call anyway,
+// which dereferenced the nil provider on its goroutine and killed the
+// program.
+func TestCompactWithoutAProviderSaysSo(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.Provider = nil })
+	if cmd := h.m.command("/compact"); cmd != nil || h.m.turn.running {
+		t.Fatal("/compact started without a provider")
+	}
+	if !transcriptHas(h.m, "/connect") {
+		t.Fatalf("no explanation:\n%s", plain(h.m.View()))
 	}
 }
