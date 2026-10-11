@@ -100,3 +100,34 @@ func TestDiffLinesAreTintedBands(t *testing.T) {
 		t.Fatal("tinted an ANSI palette")
 	}
 }
+
+// TestDiffGutterFitsOldLineNumbers: the gutter was sized from the new
+// file's line numbers only, but a removed line is numbered in the old
+// one. After a hunk that deleted most of a file, the next hunk's old
+// numbers had more digits than the gutter and pushed their rows out of
+// line with the rest.
+func TestDiffGutterFitsOldLineNumbers(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("@@ -1,90 +1,0 @@\n")
+	for i := 0; i < 90; i++ {
+		b.WriteString("-gone\n")
+	}
+	b.WriteString("@@ -120,1 +30,1 @@\n-old\n+new\n")
+	hunks, ok := parseUnifiedDiff(b.String())
+	if !ok {
+		t.Fatal("parse")
+	}
+	col := -1
+	for _, l := range strings.Split(plain(renderDiff(defaultStyles(), hunks, 70, 400, true)), "\n") {
+		i := strings.Index(l, "│")
+		if i < 0 {
+			continue
+		}
+		if col < 0 {
+			col = i
+		}
+		if i != col {
+			t.Fatalf("gutter out of line at %q (column %d, others %d)", l, i, col)
+		}
+	}
+}

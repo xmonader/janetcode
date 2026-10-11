@@ -141,11 +141,11 @@ func (h diffHunk) changePair() (int, int, bool) {
 // renderDiff draws the hunks with a gutter, elisions between them and the
 // changed tokens picked out where a single line was replaced.
 func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable bool) string {
+	// The gutter holds the largest number it will print: a removed line
+	// is numbered in the old file, which can run far past the new one.
 	last := 0
 	for _, h := range hunks {
-		if e := h.newStart + len(h.lines); e > last {
-			last = e
-		}
+		last = max(last, h.newStart+len(h.lines), h.oldStart+len(h.lines))
 	}
 	gw := len(strconv.Itoa(max(last, 1)))
 	var out []string
