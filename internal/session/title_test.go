@@ -11,9 +11,10 @@ import (
 // titleProvider captures the prompt instead of calling a model, so the
 // test can assert what the title generator was fed.
 type titleProvider struct {
-	prompt string
-	system string
-	reply  string
+	prompt    string
+	system    string
+	reply     string
+	maxTokens int
 }
 
 func (p *titleProvider) Name() string { return "test" }
@@ -23,7 +24,7 @@ func (p *titleProvider) Stream(ctx context.Context, req llm.Request, emit func(l
 	for _, m := range req.Messages {
 		sb.WriteString(string(m.Role) + ": " + m.Text() + "\n")
 	}
-	p.prompt, p.system = sb.String(), req.System
+	p.prompt, p.system, p.maxTokens = sb.String(), req.System, req.MaxTokens
 	reply := p.reply
 	if reply == "" {
 		reply = "A fine title"
@@ -86,5 +87,17 @@ func TestGenerateTitleRejectsRefusals(t *testing.T) {
 	// a request the model should carry out.
 	if !strings.Contains(p.prompt, "<conversation>") || !strings.Contains(p.system, "do not answer") {
 		t.Errorf("title prompt does not fence the conversation:\nsystem: %s\nprompt: %s", p.system, p.prompt)
+	}
+}
+
+// At 30 output tokens a reasoning model spent the budget thinking and
+// wrote no title about half the time; the call leaves room to think.
+func TestGenerateTitleLeavesRoomToThink(t *testing.T) {
+	p := &titleProvider{}
+	if _, err := GenerateTitle(context.Background(), p, "m", []llm.Message{llm.TextMessage(llm.RoleUser, "fix the build")}); err != nil {
+		t.Fatal(err)
+	}
+	if p.maxTokens < 200 {
+		t.Fatalf("title call allows %d output tokens; a reasoning model needs room to think first", p.maxTokens)
 	}
 }
