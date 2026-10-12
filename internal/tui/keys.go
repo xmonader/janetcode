@@ -94,7 +94,12 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// Every paste is cleaned, not only the big ones: the textarea
 		// turns \r and \n each into a line break, so text copied with
 		// CRLF line endings arrived double-spaced.
-		text := cleanPaste(string(msg.Runes))
+		raw := string(msg.Runes)
+		text := cleanPaste(raw)
+		if pasteAmbiguous(raw) {
+			return m.ambiguousPaste(raw)
+		}
+		m.ambPaste = nil
 		if bigPaste(text) {
 			return m.chipPaste(text)
 		}
@@ -153,6 +158,49 @@ var modeKeys = map[uiMode]keyAction{
 
 // chipPaste turns a file dropped into the prompt into one chip. It is
 // one thing, not two hundred lines to scroll past; submit puts it back.
+// ambiguousPaste is a paste whose carriage-return pairs may be CRLF line
+// ends (tmux's paste-buffer without -r sends each line feed as a carriage
+// return) or blank lines: the bytes are the same either way. It is read
+// as line ends, and the same paste again at once reads it the other way,
+// so neither reading is lost.
+type ambiguousPaste struct {
+	raw, before, after string
+	pairs              bool
+	at                 time.Time
+}
+
+func (m *model) ambiguousPaste(raw string) (tea.Cmd, bool) {
+	pairs := true
+	before := m.input.Value()
+	flip := false
+	if a := m.ambPaste; a != nil && a.raw == raw && before == a.after && time.Since(a.at) < 10*time.Second {
+		// The same paste again: read the first one the other way instead.
+		pairs, before, flip = !a.pairs, a.before, true
+	}
+	text := cleanPasteAs(raw, pairs)
+	insert := text
+	if bigPaste(text) {
+		insert = m.storePaste(text)
+	}
+	if flip {
+		// Where the first paste went: what before and after share ahead of it.
+		pos := len(commonPrefix(before, m.ambPaste.after))
+		m.input.SetValue(before[:pos] + insert + before[pos:])
+		m.input.CursorEnd()
+	} else {
+		m.input.InsertString(insert)
+	}
+	m.layout()
+	m.ambPaste = &ambiguousPaste{raw: raw, before: before, after: m.input.Value(), pairs: pairs, at: time.Now()}
+	if pairs {
+		m.status = "paired line breaks read as one each · paste again for blank lines"
+	} else {
+		m.status = "paired line breaks kept as blank lines · paste again for single ones"
+	}
+	m.refresh(false)
+	return nil, true
+}
+
 func (m *model) chipPaste(text string) (tea.Cmd, bool) {
 	m.input.InsertString(m.storePaste(text))
 	m.layout()

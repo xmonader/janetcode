@@ -60,10 +60,22 @@ var pasteMarkerRe = regexp.MustCompile(`\[paste #(\d+) \+\d+ lines?\]`)
 // colours carries escape sequences, which the chip likewise kept and
 // wrote back raw. The textarea sanitises a short paste on its own; this
 // gives the chip the same text.
-func cleanPaste(s string) string {
+func cleanPaste(s string) string { return cleanPasteAs(s, true) }
+
+// pasteAmbiguous reports whether a paste is carriage-return pairs only:
+// CRLF text sent through tmux without -r, or text whose every line break
+// is a blank line, which arrive as the same bytes. cleanPaste reads it
+// as the first; the other reading is cleanPasteAs(s, false).
+func pasteAmbiguous(s string) bool {
+	return crPairsOnly(strings.ReplaceAll(ansi.Strip(s), "\r\n", "\n"))
+}
+
+// cleanPasteAs is cleanPaste, reading carriage-return pairs as one line
+// break each when pairs is set and as a blank line otherwise.
+func cleanPasteAs(s string, pairs bool) string {
 	s = ansi.Strip(s)
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	if crPairsOnly(s) {
+	if pairs && crPairsOnly(s) {
 		// tmux's paste-buffer (without -r) and some terminals send every
 		// line feed as a carriage return, so CRLF text arrives as \r\r
 		// and came out double-spaced.

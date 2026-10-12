@@ -77,6 +77,9 @@ type model struct {
 	// pastes holds the text behind each "[paste #N +M lines]" chip in the
 	// input, in the order they were pasted.
 	pastes []string
+	// ambPaste is the last paste whose line breaks could be read two
+	// ways (pasteAmbiguous): pasting it again at once flips the reading.
+	ambPaste *ambiguousPaste
 	// hist is the up/down recall of submitted prompts, loaded from and
 	// appended to a file per working directory (see history.go).
 	hist historyState
