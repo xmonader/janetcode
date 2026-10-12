@@ -1,0 +1,71 @@
+commit    result         subject
+d59d7117  COMPILE-FAIL   tui: a line wider than the window pushed the transcript's tail off screen
+69104e91  FAILS          tui: the spinner ignored the configured theme until the first /theme
+bfe451fe  FAILS-CRASH    tui: a short modal list panicked or hid the highlighted row
+cc12a8d3  FAILS          tui: a tight window opened its transcript on a blank row
+4ebea3df  FAILS          tui: /loop armed a loop sending its own arguments
+4f8f6ceb  FAILS          tui: /clear and /resume threw away what they had just said
+d50d833e  FAILS          tui: /undo never said it had taken the turn out of the context
+e595f2e5  FAILS          tui: a permission prompt hid its keys and wiped the message being typed
+5068e857  FAILS          tui: /features <consumer> on answered off with no reason while jev was off
+69fc8d8e  FAILS          tui: vim undo skipped inserts, j stuck on wrapped lines, cursor ran off line ends
+14499c74  FAILS          tui: /mcp add sent a stdio server's env vars to a remote one as headers
+62889987  FAILS          tui: /jobs and /agents lists ran the highlight off the screen
+5f9c2bdf  FAILS-CRASH    tui: picker panicked on a terminal a few columns wide
+76569334  FAILS          tui: /jobs and /agents opened in silence on an argument naming nothing
+d0c16b95  FAILS          tui: prompt keys: CRLF paste, wrapped-line up/down, history past commands
+5a68ea6a  FAILS          tui: a cancelled MCP prompt was sent anyway
+a159de06  COMPILE-FAIL   tui: a carriage return in tool output drew over the frame
+af71448e  FAILS          keymap: alt+ with an upper-case character bound the lower-case key
+21568a15  no-code        docs: vim u now undoes an insert too
+64afc12f  FAILS          tui: /trajectory's highlight ran off a short terminal
+17f55848  FAILS          tui: a prompt saved with CRLF by the external editor came back double-spaced
+83f0d9a0  FAILS          tui: /memory show, about and history alone searched for the verb
+38625159  FAILS          tui: a !command queued during a turn was sent to the model as text
+5ced1671  FAILS          tui: tab on a partial command cut the input back to "/"
+f4fcb778  FAILS-CRASH    tui: /sleep with no provider connected crashed the window
+4cd14b77  FAILS          tui: an overlong word was broken onto its own unindented line
+32754d49  no-test        tui: drop a session counter completeSession counted and never read
+ba124cff  FAILS-CRASH    tui: /compact with no provider connected crashed the program
+ea106fae  FAILS          tui: a call that finished while scrolled up stayed bright
+4baeba57  no-code        tui: test that every overlay draws on a terminal a few columns wide
+21e20c35  FAILS          tui: the end of a turn took down a question still taking a late answer
+c8858c3a  FAILS          tui: the diff gutter was sized for new line numbers only
+4cc29365  FAILS-CRASH    tui: /connect, /mcp add and the ask box panicked in a window under 8 columns
+dd923748  FAILS          tui: a paste into the denial reason doubled its line breaks
+932c3fad  FAILS          tui: a tool result kept the fold of the window it was first drawn in
+67f26386  no-test        tui: drop renderOpts.compact, which nothing read
+a77c0303  FAILS          tui: mouse copy goes through the model's clipboard writer
+d9a5fc86  COMPILE-FAIL   agent, memory, webui: no crash without a provider, and one /loop parser
+bcae2c7e  COMPILE-FAIL   tui: help names every command whose argument tab completes
+d91a5ad5  FAILS          tui: a one-word change past the right edge was cut off the diff
+45695cb2  FAILS          tui: /resume replayed harness notes as typed prompts
+65938a44  FAILS          session: generated titles could be model refusals
+7361ac2e  FAILS          config: an unpriced listed model read as a known $0
+2424e834  FAILS          tui: a new turn forgets the last turn's cost line
+67bdb78c  FAILS          agent: a cancelled stream's spend was never counted
+5034c1f5  COMPILE-FAIL   prompt: @mentions of paths with spaces never attached
+55c82f39  COMPILE-FAIL   tui: slow-command hint stored "bash" and named ctrl+g regardless of keymap
+66782a4b  no-code        agent: pin that an edit's preview sees the earlier edits of its batch
+c5094e23  no-test        session: generated titles came back empty on reasoning models
+7a347286  no-code        cmd: hint coverage test did not bind the background key
+b9c9a24e  COMPILE-FAIL   agent: go run . and cargo run count as running the edited code
+8808aa91  FAILS          tui: an edit to a recalled prompt was lost on the next up or down
+35a23242  FAILS          tui: two sessions at the history cap erased each other's prompts
+fc8d83af  FAILS          tui: glamour word-wrapped code blocks at punctuation
+d79edfeb  COMPILE-FAIL   tui: a full re-render scanned the transcript for every tool call
+dcec42bf  FAILS          tui: /help named the default keys after the keybindings moved them
+6d3e6855  no-test        tui: a code block that fits was trimmed and refitted on every render
+3a90f346  FAILS          tui: a no-newline marker in a diff was drawn as a numbered line
+e7e3990e  COMPILE-FAIL   tui: status lines name the bound keys, not the defaults
+16165971  COMPILE-FAIL   tui: a streaming edit was previewed against a file an earlier edit would change
+8b3489ef  COMPILE-FAIL   slash, tui, webui: terminal keys leave the shared command descriptions
+90b0c8fe  COMPILE-FAIL   tui, i18n: help names keys in the locale's words, and drops an unbound key's clause
+2a55b312  FAILS          tui: tab never extends a completion into half a character
+524f77b7  COMPILE-FAIL   agent, session: a resumed session keeps its token and cost totals
+9edb054f  COMPILE-FAIL   tui, headless, textfmt: no doubled tmux pastes, and headless lays out control characters
+e7cf3a96  FAILS          tui: an ambiguous paste can be read either way
+395c1919  no-code        session: a test that the title call leaves a reasoning model room to think
+07c01d2f  FAILS          tui: /trajectory's lines fit the window, with an ellipsis where cut
+1d60da0d  no-code        headless: a stream-input test assumed the result is always the last line
+6c0b7726  no-code        tui: a test that a code block which fits is not refitted
