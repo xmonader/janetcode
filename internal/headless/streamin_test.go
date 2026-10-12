@@ -61,8 +61,15 @@ func TestStreamInputRunsATurnPerMessage(t *testing.T) {
 	if len(results) != 2 || results[0]["result"] != "first answer" || results[1]["result"] != "second answer" {
 		t.Fatalf("results = %v", results)
 	}
-	if xs[len(xs)-1]["type"] != "result" {
-		t.Fatalf("last line is %v, want the result", xs[len(xs)-1])
+	// Input is read on its own goroutine, so a bad line is reported when
+	// it is read, which may be after the last turn's result. Of the turn's
+	// own lines, the result is the last.
+	last := xs[len(xs)-1]
+	for i := len(xs) - 1; i >= 0 && xs[i]["type"] == "input_error"; i-- {
+		last = xs[max(i-1, 0)]
+	}
+	if last["type"] != "result" {
+		t.Fatalf("last turn line is %v, want the result", last)
 	}
 	bad := ofType(xs, "input_error")
 	if len(bad) != 2 || !strings.Contains(bad[0]["text"].(string), "line 3") || !strings.Contains(bad[1]["text"].(string), `"image" is not supported`) {
