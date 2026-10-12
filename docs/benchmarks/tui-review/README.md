@@ -14,3 +14,26 @@ The four `no-test` rows are:
   confirmed to fail on the code before its fix.
 
 The seven `no-code` rows are documentation or test-only commits.
+
+## Limits of the check, and the independent audit
+
+The script is a screen, not a proof:
+- A COMPILE-FAIL row shows only that the tests need something the fix added,
+  not that the old behaviour was wrong, and any compile error counts.
+- Any non-zero exit counts as a failure, so a timeout or a flaky test would too.
+- Test names come from added `func Test…` lines, or failing that from the hunk
+  header, which can name the function above the edit. A missed name shows as
+  STILL-PASSES or no-test-names, never as a false pass.
+- One failing test is enough for a commit with several.
+
+An independent audit on 2026-10-12, by a separate agent, re-ran the script and
+matched this record line for line. It checked these rows by hand on `c^` and at
+`c`, with each test failing before its fix and passing at it:
+- COMPILE-FAIL: d59d7117, a159de06, 5034c1f5, b9c9a24e. Each compile error
+  names only what the fix introduced, and 5034c1f5's TUI test also fails on
+  behaviour.
+- FAILS: 69104e91, 4ebea3df, 67bdb78c, 7361ac2e.
+- FAILS-CRASH: ba124cff.
+
+The audit also confirmed the no-test rows against their diffs, and found that
+`go test ./...` and `go test -race ./internal/tui/...` pass on master.
