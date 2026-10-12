@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/trajectory"
@@ -337,6 +338,15 @@ func countLines(lines []string) int {
 }
 
 func (m *model) trajFrame(height, w int, lines []string) string {
+	// Each line fits the width, with an ellipsis where it is cut: wider
+	// ones were clipped by the terminal mid-word ("no turn has run in th").
+	if w > 0 {
+		for i, l := range lines {
+			if lipgloss.Width(l) > w {
+				lines[i] = ansi.Truncate(l, w, "…")
+			}
+		}
+	}
 	return clipHeight(strings.Join(lines, "\n"), height)
 }
 

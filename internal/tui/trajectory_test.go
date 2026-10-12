@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -172,5 +173,24 @@ func TestTrajectoryHighlightStaysOnAShortTerminal(t *testing.T) {
 			h.update(tea.KeyMsg{Type: tea.KeyDown})
 		}
 		h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	}
+}
+
+// The empty trajectory's line was wider than a 40-column window and the
+// terminal cut it mid-word with nothing to say so; lines now fit, with an
+// ellipsis where they are cut.
+func TestTrajectoryLinesFitTheWidth(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 40, Height: 10})
+	h.keys("/trajectory")
+	h.enter()
+	v := plain(h.m.View())
+	for _, l := range strings.Split(v, "\n") {
+		if w := lipgloss.Width(l); w > 40 {
+			t.Fatalf("line %d columns wide in a 40-column window: %q", w, l)
+		}
+	}
+	if !strings.Contains(v, "no turn has run…") && !strings.Contains(v, "…") {
+		t.Fatalf("cut line has no ellipsis:\n%s", v)
 	}
 }
