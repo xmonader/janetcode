@@ -86,6 +86,10 @@ func TestProtectedWrites(t *testing.T) {
 		in, _ := json.Marshal(map[string]string{"command": cmd, "pattern": "x"})
 		return Call{Tool: "monitor", Input: in, Root: root}
 	}
+	terminal := func(action, text string) Call {
+		in, _ := json.Marshal(map[string]any{"action": action, "id": 1, "text": text})
+		return Call{Tool: "terminal", Input: in, Root: root}
+	}
 	for _, tc := range []struct {
 		c    Call
 		want string // a substring of the reason, "" for none
@@ -105,6 +109,8 @@ func TestProtectedWrites(t *testing.T) {
 		// monitor runs its command in the same shell bash does.
 		{monitor("cp payload .git/hooks/pre-commit && tail -f log"), "pre-commit"},
 		{monitor("go test ./..."), ""},
+		{terminal("send", "echo x >> .git/hooks/pre-commit"), "pre-commit"},
+		{terminal("send", "ls"), ""},
 	} {
 		got := p.Reason(tc.c)
 		switch {

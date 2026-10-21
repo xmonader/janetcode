@@ -261,6 +261,16 @@ func writeTargets(c Call) []string {
 			root, _ = os.Getwd()
 		}
 		return shell.WriteTargets(in.Command, root)
+	case "terminal":
+		// A send types a command line into a persistent shell.
+		var in struct {
+			Action string `json:"action"`
+			Text   string `json:"text"`
+		}
+		if json.Unmarshal(c.Input, &in) != nil || in.Action != "send" || in.Text == "" {
+			return nil
+		}
+		return shell.WriteTargets(in.Text, c.Root)
 	case "write_file", "edit_file", "notebook_edit":
 		var in struct {
 			Path string `json:"path"`
