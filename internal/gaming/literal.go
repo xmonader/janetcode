@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Literal provenance: the special-casing family of test gaming. A model
@@ -264,5 +266,5 @@ func textClip(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return textfmt.CutBytes(s, n) + "…"
 }

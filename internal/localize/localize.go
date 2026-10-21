@@ -31,6 +31,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/change"
 	"github.com/xmonader/janetcode/internal/diff"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Test is one top-level test of one package (a Go import path, a pytest
@@ -524,7 +525,7 @@ func (r Report) hunkText(i int) string {
 		}
 		line := strings.TrimRight(l, "\r\n")
 		if len(line) > 160 {
-			line = line[:160] + "…"
+			line = textfmt.CutBytes(line, 160) + "…"
 		}
 		b.WriteString("    " + line + "\n")
 		shown++
@@ -581,7 +582,7 @@ func cutLines(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	s = s[:max]
+	s = textfmt.CutBytes(s, max)
 	if i := strings.LastIndexByte(s, '\n'); i > 0 {
 		s = s[:i+1]
 	}
