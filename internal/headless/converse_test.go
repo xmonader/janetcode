@@ -181,19 +181,6 @@ type syncBuf struct {
 func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.b.Write(p) }
 func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
 
-// blocking is a provider whose call waits for its context.
-type blocking struct{ started chan struct{} }
-
-func (b *blocking) Name() string { return "blocking" }
-func (b *blocking) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
-	select {
-	case b.started <- struct{}{}:
-	default:
-	}
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
 func TestReadableDropsMarkup(t *testing.T) {
 	cases := map[string]string{
 		"## Heading":            "Heading",

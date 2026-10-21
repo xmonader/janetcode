@@ -429,6 +429,19 @@ func TestUntilInterruptedDuringTheCheckExitsAsCancelled(t *testing.T) {
 	}
 }
 
+// blocking is a provider whose call waits for its context.
+type blocking struct{ started chan struct{} }
+
+func (b *blocking) Name() string { return "blocking" }
+func (b *blocking) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	select {
+	case b.started <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
 // A run that outlives --max-wall-time is stopped and reports the limit
 // (exit 56), not an interrupt: nobody pressed ^C.
 func TestMaxWallTimeStopsTheRun(t *testing.T) {
