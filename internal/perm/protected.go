@@ -247,7 +247,9 @@ func ShortenHome(path string) string {
 // writeTargets are the absolute paths a call would write to.
 func writeTargets(c Call) []string {
 	switch c.Tool {
-	case "bash":
+	// monitor starts its command in the same shell bash does; a hook it
+	// copies into .git/hooks is written all the same.
+	case "bash", "monitor":
 		var in struct {
 			Command string `json:"command"`
 		}
