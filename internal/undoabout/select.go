@@ -137,7 +137,10 @@ func parseSelectionReply(text string) (undo, keep []int, mixed []mixedSeq, why s
 // Changes, silently dropping any seq that is not among candidates. A
 // candidate the model named in none of the three lists is kept: undo is
 // opt-in, not opt-out, so a name the model forgot to place does not get
-// reverted.
+// reverted. For the same reason a seq named in more than one list goes
+// to the safer side: keep before mixed, mixed before undo. A change the
+// model both undid and kept is no clear match, and one it both undid and
+// called mixed must still stop apply without --force.
 func resolveSelection(candidates []change.Change, undoIDs, keepIDs []int, mixedIDs []mixedSeq, why string) Selection {
 	byID := make(map[int]change.Change, len(candidates))
 	for _, c := range candidates {
@@ -145,12 +148,6 @@ func resolveSelection(candidates []change.Change, undoIDs, keepIDs []int, mixedI
 	}
 	var sel Selection
 	placed := map[int]bool{}
-	for _, id := range undoIDs {
-		if c, ok := byID[id]; ok && !placed[id] {
-			sel.Undo = append(sel.Undo, c)
-			placed[id] = true
-		}
-	}
 	for _, id := range keepIDs {
 		if c, ok := byID[id]; ok && !placed[id] {
 			sel.Keep = append(sel.Keep, c)
@@ -161,6 +158,12 @@ func resolveSelection(candidates []change.Change, undoIDs, keepIDs []int, mixedI
 		if c, ok := byID[m.Seq]; ok && !placed[m.Seq] {
 			sel.Mixed = append(sel.Mixed, Mixed{Change: c, Why: m.Why})
 			placed[m.Seq] = true
+		}
+	}
+	for _, id := range undoIDs {
+		if c, ok := byID[id]; ok && !placed[id] {
+			sel.Undo = append(sel.Undo, c)
+			placed[id] = true
 		}
 	}
 	for _, c := range candidates {
