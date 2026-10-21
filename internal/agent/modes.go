@@ -58,7 +58,7 @@ func (a *Agent) modeSystem() string {
 		}
 	}
 	if !a.Off["accept"] {
-		text += a.accept.SystemText()
+		text += a.accept.Load().SystemText()
 	}
 	if a.DryRunOn() {
 		text += dryRunSystem

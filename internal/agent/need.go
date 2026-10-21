@@ -16,7 +16,7 @@ import (
 // into ~60%; the same study found a harness that let confident answers
 // through unchallenged lost a third of that.
 
-var needRe = regexp.MustCompile(`(?im)^\s*NEED\s*[::]\s*(.+?)\s*$`)
+var needRe = regexp.MustCompile(`(?im)^\s*NEED\s*[:：]\s*(.+?)\s*$`)
 
 const (
 	maxNeedRounds = 2

@@ -50,19 +50,22 @@ func ParseAcceptArgs(rest string) AcceptArgs { return accept.ParseArgs(rest) }
 // a fresh one) and the callback that persists later changes to it, the
 // way OnChange does for Cron.
 func (a *Agent) SetAccept(meta *session.AcceptMeta, onChange func(*session.AcceptMeta)) {
-	a.accept = accept.New(meta, onChange)
+	a.accept.Store(accept.New(meta, onChange))
 }
 
 // AcceptMeta is a copy of the /accept state, or nil when the mode is off.
-func (a *Agent) AcceptMeta() *session.AcceptMeta { return a.accept.Meta() }
+func (a *Agent) AcceptMeta() *session.AcceptMeta { return a.accept.Load().Meta() }
 
 // acceptMode is the live mode, created on first use so a /accept on an
 // agent nothing wired one into still works.
 func (a *Agent) acceptMode() *accept.Mode {
-	if a.accept == nil {
-		a.accept = accept.New(nil, nil)
+	// A turn reads the mode while a front-end's /accept may be creating
+	// it, so it is created at most once, atomically.
+	if m := a.accept.Load(); m != nil {
+		return m
 	}
-	return a.accept
+	a.accept.CompareAndSwap(nil, accept.New(nil, nil))
+	return a.accept.Load()
 }
 
 // AcceptCommand runs a parsed /accept for every front-end; see
@@ -89,12 +92,12 @@ func (a *Agent) verifyCommands() []string {
 }
 
 // acceptPhase is the current phase, and false when accept mode is off.
-func (a *Agent) acceptPhase() (session.AcceptPhase, bool) { return a.accept.Phase() }
+func (a *Agent) acceptPhase() (session.AcceptPhase, bool) { return a.accept.Load().Phase() }
 
 // acceptRestoreTampered restores any tampered locked file and tells both
 // the user and the tool call that caused it (see accept.Mode.RestoreTampered).
 func (a *Agent) acceptRestoreTampered(toolName string, emit func(Event)) string {
-	msg := a.accept.RestoreTampered(toolName)
+	msg := a.accept.Load().RestoreTampered(toolName)
 	if msg != "" {
 		emit(Event{Kind: EvNotice, Text: "accept: " + msg, IsError: true})
 	}
@@ -108,7 +111,7 @@ func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool 
 	if a.Off["accept"] {
 		return false
 	}
-	notice, harness := a.accept.Capture(text, nudged, a.verifyCommands())
+	notice, harness := a.accept.Load().Capture(text, nudged, a.verifyCommands())
 	if notice != "" {
 		emit(Event{Kind: EvNotice, Text: notice})
 	}
@@ -131,7 +134,7 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 	if a.Off["accept"] {
 		return false
 	}
-	command, root, ok := a.accept.GateTarget()
+	command, root, ok := a.accept.Load().GateTarget()
 	if !ok {
 		return false
 	}
@@ -142,7 +145,7 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 	// The state is read and the command run without the mode's lock: the
 	// tests can take minutes, and a front-end must still be able to run
 	// /accept off or /accept status meanwhile.
-	if reason := a.accept.CheckIntegrity(); reason != "" {
+	if reason := a.accept.Load().CheckIntegrity(); reason != "" {
 		msg := "accept: integrity check failed — " + reason
 		emit(Event{Kind: EvNotice, Text: msg, IsError: true})
 		g.rounds++
@@ -153,7 +156,7 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 		a.appendHarnessText("[accept] " + msg + ". A locked acceptance test changed outside a tool call, which is reported instead of trusted. Restore the locked test files exactly as approved, or tell the user the tests need /accept unlock.")
 		return true
 	}
-	before := a.accept.Meta()
+	before := a.accept.Load().Meta()
 	emit(Event{Kind: EvNotice, Text: "accept: verifying locked tests · " + command})
 	r := &verify.Runner{Config: verify.Config{Commands: []string{command}}, Cwd: root}
 	res := r.Run(ctx)
@@ -163,7 +166,7 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 	a.logGate(session.GateAccept, res)
 	// Only the mode this gate ran for records its result: an /accept off
 	// or a new /accept <request> while the tests ran has replaced it.
-	a.accept.RecordGate(before, res.OK(), res.Summary())
+	a.accept.Load().RecordGate(before, res.OK(), res.Summary())
 	if res.OK() {
 		emit(Event{Kind: EvNotice, Text: "accept: " + res.Summary()})
 		return false
@@ -199,7 +202,7 @@ func (a *Agent) locks() Locks {
 	if a.Off["accept"] {
 		return (*accept.Mode)(nil)
 	}
-	return a.accept
+	return a.accept.Load()
 }
 
 // AcceptStart puts the session in test-writing mode for request; see

@@ -57,3 +57,12 @@ func TestNeedLinesAreFaultedAgainstTheArchive(t *testing.T) {
 		t.Fatalf("no archive: err=%v messages=%d", err, len(c.Messages))
 	}
 }
+
+// A model writing in Chinese ends the line with a full-width colon; the
+// pattern's class was meant to hold it and held the ASCII one twice.
+func TestNeedLineTakesAFullWidthColon(t *testing.T) {
+	m := needRe.FindStringSubmatch("NEED：go test failure line")
+	if m == nil || m[1] != "go test failure line" {
+		t.Fatalf("got %q", m)
+	}
+}

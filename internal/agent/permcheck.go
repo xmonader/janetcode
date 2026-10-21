@@ -26,7 +26,7 @@ func (a *Agent) PermissionCheck(args []string) string {
 	if !json.Valid([]byte(input)) {
 		return "check: the input after the tool name is not JSON"
 	}
-	root := a.Root
+	root := a.RootDir()
 	c := perm.Call{Tool: tool, Input: json.RawMessage(input), Root: root}
 	c.Subject = perm.SubjectIn(tool, c.Input, root)
 	return tool + " " + present.ToolSummary(tool, input, 80, root) + ": " + a.RulesSnapshot().Explain(c)

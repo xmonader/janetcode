@@ -491,7 +491,7 @@ type Agent struct {
 	Cron *Cron
 	// accept is the /accept mode (see package accept and acceptgate.go),
 	// nil until the mode is first used this session.
-	accept *accept.Mode
+	accept atomic.Pointer[accept.Mode]
 	// Forked is true when this agent is a fork of a parent conversation
 	// and must not spawn another fork.
 	Forked bool
