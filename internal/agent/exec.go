@@ -312,6 +312,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	egressAsk := false
 	switch refusal, why := a.egressGate(ctx, t, *u); {
 	case refusal != "":
+		basis = "egress policy"
 		return nil, refusal, nil
 	case why != "":
 		mustAsk, egressAsk = true, true
