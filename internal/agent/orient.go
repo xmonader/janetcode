@@ -174,12 +174,15 @@ func (a *Agent) orientQuestion(ctx context.Context, request string) string {
 			continue
 		}
 		budget := min(orientFileBytes, orientTotalBytes-total)
-		text := string(data)
+		// Redacted whole, then cut: a key the cut goes through is no
+		// longer the shape the redactor knows, and its head went out in
+		// the clear.
+		text, _ := secret.Redact(string(data))
 		cut := ""
 		if len(text) > budget {
-			text, cut = text[:budget], fmt.Sprintf("\n[… %d more bytes not shown]", len(data)-budget)
+			n := runeStartAtOrBefore(text, budget)
+			text, cut = text[:n], fmt.Sprintf("\n[… %d more bytes not shown]", len(text)-n)
 		}
-		text, _ = secret.Redact(text)
 		total += len(text)
 		fmt.Fprintf(&b, "=== %s\n```\n%s%s\n```\n\n", p, text, cut)
 	}
