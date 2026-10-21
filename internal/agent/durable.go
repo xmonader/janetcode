@@ -105,9 +105,10 @@ func (a *Agent) recoverCalls(ctx context.Context, emit func(Event)) {
 		ids[c.ReplyID] = true
 	}
 	// The fold answered the orphans so the history was valid to show; the
-	// real answers replace that message.
+	// real answers replace that message. Through setMessages, like every
+	// other change to the history, because a front-end may be reading it.
 	if n := len(a.Messages); n > 0 && a.Messages[n-1].Role == llm.RoleUser && answersOnly(a.Messages[n-1], ids) {
-		a.Messages = a.Messages[:n-1]
+		a.setMessages(a.Messages[:n-1])
 	}
 	blocks := make([]llm.Block, 0, len(calls))
 	for _, c := range calls {
