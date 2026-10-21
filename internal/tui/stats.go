@@ -50,7 +50,7 @@ func (m *model) statsCommand() {
 		}
 		fmt.Fprintf(&sb, "\nrecovered · %s", strings.Join(saves, " · "))
 	}
-	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", textfmt.Tokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), textfmt.Plural(st.Compactions, "compaction"), textfmt.Plural(len(ag.Checkpoints()), "turn"))
+	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", textfmt.Tokens(m.tokensInUse()), tokensOrUnknown(ag.CompactThreshold()), textfmt.Plural(st.Compactions, "compaction"), textfmt.Plural(len(ag.Checkpoints()), "turn"))
 	if line := st.PromptLine(); line != "" {
 		sb.WriteString("\n" + line)
 	}

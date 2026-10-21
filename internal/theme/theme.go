@@ -100,7 +100,8 @@ type Theme struct {
 	// builtin), and — when the theme is selected by name — which mode the
 	// background is pinned to, because a single-mode theme has only that
 	// side of every Color filled. Selecting a dark-only theme therefore
-	// pins the terminal to the dark assumption.
+	// pins the terminal to the dark assumption. A theme file that leaves
+	// "dark" out takes its base's.
 	Dark bool
 	// Base, when set, names another theme this one inherits every unset
 	// role from, so a user theme can override two colours and keep the
@@ -115,6 +116,11 @@ type Theme struct {
 	// Builtin marks a shipped theme, so the loader can report which name a
 	// user theme is overriding and the picker can group them.
 	Builtin bool
+	// darkUnset is a parsed theme whose file did not say "dark": with a
+	// base it is the base's mode, not false. A theme overriding one colour
+	// of a dark builtin was otherwise light, and selecting it pinned a
+	// dark terminal to the light assumption.
+	darkUnset bool
 }
 
 // GutterWidth returns the theme's gutter, or the default.
@@ -319,7 +325,9 @@ func flatten(name string, raw map[string]Theme, seen []string) (Theme, error) {
 	merged.Builtin = t.Builtin
 	merged.Desc = t.Desc
 	merged.Base = t.Base
-	merged.Dark = t.Dark
+	if !t.darkUnset {
+		merged.Dark = t.Dark
+	}
 	if t.Gutter != nil {
 		merged.Gutter = t.Gutter
 	}

@@ -1,10 +1,13 @@
 package tui
 
 import (
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // TestDiffGutterAndElision: a diff is drawn with line numbers from the
@@ -53,6 +56,65 @@ func TestWordLevelHighlight(t *testing.T) {
 	// Identical lines have an empty span.
 	if a, b := changedSpan("same", "same"); a < b {
 		t.Fatalf("identical lines have a span %d..%d", a, b)
+	}
+}
+
+// A removed line that itself starts "-- " (an SQL or Lua comment) is
+// "--- …" in the diff, and an added "++ " line is "+++ …": both were read
+// as file headers and dropped, so an edit's preview hid a line it removed.
+func TestDiffKeepsLinesThatLookLikeFileHeaders(t *testing.T) {
+	d := "--- a.sql\n+++ a.sql\n@@ -1,3 +1,3 @@\n select 1;\n--- drop the old table\n+++ counter\n select 2;\n"
+	hunks, ok := parseUnifiedDiff(d)
+	if !ok || len(hunks) != 1 {
+		t.Fatalf("parse: ok=%v hunks=%d", ok, len(hunks))
+	}
+	out := plain(renderDiff(defaultStyles(), hunks, 70, 40, true))
+	for _, want := range []string{"2 │ --- drop the old table", "2 │ +++ counter"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
+		}
+	}
+	// A second file's headers after a hunk has run its course are still
+	// headers, not lines.
+	two := "--- a\n+++ a\n@@ -1 +1 @@\n-x\n+y\n--- b\n+++ b\n@@ -5,1 +5,1 @@\n-p\n+q\n"
+	hunks, ok = parseUnifiedDiff(two)
+	if !ok || len(hunks) != 2 || len(hunks[0].lines) != 2 {
+		t.Fatalf("two files: ok=%v hunks=%+v", ok, hunks)
+	}
+}
+
+// /diff's file list counted a removed "-- comment" or an added "++ x"
+// line as neither: it took them for the patch's file headers.
+func TestHunkStatsCountsLinesThatLookLikeFileHeaders(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.sql"), []byte("select 1;\n-- old note\nselect 2;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitInitTUI(t, root)
+	if err := os.WriteFile(filepath.Join(root, "a.sql"), []byte("select 1;\n++ new\nselect 2;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if hunks, add, del := hunkStats(root, "a.sql"); hunks != 1 || add != 1 || del != 1 {
+		t.Fatalf("hunkStats = %d hunks +%d -%d, want 1 +1 -1", hunks, add, del)
+	}
+}
+
+// The preview of an edit to a CRLF file is a diff whose every line ends
+// in \r, and it reached the terminal so: each one sent the cursor back to
+// the left edge, and the line's padding was drawn over its text. The
+// preview is laid out as a terminal would show it, as tool output is.
+func TestPreviewOfACRLFFileSendsNoCarriageReturns(t *testing.T) {
+	for _, preview := range []string{
+		"--- a.txt\r\n+++ a.txt\r\n@@ -1,2 +1,2 @@\r\n keep\r\n-old\r\n+new\r\n",
+		"would write 2 lines\r\nhello\r\n",
+	} {
+		out := renderPreview(defaultStyles(), preview, 60, 10, true)
+		if strings.ContainsAny(out, "\r\a") {
+			t.Fatalf("preview kept control characters: %q", out)
+		}
+		if !strings.Contains(plain(out), "new") && !strings.Contains(plain(out), "hello") {
+			t.Fatalf("preview lost its text: %q", plain(out))
+		}
 	}
 }
 

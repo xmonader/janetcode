@@ -463,8 +463,10 @@ func (m *model) renderChildSteps(log agent.ChildLog, width int) []string {
 }
 
 // clipBody keeps the head and tail of a tool result so a failed build
-// still shows the error, not only the compiler preamble.
+// still shows the error, not only the compiler preamble. The result is
+// raw command output, laid out as a terminal would show it.
 func clipBody(sty *styles, s string, width, head, tail int) []string {
+	s = strings.ReplaceAll(displayText(s), "\t", tabStop)
 	raw := strings.Split(strings.TrimRight(s, "\n"), "\n")
 	if len(raw) == 0 {
 		return nil
@@ -620,9 +622,13 @@ func (m *model) jobDetailView(height int) string {
 	if strings.TrimSpace(out) == "" {
 		body = []string{m.styles.dim.Render("no output yet")}
 	} else {
-		body = strings.Split(strings.TrimRight(out, "\n"), "\n")
+		// A job's log is a command's raw output: lay out its carriage
+		// returns (a progress bar redrawing) and drop its bells the way
+		// a terminal would, and draw a tab as the columns it takes, or
+		// the \r sends the cursor back over the pane mid-frame.
+		body = strings.Split(strings.TrimRight(displayText(out), "\n"), "\n")
 		for i, l := range body {
-			body[i] = truncateLine(l, w)
+			body[i] = truncateLine(strings.ReplaceAll(l, "\t", tabStop), w)
 		}
 	}
 	viewH := height - 3

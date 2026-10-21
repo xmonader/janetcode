@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -44,6 +46,47 @@ func TestJobsOverlayKeepsTheHighlightOnScreen(t *testing.T) {
 	h.update(tea.KeyMsg{Type: tea.KeyDown})
 	if v := plain(h.m.View()); !strings.Contains(v, "▸ job 1 ") {
 		t.Fatalf("wrapped highlight is off screen:\n%s", v)
+	}
+}
+
+// A background job's log is a command's raw output, and a progress bar
+// redraws itself with carriage returns. The job pane drew it as it was:
+// the \r sent the cursor back to the left edge mid-frame and the rest of
+// the line was drawn over the pane's start, and a bell rang on every
+// redraw. The pane shows what a terminal would have shown, as a tool
+// result does.
+func TestJobLogIsLaidOutLikeATerminal(t *testing.T) {
+	h := newHarness(t)
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	h.m.opts.Jobs = jobs
+	if _, err := jobs.Start(h.m.opts.Cwd, `printf 'fetching 10%%\rfetching 100%%\a\n\tdone\n'`); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := jobs.Wait(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	h.m.command("/jobs 1")
+	v := h.m.View()
+	if strings.ContainsAny(v, "\r\a\t") {
+		t.Fatalf("job pane sent control characters to the terminal: %q", v)
+	}
+	if !strings.Contains(plain(v), "fetching 100%") || !strings.Contains(plain(v), "    done") {
+		t.Fatalf("job pane lost the log's text:\n%s", plain(v))
+	}
+}
+
+// A subagent's tool result in /agents is the same raw output, and was
+// drawn with its carriage returns and tabs in it.
+func TestSubagentToolResultIsLaidOutLikeATerminal(t *testing.T) {
+	h := newHarness(t)
+	got := strings.Join(clipBody(h.m.styles, "fetching 10%\rfetching 100%\a\n\tdone", 60, 8, 4), "\n")
+	if strings.ContainsAny(got, "\r\a\t") {
+		t.Fatalf("tool result kept control characters: %q", got)
+	}
+	if !strings.Contains(got, "fetching 100%") || !strings.Contains(got, "    done") {
+		t.Fatalf("tool result lost its text: %q", got)
 	}
 }
 

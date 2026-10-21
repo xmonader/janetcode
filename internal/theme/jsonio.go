@@ -27,7 +27,7 @@ import (
 //	}
 type themeJSON struct {
 	Description string           `json:"description"`
-	Dark        bool             `json:"dark"`
+	Dark        *bool            `json:"dark"`
 	Base        string           `json:"base,omitempty"`
 	Gutter      *int             `json:"gutter,omitempty"`
 	Roles       map[string]Color `json:"roles"`
@@ -89,12 +89,13 @@ func ParseTheme(name string, data []byte) (Theme, error) {
 		return Theme{}, fmt.Errorf("theme %q: %v", name, err)
 	}
 	return Theme{
-		Name:   name,
-		Desc:   tj.Description,
-		Dark:   tj.Dark,
-		Base:   tj.Base,
-		Gutter: tj.Gutter,
-		Roles:  tj.Roles,
+		Name:      name,
+		Desc:      tj.Description,
+		Dark:      tj.Dark != nil && *tj.Dark,
+		darkUnset: tj.Dark == nil,
+		Base:      tj.Base,
+		Gutter:    tj.Gutter,
+		Roles:     tj.Roles,
 	}, nil
 }
 

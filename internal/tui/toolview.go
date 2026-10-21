@@ -340,8 +340,12 @@ func previewLines(preview string) int {
 
 // renderPreview draws a unified diff with line numbers, elided gaps and
 // word-level highlighting (see diff.go), or shows plain preview text as
-// it is when the preview is not a diff.
+// it is when the preview is not a diff. A preview carries the file's own
+// bytes: an edit to a CRLF file is a diff whose every line ends in \r,
+// which sent the cursor back over the line it ended, so it is laid out
+// as a terminal would show it first.
 func renderPreview(sty *styles, preview string, width, maxLines int, expandable bool) string {
+	preview = displayText(preview)
 	if hunks, ok := parseUnifiedDiff(preview); ok {
 		return renderDiff(sty, hunks, width, maxLines, expandable)
 	}
