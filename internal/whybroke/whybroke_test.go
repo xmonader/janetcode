@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/change"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -281,5 +282,19 @@ func TestCommandForms(t *testing.T) {
 		if _, err := Command(t.TempDir(), bad); err == nil {
 			t.Errorf("Command(%q) accepted", bad)
 		}
+	}
+}
+
+// The per-probe timeout is a real bound: a test that leaves a child
+// holding its output open (a server it started and forgot) used to keep
+// the probe waiting on the pipe long after the timeout killed the shell.
+func TestRunTestTimeoutIsABound(t *testing.T) {
+	start := time.Now()
+	failed, out := runTest(context.Background(), t.TempDir(), "sleep 20 & sleep 20", 200*time.Millisecond)
+	if took := time.Since(start); took > 10*time.Second {
+		t.Fatalf("runTest took %s past a 200ms timeout", took)
+	}
+	if !failed || !strings.Contains(out, "timed out") {
+		t.Fatalf("failed=%v out=%q", failed, out)
 	}
 }
