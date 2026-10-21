@@ -43,9 +43,9 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	if err != nil {
 		return nil, err
 	}
-	child.System = p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them."
+	child.System = p.SystemPrompt() + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them."
 	child.Rules = childRules(p.RulesSnapshot())
-	child.Ledger = p.Ledger
+	child.Ledger = p.PermLedger()
 	child.Protected = p.Protected
 	child.EgressPolicy = p.EgressPolicy
 	p.shareTaint(child)
@@ -183,7 +183,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	if err != nil {
 		return nil, err
 	}
-	child.System = p.System + "\n\nYou are a subagent working on one delegated job for the main agent. You cannot edit files or run commands. Investigate with the tools you have, then reply with a complete, self-contained report of what you found: relevant file paths with line numbers, the facts requested, and anything surprising. Do not ask questions; make reasonable assumptions and state them."
+	child.System = p.SystemPrompt() + "\n\nYou are a subagent working on one delegated job for the main agent. You cannot edit files or run commands. Investigate with the tools you have, then reply with a complete, self-contained report of what you found: relevant file paths with line numbers, the facts requested, and anything surprising. Do not ask questions; make reasonable assumptions and state them."
 	child.Archive = p.Archive
 	// A deny rule holds for a subagent too, as it does for the editing
 	// one. Deny is consulted for read-only tools as well, so without this
@@ -192,7 +192,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	// the session is not permission the subagent asked for.
 	child.Rules = childRules(p.RulesSnapshot())
 	child.Debug = p.Debug
-	child.Ledger = p.Ledger
+	child.Ledger = p.PermLedger()
 	child.Protected = p.Protected
 	child.EgressPolicy = p.EgressPolicy
 	p.shareTaint(child)
@@ -268,7 +268,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	child.System = p.System + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork."
+	child.System = p.SystemPrompt() + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork."
 	// /agents fork starts this from a front-end goroutine while the
 	// parent's turn may still be appending; copy under its lock.
 	child.Messages = closeOpenCalls(copyMessages(p.MessagesSnapshot()))
@@ -280,7 +280,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	// the session's changes: they belong in the parent's checkpoint, or
 	// /undo cannot revert them.
 	child.UndoOwner = p
-	child.Ledger = p.Ledger
+	child.Ledger = p.PermLedger()
 	child.Protected = p.Protected
 	child.EgressPolicy = p.EgressPolicy
 	p.shareTaint(child)
