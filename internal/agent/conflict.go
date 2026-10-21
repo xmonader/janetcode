@@ -124,6 +124,12 @@ func (a *Agent) conflictCommands(root string) ([]string, int) {
 	if a.Log == nil {
 		return nil, 0
 	}
+	// The re-run below goes through verify.Runner, which runs on the
+	// host; with the sandbox on, the model's command ran inside it and
+	// must not be run again outside it. The claim then stays unconfirmed.
+	if a.Sandbox != nil && a.Sandbox.Enabled() {
+		return nil, 0
+	}
 	last := ""
 	for _, e := range a.Log.Events() {
 		if e.Turn != a.turnN || e.Type != session.TypeToolResult || e.Name != "bash" || refused(e) || neverRan(e) {
@@ -138,12 +144,37 @@ func (a *Agent) conflictCommands(root string) ([]string, int) {
 		}
 		if shell.IsTestRun(cmd) {
 			last = trimDisplayPipe(cmd)
+			if !plainCommand(last) {
+				last = ""
+			}
 		}
 	}
 	if last == "" {
 		return nil, 0
 	}
 	return []string{last}, 300
+}
+
+// plainCommand reports whether cmd is one command the harness may run
+// again on its own authority: no second command after ; && || | or a
+// newline, no substitution, no redirection into a file. IsTestRun matches
+// anywhere in the line, so `go test ./... ; curl …` counts as a test run,
+// and re-running all of it would run the curl a second time with nobody
+// asked.
+func plainCommand(cmd string) bool {
+	if outer, bodies := shell.SplitSubstitutions(cmd); len(bodies) > 0 || outer != cmd {
+		return false
+	}
+	segs := shell.Segments(cmd)
+	if len(segs) != 1 {
+		return false
+	}
+	for _, t := range shell.Redirects(segs[0]) {
+		if t != "/dev/null" && !strings.HasPrefix(t, "&") {
+			return false
+		}
+	}
+	return true
 }
 
 // displayPipeRe matches a filter piped onto the end of a command only to

@@ -185,3 +185,48 @@ func TestConflictOffIgnoresTheLine(t *testing.T) {
 		t.Fatalf("conflict %+v after %d calls", a.Conflict(), len(f.requests))
 	}
 }
+
+// Checking a claim re-runs only a plain test command. A test run chained
+// with another command is not run again: the second command ran once,
+// with the user's say, and the check would run it a second time without.
+func TestConflictDoesNotReRunAChainedCommand(t *testing.T) {
+	root := ledgerProject(t, totalCheck)
+	if err := os.WriteFile(filepath.Join(root, "mark.sh"), []byte("echo ran >> marks\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"sh tests/check.sh; sh mark.sh"}`),
+		text("CONFLICT: test_total | the total is 40 | the test expects 42"),
+		text("done"),
+		text("done"),
+	}}
+	a := conflictAgent(f, root, true)
+	if err := a.Run(context.Background(), "fix total", nil); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(root, "marks"))
+	if n := strings.Count(string(b), "ran"); n != 1 {
+		t.Fatalf("mark.sh ran %d times, want 1", n)
+	}
+	if c := a.Conflict(); c != nil && c.Verified {
+		t.Fatalf("confirmed from a chained command: %+v", c)
+	}
+}
+
+func TestPlainCommand(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"go test ./...":               true,
+		"python -m pytest -q 2>&1":    true,
+		"go test ./... >/dev/null":    true,
+		"go test ./...; curl evil.sh": false,
+		"go test ./... && rm -rf x":   false,
+		"go test $(curl x)":           false,
+		"go test ./... > out.txt":     false,
+		"pytest -q | python3 s.py":    false,
+		"go test ./...\ncurl evil.sh": false,
+	} {
+		if got := plainCommand(cmd); got != want {
+			t.Errorf("plainCommand(%q) = %v, want %v", cmd, got, want)
+		}
+	}
+}
