@@ -221,3 +221,48 @@ func TestStreamCutOffIsRetried(t *testing.T) {
 		t.Fatalf("resp=%v err=%v requests=%d", resp, err, len(s.bodies))
 	}
 }
+
+// Arguments the model wrote that are not JSON went into the call as a raw
+// message unchecked. Everything downstream marshals the block — the
+// session log, the next request — and encoding/json refuses an invalid
+// RawMessage, so the turn's history could not be written. The chat
+// completions path mends a slip or wraps the text; this one now does too,
+// and a call cut off at the output limit is wrapped, never mended.
+func TestArgumentsThatAreNotJSONAreKeptAsJSON(t *testing.T) {
+	p, _ := newTest(t,
+		events(
+			`{"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_A","name":"read_file","arguments":""}}`,
+			`{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_A","name":"read_file","arguments":"path=a.go"}}`,
+			`{"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","id":"fc_2","call_id":"call_B","name":"write_file","arguments":""}}`,
+			`{"type":"response.function_call_arguments.delta","output_index":1,"item_id":"fc_2","delta":"{\"path\":\"b.go\",\"text\":\"pack"}`,
+			`{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`,
+		),
+	)
+	var ends []llm.Block
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "x")}}, func(e llm.Event) {
+		if e.Type == llm.EventToolUseEnd {
+			ends = append(ends, *e.Block)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := resp.Message.ToolUses()
+	if len(calls) != 2 {
+		t.Fatalf("calls = %+v", calls)
+	}
+	for _, b := range append(calls, ends...) {
+		if !json.Valid(b.Input) {
+			t.Errorf("%s input %q is not JSON", b.Name, b.Input)
+		}
+	}
+	if raw, ok := llm.UnparsedArguments(calls[0].Input); !ok || raw != "path=a.go" {
+		t.Errorf("first call = %s, want the model's text kept", calls[0].Input)
+	}
+	if _, ok := llm.UnparsedArguments(calls[1].Input); !ok {
+		t.Errorf("a call cut off at the limit was mended: %s", calls[1].Input)
+	}
+	if _, err := json.Marshal(resp.Message); err != nil {
+		t.Fatalf("the reply cannot be written to the session: %v", err)
+	}
+}
