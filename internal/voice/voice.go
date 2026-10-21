@@ -136,7 +136,7 @@ func Record(ctx context.Context, custom string, stop <-chan struct{}) (string, e
 	case <-limit.C:
 		werr = interrupt(cmd, exited)
 	case <-ctx.Done():
-		_ = cmd.Process.Kill()
+		_ = kill(cmd.Process)
 		<-exited
 		os.Remove(path)
 		return "", ctx.Err()
@@ -157,7 +157,7 @@ func interrupt(cmd *exec.Cmd, exited <-chan error) error {
 	case err := <-exited:
 		return err
 	case <-time.After(3 * time.Second):
-		_ = cmd.Process.Kill()
+		_ = kill(cmd.Process)
 		return <-exited
 	}
 }

@@ -18,3 +18,6 @@ func shellArgv(command string) []string {
 // process outside the console's group, so it is killed; ffmpeg's -t bound
 // and the endpoint's tolerance of a short WAV header cover the rest.
 func signalStop(p *os.Process) error { return p.Kill() }
+
+// kill ends the recorder.
+func kill(p *os.Process) error { return p.Kill() }
