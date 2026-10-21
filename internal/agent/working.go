@@ -175,8 +175,8 @@ func (w *WorkingMemory) absorb(msgs []llm.Message) {
 						continue
 					}
 					exit := "0"
-					if m := reExitCode.FindStringSubmatch(b.Text); m != nil {
-						exit = m[1]
+					if code, ok := lastExitCode(b.Text); ok {
+						exit = code
 					} else if m := reExitArrow.FindStringSubmatch(b.Text); m != nil {
 						exit = m[1]
 					}

@@ -100,6 +100,22 @@ func (a *Agent) planfileCheck(emit func(Event)) {
 	}
 }
 
+// planfileSaw records the plan file as it now stands as already seen. The
+// harness calls it after writing the file itself — capturePlan puts a
+// plan-mode turn's plan there — so that write, which no file tool made
+// and no change records, is not sent back as the user's edit.
+func (a *Agent) planfileSaw() {
+	path := filepath.Join(a.RootDir(), filepath.FromSlash(PlanFilePath))
+	cur, exists, ok := planfileRead(path)
+	if !ok {
+		return
+	}
+	st := &a.planfile
+	st.mu.Lock()
+	st.seen, st.last, st.exists = true, cur, exists
+	st.mu.Unlock()
+}
+
 // planfileRead reads the plan. ok is false when it cannot be read as a
 // plan (too large, binary, a directory): the last look stands.
 func planfileRead(path string) (text string, exists, ok bool) {

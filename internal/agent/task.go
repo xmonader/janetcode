@@ -527,13 +527,18 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		kid = &subagent{agent: ag, fork: true}
 	} else if in.Edit {
-		if t.Root == "" {
+		// Read under the lock SetRoot writes it under: /cd moves it from
+		// a front-end goroutine while a turn may be starting this job.
+		t.mu.Lock()
+		root := t.Root
+		t.mu.Unlock()
+		if root == "" {
 			return "", fmt.Errorf("editing subagents are not available: no project root")
 		}
 		// The worktree outlives this call: the subagent is continuable, and
 		// a continued run reads and edits the same checkout. Close (or
 		// eviction) removes it.
-		wt, werr := newWorktree(ctx, t.Root)
+		wt, werr := newWorktree(ctx, root)
 		if werr != nil {
 			return "", werr
 		}

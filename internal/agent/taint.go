@@ -136,9 +136,8 @@ func (a *Agent) taintGate(t tool.Tool, u llm.Block) (why string, hosts []string)
 	}
 	tr := a.taintTracker()
 	root := a.displayRoot()
-	switch {
-	case u.Name == "bash":
-		cmd := shell.CommandOf(string(u.Input))
+	switch cmd, isShell := shellLine(u); {
+	case isShell:
 		if needles, ok := taint.EgressCommand(cmd); ok {
 			return tr.Explain("a command that can reach the network", needles), nil
 		}
@@ -180,6 +179,23 @@ func (a *Agent) taintGate(t tool.Tool, u llm.Block) (why string, hosts []string)
 		return tr.Explain("sends data to "+strings.Join(fresh, ", ")+", outside egress.allow,", needles), fresh
 	}
 	return "", nil
+}
+
+// shellLine is the command line a call hands to a shell, and whether it
+// is one: bash's command, monitor's (which runs in the same shell), and
+// the line terminal's send types into its session. Only bash used to be
+// read, so a tainted turn's curl went out unasked by the other two.
+func shellLine(u llm.Block) (string, bool) {
+	switch u.Name {
+	case "bash", "monitor":
+		return shell.CommandOf(string(u.Input)), true
+	case "terminal":
+		var in struct{ Action, Text string }
+		if json.Unmarshal(u.Input, &in) == nil && in.Action == "send" {
+			return strings.TrimSpace(in.Text), true
+		}
+	}
+	return "", false
 }
 
 // sensitivePath names what a path is when a tainted turn must not change

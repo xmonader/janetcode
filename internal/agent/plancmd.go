@@ -61,6 +61,9 @@ func (a *Agent) capturePlan(text string, emit func(Event)) {
 	if !changed {
 		return
 	}
+	// The same file the live plan watches (see planfile.go): this write
+	// is the model's own plan, not the user steering.
+	a.planfileSaw()
 	note := "plan written to " + plan.Name + " · /plan review reads it and comments on a line"
 	if _, err := os.Stat(plan.PrevFile(a.planRoot())); err == nil {
 		note = "plan revised in " + plan.Name + " (the version it replaced is in " + plan.PrevName + ")"
