@@ -181,6 +181,25 @@ func TestLongOutputIsArchivedAndExpandable(t *testing.T) {
 	}
 }
 
+// A limit near the largest int overflowed offset+limit to a negative end:
+// the read came back with no lines, a header reading "lines 2--…" and a
+// continuation note pointing at a negative offset.
+func TestExpandOutputHugeLimitReadsToTheEnd(t *testing.T) {
+	ar := NewArchive(t.TempDir())
+	id, err := ar.Put("c1", "bash", "one\ntwo\nthree\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &ExpandOutput{Archive: ar}
+	out, err := x.Run(context.Background(), json.RawMessage(`{"id":"`+id+`","offset":2,"limit":9223372036854775807}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "lines 2-3:") || !strings.Contains(out, "2\ttwo") || !strings.Contains(out, "3\tthree") || strings.Contains(out, "more lines") {
+		t.Fatalf("read = %q", out)
+	}
+}
+
 func TestStashWithoutArchiveTruncates(t *testing.T) {
 	a := &Agent{}
 	out := a.stash("t", "bash", "", strings.Repeat("q", InlineOutput*2))
