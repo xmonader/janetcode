@@ -121,11 +121,24 @@ func lines(s string) []string {
 }
 
 // addedLines is the text a patch adds, so a secret it removes is not
-// reported as one it commits.
+// reported as one it commits. A file's +++ line closes its header; after
+// it every + line is content, including one that adds "++TOKEN=…", which
+// a test on the +++ prefix alone skipped unscanned.
 func addedLines(diff string) string {
 	var b strings.Builder
+	inHeader := false
 	for _, l := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(l, "+") && !strings.HasPrefix(l, "+++") {
+		switch {
+		case strings.HasPrefix(l, "diff "):
+			inHeader = true
+			continue
+		case inHeader && strings.HasPrefix(l, "+++"):
+			inHeader = false
+			continue
+		case strings.HasPrefix(l, "@@"):
+			inHeader = false
+		}
+		if !inHeader && strings.HasPrefix(l, "+") {
 			b.WriteString(l[1:])
 			b.WriteByte('\n')
 		}

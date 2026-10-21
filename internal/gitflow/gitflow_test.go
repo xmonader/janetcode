@@ -326,3 +326,21 @@ func TestCommitUntrackedFileWithQuotedName(t *testing.T) {
 		t.Fatalf("committed %q, want café.txt", got)
 	}
 }
+
+// A secret on an added line whose text starts with "++" is still on an
+// added line; it was skipped as if it were the file's +++ header.
+func TestPendingFlagsASecretOnALineStartingPlusPlus(t *testing.T) {
+	dir := repo(t)
+	key := "sk-ant-api03-" + strings.Repeat("Ab3xQ9", 12)
+	write(t, dir, "notes.txt", "a\n")
+	git(t, dir, "add", "notes.txt")
+	git(t, dir, "commit", "-qm", "notes")
+	write(t, dir, "notes.txt", "a\n++"+key+"\n")
+	c, err := Pending(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Secret == "" {
+		t.Fatalf("secret not flagged in:\n%s", c.Diff)
+	}
+}
