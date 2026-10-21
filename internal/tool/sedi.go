@@ -115,6 +115,35 @@ func splitSedArgs(toks []string) (args, files []string, inPlace bool) {
 			inPlace = true
 		case strings.HasPrefix(tk, "--in-place="):
 			inPlace = true
+		case len(tk) > 2 && tk[0] == '-' && tk[1] != '-':
+			// A cluster of short options, read as sed reads it: -ni and
+			// -Ei.bak hold an -i whose suffix is the rest of the cluster,
+			// and an e, f or l takes the rest of the cluster (or, at its
+			// end, the next word) as its argument. Passed through whole,
+			// an -i in a cluster made the preview's own sed edit the file
+			// in place before anyone was asked.
+			for j := 1; j < len(tk); j++ {
+				c := tk[j]
+				if c == 'i' {
+					inPlace = true
+					if j > 1 {
+						args = append(args, tk[:j])
+					}
+					break
+				}
+				if c == 'e' || c == 'f' || c == 'l' {
+					args = append(args, tk)
+					if j == len(tk)-1 && i+1 < len(toks) {
+						args = append(args, toks[i+1])
+						i++
+					}
+					sawScript = sawScript || c != 'l'
+					break
+				}
+				if j == len(tk)-1 {
+					args = append(args, tk)
+				}
+			}
 		case tk == "-e" || tk == "-f" || tk == "--expression" || tk == "--file":
 			if i+1 < len(toks) {
 				args = append(args, tk, toks[i+1])

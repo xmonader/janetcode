@@ -224,6 +224,39 @@ func TestSedPreviewRunsNothingAndWritesNothing(t *testing.T) {
 	}
 }
 
+// An -i inside a cluster of short options (-ni, -Ei.bak) is in-place
+// editing too. It was passed through to the preview's sed as an
+// ordinary option, so `sed -i -ni …` rewrote the file while the call
+// was only being described.
+func TestSedPreviewDropsAClusteredInPlace(t *testing.T) {
+	if !sedHasSandbox() {
+		t.Skip("sed has no --sandbox; the preview is not run at all")
+	}
+	dir := t.TempDir()
+	b := Bash{Root: dir}
+	for _, cmd := range []string{
+		"sed -i -ni 's/alpha/beta/p' a.txt",
+		"sed -Ei.bak 's/alpha/beta/' a.txt",
+		"sed -si 's/alpha/beta/' a.txt",
+		"sed -i -nie 's/alpha/beta/p' a.txt",
+		"sed -i -ne 's/alpha/beta/p' a.txt",
+	} {
+		os.WriteFile(filepath.Join(dir, "a.txt"), []byte("alpha\n"), 0o644)
+		in, _ := json.Marshal(map[string]string{"command": cmd})
+		out, _ := b.Preview(context.Background(), in)
+		if got, _ := os.ReadFile(filepath.Join(dir, "a.txt")); string(got) != "alpha\n" {
+			t.Errorf("previewing %q rewrote the file to %q before anyone approved it", cmd, got)
+		}
+		if !strings.Contains(out, "beta") {
+			t.Errorf("preview of %q = %q, want the change shown", cmd, out)
+		}
+	}
+	args, _, in := splitSedArgs([]string{"-ni", "s/a/b/p", "x.go"})
+	if !in || strings.Join(args, " ") != "-n s/a/b/p" {
+		t.Errorf("splitSedArgs(-ni) = %q in=%v", args, in)
+	}
+}
+
 func TestSplitSedArgs(t *testing.T) {
 	args, files, in := splitSedArgs([]string{"-i", "s/a/b/", "x.go", "y.go"})
 	if !in || len(files) != 2 || len(args) != 1 || args[0] != "s/a/b/" {
