@@ -136,6 +136,31 @@ func TestAPreToolHookThatAsksPromptsEvenInYolo(t *testing.T) {
 	}
 }
 
+// "ask" means the user confirms the call whatever the mode would do, and
+// a read is no exception: a hook that guards reading a credentials file
+// says ask precisely because a read never prompts on its own.
+func TestAPreToolHookThatAsksPromptsForARead(t *testing.T) {
+	f := &fake{responses: []*llm.Response{toolCall("t1", "read_file", `{"path":"a.txt"}`), text("done")}}
+	asked := 0
+	a, root := newAgent(t, f, ApproverFunc(func(context.Context, ToolCall) (Decision, error) {
+		asked++
+		return Deny, nil
+	}))
+	a.Tools = tool.NewRegistry(tool.ReadFile{Root: root})
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.PreTool: {{Match: "Read", Command: `echo '{"hookSpecificOutput":{"permissionDecision":"ask","permissionDecisionReason":"check first"}}'`}},
+	}}}
+	if err := a.Run(context.Background(), "go", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if asked != 1 {
+		t.Fatalf("approver asked %d times, want 1", asked)
+	}
+	if out := f.requests[1].Messages[len(f.requests[1].Messages)-1].Blocks[0].Text; strings.Contains(out, "alpha") {
+		t.Fatalf("a read the user refused ran: %q", out)
+	}
+}
+
 func TestPostToolFailureSeesTheError(t *testing.T) {
 	f := &fake{responses: []*llm.Response{toolCall("t1", "read_file", `{"path":"missing.go"}`), text("done")}}
 	a, root := newAgent(t, f, nil)

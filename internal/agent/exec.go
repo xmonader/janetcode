@@ -386,7 +386,11 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	if !sensitive && !egressAsk && !taintAsk && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+	// A pre-tool hook that asked (or a repository hook that rewrote the
+	// input) is put to the user for a read too: mustPrompt only ever
+	// prompts for a mutating call, and "ask" is the hook saying this one
+	// call needs a person whatever it is.
+	if !sensitive && !egressAsk && !taintAsk && !hookMustAsk && !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
 		basis = a.shortcutBasis(t, u, verdict, rule, hookAllowed)
 		return hookNotes, "", nil
 	}
