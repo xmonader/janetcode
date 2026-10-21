@@ -379,15 +379,19 @@ func (s *Session) Append(e Event) (int, error) {
 	// instead, which bounds what a power cut can take to the events of one
 	// second; a clean end rewrites and syncs the whole file anyway
 	// (SetSettled), and Sync forces it on demand.
+	//
+	// From here on the whole line is in the file, so the event is kept in
+	// memory whatever Sync or Close then say. Dropping it there, as an
+	// error return once did, left a line on disk that the next rewrite
+	// from memory silently erased.
+	var serr error
 	if now := time.Now(); now.Sub(s.lastSync) >= syncInterval {
-		if err := f.Sync(); err != nil {
-			f.Close()
-			return 0, err
+		if serr = f.Sync(); serr == nil {
+			s.lastSync = now
 		}
-		s.lastSync = now
 	}
-	if err := f.Close(); err != nil {
-		return 0, err
+	if err := f.Close(); serr == nil {
+		serr = err
 	}
 	s.ev = append(s.ev, e)
 	// The event stands whether or not its audit record could be
@@ -395,7 +399,7 @@ func (s *Session) Append(e Event) (int, error) {
 	sum := sha256.Sum256(b)
 	s.lastDigest = hex.EncodeToString(sum[:])
 	_ = s.auditLocked()
-	return e.Seq, nil
+	return e.Seq, serr
 }
 
 // syncInterval bounds how much of the log a power cut can cost.

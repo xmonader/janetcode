@@ -30,10 +30,9 @@ func (a *Agent) logEvent(e session.Event) int {
 	if e.Type == session.TypeTurnEnd && e.Turn == a.turnN {
 		a.turnEnded.Store(true)
 	}
-	seq, err := a.Log.Append(e)
-	if err != nil {
-		return 0
-	}
+	// Append returns a sequence number with an error only when the
+	// event was written and kept but could not be synced or closed.
+	seq, _ := a.Log.Append(e)
 	return seq
 }
 
