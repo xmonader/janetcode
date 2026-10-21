@@ -14,6 +14,18 @@ const prunedPrefix = "[pruned: "
 
 var reExitCode = regexp.MustCompile(`\[exit code (\d+)\]`)
 
+// lastExitCode is the code of the last "[exit code N]" in a bash result,
+// which is the one the tool appended after the output: the command's own
+// output can carry the same shape (a saved transcript, a test printing
+// one), and the first of them is then not the command's.
+func lastExitCode(text string) (string, bool) {
+	ms := reExitCode.FindAllStringSubmatch(text, -1)
+	if len(ms) == 0 {
+		return "", false
+	}
+	return ms[len(ms)-1][1], true
+}
+
 // placeholder condenses an old tool result to one line that still says
 // what the call was and how it went, so the model can decide whether the
 // full output (kept in the archive) is worth fetching.
@@ -33,8 +45,8 @@ func placeholder(name string, input json.RawMessage, text, archiveID string) str
 	switch name {
 	case "bash":
 		exit := "0"
-		if m := reExitCode.FindStringSubmatch(body); m != nil {
-			exit = m[1]
+		if code, ok := lastExitCode(body); ok {
+			exit = code
 		}
 		last := ""
 		for i := len(lines) - 1; i >= 0; i-- {
