@@ -54,3 +54,33 @@ func TestFileToolsHonourAIIgnore(t *testing.T) {
 		t.Fatalf("plain read = %q %v", out, err)
 	}
 }
+
+// A symlink to an excluded file is the excluded file: the rules were
+// matched against the name the model gave, so a link checked into the
+// repo (or one bash made) under an unexcluded name read and overwrote
+// what .aiignore keeps away.
+func TestAIIgnoreFollowsSymlinks(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, ".aiignore"), []byte("secrets/\n.env\n"), 0o644)
+	os.MkdirAll(filepath.Join(root, "secrets"), 0o755)
+	os.WriteFile(filepath.Join(root, "secrets", "token.txt"), []byte("needle\n"), 0o644)
+	os.WriteFile(filepath.Join(root, ".env"), []byte("KEY=needle\n"), 0o644)
+	if err := os.Symlink(filepath.Join(root, "secrets"), filepath.Join(root, "notsecret")); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	os.Symlink(".env", filepath.Join(root, "config.txt"))
+	ctx := context.Background()
+	for _, p := range []string{"notsecret/token.txt", "config.txt"} {
+		raw, _ := json.Marshal(map[string]any{"path": p})
+		if out, err := (ReadFile{Root: root}).Run(ctx, raw); err == nil || !strings.Contains(err.Error(), "excluded") {
+			t.Errorf("read %s = %q %v, want it excluded", p, out, err)
+		}
+	}
+	raw, _ := json.Marshal(map[string]any{"path": "config.txt", "content": "x"})
+	if _, err := (WriteFile{Root: root}).Run(ctx, raw); err == nil {
+		t.Error("wrote through a link to an excluded file")
+	}
+	if b, _ := os.ReadFile(filepath.Join(root, ".env")); string(b) != "KEY=needle\n" {
+		t.Errorf(".env = %q", b)
+	}
+}

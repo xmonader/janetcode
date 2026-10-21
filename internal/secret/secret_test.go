@@ -198,3 +198,25 @@ func TestRedactSecretsBlanksTheSpanNotTheText(t *testing.T) {
 		}
 	}
 }
+
+// A private key is its body, not its header. Only the BEGIN line was
+// matched, so Redact replaced that line and sent the base64 key material
+// on as it was; and an encrypted or DSA key's header was not matched at
+// all.
+func TestRedactRemovesTheWholePrivateKey(t *testing.T) {
+	body := "MIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun"
+	for _, kind := range []string{"RSA ", "OPENSSH ", "EC ", "DSA ", "ENCRYPTED ", ""} {
+		in := "cat key.pem\n-----BEGIN " + kind + "PRIVATE KEY-----\n" + body + "\n" + body + "\n-----END " + kind + "PRIVATE KEY-----\nexit 0"
+		got, n := Redact(in)
+		if strings.Contains(got, body) || n == 0 {
+			t.Errorf("Redact left the %skey material: %q", kind, got)
+		}
+		if !strings.HasPrefix(got, "cat key.pem\n") || !strings.HasSuffix(got, "\nexit 0") {
+			t.Errorf("Redact took more than the %skey: %q", kind, got)
+		}
+	}
+	// A key cut off before its END line (truncated output) is still a key.
+	if got, _ := Redact("-----BEGIN RSA PRIVATE KEY-----\n" + body); strings.Contains(got, body) {
+		t.Errorf("Redact left a truncated key's material: %q", got)
+	}
+}

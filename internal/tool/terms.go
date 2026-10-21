@@ -380,6 +380,41 @@ func (TermTool) Schema() json.RawMessage {
 "required":["action"],"additionalProperties":false}`)
 }
 
+// sentCommand is a send's text as a bash input, or nil for any other
+// action.
+func sentCommand(input json.RawMessage) json.RawMessage {
+	var in struct {
+		Action string `json:"action"`
+		Text   string `json:"text"`
+	}
+	if json.Unmarshal(input, &in) != nil || in.Action != "send" || strings.TrimSpace(in.Text) == "" {
+		return nil
+	}
+	cmd, _ := json.Marshal(map[string]string{"command": in.Text})
+	return cmd
+}
+
+// Guard implements Guard with bash's rules for what is sent: a command
+// that writes outside the workspace, or one the classifier cannot read,
+// asks under auto-approve whichever shell it is typed into. It is judged
+// from the working directory; a cd sent earlier is not followed.
+func (t TermTool) Guard(input json.RawMessage) (bool, string) {
+	cmd := sentCommand(input)
+	if cmd == nil {
+		return false, ""
+	}
+	return Bash{Root: t.Root, WS: t.WS}.Guard(cmd)
+}
+
+// Warn implements Warner with bash's warnings, for the same reason.
+func (t TermTool) Warn(input json.RawMessage) string {
+	cmd := sentCommand(input)
+	if cmd == nil {
+		return ""
+	}
+	return Bash{Root: t.Root, WS: t.WS}.Warn(cmd)
+}
+
 func (t TermTool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Action    string `json:"action"`
@@ -403,6 +438,12 @@ func (t TermTool) Run(ctx context.Context, input json.RawMessage) (string, error
 	case "send":
 		if strings.TrimSpace(in.Text) == "" {
 			return "", fmt.Errorf("text is required")
+		}
+		// What is sent is a command line run in a shell, as bash's is,
+		// and gets bash's refusal: without it the command janetcode never
+		// runs could be typed into a terminal instead.
+		if risk, why := shell.Classify(in.Text, rootOf(t.Root, t.WS)); risk == shell.RiskCatastrophic {
+			return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
 		}
 		wait := time.Duration(in.TimeoutMS) * time.Millisecond
 		out, err := t.Terms.Send(ctx, in.ID, in.Text, wait)

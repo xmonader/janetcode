@@ -247,7 +247,9 @@ func ShortenHome(path string) string {
 // writeTargets are the absolute paths a call would write to.
 func writeTargets(c Call) []string {
 	switch c.Tool {
-	case "bash":
+	// monitor starts its command in the same shell bash does; a hook it
+	// copies into .git/hooks is written all the same.
+	case "bash", "monitor":
 		var in struct {
 			Command string `json:"command"`
 		}
@@ -259,6 +261,16 @@ func writeTargets(c Call) []string {
 			root, _ = os.Getwd()
 		}
 		return shell.WriteTargets(in.Command, root)
+	case "terminal":
+		// A send types a command line into a persistent shell.
+		var in struct {
+			Action string `json:"action"`
+			Text   string `json:"text"`
+		}
+		if json.Unmarshal(c.Input, &in) != nil || in.Action != "send" || in.Text == "" {
+			return nil
+		}
+		return shell.WriteTargets(in.Text, c.Root)
 	case "write_file", "edit_file", "notebook_edit":
 		var in struct {
 			Path string `json:"path"`
