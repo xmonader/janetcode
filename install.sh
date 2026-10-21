@@ -39,7 +39,11 @@ fi
 
 asset="janetcode-$tag-$os-$arch"
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT INT TERM
+# A signal cleans up and stops; without the exit, sh would run the trap
+# and then carry on installing.
+trap 'rm -rf "$tmp"' EXIT
+trap 'rm -rf "$tmp"; exit 130' INT
+trap 'rm -rf "$tmp"; exit 143' TERM
 
 echo "downloading janetcode $tag for $os/$arch"
 curl -fsSL -o "$tmp/$asset" "$base/releases/download/$tag/$asset" || fail "no $asset in release $tag"
@@ -60,7 +64,7 @@ mkdir -p "$dir"
 chmod 755 "$tmp/$asset"
 # Beside the target first, then renamed: a half-copied binary is never
 # the one on PATH.
-cp "$tmp/$asset" "$dir/.janetcode.new"
+cp "$tmp/$asset" "$dir/.janetcode.new" || { rm -f "$dir/.janetcode.new"; fail "could not write to $dir"; }
 mv -f "$dir/.janetcode.new" "$dir/janetcode"
 # The receipt is what lets janetcode --uninstall tell this binary from a
 # build someone put here by hand.
