@@ -1455,7 +1455,11 @@ func writesOrRuns(toks []string) bool {
 		}
 		return n > 1
 	case "rg":
-		return slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "--pre") })
+		// --pre runs a program on every file, and --hostname-bin runs
+		// one to name the host for hyperlinks.
+		return slices.ContainsFunc(args, func(a string) bool {
+			return strings.HasPrefix(a, "--pre") || strings.HasPrefix(a, "--hostname-bin")
+		})
 	case "ag":
 		return has("--pager", 0)
 	case "file":
@@ -1478,7 +1482,13 @@ func safeGit(args []string) bool {
 			// friends make any subcommand run a program of the
 			// caller's choosing.
 			return false
-		case args[i] == "--git-dir" || args[i] == "--work-tree":
+		case args[i] == "--git-dir", strings.HasPrefix(args[i], "--git-dir="):
+			// The git directory's config is read, and its config can run
+			// a program from any subcommand (core.fsmonitor on status) —
+			// a bare repository checked into the project is a directory
+			// of plain files whose config nobody has looked at.
+			return false
+		case args[i] == "--work-tree":
 			i += 2
 		default:
 			i++
