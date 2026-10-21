@@ -29,7 +29,52 @@ func ignoredErr(roots []string, abs, named string) error {
 	if hit, src := ignore.For(root).Excluded(abs, isDir); hit {
 		return fmt.Errorf("%s is excluded from the agent's file tools by %s; leave it alone, or ask the user to change that file", named, src)
 	}
+	// A symlink is judged by what it names too: `config.txt -> .env` or
+	// `notsecret -> secrets` under a name no rule matches read and
+	// overwrote exactly what the rules keep away.
+	if real, ok := realUnder(roots, abs); ok {
+		if hit, src := ignore.For(real.root).Excluded(real.path, isDir); hit {
+			return fmt.Errorf("%s leads to %s, which is excluded from the agent's file tools by %s; leave it alone, or ask the user to change that file", named, displayPath(real.root, real.path), src)
+		}
+	}
 	return nil
+}
+
+// rootedPath is a path and the root it lies under.
+type rootedPath struct{ root, path string }
+
+// realUnder resolves the symlinks on abs (those of its deepest existing
+// ancestor, for a path not yet created) and, when that lands somewhere
+// else under one of roots, returns it spelled from that root — a root
+// reached through a symlink of its own (macOS's /var) is resolved too, so
+// the rules are matched against the root's own spelling. ok is false when
+// nothing on the path is a link, or it leads outside every root.
+func realUnder(roots []string, abs string) (rootedPath, bool) {
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		if real, err = resolveExisting(abs); err != nil {
+			return rootedPath{}, false
+		}
+	}
+	for _, r := range roots {
+		if r == "" {
+			continue
+		}
+		rr, err := filepath.EvalSymlinks(r)
+		if err != nil {
+			rr = r
+		}
+		rel, err := filepath.Rel(rr, real)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		p := filepath.Join(r, rel)
+		if p == filepath.Clean(abs) {
+			return rootedPath{}, false
+		}
+		return rootedPath{root: r, path: p}, true
+	}
+	return rootedPath{}, false
 }
 
 func rootContaining(roots []string, abs string) string {
