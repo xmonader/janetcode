@@ -51,7 +51,8 @@ func (p *Provider) Rebase(from, to string) int {
 
 // rebaseText replaces from with to wherever from is a whole directory:
 // followed by a separator, a quote, whitespace or the end, never by more
-// of a longer name.
+// of a longer name, and not preceded by a path character, so the tail of
+// a longer path (/x/home/u/proj for /home/u/proj) is left alone.
 func rebaseText(s, from, to string) (string, bool) {
 	if !strings.Contains(s, from) {
 		return s, false
@@ -65,7 +66,8 @@ func rebaseText(s, from, to string) (string, bool) {
 			break
 		}
 		end := i + len(from)
-		if end == len(s) || strings.ContainsRune("/\\\"' \t\n:;,)]}`", rune(s[end])) {
+		before := i == 0 || !pathChar(s[i-1])
+		if before && (end == len(s) || strings.ContainsRune("/\\\"' \t\n:;,)]}`", rune(s[end]))) {
 			b.WriteString(s[:i])
 			b.WriteString(to)
 			did = true
@@ -75,6 +77,13 @@ func rebaseText(s, from, to string) (string, bool) {
 		s = s[end:]
 	}
 	return b.String(), did
+}
+
+// pathChar reports whether c can sit inside a path name, so a match
+// right after it is the middle of a longer path rather than its start.
+func pathChar(c byte) bool {
+	return c == '/' || c == '\\' || c == '.' || c == '-' || c == '_' ||
+		'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9'
 }
 
 func jsonInner(s string) string {

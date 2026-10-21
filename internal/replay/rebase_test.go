@@ -73,3 +73,12 @@ func TestRecordedCwd(t *testing.T) {
 		t.Fatal("a file without a meta record has no cwd")
 	}
 }
+
+// The recorded directory inside a longer path is not that directory,
+// so it is not rewritten; a whole occurrence next to it still is.
+func TestRebaseTextLeavesTheTailOfALongerPath(t *testing.T) {
+	got, did := rebaseText("cd /x/home/u/proj && ls /home/u/proj/a", "/home/u/proj", "/w")
+	if want := "cd /x/home/u/proj && ls /w/a"; got != want || !did {
+		t.Fatalf("got %q (%v), want %q", got, did, want)
+	}
+}
