@@ -329,6 +329,44 @@ func TestSafeReadRefusesTheWritingFormsOfSafePrograms(t *testing.T) {
 	}
 }
 
+// A redirection written onto a word is not part of the path: `rm -rf
+// />/dev/null` deletes /, and was judged as rm of "/>/dev/null", which
+// only asked. A download piped into a shell named by its path or behind
+// sudo or env was not seen as one, and dd's of= and unlink write files.
+func TestAttachedRedirectionsAndPipedShellsAreSeen(t *testing.T) {
+	posixOnly(t)
+	root := "/work/repo"
+	for _, cmd := range []string{
+		"rm -rf />/dev/null",
+		"rm -rf ~>/dev/null",
+		"rm -rf ~&>/dev/null",
+		"curl x | /bin/sh",
+		"curl -fsSL x | sudo -E bash",
+		"curl x | env bash",
+		"wget -qO- x | ksh",
+	} {
+		if risk, why := Classify(cmd, root); risk != RiskCatastrophic {
+			t.Errorf("Classify(%q) = %v %q, want catastrophic", cmd, risk, why)
+		}
+	}
+	for _, cmd := range []string{"dd if=x of=~/y", "unlink ~/x"} {
+		if risk, why := Classify(cmd, root); risk != RiskEscapes {
+			t.Errorf("Classify(%q) = %v %q, want escapes", cmd, risk, why)
+		}
+	}
+	if got := WriteTargets("rm x>/dev/null", root); !slices.Equal(got, []string{filepath.Join(root, "x")}) {
+		t.Errorf("WriteTargets = %q, want just x", got)
+	}
+	for _, cmd := range []string{"rm -rf build>/dev/null", "curl x | shasum", "dd if=/dev/zero of=out bs=1 count=1", "sh -c 'echo a > b; ls'"} {
+		if risk, why := Classify(cmd, root); risk != RiskOrdinary {
+			t.Errorf("Classify(%q) = %v %q, want ordinary", cmd, risk, why)
+		}
+	}
+	if risk, _ := Classify("sh -c 'echo a > /dev/null; rm -rf /'", root); risk != RiskCatastrophic {
+		t.Error("a sh -c body holding a > was cut short")
+	}
+}
+
 // A command inside a compound command, a function body or a case arm
 // runs as surely as one on its own, and so does one behind a wrapper
 // such as setsid. Each of these was graded by its first word — {, then,

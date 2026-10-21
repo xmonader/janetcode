@@ -70,7 +70,11 @@ var wholeLine = []struct {
 	re     *regexp.Regexp
 	reason string
 }{
-	{regexp.MustCompile(`\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:ba|z|da)?sh\b`), "pipes a download into a shell"},
+	// The shell may be named by its path (/bin/sh), behind sudo or env
+	// with their options, and be any of the shells the classifier
+	// unwraps: `curl x | /bin/sh` and `curl x | sudo -E bash` run the
+	// download as surely as `curl x | sh`.
+	{regexp.MustCompile(`\b(?:curl|wget)\b[^|]*\|\s*(?:(?:sudo|doas|env|command|exec)(?:\s+-\S+)*\s+)*(?:\S*/)?(?:ba|z|da|k)?sh\b`), "pipes a download into a shell"},
 	{regexp.MustCompile(`:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:`), "fork bomb"},
 }
 
@@ -84,7 +88,7 @@ var wholeLine = []struct {
 var mutators = map[string]bool{
 	"rm": true, "rmdir": true, "mv": true, "cp": true, "chmod": true, "chown": true, "chgrp": true,
 	"truncate": true, "tee": true, "ln": true, "install": true, "rsync": true, "shred": true, "mkdir": true, "touch": true,
-	"sed": true, "perl": true,
+	"sed": true, "perl": true, "unlink": true,
 }
 
 // outputFlags are the flags whose argument is a path the command writes,
@@ -107,6 +111,7 @@ var outputFlags = map[string][]string{
 	"sort":    {"-o"},
 	"gzip":    {"-o"},
 	"ffmpeg":  {"-o"},
+	"dd":      {"of="},
 }
 
 // outputArg reads the path an output flag names, in either spelling the
@@ -478,9 +483,11 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 		r2, why2 := redirectRisk(seg, root, cwd, cwdKnown)
 		return worse(r, why, r2, why2)
 	}
-	line := strings.Join(toks, " ")
+	// Judged as written, for the patterns that read a redirection, and
+	// with redirections cut off the words, for those that read paths.
+	line, args := strings.Join(toks, " "), strings.Join(argWords(toks), " ")
 	for _, c := range catastrophic {
-		if c.re.MatchString(line) {
+		if c.re.MatchString(line) || c.re.MatchString(args) {
 			return RiskCatastrophic, c.reason
 		}
 	}
@@ -490,7 +497,7 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 		}
 	}
 	if mutators[toks[0]] {
-		for _, tk := range toks[1:] {
+		for _, tk := range argWords(toks)[1:] {
 			if strings.HasPrefix(tk, "-") {
 				continue
 			}
@@ -692,6 +699,30 @@ func worse(r1 Risk, why1 string, r2 Risk, why2 string) (Risk, string) {
 		return r2, why2
 	}
 	return r1, why1
+}
+
+// argWords is a command's words with any redirection written onto one
+// cut off: Words does not split at > or <, so `rm -rf />/dev/null` came
+// through as rm of a path named "/>/dev/null" — outside the workspace,
+// but not the root it deletes, and refused only as far as asking. A word
+// that is all redirection is dropped. The redirection itself is judged
+// from the raw segment (redirectRisk), so nothing is lost. Only for
+// path arguments and the catastrophic patterns: a sh -c body is a quoted
+// word that may well hold a >, and cutting it would hide its tail.
+func argWords(toks []string) []string {
+	out := make([]string, 0, len(toks))
+	for i, tk := range toks {
+		if i > 0 {
+			if k := strings.IndexAny(tk, "<>"); k >= 0 {
+				tk = strings.TrimSuffix(tk[:k], "&")
+			}
+			if tk == "" {
+				continue
+			}
+		}
+		out = append(out, tk)
+	}
+	return out
 }
 
 // ifsRe matches an unexpanded $IFS, which the shell splits into the
@@ -1245,7 +1276,7 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 		}
 	}
 	if mutators[toks[0]] {
-		for _, tk := range toks[1:] {
+		for _, tk := range argWords(toks)[1:] {
 			if strings.HasPrefix(tk, "-") {
 				continue
 			}
