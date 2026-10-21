@@ -853,7 +853,7 @@ func (m *model) cmdExport(text string, fields []string) (tea.Cmd, bool) {
 
 func (m *model) cmdUsage(text string, fields []string) (tea.Cmd, bool) {
 	u := m.opts.Agent.UsageSnapshot()
-	line := "session tokens · " + u.CacheLine() + " · context now ~" + textfmt.Tokens(m.opts.Agent.EstimateTokens()) +
+	line := "session tokens · " + u.CacheLine() + " · context now ~" + textfmt.Tokens(m.tokensInUse()) +
 		"\n" + m.opts.Agent.CostNote()
 	// Which model spent it: a session routes, falls back, asks an advisor
 	// and delegates to subagents, and the total alone cannot say where it

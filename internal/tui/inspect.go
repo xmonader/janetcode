@@ -16,6 +16,13 @@ import (
 
 // contextCommand shows what fills the context window.
 func (m *model) contextCommand() {
+	if m.turn.running {
+		// The breakdown walks the history, which the turn goroutine is
+		// appending to; reading it now is a data race. The size the
+		// status line shows is the one the agent published for this.
+		m.note("context ~" + textfmt.Tokens(m.tokensInUse()) + " tokens · /context breaks it down once the turn ends")
+		return
+	}
 	r := m.opts.Agent.Context()
 	var sb strings.Builder
 	pct := 0
