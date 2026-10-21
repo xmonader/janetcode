@@ -75,3 +75,20 @@ func TestCappedExactFit(t *testing.T) {
 		t.Fatalf("String() = %q", got)
 	}
 }
+
+// Stopping short on a rune boundary leaves a few bytes of room. A later
+// write must not fill them: the kept text would then be the start of the
+// output glued to a piece from further on, with the bytes between gone
+// and nothing saying where.
+func TestCappedKeepsAContiguousPrefix(t *testing.T) {
+	c := &capped{max: 4}
+	c.Write([]byte("abcé")) // 5 bytes: é does not fit, 1 byte of room is left
+	c.Write([]byte("XYZ"))
+	kept := strings.SplitN(c.String(), "\n[", 2)[0]
+	if kept != "abc" {
+		t.Fatalf("kept %q, want the contiguous prefix %q", kept, "abc")
+	}
+	if !strings.Contains(c.String(), "[5 more bytes") {
+		t.Fatalf("String() = %q", c.String())
+	}
+}
