@@ -289,6 +289,9 @@ func substitute(v any, names []string, params map[string]string, used map[string
 // neither a substituted value nor an unescaped brace is read again.
 var placeholderRe = regexp.MustCompile(regexp.QuoteMeta(escapedBraces) + `|\{\{\s*([A-Za-z0-9_-]+)\s*\}\}`)
 
+// paramNameRe is the name placeholderRe can read back.
+var paramNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
 // Expand substitutes every {{name}} in the recipe's steps with a value:
 // args[name] when given, else the parameter's own Default. It errors on
 // an arg naming a parameter the recipe does not have, on a parameter with
@@ -549,6 +552,14 @@ func ParseSaveArgs(arg string) (name string, turn int, params map[string]string,
 			return "", 0, nil, fmt.Errorf("--turn: %q is not a turn number", v)
 		}
 		turn = int(n)
+	}
+	// A parameter is saved as {{name}}, and Expand reads back only the
+	// names placeholderRe takes: any other would be saved, never
+	// substituted, and replayed as the literal "{{file.path}}".
+	for k := range t.KV {
+		if !paramNameRe.MatchString(k) {
+			return "", 0, nil, fmt.Errorf("parameter name %q: use letters, digits, '_' and '-'", k)
+		}
 	}
 	return name, turn, t.KV, nil
 }

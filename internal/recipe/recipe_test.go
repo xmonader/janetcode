@@ -246,6 +246,19 @@ func TestParseSaveArgs(t *testing.T) {
 	}
 }
 
+// A parameter is saved as {{name}} and found again by Expand's pattern,
+// which takes letters, digits, _ and -. A name outside it ("file.path")
+// was saved, never substituted, and replayed as the literal text
+// "{{file.path}}" — a write to a file of that name.
+func TestParseSaveArgsRefusesANameExpandCannotRead(t *testing.T) {
+	if _, _, _, err := ParseSaveArgs("fix file.path=src/a.go"); err == nil {
+		t.Fatal("a parameter name Expand cannot substitute was accepted")
+	}
+	if _, _, _, err := ParseSaveArgs("fix file_path=src/a.go mode-x=1"); err != nil {
+		t.Fatalf("a valid name was refused: %v", err)
+	}
+}
+
 func TestParseRunArgs(t *testing.T) {
 	name, args, dry, err := ParseRunArgs("deploy --dry-run env=prod")
 	if err != nil {
