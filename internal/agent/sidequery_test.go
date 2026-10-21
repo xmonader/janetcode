@@ -30,6 +30,24 @@ func TestSideTranscriptStartsOnAUserMessage(t *testing.T) {
 	}
 }
 
+// A tool result that printed only whitespace flattens to nothing. Sent as
+// an empty text block it is refused (Anthropic: text content blocks must
+// be non-empty), so the side query fails on an ordinary transcript.
+func TestSideTranscriptDropsAnEmptyToolResult(t *testing.T) {
+	msgs := []llm.Message{
+		llm.TextMessage(llm.RoleUser, "check the build"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "1", Name: "bash"}}},
+		{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockToolResult, ToolUseID: "1", Text: "\n  \n"}}},
+	}
+	for _, m := range sideTranscript(msgs, 8, 0, 0) {
+		for _, b := range m.Blocks {
+			if strings.TrimSpace(b.Text) == "" {
+				t.Fatalf("an empty text block went into the side transcript: %+v", m)
+			}
+		}
+	}
+}
+
 func TestSideTranscriptCutsOnRuneBoundaries(t *testing.T) {
 	long := strings.Repeat("é", 500)
 	msgs := []llm.Message{
