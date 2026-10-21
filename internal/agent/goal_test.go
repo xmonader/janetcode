@@ -203,6 +203,25 @@ func TestGoalContinuationWithoutAdvisorModelDoesNoIO(t *testing.T) {
 	}
 }
 
+// The goal passed to goalRoleNote is the one before its round is counted,
+// so Rounds is how many rounds have finished. Only round one has none
+// behind it: round two used to be told "this is the first working round"
+// by the planner, and the skeptic never saw the round that just ended.
+func TestGoalRoleNoteSecondRoundGetsTheSkeptic(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("one step"), text("still unproven")}}
+	a := &Agent{Provider: f, Model: "m", AdvisorModel: "m", Log: &session.Memory{}}
+	a.CreateGoal("ship it", 3)
+	if got := a.GoalContinuation(context.Background()); !strings.Contains(got, "[planner]") {
+		t.Fatalf("round one: %q", got)
+	}
+	if got := a.GoalContinuation(context.Background()); !strings.Contains(got, "[skeptic]") {
+		t.Fatalf("round two: %q", got)
+	}
+	if sys := f.requests[1].System; sys != goalSkepticSystem {
+		t.Fatalf("round two asked the planner: %q", sys)
+	}
+}
+
 func TestGoalRoleNoteSkipsWhenContextIsDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

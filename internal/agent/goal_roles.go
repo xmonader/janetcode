@@ -31,7 +31,10 @@ func (a *Agent) goalRoleNote(ctx context.Context, g Goal) string {
 	var (
 		sys, q, tag string
 	)
-	if g.Rounds <= 1 {
+	// g.Rounds counts the rounds already finished (nextGoalRound hands
+	// over the goal before this round is logged), so only zero is the
+	// first round.
+	if g.Rounds == 0 {
 		sys, tag = goalPlannerSystem, "planner"
 		q = "Goal: " + g.Objective + "\nThis is the first working round. What is the one next step?"
 	} else {
