@@ -99,6 +99,25 @@ func TestHunkStatsCountsLinesThatLookLikeFileHeaders(t *testing.T) {
 	}
 }
 
+// The preview of an edit to a CRLF file is a diff whose every line ends
+// in \r, and it reached the terminal so: each one sent the cursor back to
+// the left edge, and the line's padding was drawn over its text. The
+// preview is laid out as a terminal would show it, as tool output is.
+func TestPreviewOfACRLFFileSendsNoCarriageReturns(t *testing.T) {
+	for _, preview := range []string{
+		"--- a.txt\r\n+++ a.txt\r\n@@ -1,2 +1,2 @@\r\n keep\r\n-old\r\n+new\r\n",
+		"would write 2 lines\r\nhello\r\n",
+	} {
+		out := renderPreview(defaultStyles(), preview, 60, 10, true)
+		if strings.ContainsAny(out, "\r\a") {
+			t.Fatalf("preview kept control characters: %q", out)
+		}
+		if !strings.Contains(plain(out), "new") && !strings.Contains(plain(out), "hello") {
+			t.Fatalf("preview lost its text: %q", plain(out))
+		}
+	}
+}
+
 // TestNonDiffPreviewStillRenders: a preview that is not a unified diff
 // falls back to plain text.
 func TestNonDiffPreviewStillRenders(t *testing.T) {
