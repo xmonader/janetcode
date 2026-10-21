@@ -1,10 +1,13 @@
 package tui
 
 import (
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // TestDiffGutterAndElision: a diff is drawn with line numbers from the
@@ -77,6 +80,22 @@ func TestDiffKeepsLinesThatLookLikeFileHeaders(t *testing.T) {
 	hunks, ok = parseUnifiedDiff(two)
 	if !ok || len(hunks) != 2 || len(hunks[0].lines) != 2 {
 		t.Fatalf("two files: ok=%v hunks=%+v", ok, hunks)
+	}
+}
+
+// /diff's file list counted a removed "-- comment" or an added "++ x"
+// line as neither: it took them for the patch's file headers.
+func TestHunkStatsCountsLinesThatLookLikeFileHeaders(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.sql"), []byte("select 1;\n-- old note\nselect 2;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitInitTUI(t, root)
+	if err := os.WriteFile(filepath.Join(root, "a.sql"), []byte("select 1;\n++ new\nselect 2;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if hunks, add, del := hunkStats(root, "a.sql"); hunks != 1 || add != 1 || del != 1 {
+		t.Fatalf("hunkStats = %d hunks +%d -%d, want 1 +1 -1", hunks, add, del)
 	}
 }
 

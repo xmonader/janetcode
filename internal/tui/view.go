@@ -222,9 +222,12 @@ func hunkStats(root, path string) (hunks, add, del int) {
 		switch {
 		case strings.HasPrefix(l, "@@"):
 			hunks++
-		case strings.HasPrefix(l, "+") && !strings.HasPrefix(l, "+++"):
+		case hunks == 0:
+			// The "--- a/…" and "+++ b/…" headers come before the first
+			// hunk. Inside one, "--- note" is a removed "-- note" line.
+		case strings.HasPrefix(l, "+"):
 			add++
-		case strings.HasPrefix(l, "-") && !strings.HasPrefix(l, "---"):
+		case strings.HasPrefix(l, "-"):
 			del++
 		}
 	}
