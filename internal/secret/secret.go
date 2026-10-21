@@ -26,7 +26,10 @@ var secretPatterns = []struct {
 	{"a GitLab token", regexp.MustCompile(`\bglpat-[A-Za-z0-9_\-]{20,}`)},
 	{"a Slack token", regexp.MustCompile(`\bxox[abceprs]-[A-Za-z0-9\-]{10,}`)},
 	{"a Stripe secret key", regexp.MustCompile(`\bsk_(?:live|test)_[A-Za-z0-9]{16,}`)},
-	{"a private key block", regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----`)},
+	// The whole block, body and all: the BEGIN line is only a label, and
+	// redacting it alone sent the key material on. One cut off before
+	// its END line (truncated output) runs to the end of the text.
+	{"a private key block", regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?s:.*?)(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|\z)`)},
 	{"a JSON web token", regexp.MustCompile(`\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}`)},
 }
 
