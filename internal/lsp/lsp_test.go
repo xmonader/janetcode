@@ -272,3 +272,28 @@ type countingWriter struct{ writes int }
 
 func (c *countingWriter) Write(p []byte) (int, error) { c.writes++; return len(p), nil }
 func (c *countingWriter) Close() error                { return nil }
+
+// A sync whose notification never reached the server — the caller's
+// context ended first, as it does when a project-wide warm walk is given
+// up on — used to be recorded as sent anyway. The next sync of the same
+// text then found the document "open" with a matching hash and sent
+// nothing, so the server was asked about a file it had never been given.
+func TestAnUnsentSyncIsSentAgain(t *testing.T) {
+	w := &countingWriter{}
+	c := &client{docs: map[string]int{}, diags: map[string]diagState{}, waits: map[string]chan struct{}{},
+		done: make(chan struct{}), stdin: w}
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := c.sync(gone, "/p/a.go", "package a\n"); err == nil {
+		t.Fatal("a sync under a cancelled context reported success")
+	}
+	if w.writes != 0 {
+		t.Fatalf("%d writes under a cancelled context, want none", w.writes)
+	}
+	if err := c.sync(context.Background(), "/p/a.go", "package a\n"); err != nil {
+		t.Fatal(err)
+	}
+	if w.writes == 0 {
+		t.Fatal("the document was never opened: the abandoned sync was taken as delivered")
+	}
+}
