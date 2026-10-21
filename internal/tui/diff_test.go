@@ -56,6 +56,30 @@ func TestWordLevelHighlight(t *testing.T) {
 	}
 }
 
+// A removed line that itself starts "-- " (an SQL or Lua comment) is
+// "--- …" in the diff, and an added "++ " line is "+++ …": both were read
+// as file headers and dropped, so an edit's preview hid a line it removed.
+func TestDiffKeepsLinesThatLookLikeFileHeaders(t *testing.T) {
+	d := "--- a.sql\n+++ a.sql\n@@ -1,3 +1,3 @@\n select 1;\n--- drop the old table\n+++ counter\n select 2;\n"
+	hunks, ok := parseUnifiedDiff(d)
+	if !ok || len(hunks) != 1 {
+		t.Fatalf("parse: ok=%v hunks=%d", ok, len(hunks))
+	}
+	out := plain(renderDiff(defaultStyles(), hunks, 70, 40, true))
+	for _, want := range []string{"2 │ --- drop the old table", "2 │ +++ counter"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
+		}
+	}
+	// A second file's headers after a hunk has run its course are still
+	// headers, not lines.
+	two := "--- a\n+++ a\n@@ -1 +1 @@\n-x\n+y\n--- b\n+++ b\n@@ -5,1 +5,1 @@\n-p\n+q\n"
+	hunks, ok = parseUnifiedDiff(two)
+	if !ok || len(hunks) != 2 || len(hunks[0].lines) != 2 {
+		t.Fatalf("two files: ok=%v hunks=%+v", ok, hunks)
+	}
+}
+
 // TestNonDiffPreviewStillRenders: a preview that is not a unified diff
 // falls back to plain text.
 func TestNonDiffPreviewStillRenders(t *testing.T) {

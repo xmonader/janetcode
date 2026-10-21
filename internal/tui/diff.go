@@ -50,15 +50,24 @@ type diffHunk struct {
 // anything that is not one, so a plain preview still renders as text.
 func parseUnifiedDiff(s string) ([]diffHunk, bool) {
 	var hunks []diffHunk
+	// oldLeft and newLeft are the lines the current hunk's header says
+	// are still to come. While any are, a line is content however it
+	// reads: a removed "-- comment" is "--- comment" in the diff, and was
+	// taken for a file header and dropped from the preview.
+	oldLeft, newLeft := 0, 0
 	for _, l := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		inHunk := oldLeft > 0 || newLeft > 0
 		switch {
-		case strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ "):
+		case !inHunk && (strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ")):
 			// The file name is already on the tool line.
 		case strings.HasPrefix(l, "@@"):
+			// Never content: every line of a hunk starts with one of
+			// " -+\\", so a header ends a hunk whatever its count said.
 			o, n, ok := parseHunkHeader(l)
 			if !ok {
 				return nil, false
 			}
+			oldLeft, newLeft = hunkCounts(l)
 			hunks = append(hunks, diffHunk{oldStart: o, newStart: n})
 		case len(hunks) == 0:
 			return nil, false // content before any hunk header
@@ -67,6 +76,14 @@ func parseUnifiedDiff(s string) ([]diffHunk, bool) {
 			text := l
 			if l != "" && (l[0] == '+' || l[0] == '-' || l[0] == ' ' || l[0] == '\\') {
 				kind, text = l[0], l[1:]
+			}
+			switch kind {
+			case ' ':
+				oldLeft, newLeft = oldLeft-1, newLeft-1
+			case '-':
+				oldLeft--
+			case '+':
+				newLeft--
 			}
 			h := &hunks[len(hunks)-1]
 			h.lines = append(h.lines, diffLine{kind, text})
@@ -92,6 +109,28 @@ func parseHunkHeader(l string) (old, new int, ok bool) {
 	o, ok1 := num(f[1])
 	n, ok2 := num(f[2])
 	return o, n, ok1 && ok2
+}
+
+// hunkCounts reads the old and new line counts out of "@@ -1,2 +1,3 @@";
+// a count left out is one. A header it cannot read counts nothing, so the
+// lines after it are read by their look alone.
+func hunkCounts(l string) (old, new int) {
+	f := strings.Fields(l)
+	if len(f) < 3 {
+		return 0, 0
+	}
+	count := func(s string) int {
+		_, c, ok := strings.Cut(s, ",")
+		if !ok {
+			return 1
+		}
+		n, err := strconv.Atoi(c)
+		if err != nil || n < 0 {
+			return 0
+		}
+		return n
+	}
+	return count(f[1]), count(f[2])
 }
 
 // trimContext keeps at most diffContext unchanged lines at each end of a
