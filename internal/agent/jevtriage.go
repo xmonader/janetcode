@@ -152,12 +152,14 @@ func (a *Agent) turnChangedFiles() []string {
 		e.add, e.del = e.add+add, e.del+del
 	}
 	sort.Strings(order)
+	// Through RootDir: /cd moves the root while a turn may be running.
+	root := a.RootDir()
 	out := make([]string, 0, len(order))
 	for _, p := range order {
 		e := byPath[p]
 		rel := p
-		if a.Root != "" && strings.HasPrefix(p, a.Root+string([]byte{'/'})) {
-			rel = p[len(a.Root)+1:]
+		if root != "" && strings.HasPrefix(p, root+string([]byte{'/'})) {
+			rel = p[len(root)+1:]
 		}
 		out = append(out, fmt.Sprintf("%s (%s +%d/-%d)", rel, e.tool, e.add, e.del))
 	}

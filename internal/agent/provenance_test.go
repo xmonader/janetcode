@@ -198,3 +198,30 @@ func TestChangeTurnIsTheLoggedTurnAfterResume(t *testing.T) {
 		t.Fatalf("turn's changed files = %q", files)
 	}
 }
+
+// The triage state names the turn's files relative to the root, which /cd
+// moves while a turn may be running; it has to read the root through
+// RootDir like every other reader (go test -race).
+func TestTurnChangedFilesReadsTheRootUnderItsLock(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c1", "write_file", `{"path":"a.txt","content":"x\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Root = root
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		a.SetRoot(root)
+	}()
+	files := a.turnChangedFiles()
+	<-done
+	if len(files) != 1 || !strings.HasPrefix(files[0], "a.txt ") {
+		t.Fatalf("turn's changed files = %q", files)
+	}
+}
