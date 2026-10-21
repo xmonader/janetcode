@@ -973,6 +973,28 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if !pol.ModelAllowed(cfg.Model) {
 		return nil, badValue(ov.Model != "", "model", "%v", pol.Refusal(fmt.Sprintf("model %q", cfg.Model)))
 	}
+	// The slots and the fallbacks run calls of their own, so they are
+	// held to the same list. One the policy forbids is dropped with a
+	// note rather than refusing the whole file: a policy that arrives
+	// after the user named a strong model must not stop janetcode
+	// starting, only stop that model being used.
+	for _, n := range SlotNames {
+		if f := slotField(cfg, n); strings.TrimSpace(*f) != "" && !pol.ModelAllowed(strings.TrimSpace(*f)) {
+			cfg.Notes = append(cfg.Notes, fmt.Sprintf("%s is off: %v", SlotKey(n), pol.Refusal(fmt.Sprintf("model %q", strings.TrimSpace(*f)))))
+			*f = ""
+		}
+	}
+	if len(cfg.FallbackModels) > 0 {
+		kept := cfg.FallbackModels[:0:0]
+		for _, m := range cfg.FallbackModels {
+			if !pol.ModelAllowed(strings.TrimSpace(m)) {
+				cfg.Notes = append(cfg.Notes, fmt.Sprintf("fallback_models: %v", pol.Refusal(fmt.Sprintf("model %q", m))))
+				continue
+			}
+			kept = append(kept, m)
+		}
+		cfg.FallbackModels = kept
+	}
 	if !llm.ValidEffort(cfg.Effort) {
 		return nil, badValue(ov.Effort != "", "effort", "invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
 	}

@@ -54,6 +54,16 @@ func SlotKey(name string) string {
 	return ""
 }
 
+// isSlotKey reports whether key is the config.json key of a slot.
+func isSlotKey(key string) bool {
+	for _, n := range SlotNames {
+		if SlotKey(n) == key {
+			return true
+		}
+	}
+	return false
+}
+
 // KnownSlot reports whether name is one of SlotNames.
 func KnownSlot(name string) bool {
 	c := Config{}

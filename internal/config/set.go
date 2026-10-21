@@ -382,6 +382,11 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 	if key == "model" && !cfg.Managed.ModelAllowed(val) {
 		return nil, cfg.Managed.Refusal(fmt.Sprintf("model %q", val))
 	}
+	// A slot runs calls of its own, so it is held to the same list. An
+	// empty slot is the session's own model, which is already allowed.
+	if key != "model" && isSlotKey(key) && val != "" && !cfg.Managed.ModelAllowed(val) {
+		return nil, cfg.Managed.Refusal(fmt.Sprintf("model %q", val))
+	}
 	return set(cfg, val)
 }
 
