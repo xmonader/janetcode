@@ -293,6 +293,10 @@ func (c *Client) loadTools(ctx context.Context) error {
 	var (
 		all    []ToolInfo
 		cursor string
+		// seen holds every cursor already asked for: a server that cycles
+		// through pages (A, B, A) is stopped, not followed until the
+		// handshake times out.
+		seen = map[string]bool{}
 	)
 	for {
 		params := map[string]any{}
@@ -311,9 +315,10 @@ func (c *Client) loadTools(ctx context.Context) error {
 			return fmt.Errorf("bad tools/list result: %w", err)
 		}
 		all = append(all, page.Tools...)
-		if page.NextCursor == "" || page.NextCursor == cursor {
+		if page.NextCursor == "" || seen[page.NextCursor] {
 			break
 		}
+		seen[page.NextCursor] = true
 		cursor = page.NextCursor
 	}
 	c.toolsMu.Lock()
@@ -337,6 +342,8 @@ func (c *Client) loadPrompts(ctx context.Context) error {
 	var (
 		all    []PromptInfo
 		cursor string
+		// see loadTools
+		seen = map[string]bool{}
 	)
 	for {
 		params := map[string]any{}
@@ -355,9 +362,10 @@ func (c *Client) loadPrompts(ctx context.Context) error {
 			return fmt.Errorf("bad prompts/list result: %w", err)
 		}
 		all = append(all, page.Prompts...)
-		if page.NextCursor == "" || page.NextCursor == cursor {
+		if page.NextCursor == "" || seen[page.NextCursor] {
 			break
 		}
+		seen[page.NextCursor] = true
 		cursor = page.NextCursor
 	}
 	c.prompts = all
@@ -429,6 +437,7 @@ func (c *Client) ListResources(ctx context.Context) ([]ResourceInfo, error) {
 	var all []ResourceInfo
 	for _, method := range []string{"resources/list", "resources/templates/list"} {
 		cursor := ""
+		seen := map[string]bool{} // see loadTools
 		for {
 			params := map[string]any{}
 			if cursor != "" {
@@ -451,9 +460,10 @@ func (c *Client) ListResources(ctx context.Context) ([]ResourceInfo, error) {
 			}
 			all = append(all, page.Resources...)
 			all = append(all, page.Templates...)
-			if page.NextCursor == "" || page.NextCursor == cursor {
+			if page.NextCursor == "" || seen[page.NextCursor] {
 				break
 			}
+			seen[page.NextCursor] = true
 			cursor = page.NextCursor
 		}
 	}

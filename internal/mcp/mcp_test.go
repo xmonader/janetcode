@@ -277,3 +277,18 @@ func TestPrompts(t *testing.T) {
 		t.Fatalf("prompt = %q %v", text, err)
 	}
 }
+
+// A server whose cursors cycle (page2 to page3 and back) is not followed
+// round the loop until the handshake times out.
+func TestToolListStopsOnACyclingCursor(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, err := Start(ctx, "fake srv", ServerConfig{Command: os.Args[0], Env: map[string]string{"MCP_FAKE_SERVER": "1", "MCP_FAKE_CURSOR_CYCLE": "1"}}, Options{Root: t.TempDir(), Version: "test", HandshakeTimeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if tools := c.Tools(); len(tools) == 0 || tools[0].Name != "echo" {
+		t.Fatalf("tools = %+v", tools)
+	}
+}
