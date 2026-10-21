@@ -460,3 +460,16 @@ func TestMaxWallTimeStopsTheRun(t *testing.T) {
 		t.Fatalf("result = %s", out.String())
 	}
 }
+
+// --max-wall-time bounds a --watch run too: the watch ends on the limit
+// and the run exits 56, not 0 as if someone had pressed ^C.
+func TestMaxWallTimeStopsAWatch(t *testing.T) {
+	root := t.TempDir()
+	ag := &agent.Agent{Provider: &fake{}, Tools: tool.NewRegistry(), Model: "m"}
+	var out, errOut syncBuffer
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "watch", Stdout: &out, Stderr: &errOut, Cwd: root,
+		Watch: "true", WatchInterval: 10 * time.Millisecond, MaxWallTime: 100 * time.Millisecond})
+	if !errors.Is(err, ErrWallTime) || ExitCode(err) != ExitWallTime {
+		t.Fatalf("err = %v (exit %d), want the wall-time limit (exit %d)\n%s", err, ExitCode(err), ExitWallTime, errOut.String())
+	}
+}

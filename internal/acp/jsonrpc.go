@@ -149,7 +149,11 @@ func (c *conn) call(ctx context.Context, method string, params any, result any) 
 	}
 }
 
-// resolve hands a response to the caller waiting on its id.
+// resolve hands a response to the caller waiting on its id. A caller
+// takes one answer, so one its channel has no room for (a duplicate, or
+// one landing as the caller leaves on a cancelled context) is dropped:
+// waiting to hand it over blocked readLoop, and with it every frame
+// after it, for good.
 func (c *conn) resolve(m message) {
 	id := string(m.ID)
 	if s, err := strconv.Unquote(id); err == nil {
@@ -159,7 +163,10 @@ func (c *conn) resolve(m message) {
 	ch := c.pend[id]
 	c.pendMu.Unlock()
 	if ch != nil {
-		ch <- m
+		select {
+		case ch <- m:
+		default:
+		}
 	}
 }
 

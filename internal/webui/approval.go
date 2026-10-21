@@ -151,7 +151,9 @@ func (s *server) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, 
 	}
 	reply := make(chan []agent.Answer, 1)
 	s.mu.Lock()
-	s.asking = &askReq{questions: qs, reply: reply}
+	// A copy of its own: AskTimedOut marks these proceeded in place, and
+	// qs is the caller's and rides the event below to every page.
+	s.asking = &askReq{questions: append([]agent.Question(nil), qs...), reply: reply}
 	s.setPhaseLocked("waiting for your answer")
 	s.mu.Unlock()
 	s.emit(envelope{Type: "question", Questions: qs})

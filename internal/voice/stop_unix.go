@@ -22,3 +22,13 @@ func signalStop(p *os.Process) error {
 	}
 	return nil
 }
+
+// kill ends the recorder and everything it started. Killing the shell
+// alone left a configured recorder's child running, still recording and
+// holding stderr open, so waiting for the recorder never ended.
+func kill(p *os.Process) error {
+	if err := syscall.Kill(-p.Pid, syscall.SIGKILL); err != nil {
+		return p.Kill()
+	}
+	return nil
+}

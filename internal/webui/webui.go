@@ -584,7 +584,9 @@ func (s *server) snapshot() (helloPayload, []entry, *permPayload, []agent.Questi
 	}
 	var qs []agent.Question
 	if s.asking != nil {
-		qs = s.asking.questions
+		// Copied for the same reason as the entries: AskTimedOut changes
+		// them under the lock while this is serialised outside it.
+		qs = append([]agent.Question(nil), s.asking.questions...)
 	}
 	f := s.stateLocked()
 	s.mu.Unlock()

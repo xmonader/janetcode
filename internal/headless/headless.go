@@ -251,7 +251,9 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 }
 
 // watch re-runs the watched command whenever the tree changes and asks
-// the model to fix failures. It ends when ctx does.
+// the model to fix failures. It ends when ctx does: with no error for a
+// ^C, which is how a watch is meant to stop, but with the cause when
+// --max-wall-time ended it, so the run still exits 56 for the limit.
 func watch(ctx context.Context, opts Options, rec *recorder) error {
 	interval := opts.WatchInterval
 	if interval <= 0 {
@@ -269,7 +271,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 		if fp == last {
 			select {
 			case <-ctx.Done():
-				return nil
+				return watchStopped(ctx)
 			case <-time.After(interval):
 			}
 			continue
@@ -277,7 +279,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 		last = fp
 		out, exit := check(ctx, opts.Cwd, opts.Watch)
 		if ctx.Err() != nil {
-			return nil
+			return watchStopped(ctx)
 		}
 		if exit == 0 {
 			fmt.Fprintf(opts.Stderr, "[watch] ✓ %s\n", opts.Watch)
@@ -298,7 +300,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 		fmt.Fprintf(opts.Stderr, "[watch] asking the model to fix it (%d/%d)\n", fixes, rounds)
 		if err := turn(ctx, opts, rec, []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: sb.String()}}); err != nil {
 			if ctx.Err() != nil {
-				return nil
+				return watchStopped(ctx)
 			}
 			if errors.Is(err, ErrBudget) {
 				// Reaching the ceiling is not a fix-round failure to
@@ -316,6 +318,16 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 		}
 		last = "" // re-check right away: the fix changed the tree
 	}
+}
+
+// watchStopped is what a watch returns once ctx has ended: nil for an
+// interrupt, and the context's error when the wall-time limit ended it,
+// which Run reports as that limit.
+func watchStopped(ctx context.Context) error {
+	if errors.Is(context.Cause(ctx), ErrWallTime) {
+		return ctx.Err()
+	}
+	return nil
 }
 
 // remember extracts durable facts from the turn into project memory.

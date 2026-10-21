@@ -95,6 +95,32 @@ func TestRecordStopsTheRecorderWithAnInterrupt(t *testing.T) {
 	}
 }
 
+// A cancelled recording ends the recorder's children too. A configured
+// recorder runs under a shell, and killing the shell alone left its child
+// recording and holding stderr open, so Record waited on it for as long
+// as the child ran.
+func TestRecordCancelledStopsTheRecordersChildren(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell recorder")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(200 * time.Millisecond); cancel() }()
+	done := make(chan error, 1)
+	go func() {
+		// Two commands, so the shell forks sleep rather than exec'ing it.
+		_, err := Record(ctx, `sleep 30; true`, make(chan struct{}))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Record did not return after its context was cancelled: the recorder's child is still running")
+	}
+}
+
 func TestRecordReportsARecorderThatCannotStart(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX shell recorder")
