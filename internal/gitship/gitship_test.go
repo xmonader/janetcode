@@ -181,3 +181,38 @@ func TestPullRequestNeedsGH(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// A session started through a symlink to the repository records its
+// changes under the symlink, while git reports the top level resolved.
+// The two did not compare, so /commit found nothing of the session's and
+// listed its own files as someone else's.
+func TestPlanCommitThroughASymlink(t *testing.T) {
+	dir := repo(t)
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	a := write(t, link, "a.go", "package a\n\nfunc A() {}\n")
+	plan, err := PlanCommit(context.Background(), link, []string{a})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(plan.Files, []string{"a.go"}) || len(plan.Others) != 0 {
+		t.Fatalf("files = %v, others = %v; want [a.go] and none", plan.Files, plan.Others)
+	}
+}
+
+// A new file whose name git quotes (non-ASCII) is in the draft's diff
+// under its real name; listed without -z it was the quoted spelling,
+// which no file has, and was left out.
+func TestPlanCommitDiffHoldsQuotedNewFile(t *testing.T) {
+	dir := repo(t)
+	f := write(t, dir, "café.txt", "hello\n")
+	plan, err := PlanCommit(context.Background(), dir, []string{f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plan.Diff, "new file café.txt:\nhello") {
+		t.Fatalf("diff lacks the new file:\n%s", plan.Diff)
+	}
+}

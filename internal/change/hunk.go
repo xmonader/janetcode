@@ -70,6 +70,9 @@ func MakeHunks(edits []Edit) []Hunk {
 			if edits[j].Op == '=' {
 				eq++
 				if eq > 2*hunkContext {
+					// Past this edit, as the run eq counts includes it, so
+					// the trim below leaves hunkContext lines.
+					j++
 					break
 				}
 			} else {

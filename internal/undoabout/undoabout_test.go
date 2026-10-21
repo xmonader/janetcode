@@ -80,6 +80,17 @@ func TestResolveSelectionIsOptIn(t *testing.T) {
 	if len(sel.Undo) != 0 || len(sel.Keep) != 2 {
 		t.Fatalf("undo=%+v keep=%+v", sel.Undo, sel.Keep)
 	}
+
+	// A change the model also kept, or also called mixed, is not undone:
+	// a contradictory reply is not the clear match undo needs, and mixed
+	// is what makes apply refuse without --force.
+	sel = resolveSelection(cands, []int{1, 2}, []int{1}, []mixedSeq{{Seq: 2, Why: "both"}}, "")
+	if len(sel.Undo) != 0 {
+		t.Fatalf("a contradicted change was undone: undo = %+v", sel.Undo)
+	}
+	if len(sel.Mixed) != 1 || sel.Mixed[0].Change.Seq != 2 {
+		t.Fatalf("mixed = %+v, want #2", sel.Mixed)
+	}
 }
 
 func TestParseSelectionReply(t *testing.T) {

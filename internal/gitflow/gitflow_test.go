@@ -303,3 +303,26 @@ func TestPRCommentsAndIssue(t *testing.T) {
 		t.Fatalf("issue = %s", is)
 	}
 }
+
+// An untracked file with a name git quotes (non-ASCII, by core.quotePath)
+// is committed under its real name. ls-files without -z printed it as
+// "caf\303\251.txt", quotes and all, and `git add --` of that matched
+// nothing, so the whole /commit failed.
+func TestCommitUntrackedFileWithQuotedName(t *testing.T) {
+	dir := repo(t)
+	ctx := context.Background()
+	write(t, dir, "café.txt", "hello\n")
+	c, err := Pending(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(c.Diff, "+hello") {
+		t.Fatalf("the new file's content is not in the diff:\n%s", c.Diff)
+	}
+	if _, err := Commit(ctx, dir, "feat: café"); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, dir, "-c", "core.quotePath=false", "show", "--name-only", "--format=", "HEAD"); got != "café.txt" {
+		t.Fatalf("committed %q, want café.txt", got)
+	}
+}
