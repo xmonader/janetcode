@@ -108,22 +108,33 @@ func buildRequest(req llm.Request, o buildOpts) request {
 }
 
 // contents converts the history. Tool results need the name of the call
-// they answer, which only the assistant message that made it knows, so
-// the calls are indexed first.
+// they answer, which only the assistant message that made it knows.
+//
+// An id is not unique across the history: Gemini sends none, so every
+// turn's first call is gemini_call_1, and the agent replies to a renamed
+// repeat under the original id. A result is therefore looked up among
+// the calls of the assistant message just before it, and only then in
+// the whole history (a result whose step was cut down by compaction).
 func contents(msgs []llm.Message, sentinel bool) []content {
-	calls := map[string]llm.Block{}
+	all := map[string]llm.Block{}
 	for _, m := range msgs {
 		for _, b := range m.ToolUses() {
-			calls[b.ID] = b
+			all[b.ID] = b
 		}
 	}
+	var step map[string]llm.Block
 	out := make([]content, 0, len(msgs))
 	for _, m := range msgs {
 		var c content
 		if m.Role == llm.RoleAssistant {
 			c = modelContent(m, sentinel)
+			step = map[string]llm.Block{}
+			for _, b := range m.ToolUses() {
+				step[b.ID] = b
+				step[b.WireID()] = b
+			}
 		} else {
-			c = userContent(m, calls)
+			c = userContent(m, step, all)
 		}
 		if len(c.Parts) > 0 {
 			out = append(out, c)
@@ -170,7 +181,7 @@ func modelContent(m llm.Message, sentinel bool) content {
 	return c
 }
 
-func userContent(m llm.Message, calls map[string]llm.Block) content {
+func userContent(m llm.Message, step, all map[string]llm.Block) content {
 	c := content{Role: "user"}
 	for _, b := range m.Blocks {
 		switch b.Type {
@@ -181,7 +192,10 @@ func userContent(m llm.Message, calls map[string]llm.Block) content {
 		case llm.BlockImage:
 			c.Parts = append(c.Parts, part{InlineData: &blob{MimeType: b.MediaType, Data: b.Data}})
 		case llm.BlockToolResult:
-			call, ok := calls[b.ToolUseID]
+			call, ok := step[b.ToolUseID]
+			if !ok {
+				call, ok = all[b.ToolUseID]
+			}
 			name, id := call.Name, call.WireID()
 			if !ok {
 				// A result whose call was compacted away; the API still

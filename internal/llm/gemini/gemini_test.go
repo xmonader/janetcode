@@ -243,6 +243,35 @@ func TestListModels(t *testing.T) {
 	}
 }
 
+// Gemini sends no call ids, so every turn's first call is gemini_call_1,
+// and the agent, finding that id taken, renames the later call and
+// replies under the original. Results were named by looking the id up in
+// one map of the whole history, so each turn's result took the name of
+// whichever gemini_call_1 the map held: a bash result went back as the
+// answer to read_file.
+func TestRepeatedCallIDsNameEachResultByItsOwnCall(t *testing.T) {
+	hist := []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: callPrefix + "1", Name: "read_file", Input: json.RawMessage(`{}`)},
+		}},
+		llm.ToolResultMessage(llm.ToolResult(callPrefix+"1", "package a", false)),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: callPrefix + "1#2", ReplyID: callPrefix + "1", Name: "bash", Input: json.RawMessage(`{}`)},
+		}},
+		llm.ToolResultMessage(llm.ToolResult(callPrefix+"1", "ok", false)),
+	}
+	c := contents(hist, false)
+	if len(c) != 5 {
+		t.Fatalf("contents = %+v", c)
+	}
+	for i, want := range map[int]string{2: "read_file", 4: "bash"} {
+		if got := c[i].Parts[0].FunctionResponse.Name; got != want {
+			t.Errorf("result %d is named %q, want %q", i, got, want)
+		}
+	}
+}
+
 // jsonAt walks decoded JSON by keys and indexes; nil when absent.
 func jsonAt(v any, path ...any) any {
 	for _, p := range path {
