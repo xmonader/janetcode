@@ -2,6 +2,7 @@ package httpstream
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -186,6 +187,30 @@ func TestReadSSENamesANonSSEBody(t *testing.T) {
 	})
 	if !errors.Is(err, ErrEndedEarly) || !llm.Truncated(err) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// SSE lets one event carry its data over several data: lines, joined by
+// newlines. Each line was handed on as a frame of its own, so a server
+// (or a proxy in front of it) that split a long JSON frame that way got
+// every half refused as a malformed chunk, the call retried until the
+// budget ran out, and then failed. A server that sends no blank line
+// between frames still gets each complete frame handed on at once.
+func TestReadSSEJoinsAnEventsDataLines(t *testing.T) {
+	var got []string
+	err := ReadSSE(strings.NewReader("event: e\ndata: {\"a\":\ndata: 1}\n\ndata: {\"b\":2}\ndata: {\"c\":3}\n\ndata: [DONE]\n\n"), nil, "x", func(ev string, data []byte) (bool, error) {
+		if !json.Valid(data) {
+			return false, llm.Truncate(fmt.Errorf("bad frame %q", data))
+		}
+		got = append(got, ev+" "+string(data))
+		return false, nil
+	})
+	if !errors.Is(err, ErrEndedEarly) {
+		t.Fatalf("err = %v", err)
+	}
+	want := []string{"e {\"a\":\n1}", " {\"b\":2}", " {\"c\":3}"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("frames = %q, want %q", got, want)
 	}
 }
 

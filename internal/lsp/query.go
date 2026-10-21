@@ -104,14 +104,37 @@ func (c *client) sync(ctx context.Context, abs, text string) error {
 	}
 	c.synced[uri] = sum
 	c.docM.Unlock()
+	var err error
 	if !open {
-		return c.notifyCtx(ctx, "textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		err = c.notifyCtx(ctx, "textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 			"uri": uri, "languageId": languageID(abs), "version": version, "text": text}})
+	} else {
+		err = c.notifyCtx(ctx, "textDocument/didChange", map[string]any{
+			"textDocument":   map[string]any{"uri": uri, "version": version},
+			"contentChanges": []map[string]any{{"text": text}},
+		})
 	}
-	return c.notifyCtx(ctx, "textDocument/didChange", map[string]any{
-		"textDocument":   map[string]any{"uri": uri, "version": version},
-		"contentChanges": []map[string]any{{"text": text}},
-	})
+	if err != nil {
+		c.unsent(uri, version, open)
+	}
+	return err
+}
+
+// unsent forgets what sync or diagnose recorded for a notification that
+// did not reach the server. Left in place, the next sync of the same text
+// finds the document open with a matching hash and sends nothing, so the
+// server is asked about a file it was never given. A newer send for the
+// document in the meantime owns the record and is left alone.
+func (c *client) unsent(uri string, version int, wasOpen bool) {
+	c.docM.Lock()
+	defer c.docM.Unlock()
+	if c.docs[uri] != version {
+		return
+	}
+	delete(c.synced, uri)
+	if !wasOpen {
+		delete(c.docs, uri)
+	}
 }
 
 // Point resolves where in a file a query points. A caller gives a line

@@ -188,6 +188,7 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 		})
 	}
 	if err != nil {
+		c.unsent(uri, version, open)
 		return nil, false, err
 	}
 	// Servers that support didSave often run their heavier checks then.

@@ -156,42 +156,70 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 	var preamble strings.Builder
 	// Blocks are emitted in the order: thinking, text, tool calls, matching how
 	// the model produced them well enough for history replay.
-	for sc.Scan() {
-		wd.Tick()
-		line := sc.Text()
-		if !strings.HasPrefix(line, "data:") {
-			// ":" opens an SSE comment, the usual keep-alive; anything
-			// else non-blank is a field we do not use, or not SSE at all.
-			if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, ":") && preamble.Len() < 400 {
-				preamble.WriteString(t)
-				preamble.WriteByte('\n')
-			}
-			continue
-		}
-		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+	// An SSE event may carry its data over several data: lines, joined
+	// with newlines and ended by a blank line. pending gathers them; a
+	// frame is handed on at the blank line, or as soon as what has been
+	// gathered is a whole JSON value, so a gateway that never sends the
+	// blank line is still read frame by frame.
+	var pending []string
+	chunk := func() error {
+		data := strings.TrimSpace(strings.Join(pending, "\n"))
+		pending = nil
 		if data == "[DONE]" {
 			gotDone = true
-			break
+			return nil
 		}
 		if data == "" {
 			// Gateways send an empty data frame as a keep-alive. Handing
 			// it to the JSON decoder ends the turn with "unexpected end
 			// of JSON input" halfway through a working stream.
-			continue
+			return nil
 		}
 		var ch wireChunk
 		if err := json.Unmarshal([]byte(data), &ch); err != nil {
-			return nil, llm.Truncate(fmt.Errorf("openai: bad stream chunk: %w", err))
+			return llm.Truncate(fmt.Errorf("openai: bad stream chunk: %w", err))
 		}
 		if ch.Error != nil {
 			// The server spoke: a structured refusal is not a truncation.
-			return nil, streamError(ch.Error)
+			return streamError(ch.Error)
 		}
 		gotChunk = true
 		st.add(ch)
+		return nil
+	}
+	for !gotDone && sc.Scan() {
+		wd.Tick()
+		line := sc.Text()
+		if !strings.HasPrefix(line, "data:") {
+			// ":" opens an SSE comment, the usual keep-alive; anything
+			// else non-blank is a field we do not use, or not SSE at all.
+			t := strings.TrimSpace(line)
+			if t == "" && len(pending) > 0 {
+				if err := chunk(); err != nil {
+					return nil, err
+				}
+			}
+			if t != "" && !strings.HasPrefix(t, ":") && preamble.Len() < 400 {
+				preamble.WriteString(t)
+				preamble.WriteByte('\n')
+			}
+			continue
+		}
+		pending = append(pending, strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
+		if joined := strings.Join(pending, "\n"); strings.TrimSpace(joined) != "[DONE]" && !json.Valid([]byte(joined)) {
+			continue
+		}
+		if err := chunk(); err != nil {
+			return nil, err
+		}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, llm.Truncate(fmt.Errorf("openai: stream read: %w", err))
+	}
+	if len(pending) > 0 {
+		if err := chunk(); err != nil {
+			return nil, err
+		}
 	}
 	if !gotChunk {
 		if body := strings.TrimSpace(preamble.String()); body != "" {

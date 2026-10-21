@@ -220,10 +220,7 @@ func (s *stream) finishItem(i int, it item) {
 		if args == "" {
 			args = sl.args.String()
 		}
-		if strings.TrimSpace(args) == "" {
-			args = "{}"
-		}
-		sl.block.Input = json.RawMessage(args)
+		sl.block.Input = arguments(args, true)
 		if !sl.done {
 			sl.done = true
 			end := sl.block
@@ -254,6 +251,25 @@ func (s *stream) finishItem(i int, it item) {
 	}
 }
 
+// arguments turns a call's argument text into its input. Text that is
+// not JSON cannot go into the block as it is: the session log and the
+// next request both marshal it, and encoding/json refuses an invalid raw
+// message. A structural slip in a call that closed is mended; anything
+// else is wrapped, so the model is told to resend the call (as the chat
+// completions path does).
+func arguments(args string, closed bool) json.RawMessage {
+	if strings.TrimSpace(args) == "" {
+		return json.RawMessage(`{}`)
+	}
+	if json.Valid([]byte(args)) {
+		return json.RawMessage(args)
+	}
+	if fixed, ok := llm.RepairJSON(args); ok && closed {
+		return json.RawMessage(fixed)
+	}
+	return llm.InvalidArguments(args)
+}
+
 func callID(it item) string {
 	if it.CallID != "" {
 		return it.CallID
@@ -275,12 +291,9 @@ func (s *stream) response() *llm.Response {
 		switch b.Type {
 		case llm.BlockToolUse:
 			if len(b.Input) == 0 {
-				// Arguments streamed but the item never closed.
-				args := sl.args.String()
-				if strings.TrimSpace(args) == "" {
-					args = "{}"
-				}
-				b.Input = json.RawMessage(args)
+				// Arguments streamed but the item never closed: the reply
+				// was cut off, so they are never mended.
+				b.Input = arguments(sl.args.String(), false)
 			}
 			calls = true
 		case llm.BlockText:

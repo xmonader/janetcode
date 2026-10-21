@@ -12,6 +12,25 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
+// SSE lets one event carry its data over several data: lines. Each line
+// was decoded as a chunk of its own, so a gateway that split a long frame
+// that way had the first half refused as a malformed chunk, and the call
+// retried until it failed. A gateway that sends no blank line between
+// frames is still read frame by frame.
+func TestAFrameSplitOverDataLinesIsOneChunk(t *testing.T) {
+	body := "data: {\"choices\":[{\"delta\":\ndata: {\"content\":\"hel\"}}]}\n\n" +
+		"data: {\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n" +
+		"data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n" +
+		"data: [DONE]\n"
+	resp, err := readStream(strings.NewReader(body), nil, func(llm.Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Message.Text() != "hello" || resp.StopReason != llm.StopEndTurn {
+		t.Fatalf("text=%q stop=%s", resp.Message.Text(), resp.StopReason)
+	}
+}
+
 // A stream that dies partway through never produced an answer, so the
 // whole request is retried as one fresh attempt over the intact history;
 // the partial deltas were only ever events, and the retried response

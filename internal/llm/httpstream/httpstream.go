@@ -257,12 +257,31 @@ func ErrorMessage(raw []byte) string {
 // preceded it ("" when none did), until frame reports the terminal frame.
 // A body that ends first is an llm.Truncate error, naming whatever the
 // server sent instead of SSE when that was all it sent.
+//
+// An event may carry its data over several data: lines, which SSE joins
+// with newlines and hands on at the blank line that ends the event. A
+// frame is also handed on as soon as what has been gathered is a whole
+// JSON value, so a server that never sends the blank line still has
+// every frame read as it arrives.
 func ReadSSE(r io.Reader, wd *llm.Watchdog, name string, frame func(event string, data []byte) (done bool, err error)) error {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	var preamble strings.Builder
 	event := ""
+	var data []string
 	frames := 0
+	// flush hands on the event gathered so far, if there is one.
+	flush := func() (bool, error) {
+		payload := strings.TrimSpace(strings.Join(data, "\n"))
+		ev := event
+		data = nil
+		if payload == "" || payload == "[DONE]" {
+			return false, nil
+		}
+		event = ""
+		frames++
+		return frame(ev, []byte(payload))
+	}
 	for sc.Scan() {
 		wd.Tick()
 		line := sc.Text()
@@ -272,6 +291,10 @@ func ReadSSE(r io.Reader, wd *llm.Watchdog, name string, frame func(event string
 			continue
 		case strings.HasPrefix(line, "data:"):
 		case strings.TrimSpace(line) == "":
+			done, err := flush()
+			if err != nil || done {
+				return err
+			}
 			event = ""
 			continue
 		default:
@@ -281,21 +304,20 @@ func ReadSSE(r io.Reader, wd *llm.Watchdog, name string, frame func(event string
 			}
 			continue
 		}
-		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if data == "" || data == "[DONE]" {
+		data = append(data, strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
+		if joined := strings.Join(data, "\n"); strings.TrimSpace(joined) != "[DONE]" && !json.Valid([]byte(joined)) {
 			continue
 		}
-		frames++
-		done, err := frame(event, []byte(data))
-		if err != nil {
+		done, err := flush()
+		if err != nil || done {
 			return err
-		}
-		if done {
-			return nil
 		}
 	}
 	if err := sc.Err(); err != nil {
 		return llm.Truncate(fmt.Errorf("%s: stream read: %w", name, err))
+	}
+	if done, err := flush(); err != nil || done {
+		return err
 	}
 	if frames == 0 {
 		if body := strings.TrimSpace(preamble.String()); body != "" {
