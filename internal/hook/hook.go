@@ -434,6 +434,9 @@ type Output struct {
 	Continue string `json:"continue,omitempty"`
 	// Message is shown to the user and not to the model.
 	Message string `json:"message,omitempty"`
+	// halt marks a block that came from the other harnesses'
+	// "continue": false, which means "stop here" (see parseOutput).
+	halt bool
 }
 
 // Result is the combined verdict of every hook that ran for an event.
@@ -545,6 +548,11 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 				o.Reason = "blocked by " + label
 			}
 			if in.Event == Stop {
+				if o.halt {
+					// "Stop here" on a stop event is the turn ending
+					// as it was going to, not the model sent back.
+					return res
+				}
 				res.Continue = o.Reason
 				return res
 			}

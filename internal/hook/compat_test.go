@@ -106,3 +106,19 @@ func TestTheirAnswersAreUnderstood(t *testing.T) {
 		t.Fatalf("ask: %+v", res)
 	}
 }
+
+// On their Stop hook, "continue": false means "stop now": it outranks a
+// block, which is what sends the model back to work. Read as a block,
+// it did the opposite and fed the stopReason back as the next prompt.
+func TestTheirContinueFalseOnStopLetsTheTurnEnd(t *testing.T) {
+	r := &Runner{Cwd: t.TempDir(), Config: Config{Hooks: Hooks{Stop: {{Command: `echo '{"continue": false, "stopReason": "budget spent"}'`}}}}}
+	res := r.Run(context.Background(), Input{Event: Stop, Text: "done"})
+	if res.Continue != "" || res.Denied {
+		t.Fatalf("continue:false sent the model back to work: %+v", res)
+	}
+	// A block is still a block.
+	r = &Runner{Cwd: t.TempDir(), Config: Config{Hooks: Hooks{Stop: {{Command: `echo '{"decision": "block", "reason": "run the tests"}'`}}}}}
+	if res := r.Run(context.Background(), Input{Event: Stop, Text: "done"}); res.Continue != "run the tests" {
+		t.Fatalf("block on stop: %+v", res)
+	}
+}
