@@ -158,3 +158,27 @@ func TestCollidingBranchNamesAreRefusedNotReused(t *testing.T) {
 		t.Fatalf("reopening the original: %v", err)
 	}
 }
+
+// With the repository's own HEAD detached, the branch's commits are
+// counted against that commit. "HEAD" was resolved in the worktree,
+// where it is the branch itself, so every commit read as none.
+func TestSummarizeFromADetachedRepository(t *testing.T) {
+	ctx := context.Background()
+	repo := initRepo(t)
+	cmd := exec.Command("git", "checkout", "-q", "--detach")
+	cmd.Dir = repo
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	wt, err := Open(ctx, repo, "feature/y")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt.Path, "b.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commit(t, wt.Path, "add b")
+	if s := wt.Summarize(ctx); s.Commits != 1 {
+		t.Fatalf("summary = %+v, want 1 commit", s)
+	}
+}

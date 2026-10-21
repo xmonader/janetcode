@@ -153,7 +153,9 @@ func (t *Tree) Summarize(ctx context.Context) Summary {
 		s.Base = base
 	}
 	if s.Base != "" {
-		if out, err := gitx.Run(ctx, t.Path, nil, "rev-list", "--count", s.Base+".."+t.Branch); err == nil {
+		// In the repository, not the checkout: a detached repository's
+		// base is "HEAD", which in the checkout is the branch itself.
+		if out, err := gitx.Run(ctx, t.Repo, nil, "rev-list", "--count", s.Base+".."+t.Branch); err == nil {
 			fmt.Sscanf(out, "%d", &s.Commits)
 		}
 	}
