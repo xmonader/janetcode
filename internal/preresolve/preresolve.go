@@ -282,17 +282,21 @@ type resolver struct {
 // ambiguous and resolve to neither.
 func (r *resolver) path(p string) (string, bool) {
 	p = strings.TrimPrefix(filepath.ToSlash(p), "./")
+	// The whole list is scanned before giving up on a shared tail: the
+	// file the path names exactly may come after two that end in it.
 	var hit string
+	ambiguous := false
 	for _, f := range r.ix.Files {
 		if f.Path == p {
 			return p, true
 		}
 		if strings.HasSuffix(f.Path, "/"+p) {
-			if hit != "" {
-				return "", false
-			}
+			ambiguous = ambiguous || hit != ""
 			hit = f.Path
 		}
+	}
+	if ambiguous {
+		return "", false
 	}
 	return hit, hit != ""
 }

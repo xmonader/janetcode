@@ -44,6 +44,7 @@ import (
 	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -489,6 +490,15 @@ func runTest(ctx context.Context, dir, cmd string, timeout time.Duration) (faile
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	c := exec.CommandContext(ctx, "sh", "-c", cmd)
+	// Without a process group the timeout kills the shell alone, and the
+	// wait then blocks on the output pipe for as long as anything the
+	// test started still holds it: one probe of a test that leaks a
+	// server hung the whole bisection. Supervise kills the group and
+	// bounds that wait. The environment is scrubbed of the agent's
+	// credentials, as verify's commands are: this runs the project's
+	// tests at states the model wrote.
+	shell.Supervise(c)
+	c.Env = shell.ScrubEnv(os.Environ())
 	c.Dir = dir
 	b, err := c.CombinedOutput()
 	out = string(b)

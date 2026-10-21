@@ -53,6 +53,26 @@ func TestScanNoticesAnEditedLinkedSkillFile(t *testing.T) {
 	}
 }
 
+// A single-file skill that links out of the skills directory is a
+// critical finding, as a directory skill's link out is: the link is read
+// through and attached to the model, so .claude/skills/aws.md pointing at
+// ~/.aws/credentials would hand the file to the request that names aws.
+func TestScanFlagsASingleFileSkillLinkingOutside(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "credentials")
+	if err := os.WriteFile(outside, []byte("[default]\naws_access_key_id = x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	skills := t.TempDir()
+	link := filepath.Join(skills, "aws.md")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	crit := Blocking(Scan(link, ""))
+	if len(crit) != 1 || crit[0].Rule != "links outside the skill" {
+		t.Fatalf("a single-file skill linking outside was not blocked: %v", Scan(link, ""))
+	}
+}
+
 // Common spellings of the shapes the rules name.
 func TestScanFindsCommonSpellings(t *testing.T) {
 	cases := []struct{ file, body, rule string }{

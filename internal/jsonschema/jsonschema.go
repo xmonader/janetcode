@@ -74,6 +74,22 @@ func (s *Schema) prepare(node any, at string) error {
 			if k == "enum" || k == "const" || k == "default" || k == "examples" {
 				continue // values, not schemas
 			}
+			// These hold a map from a name to a schema. The names are
+			// the user's, so a property called "default" is still a
+			// schema: walk each one as a schema, not as keywords.
+			if m, ok := n[k].(map[string]any); ok && schemaMaps[k] {
+				names := make([]string, 0, len(m))
+				for name := range m {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				for _, name := range names {
+					if err := s.prepare(m[name], at+"/"+k+"/"+name); err != nil {
+						return err
+					}
+				}
+				continue
+			}
 			if err := s.prepare(n[k], at+"/"+k); err != nil {
 				return err
 			}
@@ -86,6 +102,12 @@ func (s *Schema) prepare(node any, at string) error {
 		}
 	}
 	return nil
+}
+
+// schemaMaps are the keywords whose value maps user-chosen names to schemas.
+var schemaMaps = map[string]bool{
+	"properties": true, "patternProperties": true, "$defs": true,
+	"definitions": true, "dependentSchemas": true,
 }
 
 // resolve follows a local JSON pointer ("#", "#/$defs/Name").

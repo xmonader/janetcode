@@ -3,6 +3,7 @@ package gaming
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 const invoiceTest = `def test_simple_invoice():
@@ -105,5 +106,13 @@ func TestLiteralsDistinctive(t *testing.T) {
 		if !want[l] {
 			t.Fatalf("unexpected %q in %v", l, got)
 		}
+	}
+}
+
+// A clipped line in a finding is cut on a rune boundary, not inside a
+// character.
+func TestTextClipStaysValidUTF8(t *testing.T) {
+	if s := textClip(strings.Repeat("é", 10), 7); !utf8.ValidString(s) {
+		t.Fatalf("textClip left half a character: %q", s)
 	}
 }

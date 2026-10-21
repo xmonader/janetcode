@@ -218,8 +218,10 @@ func parseOutput(text string) (o Output, ok bool) {
 	}
 	switch c := strings.TrimSpace(string(raw.Continue)); {
 	case c == "false":
-		// Theirs: stop here. Read as a block, with stopReason as why.
-		o.Decision = "block"
+		// Theirs: stop here. Read as a block, with stopReason as why,
+		// except on a stop event, where it outranks a block and lets the
+		// turn end (Run reads halt).
+		o.Decision, o.halt = "block", true
 		if o.Reason == "" {
 			o.Reason = raw.StopReason
 		}

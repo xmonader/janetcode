@@ -184,3 +184,37 @@ func TestRunPassesARealRefactor(t *testing.T) {
 		t.Errorf("targets = %+v", r.Targets)
 	}
 }
+
+// Code under comparison that leaves a child running (a server started
+// and never stopped) must not outlive the run: cancelling it has to kill
+// the test binary and what it started, not go test alone.
+func TestRunKillsALeakedChildOnCancel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds and fuzzes")
+	}
+	if _, err := exec.LookPath("pgrep"); err != nil {
+		t.Skip("no pgrep")
+	}
+	const marker = "137.25" // an odd sleep, so pgrep finds only this test's
+	leak := strings.Replace(oldSrc, `import "strings"`, `import (
+	"os"
+	"os/exec"
+	"strings"
+)
+
+func init() {
+	c := exec.Command("sleep", "`+marker+`")
+	c.Stdout = os.Stdout
+	_ = c.Start()
+}`, 1)
+	after := strings.Replace(leak, "if n < 0 {\n\t\treturn 0\n\t}\n\treturn n", "return max(n, 0)", 1)
+	root, files := goModule(t, leak, after)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	Run(ctx, Request{Root: root, Files: files, Budget: 2 * time.Second})
+	time.Sleep(500 * time.Millisecond)
+	if out, err := exec.Command("pgrep", "-f", "sleep "+marker).Output(); err == nil {
+		_ = exec.Command("pkill", "-f", "sleep "+marker).Run()
+		t.Fatalf("the child outlived the cancelled run: pids %s", strings.TrimSpace(string(out)))
+	}
+}

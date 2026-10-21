@@ -172,6 +172,20 @@ func TestResolveAmbiguousPathTail(t *testing.T) {
 	}
 }
 
+// A path that is itself a file names that file, however many other files
+// end in it, and wherever it falls in the index's order.
+func TestResolveExactPathBeatsSharedTail(t *testing.T) {
+	ix := preresolveRepo(t, map[string]string{
+		"a/b/util.go":   "package b\n",
+		"a/c/b/util.go": "package b\n",
+		"b/util.go":     "package b\n\nfunc Exact() {}\n",
+	})
+	res := Resolve(ix, "fix b/util.go", 0)
+	if _, ok := res.Whole["b/util.go"]; !ok {
+		t.Fatalf("the exact path did not resolve: whole=%v text=\n%s", res.Whole, res.Text)
+	}
+}
+
 func TestResolveKeepsToTheBudget(t *testing.T) {
 	ix := preresolveRepo(t, map[string]string{
 		"cache/cache.go":      preresolveCacheGo,

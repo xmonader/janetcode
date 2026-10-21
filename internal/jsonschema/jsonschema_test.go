@@ -133,3 +133,27 @@ func TestBooleanSchema(t *testing.T) {
 		t.Error("false schema allowed a value")
 	}
 }
+
+// A property may be named like a value keyword ("default", "enum",
+// "const", "examples"). Its schema is still a schema: its pattern must be
+// compiled and its $ref checked, or Validate panics on a nil regexp and a
+// broken $ref passes Compile unnoticed.
+func TestPropertyNamedLikeValueKeyword(t *testing.T) {
+	s, err := Compile([]byte(`{"properties":{"default":{"type":"string","pattern":"^a"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Validate([]byte(`{"default":"b"}`)); err == nil || !strings.Contains(err.Error(), "does not match pattern") {
+		t.Errorf("got %v, want a pattern mismatch", err)
+	}
+	if err := s.Validate([]byte(`{"default":"abc"}`)); err != nil {
+		t.Errorf("valid value rejected: %v", err)
+	}
+	if _, err := Compile([]byte(`{"$defs":{"const":{"$ref":"#/$defs/Missing"}}}`)); err == nil {
+		t.Error("a dangling $ref under a definition named const compiled")
+	}
+	// The values of enum and const are still data, not schemas.
+	if _, err := Compile([]byte(`{"enum":[{"$ref":"#/nowhere"}],"const":{"pattern":"("}}`)); err != nil {
+		t.Errorf("enum/const values were read as schemas: %v", err)
+	}
+}

@@ -82,6 +82,12 @@ func TestScheduleDeadlineWins(t *testing.T) {
 	if !p.Start.Equal(at("2026-10-10T14:00:00Z")) || p.Multiplier >= 1 {
 		t.Fatalf("plan %+v", p)
 	}
+	// A run a little over four hours must start a minute earlier: rounding
+	// its length down to whole minutes planned a finish past the deadline.
+	p = live.Schedule("deepseek-chat", now, at("2026-10-10T18:00:00Z"), 4*time.Hour+30*time.Second)
+	if end := p.Start.Add(4*time.Hour + 30*time.Second); end.After(at("2026-10-10T18:00:00Z")) {
+		t.Fatalf("plan %+v finishes at %s, past the deadline", p, end)
+	}
 	// A deadline that leaves no room is "start now".
 	for _, dl := range []string{"2026-10-10T09:00:00Z", "2026-10-10T12:00:00Z"} {
 		if p := live.Schedule("deepseek-chat", now, at(dl), 4*time.Hour); !p.Start.Equal(now) {

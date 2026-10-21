@@ -434,6 +434,9 @@ type Output struct {
 	Continue string `json:"continue,omitempty"`
 	// Message is shown to the user and not to the model.
 	Message string `json:"message,omitempty"`
+	// halt marks a block that came from the other harnesses'
+	// "continue": false, which means "stop here" (see parseOutput).
+	halt bool
 }
 
 // Result is the combined verdict of every hook that ran for an event.
@@ -545,6 +548,11 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 				o.Reason = "blocked by " + label
 			}
 			if in.Event == Stop {
+				if o.halt {
+					// "Stop here" on a stop event is the turn ending
+					// as it was going to, not the model sent back.
+					return res
+				}
 				res.Continue = o.Reason
 				return res
 			}
@@ -684,7 +692,10 @@ type capped struct {
 }
 
 func (c *capped) Write(p []byte) (int, error) {
-	if room := c.max - c.buf.Len(); room > 0 {
+	// Once anything is dropped, everything after it is too: room left by
+	// stopping short of a rune would otherwise take a later write's bytes,
+	// and the kept text would skip what was dropped in between.
+	if room := c.max - c.buf.Len(); room > 0 && c.dropped == 0 {
 		// >=, not >: a write that exactly fills the room is kept whole,
 		// and the loop below would otherwise read p[len(p)].
 		if room >= len(p) {

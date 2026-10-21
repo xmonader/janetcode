@@ -190,7 +190,9 @@ const step = time.Minute
 // "start now": the deadline wins over the discount, always.
 func (t Table) Schedule(model string, now, deadline time.Time, est time.Duration) Plan {
 	now = now.Truncate(step)
-	n := max(int(est/step), 1)
+	// The run's length in whole minutes, rounded up: rounded down, a run
+	// of 4h0m30s was planned to finish half a minute past the deadline.
+	n := max(int((est+step-1)/step), 1)
 	// Every candidate start, a minute apart, up to the last one that still
 	// finishes by the deadline; a deadline days away is capped at a week.
 	starts := 0

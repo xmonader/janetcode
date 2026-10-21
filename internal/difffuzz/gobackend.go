@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // The Go backend. For each package the change touched it:
@@ -233,8 +235,19 @@ func runGoPackage(ctx context.Context, goBin string, req Request, p goPackage, l
 		c, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		cmd := exec.CommandContext(c, goBin, args...)
+		// The code under comparison is the model's and runs here. A
+		// timeout or cancel used to kill go alone: the test binary, its
+		// fuzz workers and anything they started (a server) ran on
+		// after the run was over. Supervise kills the whole group and
+		// bounds the wait on the pipe.
+		shell.Supervise(cmd)
 		cmd.Dir, cmd.Env = copyRoot, env
 		out, err := cmd.CombinedOutput()
+		// go test exited 0 and only the leaked child held the pipe:
+		// the run itself passed.
+		if errors.Is(err, exec.ErrWaitDelay) {
+			err = nil
+		}
 		return strings.ReplaceAll(string(out), copyRoot, p.modRoot), err
 	}
 	rep := Report{}
