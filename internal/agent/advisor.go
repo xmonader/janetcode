@@ -188,7 +188,13 @@ func sideTranscript(src []llm.Message, keep, textMax, resultMax int) []llm.Messa
 			case llm.BlockToolUse:
 				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: "called " + b.Name})
 			case llm.BlockToolResult:
-				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: prefix(b.Text, orAll(resultMax, len(b.Text)))})
+				// A result that printed only whitespace trims to nothing,
+				// and an empty text block is refused like the text case's.
+				t := prefix(b.Text, orAll(resultMax, len(b.Text)))
+				if t == "" {
+					continue
+				}
+				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
 			}
 		}
 		if len(blocks) == 0 {

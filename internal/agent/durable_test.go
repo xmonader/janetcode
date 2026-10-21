@@ -261,3 +261,55 @@ func TestUnmarkedOpenTurnIsNotInterrupted(t *testing.T) {
 		t.Fatalf("a marked open turn was not found: %+v", it)
 	}
 }
+
+// Continuing a turn replaces the fold's stand-in answers on the history.
+// That cut has to go through the history lock like every other change:
+// a front-end reads the transcript with MessagesSnapshot while the
+// continuation runs, and an unlocked write is a data race (go test -race).
+func TestContinueReplacesStandInsUnderTheLock(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha content\n"), 0o644)
+	var reads, writes atomic.Int32
+	full := &session.Memory{}
+	a := durableAgent(t, root, &fake{responses: []*llm.Response{stepCalls(), text("all done")}}, &reads, &writes, full)
+	if err := a.Run(context.Background(), "read a and write b", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	events := full.Events()
+	for k := 1; k < len(events); k++ {
+		prefix := append([]session.Event(nil), events[:k]...)
+		it := session.FindInterrupted(prefix)
+		if it == nil || len(it.Calls) == 0 {
+			continue
+		}
+		mem := &session.Memory{}
+		for _, e := range prefix {
+			mem.Append(e)
+		}
+		var reads2, writes2 atomic.Int32
+		b := durableAgent(t, root, &fake{responses: []*llm.Response{text("carried on")}}, &reads2, &writes2, mem)
+		b.Messages = session.FoldSurface(prefix)
+		b.RestoreFromLog()
+		stop := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					_ = b.MessagesSnapshot()
+				}
+			}
+		}()
+		err := b.ContinueInterrupted(context.Background(), func(Event) {})
+		close(stop)
+		<-done
+		if err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	t.Fatal("no crash point with pending calls")
+}

@@ -101,9 +101,10 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 	if in.Offset > len(lines) {
 		return "", fmt.Errorf("%s has only %d lines", e.ID, len(lines))
 	}
-	end := in.Offset - 1 + in.Limit
-	if end > len(lines) {
-		end = len(lines)
+	// Compared before adding, so a huge limit cannot overflow the sum.
+	end := len(lines)
+	if in.Limit < len(lines)-(in.Offset-1) {
+		end = in.Offset - 1 + in.Limit
 	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%s (%s, %d lines), lines %d-%d:\n", e.ID, e.Name, len(lines), in.Offset, end)

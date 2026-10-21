@@ -8,6 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // hostTool is a non-mutating tool that reaches a host named in its input:
@@ -103,4 +104,28 @@ type egressApprover func(ToolCall)
 func (f egressApprover) Approve(ctx context.Context, c ToolCall) (Decision, error) {
 	f(c)
 	return Deny, nil
+}
+
+// The permission audit names what refused a call. A refusal by the
+// egress policy was logged with no basis at all, and so as "unknown".
+func TestEgressRefusalIsAuditedAsThePolicy(t *testing.T) {
+	ran := false
+	f := &fake{responses: []*llm.Response{toolCall("t1", "lookup", `{"host":"evil.example"}`), text("ok")}}
+	a, _ := newAgent(t, f, nil)
+	log := &session.Memory{}
+	a.Log = log
+	a.Tools.Add(hostTool{ran: &ran})
+	a.EgressPolicy = &egress.Policy{Default: egress.Block}
+	if err := a.Run(context.Background(), "go", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range log.Events() {
+		if e.Type == session.TypePermission {
+			if !e.Denied || e.Reason != "egress policy" {
+				t.Fatalf("audited as %q (denied %v), want a denial by the egress policy", e.Reason, e.Denied)
+			}
+			return
+		}
+	}
+	t.Fatal("the refusal left no permission record")
 }
