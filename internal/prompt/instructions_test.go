@@ -7,6 +7,36 @@ import (
 	"testing"
 )
 
+// The total bound holds across files, not only within imports: three
+// nested directories, each with an instruction file just under the
+// per-file cap, used to put all three whole into the prompt, half again
+// over maxInstructionTotal.
+func TestInstructionsKeepTheTotalBoundAcrossFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dir := root
+	body := strings.Repeat("x", maxInstructionBytes-100)
+	for _, sub := range []string{"", "a", "b"} {
+		dir = filepath.Join(dir, sub)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	total := 0
+	for _, in := range Instructions(dir) {
+		total += len(in.Text)
+	}
+	// The truncation marker may add a few bytes; a whole extra file may not.
+	if total > maxInstructionTotal+64 {
+		t.Fatalf("instruction files contributed %d bytes, bound is %d", total, maxInstructionTotal)
+	}
+}
+
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

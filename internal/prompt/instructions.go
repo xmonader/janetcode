@@ -95,8 +95,13 @@ func readInstruction(dir, root string, budget *int) (Instruction, bool) {
 		if text == "" {
 			continue
 		}
-		if len(text) > maxInstructionBytes {
-			text = textfmt.CutBytes(text, maxInstructionBytes) + "\n... (truncated)"
+		// Cut to what is left of the total as well as to the per-file cap:
+		// the total bounds the files together, not only their imports.
+		if limit := min(maxInstructionBytes, max(*budget, 0)); len(text) > limit {
+			if limit == 0 {
+				return Instruction{}, false
+			}
+			text = textfmt.CutBytes(text, limit) + "\n... (truncated)"
 		}
 		*budget -= len(text)
 		label := name
