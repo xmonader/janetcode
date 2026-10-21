@@ -141,8 +141,12 @@ func (o TurnOutcome) Line() string {
 
 // ranRe matches a runner reporting that tests actually executed. Every
 // alternative is anchored or carries a count: "pass" on its own, loose in
-// prose, is what a build log says about itself and is not evidence.
-var ranRe = regexp.MustCompile(`(?im)(^ok\s+\S+|^PASS$|\d+ passed|\d+ tests?,|test result: ok\.|Tests:\s+\d+|OK \(\d+ test|Ran \d+ test|\d+ examples?, \d+ failures|` +
+// prose, is what a build log says about itself and is not evidence. A
+// count must be non-zero: "test result: ok. 0 passed", "Ran 0 tests" and
+// "0 examples" are a runner saying it found nothing, and read as tests
+// they made an empty suite verify a turn. Go's "ok  pkg" line is matched
+// in lower case only, or JUnit's "OK (0 tests)" read as one.
+var ranRe = regexp.MustCompile(`(?im)((?-i:^ok)\s+\S+|^PASS$|\b[1-9]\d* passed|\b[1-9]\d* tests?,|test result: ok\. [1-9]|Tests:\s+[1-9]|OK \([1-9]\d* test|Ran [1-9]\d* test|\b[1-9]\d* examples?, \d+ failures|` +
 	// node --test (spec "ℹ pass N", TAP "# pass N"), mocha, zig, ctest,
 	// bazel, dart — each carries the runner's own count or shape, since a
 	// bare "All tests passed!" is what a model's own script prints.
