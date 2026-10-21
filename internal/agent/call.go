@@ -339,7 +339,7 @@ func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
 	}
 	// /btw is asked while a turn may be running, so the history is copied
 	// under the lock rather than read from under the turn goroutine.
-	msgs := append(a.MessagesSnapshot(), llm.TextMessage(llm.RoleUser, question))
+	msgs := sideQuestion(a.MessagesSnapshot(), question)
 	max := s.MaxTokens
 	if max <= 0 || max > 2048 {
 		max = 2048
@@ -358,4 +358,28 @@ func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
 		return "", fmt.Errorf("empty reply")
 	}
 	return strings.TrimSpace(resp.Message.Text()), nil
+}
+
+// sideQuestion is msgs, a copy the caller owns, with question asked at
+// the end of it. A turn in progress can leave the history ending in the
+// assistant's tool calls while they run, and a request with a tool_use no
+// tool_result answers is refused by every provider: each such call is
+// answered as still running. A history ending in a user message takes the
+// question into it, the way the next turn merges into one.
+func sideQuestion(msgs []llm.Message, question string) []llm.Message {
+	if n := len(msgs); n > 0 && msgs[n-1].Role == llm.RoleAssistant {
+		if uses := msgs[n-1].ToolUses(); len(uses) > 0 {
+			results := make([]llm.Block, 0, len(uses))
+			for _, u := range uses {
+				results = append(results, llm.ToolResult(replyID(u), "(still running; no result yet)", false))
+			}
+			msgs = append(msgs, llm.ToolResultMessage(results...))
+		}
+	}
+	q := llm.Block{Type: llm.BlockText, Text: question}
+	if n := len(msgs); n > 0 && msgs[n-1].Role == llm.RoleUser {
+		msgs[n-1].Blocks = append(msgs[n-1].Blocks, q)
+		return msgs
+	}
+	return append(msgs, llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{q}})
 }
