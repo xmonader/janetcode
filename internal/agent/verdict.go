@@ -355,10 +355,6 @@ func isDocFile(path string) bool {
 // every use of the word "done".
 var claimRe = regexp.MustCompile(`(?i)\b(tests? (now )?(pass|passes|passing|are green|succeed)|all tests? pass|build (succeeds|passes|is green|works)|verified|I (ran|have run) the tests?|checks? pass)\b`)
 
-// FoldOutcome decides the verdict for one turn from its events. It reads
-// only what the harness observed: which files were written, which
-// commands ran, and how they exited. It is FoldOutcomeIn without a
-// workspace root, for a caller that has none to give.
 // checkTarget is what a check command is aimed at: its last argument that
 // is not a flag, a redirection or a shell operator — the test file, the
 // package pattern, the directory. Two commands with the same target are
@@ -422,6 +418,10 @@ func runsScript(cmd string, is func(word string) bool) bool {
 // scratchScript reports whether a command runs a script written inline.
 func scratchScript(cmd string) bool { return scratchRe.MatchString(cmd) }
 
+// FoldOutcome decides the verdict for one turn from its events. It reads
+// only what the harness observed: which files were written, which
+// commands ran, and how they exited. It is FoldOutcomeIn without a
+// workspace root, for a caller that has none to give.
 func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	return FoldOutcomeIn(events, turn, "")
 }
@@ -578,8 +578,6 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			}
 		}
 	}
-	// A red check that a later green check re-ran another way never
-	// reached the code: the model fixed the command, not the code.
 	// The one thing Ran and Passed cannot say: whether anything was run
 	// after the last edit. A turn that edits, tests, edits again and stops
 	// has a green check and a stale one.
@@ -594,6 +592,8 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			return filepath.IsAbs(w) && root != "" && !strings.HasPrefix(w, root+string(filepath.Separator))
 		})
 	}
+	// A red check that a later green check re-ran another way never
+	// reached the code: the model fixed the command, not the code.
 	retired := map[string]bool{}
 	for i, cmd := range order {
 		if !latest[cmd].isErr {
@@ -804,7 +804,8 @@ func (a *Agent) logOutcome(o TurnOutcome) {
 	})
 }
 
-// argPathOf is the file a write or edit named.
+// gamingDelta is the lines an edit or write call removed and added, for
+// the gaming scan; zero when the call names no path.
 func gamingDelta(name, arguments string) gaming.Delta {
 	var in struct {
 		Path      string `json:"path"`
@@ -882,6 +883,7 @@ func (e oneEditArgs) byLine() bool {
 	return e.From > 0 || e.To > 0 || e.FromAnchor != "" || e.ToAnchor != ""
 }
 
+// argPathOf is the file a write or edit named.
 func argPathOf(arguments string) string {
 	var in struct {
 		Path string `json:"path"`
