@@ -496,6 +496,17 @@ func (t *Task) mergeBack(ctx context.Context, id string, kid *subagent, desc str
 		if in, err = w.occInput(wctx); err != nil {
 			return "[merge-back could not read the repaired changes (" + err.Error() + "); the project is untouched by this subagent]\n", true
 		}
+		// The repair round can write paths the first round did not, and
+		// those are as much the harness's to refuse: checked only before
+		// it, a file a deny rule refuses reached the project by way of a
+		// conflict.
+		paths = paths[:0]
+		for _, f := range in.Written {
+			paths = append(paths, f.Path)
+		}
+		if why := t.mergeRefused(w.Root, paths); why != "" {
+			return "\n\n## Not merged: " + why + " (written in the repair round)\nThe project is untouched by this subagent." + unmergedPatch(in, desc), true
+		}
 		res = occ.Check(in)
 	}
 	t.Parent.logEvent(session.Event{Type: session.TypeNotice, Name: "subagent/merge", Output: mergeLog(id, first, res, repaired)})
@@ -560,13 +571,21 @@ func conflictReport(in occ.Input, res occ.Result, desc string, repaired bool) st
 		fmt.Fprintf(&b, "- %s (%s): %s\n", c.Path, c.Kind, c.Detail)
 	}
 	b.WriteString("The project is untouched by this subagent.")
+	return b.String() + unmergedPatch(in, desc)
+}
+
+// unmergedPatch is the subagent's work that was not merged, measured
+// against the project as its checkout last saw it: saved to a file and
+// shown, or "" when it changed nothing.
+func unmergedPatch(in occ.Input, desc string) string {
 	var patch strings.Builder
 	for _, f := range in.Written {
 		patch.WriteString(filePatch(f.Path, f.Base, f.Ours))
 	}
 	if patch.Len() == 0 {
-		return b.String()
+		return ""
 	}
+	var b strings.Builder
 	b.WriteString(" Its work, measured against the project as its checkout last saw it, is below")
 	if path, err := savePatch(patch.String(), desc); err == nil {
 		b.WriteString(" and saved to " + path + " — resolve the conflicts above, then apply what still fits with: git apply " + path)
