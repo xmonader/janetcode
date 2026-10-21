@@ -58,8 +58,9 @@ func PlanCommit(ctx context.Context, dir string, changed []string) (CommitPlan, 
 		return CommitPlan{}, err
 	}
 	ours := map[string]bool{}
+	realRoot := resolved(root)
 	for _, p := range changed {
-		rel, err := filepath.Rel(root, p)
+		rel, err := filepath.Rel(realRoot, resolved(p))
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			continue // outside this repository
 		}
@@ -81,6 +82,28 @@ func PlanCommit(ctx context.Context, dir string, changed []string) (CommitPlan, 
 		plan.Diff = diffOf(ctx, root, plan.Files)
 	}
 	return plan, nil
+}
+
+// resolved is p with symlinks followed in the longest leading part of
+// its directory that exists; the file itself is not followed, since a
+// symlink git tracks is committed as the link. git reports the top level
+// resolved, while a session that started in a symlinked directory names
+// its files through the link. A deleted file, or one in a deleted
+// directory, keeps its missing tail.
+func resolved(p string) string {
+	p = filepath.Clean(p)
+	dir, tail := filepath.Dir(p), filepath.Base(p)
+	for {
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(real, tail)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return filepath.Clean(p)
+		}
+		tail = filepath.Join(filepath.Base(dir), tail)
+		dir = parent
+	}
 }
 
 // Root is the top of the repository containing dir.
