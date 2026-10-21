@@ -328,3 +328,66 @@ func TestSafeReadRefusesTheWritingFormsOfSafePrograms(t *testing.T) {
 		}
 	}
 }
+
+// A command inside a compound command, a function body or a case arm
+// runs as surely as one on its own, and so does one behind a wrapper
+// such as setsid. Each of these was graded by its first word — {, then,
+// a case pattern, setsid — which no check knew, so the rm behind it was
+// ordinary. A pushd moves the shell like a cd and was not followed.
+func TestCompoundCommandsAndMoreWrappersAreLookedInto(t *testing.T) {
+	posixOnly(t)
+	root := "/work/repo"
+	for _, cmd := range []string{
+		"{ rm -rf ~/x; }",
+		"if true; then rm -rf ~/x; fi",
+		"if rm -rf ~/x; then :; fi",
+		"! rm -rf ~/x",
+		"while true; do rm -rf ~/x; done",
+		"until false; do echo hi > ~/x; done",
+		"if false; then :; else rm -rf ~/x; fi",
+		"function f { rm -rf ~/x; }; f",
+		"f() { rm -rf ~/x; }; f",
+		"case x in x) rm -rf ~/x;; esac",
+		"case $1 in\na) ls;;\nb) rm -rf ~/x;;\nesac",
+		"case $1 in a | b) rm -rf ~/x;; esac",
+		"setsid rm -rf ~/x",
+		"ionice -c 3 rm -rf ~/x",
+		"taskset -c 0 rm -rf ~/x",
+		"chrt -f 10 rm -rf ~/x",
+		"busybox rm -rf ~/x",
+		"pushd / && rm -rf tmpdir",
+		"{ cd /; rm -rf tmpdir; }",
+		"if cd /; then rm -rf tmpdir; fi",
+		"{ ls; } > ~/x",
+	} {
+		if risk, why := Classify(cmd, root); risk < RiskUnknown {
+			t.Errorf("Classify(%q) = %v %q, want it to ask", cmd, risk, why)
+		}
+	}
+	for _, cmd := range []string{"{ rm -rf /; }", "then rm -rf /", "setsid rm -rf /"} {
+		if risk, why := Classify(cmd, root); risk != RiskCatastrophic {
+			t.Errorf("Classify(%q) = %v %q, want catastrophic", cmd, risk, why)
+		}
+	}
+	locked := filepath.Join(root, "locked_test.go")
+	for _, cmd := range []string{
+		"case $1 in a) rm locked_test.go;; esac",
+		"if true; then sed -i s/a/b/ locked_test.go; fi",
+	} {
+		if got := WriteTargets(cmd, root); !slices.Contains(got, locked) {
+			t.Errorf("WriteTargets(%q) = %q, missing %s", cmd, got, locked)
+		}
+	}
+	// Ordinary work inside the workspace stays ordinary.
+	for _, cmd := range []string{
+		"if [ -f go.mod ]; then go test ./...; fi",
+		"for f in *.go; do gofmt -l $f; done",
+		"case $x in a) ls;; esac",
+		"pushd sub && ls && popd",
+		"{ go vet ./...; go test ./...; } 2>&1",
+	} {
+		if risk, why := Classify(cmd, root); risk != RiskOrdinary {
+			t.Errorf("Classify(%q) = %v %q, want ordinary", cmd, risk, why)
+		}
+	}
+}

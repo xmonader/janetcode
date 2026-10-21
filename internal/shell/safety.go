@@ -173,6 +173,7 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 		}
 	}
 	entryCwd, entryKnown, moved := cwd, cwdKnown, false
+	inCase := false
 	for _, seg := range Segments(command) {
 		toks := Words(seg)
 		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
@@ -180,6 +181,10 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 			continue
 		}
 		note(classifyOne(seg, toks, root, cwd, cwdKnown, depth))
+		var arm []string
+		if arm, inCase = caseArm(toks, inCase); len(arm) > 0 {
+			note(classifyOne(seg, arm, root, cwd, cwdKnown, depth))
+		}
 	}
 	// A substitution is a command line of its own, run before the
 	// command that holds it — `echo $(rm -rf /)` runs the rm. Where on
@@ -192,6 +197,36 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 		}
 	}
 	return worst, reason
+}
+
+// caseArm reads a segment of a case statement. Segments has already
+// split the arms apart at their ;; and blanked the ) that ends each
+// pattern, so `case $x in a) rm -rf ~/y;; esac` arrives as a segment
+// whose words are case, $x, in, a, rm, … and the command an arm runs
+// sits behind its pattern word, where nothing judged it. arm is the
+// segment's words with the pattern (and the case head) dropped — to be
+// judged as well as the words as they stand, since a pattern spelled
+// with spaces around a | leaves the pattern guess one word out — and
+// stillIn whether the segments after this one are still arms.
+func caseArm(toks []string, inCase bool) (arm []string, stillIn bool) {
+	w := commandWords(toks)
+	if len(w) > 0 && w[0] == "case" {
+		k := slices.Index(w, "in")
+		if k < 0 || k+2 > len(w) {
+			return nil, true
+		}
+		return w[k+2:], true
+	}
+	if !inCase {
+		return nil, false
+	}
+	if len(w) > 0 && w[0] == "esac" {
+		return nil, false
+	}
+	if len(w) > 1 {
+		return w[1:], true
+	}
+	return nil, true
 }
 
 // substitutions returns the bodies of the command and process
@@ -339,7 +374,24 @@ func closeParen(s string, j int) int {
 // target is also unresolvable when the current directory is already
 // unknown and the target is relative.
 func cdTokens(toks []string, cwd string, cwdKnown bool) (dir string, known, isCd bool) {
-	if len(toks) == 0 || toks[0] != "cd" {
+	// `{ cd /; …` and `if cd /; then …` move the shell as plainly as a
+	// bare cd, and pushd moves it as well; popd goes back to a directory
+	// this parser never tracked.
+	toks = commandWords(toks)
+	if len(toks) == 0 {
+		return "", false, false
+	}
+	switch toks[0] {
+	case "cd":
+	case "pushd":
+		if len(toks) != 2 || strings.HasPrefix(toks[1], "+") || strings.HasPrefix(toks[1], "-") {
+			// pushd alone swaps the top two directories and pushd +N
+			// rotates the stack: either way, to somewhere unknown.
+			return "", false, true
+		}
+	case "popd":
+		return "", false, true
+	default:
 		return "", false, false
 	}
 	if len(toks) > 2 {
@@ -394,10 +446,11 @@ func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, d
 	}
 	toks = commandWords(toks)
 	if len(toks) == 0 {
-		return RiskOrdinary, ""
+		return redirectRisk(seg, root, cwd, cwdKnown)
 	}
 	switch toks[0] {
-	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer", "timeout", "xargs":
+	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer", "timeout", "xargs",
+		"setsid", "ionice", "taskset", "chrt", "busybox":
 		return classifyWords(wrapped(toks), seg, root, cwd, cwdKnown, depth+1)
 	case "env":
 		inner, chdir, _ := envWrapped(toks)
@@ -650,14 +703,37 @@ var ifsRe = regexp.MustCompile(`\$(?:\{IFS\}|IFS\b)`)
 // assignmentRe matches a VAR=value word.
 var assignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\+?=`)
 
+// leadingKeywords are the reserved words a command can follow in the
+// same segment once Segments has split at ; && || | and newlines. The
+// closing words (}, fi, done, esac) are left alone: one may carry the
+// redirection of the whole compound command, `{ ls; } > ~/x`, and a
+// segment that is only an unknown word is still checked for that.
+var leadingKeywords = map[string]bool{
+	"{": true, "!": true, "if": true, "then": true, "else": true, "elif": true,
+	"do": true, "while": true, "until": true,
+}
+
 // commandWords returns a simple command's words from the command name
 // on: the VAR=value assignments before it are dropped, and a name given
 // as a path is reduced to the program it names. `X=1 rm -rf /` and
 // `/bin/rm -rf /` both run rm, and were both graded as some command the
-// classifier had never heard of.
+// classifier had never heard of. The reserved words that open a compound
+// command (`{`, `!`, if, then, do, …) and a function definition's head
+// are dropped too: `{ rm -rf /; }` and `if true; then rm -rf ~/x; fi` run
+// rm, and were graded as commands named { and then.
 func commandWords(toks []string) []string {
-	for len(toks) > 0 && assignmentRe.MatchString(toks[0]) {
-		toks = toks[1:]
+lead:
+	for len(toks) > 0 {
+		switch {
+		case assignmentRe.MatchString(toks[0]), leadingKeywords[toks[0]]:
+			toks = toks[1:]
+		case toks[0] == "function" && len(toks) > 1:
+			toks = toks[2:] // function NAME { …
+		case len(toks) > 1 && toks[1] == "{":
+			toks = toks[2:] // NAME() { …, the parentheses already gone
+		default:
+			break lead
+		}
 	}
 	if len(toks) > 0 && strings.Contains(toks[0], "/") && toks[0] != "/" {
 		toks = append([]string{path.Base(toks[0])}, toks[1:]...)
@@ -678,6 +754,14 @@ var wrapperArgFlags = map[string][]string{
 	"stdbuf":  {"-i", "-o", "-e", "--input", "--output", "--error"},
 	"timeout": {"-s", "-k", "--signal", "--kill-after"},
 	"xargs":   {"-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s", "--arg-file", "--delimiter", "--eof", "--replace", "--max-lines", "--max-args", "--max-procs", "--max-chars", "--process-slot-var"},
+	// setsid, ionice, taskset, chrt and busybox run the command after
+	// them as surely as nice does; `setsid rm -rf ~/x` was graded as
+	// a command named setsid and nothing more.
+	"setsid":  {},
+	"ionice":  {"-c", "-n", "--class", "--classdata"},
+	"taskset": {},
+	"chrt":    {"-T", "-P", "-D", "--sched-runtime", "--sched-period", "--sched-deadline"},
+	"busybox": {},
 }
 
 // wrapped returns the command a wrapper (sudo, nice, timeout, xargs, …)
@@ -696,8 +780,11 @@ func wrapped(toks []string) []string {
 		}
 		i++
 	}
-	if toks[0] == "timeout" {
+	switch toks[0] {
+	case "timeout":
 		i++ // the duration
+	case "taskset", "chrt":
+		i++ // the CPU mask, the priority
 	}
 	if i >= len(toks) {
 		return nil
@@ -1086,6 +1173,7 @@ func writeTargetsAt(command, root, cwd string, cwdKnown bool, depth int, add fun
 	}
 	command = ifsRe.ReplaceAllString(command, " ")
 	entryCwd, entryKnown := cwd, cwdKnown
+	inCase := false
 	for _, seg := range Segments(command) {
 		toks := Words(seg)
 		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
@@ -1093,6 +1181,10 @@ func writeTargetsAt(command, root, cwd string, cwdKnown bool, depth int, add fun
 			continue
 		}
 		collectWriteTargets(seg, toks, root, cwd, cwdKnown, depth, add)
+		var arm []string
+		if arm, inCase = caseArm(toks, inCase); len(arm) > 0 {
+			collectWriteTargets(seg, arm, root, cwd, cwdKnown, depth, add)
+		}
 	}
 	for _, body := range substitutions(command) {
 		writeTargetsAt(body, root, entryCwd, entryKnown, depth+1, add)
@@ -1109,7 +1201,8 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 		return
 	}
 	switch toks[0] {
-	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer", "timeout", "xargs":
+	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer", "timeout", "xargs",
+		"setsid", "ionice", "taskset", "chrt", "busybox":
 		collectWriteTargets(seg, wrapped(toks), root, cwd, cwdKnown, depth+1, add)
 		return
 	case "env":

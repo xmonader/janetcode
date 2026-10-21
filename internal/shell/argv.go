@@ -86,7 +86,7 @@ func ArgvOf(seg string) []string {
 			return nil
 		}
 		switch toks[0] {
-		case "sudo", "doas", "nice", "timeout", "xargs", "time", "stdbuf", "exec":
+		case "sudo", "doas", "nice", "timeout", "xargs", "time", "stdbuf", "exec", "setsid", "ionice", "taskset", "chrt", "busybox":
 			toks = wrapped(toks)
 		case "nohup", "command", "builtin":
 			toks = toks[1:]
