@@ -68,8 +68,14 @@ func Pending(ctx context.Context, dir string) (Change, error) {
 		if c.Diff == "" {
 			c.Diff, _ = gitx.Run(ctx, c.Root, nil, "diff")
 		}
-		untracked, _ := gitx.Run(ctx, c.Root, nil, "ls-files", "--others", "--exclude-standard")
-		for _, f := range lines(untracked) {
+		// -z: without it git quotes a name it finds unusual (non-ASCII,
+		// a quote, a tab), and `git add --` of the quoted spelling
+		// matches no file, failing the whole commit.
+		untracked, _ := gitx.Run(ctx, c.Root, nil, "ls-files", "-z", "--others", "--exclude-standard")
+		for _, f := range strings.Split(untracked, "\x00") {
+			if f == "" {
+				continue
+			}
 			if credentialName(f) {
 				c.Held = append(c.Held, f)
 				continue
