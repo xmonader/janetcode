@@ -123,6 +123,10 @@ func (a *InboxApprover) notify(ctx context.Context, what, answer string) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	cmd := shell.Command(ctx, a.Notify)
+	// The bound covers what the notifier started too: a child holding the
+	// output pipe (a notifier that backgrounds its request) otherwise kept
+	// CombinedOutput, and the run with it, waiting past the timeout.
+	shell.Supervise(cmd)
 	cmd.Dir = a.Cwd
 	// The notifier is not given the provider keys: it only needs to say
 	// that an answer is wanted.

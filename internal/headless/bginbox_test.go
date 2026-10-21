@@ -98,3 +98,27 @@ func TestInboxApproverCancel(t *testing.T) {
 		t.Fatalf("status = %+v", got)
 	}
 }
+
+// The notify command is bounded: when its time is up it ends with
+// everything it started. Only the shell used to be killed, and a child
+// still holding the output pipe kept the run waiting, answer or no
+// answer, for as long as that child ran.
+func TestInboxNotifyEndsWithItsChildren(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the notify command below is POSIX shell")
+	}
+	var log bytes.Buffer
+	a := &InboxApprover{Cwd: t.TempDir(), Notify: "sleep 30; true", Log: &log}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		a.notify(ctx, "bash ls", "janetcode --answer s1 allow")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("notify outlived its bound: the notifier's child kept it waiting")
+	}
+}
