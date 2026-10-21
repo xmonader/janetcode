@@ -218,3 +218,30 @@ func TestUserThemeOverridesBuiltin(t *testing.T) {
 		t.Errorf("overridden theme should not be marked builtin")
 	}
 }
+
+// TestThemeWithoutDarkInheritsTheBasesMode: a theme file that overrides
+// one colour of a dark builtin and says nothing about "dark" was read as
+// a light theme. The result is single-mode, so selecting it pinned a dark
+// terminal to the light assumption. A theme that says "dark" keeps what
+// it says.
+func TestThemeWithoutDarkInheritsTheBasesMode(t *testing.T) {
+	themes, err := ParseMap(rawThemes{
+		"warm":  []byte(`{"base":"gruvbox","roles":{"accent":"#fe8019"}}`),
+		"pale":  []byte(`{"base":"gruvbox","dark":false,"roles":{"accent":"#fe8019"}}`),
+		"latte": []byte(`{"base":"catppuccin-latte","roles":{"accent":"#fe8019"}}`),
+		"deep":  []byte(`{"base":"warm","roles":{"dim":"#fe8019"}}`),
+	}.raw())
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := Build(themes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]bool{"warm": true, "pale": false, "latte": false, "deep": true} {
+		th, _ := set.Get(name)
+		if th.Dark != want {
+			t.Errorf("%s: Dark = %v, want %v", name, th.Dark, want)
+		}
+	}
+}
