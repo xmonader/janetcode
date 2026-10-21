@@ -212,7 +212,18 @@ func scanFiles(path, dir string) []scanEntry {
 		if err != nil {
 			return nil
 		}
-		return []scanEntry{{abs: path, rel: filepath.Base(path), info: info}}
+		e := scanEntry{abs: path, rel: filepath.Base(path), info: info}
+		// Where it points is recorded all the same, so scanFile can
+		// refuse a link out of the skills directory, as it does for a
+		// directory skill's files.
+		if li, err := os.Lstat(path); err == nil && li.Mode()&os.ModeSymlink != 0 {
+			if t, terr := filepath.EvalSymlinks(path); terr == nil {
+				e.target = t
+			} else {
+				e.target = "(unresolvable)"
+			}
+		}
+		return []scanEntry{e}
 	}
 	var out []scanEntry
 	filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
