@@ -34,6 +34,33 @@ func TestMonitorHasBashsGates(t *testing.T) {
 	}
 }
 
+// The terminal tool's send runs a command line in a shell just as bash
+// does, and had none of bash's gates: `rm -rf /` sent to a terminal ran,
+// even though janetcode refuses it everywhere else, and a write outside
+// the workspace went through unasked under auto-approve.
+func TestTerminalSendHasBashsGates(t *testing.T) {
+	root := t.TempDir()
+	terms := &Terms{}
+	defer terms.CloseAll()
+	tt := TermTool{Terms: terms, Root: root}
+	_, err := tt.Run(context.Background(), raw(`{"action":"send","id":1,"text":"echo hi && sudo rm -rf /"}`))
+	if err == nil || !strings.Contains(err.Error(), "refused") {
+		t.Fatalf("err = %v", err)
+	}
+	var _ Guard = tt
+	if ask, why := tt.Guard(raw(`{"action":"send","id":1,"text":"cp a.txt ../elsewhere/"}`)); !ask || !strings.Contains(why, "outside the workspace") {
+		t.Fatalf("guard = %v %q", ask, why)
+	}
+	for _, in := range []string{`{"action":"send","id":1,"text":"ls"}`, `{"action":"list"}`, `{"action":"open"}`} {
+		if ask, _ := tt.Guard(raw(in)); ask {
+			t.Errorf("%s should not ask", in)
+		}
+	}
+	if w := tt.Warn(raw(`{"action":"send","id":1,"text":"rm -rf ../x"}`)); !strings.Contains(w, "recursive force delete") {
+		t.Fatalf("warn = %q", w)
+	}
+}
+
 // The watch reads everything the job prints, not the last screenful at
 // each poll: it used to look at the last 80 lines every quarter second,
 // so a match followed quickly by more output — a server's "ready" and
