@@ -130,6 +130,18 @@
       }
       return linkOpen(tokens, idx, options, env, self);
     };
+    // An image is a link, not an <img>. An <img> is fetched the moment it
+    // is drawn, so a reply steered by a hostile page or file could put
+    // what the session read into an image URL and the browser would send
+    // it off without a click. A link waits for one, and says where it goes.
+    mdi.renderer.rules.image = (tokens, idx, options, env, self) => {
+      const t = tokens[idx];
+      const src = t.attrGet("src") || "";
+      const alt = self.renderInlineAsText(t.children || [], options, env);
+      const label = "image: " + (alt || src);
+      if (!/^https?:\/\//i.test(src)) return esc(label);
+      return `<a href="${esc(src)}" target="_blank" rel="noopener" title="${esc(src)}">${esc(label)}</a>`;
+    };
     return mdi;
   }
 

