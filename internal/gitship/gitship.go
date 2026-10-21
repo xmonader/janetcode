@@ -184,8 +184,10 @@ func diffOf(ctx context.Context, root string, files []string) string {
 	} else if out, err := gitx.Run(ctx, root, nil, append([]string{"diff", "--cached", "--no-color", "--"}, files...)...); err == nil {
 		sb.WriteString(out) // no HEAD yet: the first commit
 	}
-	untracked, _ := gitx.Run(ctx, root, nil, append([]string{"ls-files", "--others", "--exclude-standard", "--"}, files...)...)
-	for _, f := range strings.Split(strings.TrimSpace(untracked), "\n") {
+	// -z, or a name git quotes (non-ASCII, a quote) comes back in a
+	// spelling no file has.
+	untracked, _ := gitx.Run(ctx, root, nil, append([]string{"ls-files", "-z", "--others", "--exclude-standard", "--"}, files...)...)
+	for _, f := range strings.Split(untracked, "\x00") {
 		if f == "" || sb.Len() > maxDiff {
 			continue
 		}

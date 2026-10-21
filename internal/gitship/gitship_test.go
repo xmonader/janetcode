@@ -201,3 +201,18 @@ func TestPlanCommitThroughASymlink(t *testing.T) {
 		t.Fatalf("files = %v, others = %v; want [a.go] and none", plan.Files, plan.Others)
 	}
 }
+
+// A new file whose name git quotes (non-ASCII) is in the draft's diff
+// under its real name; listed without -z it was the quoted spelling,
+// which no file has, and was left out.
+func TestPlanCommitDiffHoldsQuotedNewFile(t *testing.T) {
+	dir := repo(t)
+	f := write(t, dir, "café.txt", "hello\n")
+	plan, err := PlanCommit(context.Background(), dir, []string{f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plan.Diff, "new file café.txt:\nhello") {
+		t.Fatalf("diff lacks the new file:\n%s", plan.Diff)
+	}
+}
