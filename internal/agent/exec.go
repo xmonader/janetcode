@@ -77,12 +77,14 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	// The synthetic result surfaces the way answerUnrun's do: a result
 	// event and a log record, so a front-end and a resumed session see
 	// the same answer the history holds.
-	answerDeduped := func(i int, u llm.Block) {
-		results[i] = llm.ToolResult(replyID(u), dedupedResult, false)
+	// isErr carries the first call's error flag: a duplicate of a read
+	// that failed failed too, and must not read as a success.
+	answerDeduped := func(i int, u llm.Block, isErr bool) {
+		results[i] = llm.ToolResult(replyID(u), dedupedResult, isErr)
 		filled[i] = true
 		call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
-		emit(Event{Kind: EvToolResult, Call: &call, Output: dedupedResult})
-		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: dedupedResult})
+		emit(Event{Kind: EvToolResult, Call: &call, Output: dedupedResult, IsError: isErr})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: dedupedResult, IsError: isErr})
 	}
 
 	// The first error any call returned. execute only errors for
@@ -117,13 +119,16 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	}
 	// Duplicates in the lead are marked before any goroutine starts, so
 	// the once-per-key decision needs no lock: the first of a key runs,
-	// the rest are answered from it.
+	// the rest are answered from it once it has.
 	dup := make([]bool, lead)
+	first := make([]int, lead)
+	firstOf := map[string]int{}
 	for i, u := range uses[:lead] {
 		k := dedupKey(u)
-		if dedup[k] {
-			dup[i] = true
+		if j, ok := firstOf[k]; ok {
+			dup[i], first[i] = true, j
 		} else {
+			firstOf[k] = i
 			dedup[k] = true
 		}
 	}
@@ -131,7 +136,6 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	sem := make(chan struct{}, MaxParallelTools)
 	for i, u := range uses[:lead] {
 		if dup[i] {
-			answerDeduped(i, u)
 			continue
 		}
 		wg.Add(1)
@@ -155,6 +159,18 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		}(i, u)
 	}
 	wg.Wait()
+	for i, u := range uses[:lead] {
+		if dup[i] && filled[first[i]] {
+			answerDeduped(i, u, results[first[i]].IsError)
+		}
+	}
+	// A read that failed is not "this output" for a later duplicate,
+	// which is what the serial path below already holds to.
+	for k, j := range firstOf {
+		if !filled[j] || results[j].IsError {
+			delete(dedup, k)
+		}
+	}
 
 	// Every call is answered whatever happened: nothing may come between
 	// a tool_use and its tool_result, so a call that never ran gets a
@@ -198,7 +214,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 			// before it saw. This also drops the lead's keys.
 			dedup = map[string]bool{}
 		} else if dedup[dedupKey(u)] {
-			answerDeduped(i, u)
+			answerDeduped(i, u, false)
 			continue
 		}
 		out, imgs, isErr, err := a.execute(ctx, u, emit)
