@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -275,6 +276,33 @@ func (s *editScript) Stream(ctx context.Context, req llm.Request, emit func(llm.
 		return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "SUMMARY: "+last.Blocks[0].Text), StopReason: llm.StopEndTurn}, nil
 	}
 	return toolCall("p1", "task", `{"description":"add b","prompt":"edit: add b.txt","edit":true}`), nil
+}
+
+func TestTaskCloseRemovesWorktreesEvenWithADeadContext(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\n"), 0o644)
+	gitInit(t, root)
+	prov := &editScript{}
+	parent := &Agent{Provider: prov, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent, Root: root}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	if err := parent.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	dead, cancel := context.WithCancel(context.Background())
+	cancel()
+	task.Close(dead)
+	if _, err := os.Stat(prov.dirs[0]); err == nil {
+		t.Fatal("worktree left behind when Close ran on a cancelled context")
+	}
+	// The directory alone is not enough: the registration must go too.
+	out, err := exec.Command("git", "-C", root, "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), prov.dirs[0]) {
+		t.Fatalf("worktree still registered after Close on a cancelled context:\n%s", out)
+	}
 }
 
 func TestTaskEditsInAWorktreeAndReturnsAPatch(t *testing.T) {
