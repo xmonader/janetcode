@@ -225,3 +225,19 @@ func TestAStrongSlotChangedDuringResolutionIsNotShadowedByTheOldOne(t *testing.T
 		t.Fatalf("after the change the strong slot resolves to %q (ok=%v), want newer-model", model, ok)
 	}
 }
+
+// A strong slot that rides on the session's own provider follows it when
+// /connect swaps it; the first resolution is not kept for the session.
+func TestAStrongSlotOnTheSessionProviderFollowsAProviderSwap(t *testing.T) {
+	a, _ := escalatableAgent()
+	a.Route = nil
+	first := a.Provider
+	if p, _, ok := a.resolveStrong(nil); !ok || p != first {
+		t.Fatalf("first resolution = %v (ok=%v), want the session's provider", p, ok)
+	}
+	swapped := &fake{name: "connected"}
+	a.Provider = swapped
+	if p, _, ok := a.resolveStrong(nil); !ok || p != swapped {
+		t.Fatalf("after the swap the strong slot resolves to %v (ok=%v), want the new session provider", p, ok)
+	}
+}

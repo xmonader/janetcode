@@ -30,7 +30,7 @@ func (a *Agent) SetStrongModel(name string) {
 	a.escalateState.mu.Lock()
 	a.StrongModel = name
 	a.escalateState.resolved, a.escalateState.disabled = false, false
-	a.escalateState.prov, a.escalateState.model = nil, ""
+	a.escalateState.prov, a.escalateState.model, a.escalateState.onMain = nil, "", false
 	a.escalateState.mu.Unlock()
 }
 
@@ -55,6 +55,7 @@ type escalateState struct {
 	disabled bool
 	prov     llm.Provider
 	model    string
+	onMain   bool // prov is the session's own provider, which /connect can swap
 }
 
 // EscalateEnabled reports whether the cascade can fire at all: a strong
@@ -111,12 +112,17 @@ func (a *Agent) resolveStrong(emit func(Event)) (llm.Provider, string, bool) {
 	s := a.Settings()
 	name := a.StrongModelName()
 	a.escalateState.mu.Lock()
-	resolved, disabled, prov, model := a.escalateState.resolved, a.escalateState.disabled, a.escalateState.prov, a.escalateState.model
+	resolved, disabled, prov, model, onMain := a.escalateState.resolved, a.escalateState.disabled, a.escalateState.prov, a.escalateState.model, a.escalateState.onMain
 	a.escalateState.mu.Unlock()
 	if resolved {
+		if onMain {
+			// The slot rides on the session's provider: follow it when
+			// it was swapped, not the one that was live at first use.
+			prov = s.Provider
+		}
 		return prov, model, !disabled
 	}
-	prov, model, disabled = s.Provider, name, false
+	prov, model, disabled, onMain = s.Provider, name, false, true
 	var notice string
 	if a.Route != nil {
 		p, r, err := a.Route(name)
@@ -126,7 +132,7 @@ func (a *Agent) resolveStrong(emit func(Event)) (llm.Provider, string, bool) {
 			notice = "strong_model: cannot route to " + name + ": " + err.Error() + "; escalation is off for this session"
 		default:
 			if p != nil {
-				prov = p
+				prov, onMain = p, false
 			}
 			if r != "" {
 				model = r
@@ -147,7 +153,7 @@ func (a *Agent) resolveStrong(emit func(Event)) (llm.Provider, string, bool) {
 		return nil, "", false
 	}
 	a.escalateState.resolved, a.escalateState.disabled = true, disabled
-	a.escalateState.prov, a.escalateState.model = prov, model
+	a.escalateState.prov, a.escalateState.model, a.escalateState.onMain = prov, model, onMain
 	a.escalateState.mu.Unlock()
 	if notice != "" {
 		if emit != nil {
