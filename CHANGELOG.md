@@ -41,6 +41,24 @@ A whole-tree bug review: each fix has a regression test that fails without it.
 - Races fixed in /accept, /cd versus subagents and /permissions check,
   web UI questions, /stats and /context, durable recovery, and the
   stream-json result line.
+- Follow-ups (2026-10-22): `execute_code` runs inside the sandbox (refused
+  under docker); bwrap binds `.git/config` and `.git/hooks` read-only;
+  `~user/…` paths resolve to that user's home in the path checks; the
+  terminal's safety check follows `cd`/`pushd` across sends; interpreter
+  one-liners that write, `xargs rm` and git discards (`reset --hard`,
+  `clean -f`, `push --force`) warn on the prompt and are never auto-mode
+  safe reads. The web UI sends `frame-ancestors` (only the VS Code webview
+  may frame it). `mcpserve` does not answer a cancelled call and refuses a
+  reused in-flight id; MCP OAuth reuses its registered redirect port; MCP
+  HTTP `Close` ends its event-stream readers. Subagent worktrees are
+  removed even after a cancel; snapshots handle a symlinked `$HOME`;
+  `.aiignore` ignores case on macOS/Windows; plugin paths whose symlinks
+  leave the plugin are refused. Script-made edits run `then_run` and
+  post-tool hooks; `/issue` and `/pr-comments` refuse `-`-leading
+  arguments; `--output-format` is not read from prompt text; the strong
+  slot follows a provider swap. Uninstall removes the receipt last and
+  install.sh writes it atomically. Wide runes overstrike correctly under
+  `\r`, and the diff preview keeps removed lines that start with `--`.
 
 ### CONFLICT: is on by default (2026-10-11)
 - `conflict_exit` is now on unless set to false. On the impossible split
