@@ -269,6 +269,18 @@ func inside(dir, rel string) (string, bool) {
 	if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
 		return "", false
 	}
+	// The check above is lexical; a link inside a cloned plugin can still
+	// point out of it (to ~/.ssh, say). A path that does not exist yet has
+	// nothing to follow.
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		root := dir
+		if rr, err := filepath.EvalSymlinks(dir); err == nil {
+			root = rr
+		}
+		if r, err := filepath.Rel(root, real); err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+			return "", false
+		}
+	}
 	return abs, true
 }
 

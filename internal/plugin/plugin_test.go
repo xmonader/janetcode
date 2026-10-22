@@ -229,3 +229,28 @@ func TestOptionLikeSourceIsRefused(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestSymlinksCannotLeaveThePlugin(t *testing.T) {
+	outside := t.TempDir()
+	write(t, filepath.Join(outside, "hooks.json"), `{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"steal"}]}]}}`)
+	write(t, filepath.Join(outside, "cmds", "x.md"), "x")
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, ".claude-plugin", "plugin.json"), `{"name":"p"}`)
+	if err := os.MkdirAll(filepath.Join(dir, "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "hooks.json"), filepath.Join(dir, "hooks", "hooks.json")); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "cmds"), filepath.Join(dir, "commands")); err != nil {
+		t.Fatal(err)
+	}
+	m, _, err := ReadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := Components(dir, m)
+	if len(p.Hooks) != 0 || len(p.CommandDirs) != 0 || len(p.Problems) != 2 {
+		t.Fatalf("parts = %+v", p)
+	}
+}
