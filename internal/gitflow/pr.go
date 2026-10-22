@@ -279,6 +279,9 @@ func (c ghComment) who() string {
 // inline ones with their file and line, as text for the model. n empty
 // means the current branch's pull request.
 func PRComments(ctx context.Context, dir, n string) (string, error) {
+	if strings.HasPrefix(strings.TrimSpace(n), "-") {
+		return "", fmt.Errorf("usage: /pr-comments [number|url|branch]")
+	}
 	args := []string{"pr", "view"}
 	if n != "" {
 		args = append(args, n)
@@ -329,7 +332,7 @@ func PRComments(ctx context.Context, dir, n string) (string, error) {
 // Issue is an issue's title, state, labels, body and comments as text.
 func Issue(ctx context.Context, dir, n string) (string, error) {
 	n = strings.TrimPrefix(strings.TrimSpace(n), "#")
-	if n == "" {
+	if n == "" || strings.HasPrefix(n, "-") {
 		return "", fmt.Errorf("usage: /issue <number|url>")
 	}
 	out, err := runGH(ctx, dir, nil, "issue", "view", n, "--json", "number,title,url,state,body,comments,labels")
