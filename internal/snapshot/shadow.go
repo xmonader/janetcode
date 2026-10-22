@@ -46,7 +46,16 @@ func OpenShadow(ctx context.Context, dir, store string) (*Repo, error) {
 	if real, err := filepath.EvalSymlinks(abs); err == nil {
 		abs = real
 	}
-	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(home) == abs || filepath.Dir(abs) == abs {
+	// abs is resolved, so home must be too: a $HOME that is a symlink
+	// would otherwise never compare equal.
+	home, herr := os.UserHomeDir()
+	if herr == nil {
+		home = filepath.Clean(home)
+		if real, err := filepath.EvalSymlinks(home); err == nil {
+			home = real
+		}
+	}
+	if herr == nil && home == abs || filepath.Dir(abs) == abs {
 		return nil, fmt.Errorf("%s: %w (a home directory or the file system root)", abs, ErrShadowTooLarge)
 	}
 	if err := checkShadowSize(ctx, abs); err != nil {

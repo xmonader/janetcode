@@ -75,3 +75,19 @@ func TestShadowRefusesTooMuch(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// TestShadowRefusesAHomeThatIsASymlink: the directory is resolved before
+// it is compared, so the home directory must be too, or a $HOME that is a
+// link slips past the check.
+func TestShadowRefusesAHomeThatIsASymlink(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	t.Setenv("HOME", link)
+	t.Setenv("USERPROFILE", link)
+	if _, err := OpenShadow(context.Background(), real, t.TempDir()); !errors.Is(err, ErrShadowTooLarge) {
+		t.Fatalf("OpenShadow(home) = %v, want ErrShadowTooLarge", err)
+	}
+}
