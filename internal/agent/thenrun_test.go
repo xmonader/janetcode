@@ -7,9 +7,32 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
+
+// A script's edit_file call carries then_run like the model's does: the
+// command runs after the edit and the post-tool hook fires for the call.
+func TestNestedCallRunsThenRunAndPostToolHook(t *testing.T) {
+	f := &fake{}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root, ThenRun: true})
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.PostTool: {{Match: "write_file", Command: `echo '{"note":"post hook ran"}'`}},
+	}}}
+	out, isErr, _ := a.runNested(context.Background(), "s1", "write_file", []byte(`{"path":"n.txt","content":"v1","then_run":"cat n.txt; echo checked"}`))
+	if isErr {
+		t.Fatalf("nested call failed: %q", out)
+	}
+	if !strings.Contains(out, "[then_run] $ cat n.txt; echo checked") || !strings.Contains(out, "v1checked") {
+		t.Fatalf("then_run did not run for a nested call: %q", out)
+	}
+	if !strings.Contains(out, "post hook ran") {
+		t.Fatalf("the post-tool hook did not fire for a nested call: %q", out)
+	}
+}
 
 // namesApprover records every call it is asked about and refuses the
 // named tool.
