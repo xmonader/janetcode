@@ -337,10 +337,16 @@ func (t Bash) Guard(input json.RawMessage) (bool, string) {
 		return false, ""
 	}
 	root := rootOf(t.Root, t.WS)
+	return t.guardFrom(in.Command, root, root, root != "")
+}
+
+// guardFrom is Guard for a command run from cwd (known or not).
+func (t Bash) guardFrom(command, root, cwd string, known bool) (bool, string) {
+	in := struct{ Command string }{command}
 	// Anything the classifier could not grade (shell.RiskUnknown) asks
 	// too: "I could not work out what this runs" is a reason to put the
 	// command in front of the user, not a reason to wave it through.
-	if risk, why := shell.Classify(in.Command, root); risk >= shell.RiskUnknown {
+	if risk, why := shell.ClassifyFrom(in.Command, root, cwd, known); risk >= shell.RiskUnknown {
 		return true, why
 	}
 	if what := selfModifyingCommand(in.Command, root); what != "" {
@@ -357,9 +363,15 @@ func (t Bash) Warn(input json.RawMessage) string {
 	if json.Unmarshal(input, &in) != nil {
 		return ""
 	}
-	var notes []string
 	root := rootOf(t.Root, t.WS)
-	if risk, why := shell.Classify(in.Command, root); risk != shell.RiskOrdinary {
+	return t.warnFrom(in.Command, root, root, root != "")
+}
+
+// warnFrom is Warn for a command run from cwd (known or not).
+func (t Bash) warnFrom(command, root, cwd string, known bool) string {
+	in := struct{ Command string }{command}
+	var notes []string
+	if risk, why := shell.ClassifyFrom(in.Command, root, cwd, known); risk != shell.RiskOrdinary {
 		notes = append(notes, why)
 	}
 	if what := selfModifyingCommand(in.Command, root); what != "" {
