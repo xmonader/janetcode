@@ -118,6 +118,11 @@ func TestConflictingEarlyModesAreRefused(t *testing.T) {
 			t.Errorf("%v: err = %v, want a usage error", args, err)
 		}
 	}
+	// --resume and --continue name two sessions; --resume used to win
+	// silently.
+	if err := checkModes(&options{resume: "abc", cont: true}, "", headless.FormatText); err == nil {
+		t.Error("--resume with --continue accepted")
+	}
 	// --doctor takes --output-format json without -p.
 	if err := checkModes(&options{runDoctor: true, outFormat: "json"}, "", headless.FormatJSON); err != nil {
 		t.Errorf("--doctor --output-format json refused: %v", err)

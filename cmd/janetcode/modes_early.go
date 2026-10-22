@@ -169,6 +169,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{whatIfRun && o.web, "--web is a session, not a one-shot; drop --what-if"},
 		{whatIfRun && o.acpMode, "--what-if and --acp do not combine"},
 		{whatIfRun && o.bg, "--what-if and --bg do not combine"},
+		{o.resume != "" && o.cont, "--resume and --continue each pick the session to open; give one"},
 		{o.fork && o.resume == "" && !o.cont, "--fork copies the session --resume or --continue opens; name one"},
 		{whatIfRun && o.whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
 	} {
