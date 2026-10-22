@@ -29,7 +29,9 @@ const (
 	RiskUnknown
 	// RiskDestructive writes or deletes through something the paths of
 	// the command line do not show: an interpreter one-liner, xargs, or
-	// a git command that discards work or rewrites history. It asks.
+	// a git command that discards work or rewrites history. It is a
+	// warning on the prompt and never a safe read, but it does not force
+	// a prompt: inside the workspace it follows the permission mode.
 	RiskDestructive
 	// RiskEscapes mutates paths outside the workspace root.
 	RiskEscapes

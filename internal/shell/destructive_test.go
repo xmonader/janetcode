@@ -60,6 +60,12 @@ func TestClassifyDestructive(t *testing.T) {
 		`git stash pop`,
 		`git commit -m "fix: reset --hard docs"`,
 	}
+	// Auto mode skips the prompt only for a safe read.
+	for _, c := range []string{`find . | xargs rm`, `python3 -c "open('x','w')"`, `git clean -fdx`} {
+		if SafeRead(c) {
+			t.Errorf("SafeRead(%q) = true", c)
+		}
+	}
 	for _, c := range ordinary {
 		if r, why := Classify(c, root); r != RiskOrdinary {
 			t.Errorf("Classify(%q) = %v (%s), want ordinary", c, r, why)
