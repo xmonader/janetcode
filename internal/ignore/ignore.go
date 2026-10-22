@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,11 @@ import (
 // Files are the ignore files, in the order their rules apply: a later
 // file's rule wins over an earlier one's in the same directory.
 var Files = []string{".aiignore", ".agentignore", ".janetcodeignore"}
+
+// foldCase makes patterns match regardless of case: macOS and Windows
+// file systems are case-insensitive, so SECRETS.env is secrets.env there.
+// A variable so a test can exercise it on any platform.
+var foldCase = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 // maxFile caps one ignore file; anything longer is not a hand-kept list.
 const maxFile = 1 << 20
@@ -223,6 +229,9 @@ func Parse(line string) (rule, bool) {
 		expr = "^" + expr + "$"
 	} else {
 		expr = "^(?:.*/)?" + expr + "$"
+	}
+	if foldCase {
+		expr = "(?i)" + expr
 	}
 	re, err := regexp.Compile(expr)
 	if err != nil {

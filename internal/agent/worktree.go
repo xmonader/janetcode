@@ -94,8 +94,12 @@ func (w *worktree) diff(ctx context.Context) (patch, stat string, err error) {
 	return patch, strings.TrimSpace(stat), nil
 }
 
-// remove deletes the checkout and the base snapshot.
+// remove deletes the checkout and the base snapshot. It runs on a fresh
+// bounded context: cleanup after a timed-out or cancelled task is exactly
+// when ctx is already done, and every command would fail on it.
 func (w *worktree) remove(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), evictTimeout)
+	defer cancel()
 	if w.Dir != "" {
 		_, _ = gitRun(ctx, w.Root, "worktree", "remove", "--force", w.Dir)
 		os.RemoveAll(w.Dir)
