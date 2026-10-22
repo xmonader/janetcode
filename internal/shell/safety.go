@@ -144,6 +144,28 @@ func Classify(command, root string) (Risk, string) {
 	return classify(WindowsPaths(command), root, 0)
 }
 
+// ClassifyFrom is Classify for a shell already standing in cwd, which is
+// not root: a persistent terminal that an earlier send cd'd. known false
+// means the directory could not be followed, and relative paths are then
+// judged as they are after an unresolvable cd.
+func ClassifyFrom(command, root, cwd string, known bool) (Risk, string) {
+	return classifyAt(WindowsPaths(command), root, cwd, known, 0)
+}
+
+// EndCwd is where a shell that stood in cwd is standing after running
+// command: the effect of its cd, pushd and popd segments. A target that
+// cannot be resolved statically (a variable, a substitution, `cd -`,
+// popd) leaves the directory unknown.
+func EndCwd(command, cwd string, known bool) (string, bool) {
+	command = ifsRe.ReplaceAllString(WindowsPaths(command), " ")
+	for _, seg := range Segments(command) {
+		if dir, ok, isCd := cdTokens(Words(seg), cwd, known); isCd {
+			cwd, known = dir, ok
+		}
+	}
+	return cwd, known
+}
+
 // classify is Classify with the wrapper depth carried in. A `sh -c` or an
 // `eval` body is another command line, and it is classified at the depth
 // its wrappers have already reached: starting it again at zero would let
