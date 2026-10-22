@@ -150,21 +150,25 @@ func Uninstall(plan UninstallPlan) ([]string, error) {
 		}
 		done = append(done, "removed "+d)
 	}
-	if plan.Receipt != "" {
-		if err := os.Remove(plan.Receipt); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return done, err
-		}
-	}
 	if runtime.GOOS == "windows" {
 		old := plan.Binary + ".old"
 		_ = os.Remove(old)
 		if err := os.Rename(plan.Binary, old); err != nil {
 			return done, fmt.Errorf("moving %s aside: %w", plan.Binary, err)
 		}
-		return append(done, "moved "+plan.Binary+" to "+old+"; Windows cannot delete a running program, so delete that file once janetcode has exited"), nil
+		done = append(done, "moved "+plan.Binary+" to "+old+"; Windows cannot delete a running program, so delete that file once janetcode has exited")
+	} else {
+		if err := os.Remove(plan.Binary); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return done, fmt.Errorf("removing %s: %w", plan.Binary, err)
+		}
+		done = append(done, "removed "+plan.Binary)
 	}
-	if err := os.Remove(plan.Binary); err != nil {
-		return done, fmt.Errorf("removing %s: %w", plan.Binary, err)
+	// The receipt goes last: while anything it vouches for remains, a
+	// rerun still finds it and can finish the job.
+	if plan.Receipt != "" {
+		if err := os.Remove(plan.Receipt); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return done, err
+		}
 	}
-	return append(done, "removed "+plan.Binary), nil
+	return done, nil
 }

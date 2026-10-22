@@ -39,11 +39,14 @@ fi
 
 asset="janetcode-$tag-$os-$arch"
 tmp=$(mktemp -d)
-# A signal cleans up and stops; without the exit, sh would run the trap
-# and then carry on installing.
-trap 'rm -rf "$tmp"' EXIT
-trap 'rm -rf "$tmp"; exit 130' INT
-trap 'rm -rf "$tmp"; exit 143' TERM
+# Everything half-written goes on any exit; the signals exit so the EXIT
+# trap runs and the script does not carry on after Ctrl-C.
+newbin="$dir/.janetcode.new"
+newrcpt=""
+cleanup() { rm -rf "$tmp"; rm -f "$newbin"; [ -z "$newrcpt" ] || rm -f "$newrcpt"; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "downloading janetcode $tag for $os/$arch"
 curl -fsSL -o "$tmp/$asset" "$base/releases/download/$tag/$asset" || fail "no $asset in release $tag"
@@ -64,11 +67,17 @@ mkdir -p "$dir"
 chmod 755 "$tmp/$asset"
 # Beside the target first, then renamed: a half-copied binary is never
 # the one on PATH.
-cp "$tmp/$asset" "$dir/.janetcode.new" || { rm -f "$dir/.janetcode.new"; fail "could not write to $dir"; }
-mv -f "$dir/.janetcode.new" "$dir/janetcode"
+cp "$tmp/$asset" "$newbin" || fail "could not write to $dir"
+mv -f "$newbin" "$dir/janetcode"
 # The receipt is what lets janetcode --uninstall tell this binary from a
 # build someone put here by hand.
-printf 'installed-by=install.sh\nversion=%s\nsha256=%s\n' "$tag" "$want" > "$dir/.janetcode.install"
+# Written beside it and renamed, like the binary, so a failure or a signal
+# never leaves a partial receipt (or a stray temp file) behind.
+newrcpt=$(mktemp "$dir/.janetcode.install.XXXXXX")
+printf 'installed-by=install.sh\nversion=%s\nsha256=%s\n' "$tag" "$want" > "$newrcpt"
+chmod 644 "$newrcpt"
+mv -f "$newrcpt" "$dir/.janetcode.install"
+newrcpt=""
 echo "installed $dir/janetcode ($tag)"
 echo "to remove it later: janetcode --uninstall (add --purge to remove settings and sessions too)"
 
