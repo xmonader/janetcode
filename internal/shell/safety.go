@@ -3,6 +3,7 @@ package shell
 import (
 	"cmp"
 	"os"
+	"os/user"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -1152,9 +1153,11 @@ var shellVarRe = regexp.MustCompile(`\$(?:HOME\b|\{HOME\}|TMPDIR\b|\{TMPDIR\})`)
 // the workspace).
 func resolvePathArg(tk, cwd string) (string, bool) {
 	if strings.HasPrefix(tk, "~") {
-		if home, err := os.UserHomeDir(); err == nil {
-			tk = home + tk[1:]
+		exp, ok := ExpandTilde(tk)
+		if !ok {
+			return "", false
 		}
+		tk = exp
 	}
 	if strings.Contains(tk, "$") {
 		tk = shellVarRe.ReplaceAllStringFunc(tk, func(m string) string {
@@ -1171,6 +1174,28 @@ func resolvePathArg(tk, cwd string) (string, bool) {
 		return "", false // a glob or variable: cannot judge, leave it to the prompt
 	}
 	return absFrom(tk, cwd), true
+}
+
+// ExpandTilde expands a leading ~ the way the shell does: ~ and ~/x to the
+// home directory, ~name/x to that user's home. ~+, ~- and a user that
+// cannot be looked up are not judgeable, so ok is false.
+func ExpandTilde(tk string) (string, bool) {
+	name, rest, _ := strings.Cut(tk[1:], "/")
+	if name == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return tk, true // as before: left unexpanded, judged as written
+		}
+		return home + tk[1:], true
+	}
+	u, err := user.Lookup(name)
+	if err != nil || u.HomeDir == "" {
+		return "", false
+	}
+	if rest == "" {
+		return u.HomeDir, true
+	}
+	return u.HomeDir + "/" + rest, true
 }
 
 // WriteTargets returns the file paths a shell command line would write

@@ -127,12 +127,12 @@ func selfPathToken(tk, root string) string {
 		return ""
 	}
 	if strings.HasPrefix(tk, "~") || strings.HasPrefix(tk, "$HOME") {
-		if home, err := os.UserHomeDir(); err == nil {
-			if strings.HasPrefix(tk, "~") {
-				tk = home + tk[1:]
-			} else {
-				tk = home + strings.TrimPrefix(tk, "$HOME")
+		if strings.HasPrefix(tk, "~") {
+			if exp, ok := shell.ExpandTilde(tk); ok {
+				tk = exp
 			}
+		} else if home, err := os.UserHomeDir(); err == nil {
+			tk = home + strings.TrimPrefix(tk, "$HOME")
 		}
 	}
 	// A glob cannot be judged, but the directory it sits in can: writing
