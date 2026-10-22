@@ -107,3 +107,34 @@ func TestUninstallRefusesASourceBuildOverAnInstalledOne(t *testing.T) {
 		t.Fatal("a source build that replaced the installed binary was removed")
 	}
 }
+
+func TestUninstallKeepsTheReceiptWhenTheBinaryCannotGo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows renames instead of deleting")
+	}
+	dir := t.TempDir()
+	exe := writeExe(t, dir)
+	if err := WriteReceipt(exe, "v0.3.0"); err != nil {
+		t.Fatal(err)
+	}
+	// A non-empty directory in the binary's place makes os.Remove fail.
+	bad := filepath.Join(dir, "notabinary")
+	if err := os.MkdirAll(filepath.Join(bad, "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plan := UninstallPlan{Binary: bad, Receipt: ReceiptName(exe)}
+	if _, err := Uninstall(plan); err == nil {
+		t.Fatal("removing a non-empty directory as the binary should fail")
+	}
+	if _, err := os.Stat(ReceiptName(exe)); err != nil {
+		t.Fatalf("the receipt was removed before the binary, losing the record of what remains: %v", err)
+	}
+	// A rerun once the binary is fixable finishes, and repeating it is harmless.
+	plan.Binary = exe
+	if _, err := Uninstall(plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Uninstall(plan); err != nil {
+		t.Fatalf("rerun not idempotent: %v", err)
+	}
+}
