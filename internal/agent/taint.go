@@ -183,15 +183,17 @@ func (a *Agent) taintGate(t tool.Tool, u llm.Block) (why string, hosts []string)
 
 // shellLine is the command line a call hands to a shell, and whether it
 // is one: bash's command, monitor's (which runs in the same shell), and
-// the line terminal's send types into its session. Only bash used to be
+// the line terminal's send or job's stdin types into a running program. Only bash used to be
 // read, so a tainted turn's curl went out unasked by the other two.
 func shellLine(u llm.Block) (string, bool) {
 	switch u.Name {
 	case "bash", "monitor":
 		return shell.CommandOf(string(u.Input)), true
-	case "terminal":
+	case "terminal", "job":
+		// terminal's send and job's stdin both type a line into a
+		// running program, which is often a shell.
 		var in struct{ Action, Text string }
-		if json.Unmarshal(u.Input, &in) == nil && in.Action == "send" {
+		if json.Unmarshal(u.Input, &in) == nil && (u.Name == "terminal" && in.Action == "send" || u.Name == "job" && in.Action == "stdin") {
 			return strings.TrimSpace(in.Text), true
 		}
 	}
