@@ -313,18 +313,21 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 	// after that would change the workspace behind the report.
 	defer srv.shutdown()
 
-	cmd := exec.CommandContext(ctx, py, script)
-	cmd.Dir = s.root()
+	env := []string{
+		"JANETCODE_RPC_SOCKET=" + sock,
+		"PYTHONPATH=" + dir,
+		"PYTHONDONTWRITEBYTECODE=1",
+		"PYTHONUNBUFFERED=1",
+	}
+	cmd, err := s.command(ctx, py, script, env)
+	if err != nil {
+		return "", err
+	}
 	// The script is code the model wrote, run on the host: it gets the
 	// environment every model-run command gets, without the agent's
 	// credentials. Redacting its printed output would not stop one line
 	// of urllib sending the key somewhere.
-	cmd.Env = append(shell.ScrubEnv(os.Environ()),
-		"JANETCODE_RPC_SOCKET="+sock,
-		"PYTHONPATH="+dir,
-		"PYTHONDONTWRITEBYTECODE=1",
-		"PYTHONUNBUFFERED=1",
-	)
+	cmd.Env = append(cmd.Env, env...)
 	// Supervise, not just a process group: without a bound on the pipe
 	// wait, a script that started something in the background and exited
 	// held the tool on the output pipe that process inherited — until it
@@ -341,6 +344,37 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 	srv.shutdown()
 
 	return s.report(stdout.String(), stderr.String(), runErr, srv.count(), ctx.Err()), nil
+}
+
+// command builds the interpreter's process. With the sandbox on the script
+// runs inside it, the same wrapping bash gets, since it is arbitrary code
+// like any shell command. The docker backend runs in a separate image that
+// cannot see the script, the tool socket or the environment, so there the
+// script is refused rather than run on the host.
+func (s *Script) command(ctx context.Context, py, script string, env []string) (*exec.Cmd, error) {
+	var sb *shell.Sandbox
+	if s.Parent != nil {
+		sb = s.Parent.Sandbox
+	}
+	if !sb.Enabled() {
+		cmd := exec.CommandContext(ctx, py, script)
+		cmd.Dir = s.root()
+		cmd.Env = shell.ScrubEnv(os.Environ())
+		return cmd, nil
+	}
+	if sb.Backend() == shell.BackendDocker {
+		return nil, errors.New("execute_code cannot run under the docker sandbox (the container cannot reach the tool socket); use ordinary tool calls, or /sandbox bwrap")
+	}
+	cmd, err := sb.Command(ctx, s.root(), posixQuote(py)+" "+posixQuote(script))
+	if err != nil {
+		return nil, fmt.Errorf("execute_code could not be sandboxed: %w", err)
+	}
+	return cmd, nil
+}
+
+// posixQuote wraps s in single quotes for a POSIX shell.
+func posixQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // report is what the model sees: the script's own output, the reason it
