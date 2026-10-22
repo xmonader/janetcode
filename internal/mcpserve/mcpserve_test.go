@@ -18,6 +18,8 @@ type fakeRunner struct {
 	mu    sync.Mutex
 	tasks []mcpserve.Task
 	block chan struct{}
+	// stopped is told when a run ends because its context was cancelled.
+	stopped chan struct{}
 }
 
 func (f *fakeRunner) Run(ctx context.Context, t mcpserve.Task, progress func(string)) (mcpserve.Report, error) {
@@ -32,6 +34,9 @@ func (f *fakeRunner) Run(ctx context.Context, t mcpserve.Task, progress func(str
 		select {
 		case <-block:
 		case <-ctx.Done():
+			if f.stopped != nil {
+				f.stopped <- struct{}{}
+			}
 			return mcpserve.Report{SessionID: "s1", StopReason: "cancelled"}, nil
 		}
 	}
@@ -88,7 +93,7 @@ func TestTheRepositorysOwnClientCallsTheTool(t *testing.T) {
 func TestStructuredProgressAndCancel(t *testing.T) {
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
-	r := &fakeRunner{}
+	r := &fakeRunner{stopped: make(chan struct{}, 4)}
 	go func() {
 		_ = mcpserve.Serve(context.Background(), inR, outW, mcpserve.Options{Runner: r, Version: "t", Dir: "/w"})
 		outW.Close()
@@ -123,19 +128,49 @@ func TestStructuredProgressAndCancel(t *testing.T) {
 	send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"janetcode_task","arguments":{"prompt":"slow"}}}`)
 	time.Sleep(50 * time.Millisecond)
 	send(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":3}}`)
-	done := make(chan map[string]any, 1)
-	go func() { done <- read() }()
 	select {
-	case m := <-done:
-		if m["result"].(map[string]any)["structuredContent"].(map[string]any)["stopReason"] != "cancelled" {
-			t.Fatalf("cancelled task = %v", m)
-		}
+	case <-r.stopped:
 	case <-time.After(5 * time.Second):
 		t.Fatal("notifications/cancelled did not end the task")
 	}
+	// ...and is not answered: the next thing on the wire is the reply to
+	// the request after it.
+	time.Sleep(100 * time.Millisecond)
 	send(`{"jsonrpc":"2.0","id":4,"method":"nope"}`)
-	if m := read(); m["error"] == nil {
-		t.Fatalf("unknown method = %v", m)
+	if m := read(); m["id"] != float64(4) || m["error"] == nil {
+		t.Fatalf("after a cancelled request, got %v, want only the error for id 4", m)
+	}
+	inW.Close()
+}
+
+// Two calls under one live id: the second is refused and the first stays
+// the one a cancel reaches.
+func TestDuplicateRequestIDKeepsTheFirstCancellable(t *testing.T) {
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
+	r := &fakeRunner{block: make(chan struct{}), stopped: make(chan struct{}, 4)}
+	go func() {
+		_ = mcpserve.Serve(context.Background(), inR, outW, mcpserve.Options{Runner: r, Version: "t", Dir: "/w"})
+		outW.Close()
+	}()
+	dec := json.NewDecoder(outR)
+	send := func(s string) { io.WriteString(inW, s+"\n") }
+	call := `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"janetcode_task","arguments":{"prompt":"slow"}}}`
+	send(call)
+	time.Sleep(50 * time.Millisecond)
+	send(call)
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		t.Fatal(err)
+	}
+	if m["error"] == nil {
+		t.Fatalf("second call under a live id = %v, want an error", m)
+	}
+	send(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}`)
+	select {
+	case <-r.stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("cancelling the id did not reach the first call")
 	}
 	inW.Close()
 }
