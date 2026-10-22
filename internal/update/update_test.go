@@ -184,3 +184,38 @@ func TestInstallScript(t *testing.T) {
 		t.Fatal("the mismatched binary was written")
 	}
 }
+
+// A receipt that cannot be put in place must not leave a partial or temp
+// receipt behind. The rename of the receipt is made to fail by a stub mv
+// ahead of the real one on PATH.
+func TestInstallScriptLeavesNoReceiptLeftoversOnFailure(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("install.sh is for Linux and macOS")
+	}
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("no curl")
+	}
+	realMv, err := exec.LookPath("mv")
+	if err != nil {
+		t.Skip("no mv")
+	}
+	stubs := t.TempDir()
+	stub := "#!/bin/sh\nfor last; do :; done\ncase \"$last\" in *.janetcode.install) exit 1 ;; esac\nexec " + realMv + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(stubs, "mv"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script, _ := filepath.Abs("../../install.sh")
+	srv := fakeReleases(t, "v0.4.0", []byte("#!/bin/sh\necho hi\n"), "")
+	dir := filepath.Join(t.TempDir(), "bin")
+	cmd := exec.Command("sh", script)
+	cmd.Env = append(os.Environ(), "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"JANETCODE_RELEASES="+srv.URL, "JANETCODE_INSTALL_DIR="+dir, "JANETCODE_VERSION=")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("install.sh succeeded although the receipt could not be renamed:\n%s", out)
+	}
+	left, _ := filepath.Glob(filepath.Join(dir, ".janetcode.*"))
+	if len(left) != 0 {
+		t.Fatalf("install.sh left receipt leftovers behind: %v", left)
+	}
+}
