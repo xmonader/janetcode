@@ -72,10 +72,25 @@ func bwrapArgs(p Profile, root string, extra []string, tempDir, command string) 
 			}
 		}
 	}
+	// .git stays writable for commits, but what runs code on the host
+	// later does not: a planted hook, or a config with core.fsmonitor or
+	// core.sshCommand, fires the next time git runs outside the sandbox.
+	for _, r := range roots {
+		for _, rel := range []string{".git/config", ".git/hooks"} {
+			if p := filepath.Join(r, rel); exists(p) {
+				args = append(args, "--ro-bind", p, p)
+			}
+		}
+	}
 	sh := Default()
 	args = append(args, "--chdir", root, "--", sh.Path)
 	args = append(args, sh.Args...)
 	return append(args, command)
+}
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 func isDir(p string) bool {
