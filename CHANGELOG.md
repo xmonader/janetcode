@@ -5,6 +5,43 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Deep review fixes (2026-10-21)
+A whole-tree bug review: each fix has a regression test that fails without it.
+- Safety gates: the command classifier now reads commands inside `{ }`,
+  `if`/`while`/`case`, `!` and function bodies, looks through `setsid`,
+  `ionice`, `taskset`, `chrt` and `busybox`, follows `pushd`/`popd`, sees
+  `rm -rf />/dev/null`, `curl … | /bin/sh` / `| sudo -E bash` / `| env
+  bash`, `dd of=` and `unlink`, and asks about `git --git-dir` and `rg
+  --hostname-bin`. `terminal send` and `job` stdin get bash's refusal;
+  `terminal` and `monitor` writes are checked against protected paths; a
+  tainted turn's network command is asked about through monitor, terminal
+  and job as well as bash. `.aiignore` follows symlinks. The sed preview no
+  longer applies a clustered `-i` (`-ni`) before approval. A pre-tool hook
+  answering "ask" is honoured for read-only calls.
+- Secrets: a private key's body is redacted, not just its BEGIN line;
+  orient's file excerpts are redacted before they are cut; `/commit` scans
+  added lines starting with `++`. A markdown image in a web reply is a
+  link, not an `<img>` that loads on render. Skills that are symlinks out of
+  the skill are blocked.
+- CONFLICT checks re-run only a plain test command (never a chained one),
+  and not outside the sandbox.
+- Providers: multi-line SSE `data:` events (OpenAI chat, Responses,
+  Gemini's shared loop); Gemini tool results matched to the right call;
+  invalid Responses tool arguments no longer break the session. MCP paging
+  stops on cycling cursors. `allowed_models` covers every model slot.
+- Processes: voice recording, notify commands, whybroke probes, difffuzz
+  runs and the cua doctor kill their whole process group on cancel.
+- Correctness: zero-test runs read as vacuous, not verified; `[exit code]`
+  taken from the end of a result; the goal skeptic reviews round one; a
+  `--watch` run hitting `--max-wall-time` exits 56; Claude Code Stop hooks
+  with `continue: false` stop; `--resume` with `--continue` is refused;
+  `/dryrun apply` waits for the turn; theme files take their base's dark
+  mode; diff previews show changed lines that look like `---`/`+++`
+  headers; and a few dozen smaller fixes (see `git log`).
+- Races fixed in /accept, /cd versus subagents and /permissions check,
+  web UI questions, /stats and /context, durable recovery, and the
+  stream-json result line.
+
 ### CONFLICT: is on by default (2026-10-11)
 - `conflict_exit` is now on unless set to false. On the impossible split
   it ended 13 of 16 MiMo runs and 16 of 16 DeepSeek runs naming the
