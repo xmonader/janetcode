@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -21,10 +22,34 @@ import (
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	err := run(os.Args[1:])
+	if err != nil && !errors.Is(err, flag.ErrHelp) && !isUsage(err) {
+		// The flag package has already printed a usage error and its usage.
 		fmt.Fprintln(os.Stderr, "harnessbench:", err)
-		os.Exit(1)
 	}
+	os.Exit(statusOf(err))
+}
+
+// usageError is a command line the flag set refused.
+type usageError struct{ error }
+
+func (e usageError) Unwrap() error { return e.error }
+
+func isUsage(err error) bool {
+	var u usageError
+	return errors.As(err, &u)
+}
+
+// statusOf is 0 for help asked for, 2 for a bad command line and 1 for a
+// run that failed, as the other subcommands do.
+func statusOf(err error) int {
+	switch {
+	case err == nil, errors.Is(err, flag.ErrHelp):
+		return 0
+	case isUsage(err):
+		return 2
+	}
+	return 1
 }
 
 func run(args []string) error {
@@ -46,7 +71,10 @@ func run(args []string) error {
 	meterLog := fs.String("meter-log", "", "modelproxy -meter JSONL log to cross-check harness-reported usage against (optional)")
 	janetDriver := fs.String("janetcode-driver", "eval", "how to run janetcode: eval (its own eval harness, a batch per process) or headless (one `-p --output-format json` per task, driven exactly like the other CLIs)")
 	if err := fs.Parse(args); err != nil {
-		return err
+		if errors.Is(err, flag.ErrHelp) {
+			return err
+		}
+		return usageError{err}
 	}
 
 	tasks, err := eval.Load(*evalsDir)
