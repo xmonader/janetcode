@@ -3,6 +3,9 @@ package diff
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -144,5 +147,29 @@ func TestLargeDissimilarDiffIsBoundedInMemory(t *testing.T) {
 	}
 	if got := apply(a, ops); strings.Join(got, "\n") != strings.Join(b, "\n") {
 		t.Fatal("round trip failed on the large diff")
+	}
+}
+
+// git apply takes what Unified writes when a side is empty: a new file,
+// a file emptied, and lines inserted after the last one.
+func TestUnifiedEmptyRangesApply(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	for _, c := range []struct{ before, after string }{
+		{"", "a\nb\n"},
+		{"a\nb\n", ""},
+		{"a\nb\n", "a\nb\nc\n"},
+	} {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "f"), []byte(c.before), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		patch := strings.Replace(Unified("f", c.before, c.after, 3), "--- f\n+++ f\n", "--- a/f\n+++ b/f\n", 1)
+		cmd := exec.Command("git", "apply", "--check", "-")
+		cmd.Dir, cmd.Stdin = dir, strings.NewReader(patch)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("%q -> %q: git apply: %v %s\n%s", c.before, c.after, err, out, patch)
+		}
 	}
 }
