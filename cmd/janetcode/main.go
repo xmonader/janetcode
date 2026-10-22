@@ -83,27 +83,18 @@ func main() {
 }
 
 // requestedFormat is the --output-format the command line asked for, read
-// without the flag set: the run may have failed on the flags themselves,
-// and a json caller still wants its result object. Anything it cannot
+// with the real flag set's own rules: the run may have failed on the flags
+// themselves, and a json caller still wants its result object. Parsing
+// stops where the flag parser stops (the first positional, or "--"), so
+// prompt text that spells a flag is not read as one. Anything it cannot
 // read is text, which prints nothing extra.
 func requestedFormat(args []string) headless.Format {
-	for i, a := range args {
-		if a == "--" {
-			break
-		}
-		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
-		if !strings.HasPrefix(a, "-") || name != "output-format" {
-			continue
-		}
-		if !hasVal {
-			if i+1 >= len(args) {
-				break
-			}
-			val = args[i+1]
-		}
-		if f, err := headless.ParseFormat(val); err == nil {
-			return f
-		}
+	fs, o := newFlagSet()
+	fs.Usage = func() {}
+	fs.SetOutput(io.Discard)
+	_ = fs.Parse(args) // flags read before an error still count
+	if f, err := headless.ParseFormat(o.outFormat); err == nil {
+		return f
 	}
 	return headless.FormatText
 }

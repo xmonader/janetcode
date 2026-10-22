@@ -141,6 +141,10 @@ func TestRequestedFormatReadsTheRawArgs(t *testing.T) {
 		"-p hi --output-format":             headless.FormatText,
 		"-p hi --output-format xml":         headless.FormatText,
 		"-p hi -- --output-format json":     headless.FormatText,
+		"hi --output-format json":           headless.FormatText,
+		"--yolo hi --output-format json":    headless.FormatText,
+		"-p --output-format json":           headless.FormatText,
+		"--yolo --output-format json hi":    headless.FormatJSON,
 	} {
 		if got := requestedFormat(strings.Fields(args)); got != want {
 			t.Errorf("%q: %q, want %q", args, got, want)

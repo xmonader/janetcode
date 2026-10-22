@@ -990,6 +990,12 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	// such call fails on an unknown field.
 	intent, stripped := tool.TakeIntent(input)
 	input = stripped
+	// then_run is taken off exactly as execute does for a model's call, so
+	// a script's edit does not hand the tool a field it does not know.
+	var thenRun string
+	if editTool(name) && !a.Off["thenrun"] {
+		thenRun, input = tool.TakeThenRun(input)
+	}
 	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
 	t, ok := a.Tools.Get(name)
 	if !ok {
@@ -1005,7 +1011,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
 		return out, false, false
 	}
-	_, deny, err := a.authorize(ctx, t, &u, &call, emit)
+	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		if errors.Is(err, egress.ErrCanary) {
 			// The script is told; the call that ran the script ends
@@ -1057,6 +1063,21 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 			}
 		}
 	}
+	// The post-tool hooks fire for a script's call like a direct one.
+	for _, ev := range []string{hook.PostTool, hook.PostToolFailure} {
+		if ev == hook.PostToolFailure && !isErr {
+			continue
+		}
+		in := a.hookInput(ev)
+		in.Tool, in.Input, in.Output, in.IsError = name, u.Input, out, isErr
+		if isErr {
+			in.Error = out
+		}
+		hookNotes = append(hookNotes, a.runHook(ctx, in, emit).Notes...)
+	}
+	for _, n := range hookNotes {
+		out += "\n[hook: " + n + "]"
+	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: id, Name: name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
 	// The script gets the whole output; the archive gets a copy, so what a
@@ -1064,6 +1085,11 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	// though it never entered the conversation.
 	if !isErr {
 		a.stash(id, name, subjectOf(name, u.Input), out)
+	}
+	if thenRun != "" {
+		if res, err := a.runThenRun(ctx, u, thenRun, out, isErr, emit); err == nil {
+			out = res
+		}
 	}
 	return out, isErr, false
 }

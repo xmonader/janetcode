@@ -344,3 +344,19 @@ func TestPendingFlagsASecretOnALineStartingPlusPlus(t *testing.T) {
 		t.Fatalf("secret not flagged in:\n%s", c.Diff)
 	}
 }
+
+// An argument that starts with a dash is a flag to gh, not a pull request
+// or issue; it is refused before gh is run.
+func TestPRCommentsAndIssueRefuseFlagLookingArguments(t *testing.T) {
+	logFile := fakeGH(t)
+	dir := repo(t)
+	if _, err := PRComments(context.Background(), dir, "--web"); err == nil {
+		t.Error("/pr-comments --web was passed to gh")
+	}
+	if _, err := Issue(context.Background(), dir, "-R evil/repo"); err == nil {
+		t.Error("/issue -R was passed to gh")
+	}
+	if b, _ := os.ReadFile(logFile); strings.Contains(string(b), "view") {
+		t.Errorf("gh was run: %s", b)
+	}
+}
