@@ -568,6 +568,10 @@ func (r *recorder) finish(ag *agent.Agent, err error) {
 	}
 	res := r.result(ag, err)
 	resultWritten.Store(true)
+	// The stdin reader may still be reporting a bad line (emitLocked);
+	// under the same lock the two lines cannot interleave.
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	enc := json.NewEncoder(r.out)
 	enc.SetIndent("", "  ")
 	if r.format == FormatStreamJSON {
