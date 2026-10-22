@@ -221,6 +221,35 @@ func TestTaintedEgressAsksOncePerHost(t *testing.T) {
 	}
 }
 
+// A tainted turn asks for a shell command that reaches a spelled-out
+// host once; after the user lets it, more commands to that same host run
+// unasked, so a gh/curl debugging loop does not prompt once per call.
+func TestTaintedShellEgressAsksOncePerHost(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "fetch_url", `{"url":"https://docs.example.com/a"}`),
+		toolCall("t2", "bash", `{"command":"curl -s https://api.github.com/repos/x/y"}`),
+		toolCall("t3", "bash", `{"command":"curl -s https://api.github.com/rate_limit"}`),
+		toolCall("t4", "bash", `{"command":"curl -s https://raw.githubusercontent.com/a/b/c"}`),
+		toolCall("t5", "bash", `{"command":"curl -s https://raw.githubusercontent.com/a/b/d"}`),
+		text("done"),
+	}}
+	ap := &recordApprover{answer: Allow}
+	a, _, ran := taintAgent(t, f, ap)
+	a.EgressPolicy = &egress.Policy{Default: egress.Allow}
+	_, emit := collect()
+	if err := a.Run(context.Background(), "go", emit); err != nil {
+		t.Fatal(err)
+	}
+	// t2 asks (first tainted curl to api.github.com); t3 does not (that
+	// host was approved by t2); t4 asks (a new host); t5 does not.
+	if len(ap.calls) != 2 {
+		t.Fatalf("asked %d times, want 2 (first call to each new host)", len(ap.calls))
+	}
+	if len(*ran) != 4 {
+		t.Errorf("ran %d commands, want all 4 to run after approval", len(*ran))
+	}
+}
+
 // A resumed conversation that had fetched a page comes back tainted; an
 // empty one is clean.
 func TestRetaintFromHistory(t *testing.T) {

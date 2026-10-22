@@ -36,6 +36,11 @@ func TestJobsStartWaitOutputAndFinished(t *testing.T) {
 	if len(notes) != 1 || !strings.Contains(notes[0], "exit 3") || !strings.Contains(notes[0], "last output:\nstart\ndone") {
 		t.Fatalf("notes = %q", notes)
 	}
+	// The note names the job's log so the model reads more of it from the
+	// file rather than guessing an archive id for expand_output.
+	if !strings.Contains(notes[0], "full output: ") {
+		t.Fatalf("note does not point at the job's log: %q", notes[0])
+	}
 	if again := jobs.Finished(); len(again) != 0 {
 		t.Fatalf("reported twice: %q", again)
 	}

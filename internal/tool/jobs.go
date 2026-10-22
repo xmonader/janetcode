@@ -495,6 +495,10 @@ func (j *Jobs) Finished() []string {
 		if strings.TrimSpace(tail) != "" {
 			note += "\nlast output:\n" + textfmt.TruncateTo(tail, 2000)
 		}
+		// Point the model at the log itself: the tail above is a sample,
+		// and a job id is not an archive id, so expand_output cannot
+		// fetch more of it.
+		note += "\nfull output: " + job.OutPath
 		notes = append(notes, note)
 	}
 	return notes

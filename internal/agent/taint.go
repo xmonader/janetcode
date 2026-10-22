@@ -139,7 +139,21 @@ func (a *Agent) taintGate(t tool.Tool, u llm.Block) (why string, hosts []string)
 	switch cmd, isShell := shellLine(u); {
 	case isShell:
 		if needles, ok := taint.EgressCommand(cmd); ok {
-			return tr.Explain("a command that can reach the network", needles), nil
+			// The hosts the command spells out are remembered on approval
+			// (taintApprove) and not asked about again this session, so a
+			// tainted turn does not prompt once per curl to the same
+			// host. A command that names no host — gh api, an ssh alias —
+			// has nothing to cache and keeps asking each time.
+			var fresh []string
+			for _, h := range shellEgressHosts(cmd) {
+				if !a.EgressPolicy.Listed(h) && !a.taintAllowed(h) {
+					fresh = append(fresh, h)
+				}
+			}
+			if len(fresh) == 0 {
+				return "", nil
+			}
+			return tr.Explain("a command that can reach the network", needles), fresh
 		}
 		for _, target := range shell.WriteTargets(cmd, root) {
 			if what := a.sensitivePath(root, target); what != "" {
@@ -198,6 +212,21 @@ func shellLine(u llm.Block) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// shellEgressHosts are the non-loopback hosts a shell command line spells
+// out: what an approval of it can safely be remembered for. It is
+// recognition, not proof — a command can reach a host it does not spell —
+// so only a spelled-out host is ever cached, never the whole command.
+func shellEgressHosts(cmd string) []string {
+	var out []string
+	for _, h := range egress.HostsInCommand(cmd) {
+		if h == "localhost" || strings.HasPrefix(h, "127.") || h == "::1" || h == "0.0.0.0" {
+			continue
+		}
+		out = append(out, h)
+	}
+	return out
 }
 
 // sensitivePath names what a path is when a tainted turn must not change
