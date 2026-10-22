@@ -90,11 +90,22 @@ func equivalent(masked string, op operator, end int) bool {
 	return right == "0"
 }
 
+// commentStar reports a line that continues or closes a block comment:
+// "* text", "*/", a bare "*". A star against a name or a paren is code,
+// a dereference such as "*p = a + b", and gets its mutants.
+func commentStar(trimmed string) bool {
+	if !strings.HasPrefix(trimmed, "*") {
+		return false
+	}
+	rest := trimmed[1:]
+	return rest == "" || rest[0] == ' ' || rest[0] == '\t' || rest[0] == '/' || rest[0] == '*'
+}
+
 // Mutate lists every operator flip on one line, skipping comments and
 // the insides of string literals.
 func Mutate(path string, line int, text string) []Mutant {
 	trimmed := strings.TrimSpace(text)
-	if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "*") || strings.HasPrefix(trimmed, "/*") {
+	if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") || commentStar(trimmed) || strings.HasPrefix(trimmed, "/*") {
 		return nil
 	}
 	masked := maskStrings(text)

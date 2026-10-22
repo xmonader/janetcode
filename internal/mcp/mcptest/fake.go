@@ -124,7 +124,18 @@ func FakeServer() {
 				if grown {
 					tools = append(tools, map[string]any{"name": "extra", "description": "Added later", "inputSchema": map[string]any{"type": "object"}})
 				}
-				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"tools": tools}})
+				result := map[string]any{"tools": tools}
+				// MCP_FAKE_CURSOR_CYCLE makes the pages point at each other,
+				// page2 to page3 and page3 back to page2, as a broken server
+				// can; nothing is ever the last page.
+				if os.Getenv("MCP_FAKE_CURSOR_CYCLE") != "" {
+					next := "page3"
+					if p.Cursor == "page3" {
+						next = "page2"
+					}
+					result["nextCursor"] = next
+				}
+				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": result})
 			}
 		case "tools/call":
 			var p struct {

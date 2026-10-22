@@ -616,6 +616,14 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		}
 		from := t.Jobs.logSize(in.ID)
 		if in.Text != nil {
+			// A job is often a shell, and a line typed into one runs as
+			// bash's command does: what bash refuses is refused here too,
+			// or it could be typed into `bash` started in the background.
+			// The job's directory is not kept, so the line is judged
+			// without one; the refusal does not depend on it.
+			if risk, why := shell.Classify(*in.Text, ""); risk == shell.RiskCatastrophic {
+				return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
+			}
 			if err := t.Jobs.Write(ctx, in.ID, *in.Text); err != nil {
 				return "", err
 			}

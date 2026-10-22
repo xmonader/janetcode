@@ -153,7 +153,13 @@ func (h *harness) enter() { h.update(tea.KeyMsg{Type: tea.KeyEnter}) }
 
 // pump feeds background messages until the predicate holds or time runs out.
 func (h *harness) pump(until func() bool) {
-	deadline := time.After(5 * time.Second)
+	// -race runs the turn several times slower, and with the rest of the
+	// suite running alongside, 5s was missed by a turn that takes 1.5s.
+	wait := 5 * time.Second
+	if raceEnabled {
+		wait = 30 * time.Second
+	}
+	deadline := time.After(wait)
 	for !until() {
 		select {
 		case msg := <-h.msgs:

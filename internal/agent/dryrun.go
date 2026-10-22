@@ -363,9 +363,15 @@ func (a *Agent) dryFiles() []DryFile {
 			continue // written back to what it was
 		}
 		f.Diff = diff.Unified(textfmt.RelTo(root, c.Path), string(before), after, 3)
+		// The ---/+++ header is the lines before the first @@; past it a
+		// removed "-- note" or an added "++x" is a changed line like any
+		// other.
+		inHunk := false
 		for _, l := range strings.Split(f.Diff, "\n") {
 			switch {
-			case strings.HasPrefix(l, "+++") || strings.HasPrefix(l, "---"):
+			case strings.HasPrefix(l, "@@"):
+				inHunk = true
+			case !inHunk:
 			case strings.HasPrefix(l, "+"):
 				f.Add++
 			case strings.HasPrefix(l, "-"):

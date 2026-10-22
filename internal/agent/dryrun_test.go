@@ -192,3 +192,24 @@ func TestDryRunOffDiscardsAndSaysSo(t *testing.T) {
 		t.Fatal("the model was not told the preview was dropped")
 	}
 }
+
+// A removed line reading "-- note" shows in the diff as "--- note", and an
+// added "++x" as "+++x"; both are changed lines, not the file header.
+func TestDryRunCountsLinesThatLookLikeHeaders(t *testing.T) {
+	a, root := dryAgent(t,
+		toolCall("t1", "write_file", `{"path":"a.sql","content":"++x\nselect 1;\n"}`),
+		text("done"),
+	)
+	if err := os.WriteFile(filepath.Join(root, "a.sql"), []byte("-- note\nselect 1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.SetDryRun(true)
+	_, emit := collect()
+	if err := a.Run(context.Background(), "edit a.sql", emit); err != nil {
+		t.Fatal(err)
+	}
+	files := a.dryFiles()
+	if len(files) != 1 || files[0].Add != 1 || files[0].Del != 1 {
+		t.Fatalf("files = %+v", files)
+	}
+}

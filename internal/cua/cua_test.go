@@ -1,10 +1,13 @@
 package cua
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/mcp"
 )
@@ -51,5 +54,20 @@ func TestMergeIntoDoesNotOverwrite(t *testing.T) {
 	fresh := map[string]mcp.ServerConfig{}
 	if _, ok := MergeInto(fresh); !ok || fresh[ServerName].Command != "/opt/bin/cua-driver" {
 		t.Fatalf("did not add: %+v", fresh)
+	}
+}
+
+// A timed-out doctor run returns at its timeout even when the driver
+// started a child that holds the output pipe.
+func TestRunCmdKillsTheChildOnTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, _ = runCmd(ctx, "sh", "-c", "sleep 30 & sleep 30")
+	if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("runCmd took %s", d)
 	}
 }

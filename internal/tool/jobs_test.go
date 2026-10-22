@@ -222,3 +222,25 @@ func TestAnAbandonedJobWriteEndsStdin(t *testing.T) {
 		t.Fatalf("second write: err = %v, want a refusal", err)
 	}
 }
+
+// What bash refuses is refused when it is typed into a background shell
+// too; an ordinary answer still goes through.
+func TestJobStdinRefusesWhatBashRefuses(t *testing.T) {
+	jobs := &Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `cat`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = jobs.Kill(job.ID) })
+	jt := JobTool{Jobs: jobs}
+	in := func(text string) json.RawMessage {
+		b, _ := json.Marshal(map[string]any{"action": "stdin", "id": job.ID, "text": text})
+		return b
+	}
+	if _, err := jt.Run(context.Background(), in("sudo rm -rf /")); err == nil || !strings.Contains(err.Error(), "refused") {
+		t.Fatalf("err = %v, want a refusal", err)
+	}
+	if _, err := jt.Run(context.Background(), in("y")); err != nil {
+		t.Fatalf("an ordinary answer: %v", err)
+	}
+}

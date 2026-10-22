@@ -456,6 +456,12 @@ func (s *server) replayHistory(msgs []llm.Message) {
 	}
 }
 
+// maxUploadBody caps a whole upload request. ParseMultipartForm keeps
+// 32MB in memory and spills the rest to temporary files, and the 16MB a
+// file is checked against only after that, so without a cap on the body
+// one request could fill the disk.
+var maxUploadBody int64 = 64 << 20
+
 func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
@@ -465,7 +471,13 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no working directory", http.StatusConflict)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBody)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			http.Error(w, fmt.Sprintf("upload is over %dMB", maxUploadBody>>20), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "bad upload", http.StatusBadRequest)
 		return
 	}
@@ -493,16 +505,19 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		dst, out, err := createUpload(dir, name)
 		if err == nil {
 			_, err = io.Copy(out, src)
+			if cerr := out.Close(); err == nil {
+				err = cerr
+			}
+			if err != nil {
+				// Half a file is not the file: the prompt would attach it.
+				os.Remove(dst)
+			}
 		}
 		src.Close()
 		if err != nil {
-			if out != nil {
-				out.Close()
-			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		out.Close()
 		paths = append(paths, textfmt.RelTo(s.cwd(), dst))
 	}
 	writeJSON(w, map[string]any{"ok": "1", "paths": paths})

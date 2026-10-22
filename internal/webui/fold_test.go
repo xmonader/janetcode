@@ -271,3 +271,33 @@ func TestUploadKeepsTwoFilesWithOneName(t *testing.T) {
 		}
 	}
 }
+
+// A request over the body cap is refused before it is spooled to disk,
+// and nothing lands in uploads.
+func TestUploadRefusesABodyOverTheCap(t *testing.T) {
+	old := maxUploadBody
+	maxUploadBody = 1 << 10
+	t.Cleanup(func() { maxUploadBody = old })
+	dir := t.TempDir()
+	s := newServer(context.Background(), Options{Cwd: dir})
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, err := mw.CreateFormFile("files", "big.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(bytes.Repeat([]byte("x"), 8<<10)); err != nil {
+		t.Fatal(err)
+	}
+	mw.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/upload", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+	s.handler().ServeHTTP(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("upload %d %s", w.Code, w.Body.String())
+	}
+	if entries, _ := os.ReadDir(filepath.Join(dir, ".janetcode", "uploads")); len(entries) != 0 {
+		t.Fatalf("files written: %v", entries)
+	}
+}

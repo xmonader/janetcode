@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -220,5 +221,28 @@ func TestDedupKeepsTheHistoryPaired(t *testing.T) {
 		if res[i].Text != want {
 			t.Fatalf("result %d = %q, want %q (all: %+v)", i, res[i].Text, want, res)
 		}
+	}
+}
+
+// A duplicate of a parallel read that failed failed too: it used to be
+// answered "[deduped …]" with no error flag, which reads as a success.
+func TestDuplicateOfAFailedParallelReadIsAnError(t *testing.T) {
+	bad := funcTool{name: "r", run: func(json.RawMessage) (string, error) {
+		return "", errors.New("no such key")
+	}}
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			dedupCall("1", "r", `{"K":"x"}`),
+			dedupCall("2", "r", `{"K":"x"}`),
+		}}, StopReason: llm.StopToolUse},
+		text("ok"),
+	}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(bad), Model: "m", AutoApprove: true}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	res := a.Messages[2].Blocks
+	if !res[0].IsError || !res[1].IsError {
+		t.Fatalf("results = %+v", res)
 	}
 }

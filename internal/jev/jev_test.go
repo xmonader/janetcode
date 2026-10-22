@@ -456,6 +456,9 @@ func TestPinnedModel(t *testing.T) {
 		"jev-preview":          false,
 		"~typesafe/claude":     false,
 		"jev-1.13":             false,
+		"jev-..":               false,
+		"jev-1..2":             false,
+		"jev-1.2.":             false,
 		"":                     false,
 		"claude-opus-5":        false,
 	}

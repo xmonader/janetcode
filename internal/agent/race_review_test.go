@@ -18,7 +18,7 @@ func TestAcceptModeIsCreatedOnceUnderConcurrency(t *testing.T) {
 		go func() { defer wg.Done(); _, _ = a.acceptPhase() }()
 	}
 	wg.Wait()
-	if a.acceptMode() != a.acceptMode() {
+	if m := a.acceptMode(); m != a.acceptMode() {
 		t.Fatal("two accept modes")
 	}
 }
