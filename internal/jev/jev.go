@@ -579,14 +579,15 @@ func PinnedModel(model string) bool {
 	if !ok {
 		return false
 	}
-	dots := 0
-	for _, r := range rest {
-		switch {
-		case r == '.':
-			dots++
-		case r < '0' || r > '9':
+	// Three numbers: counting the dots alone took "jev-.." and "jev-1..2".
+	parts := strings.Split(rest, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" || strings.Trim(p, "0123456789") != "" {
 			return false
 		}
 	}
-	return dots == 2
+	return true
 }
