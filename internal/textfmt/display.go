@@ -1,6 +1,10 @@
 package textfmt
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 // Display is text as a terminal would end up showing it: what a terminal
 // would end up showing for each line, with no control character left to
@@ -53,6 +57,8 @@ func overstrike(l string) string {
 			return r
 		}, l)
 	}
+	// A wide rune takes two cells; the second is held as 0 so that
+	// overwriting either half can blank the other, as a terminal does.
 	var row []rune
 	col := 0
 	for _, r := range l {
@@ -66,13 +72,30 @@ func overstrike(l string) string {
 		case (r < 0x20 && r != '\t') || r == 0x7f:
 			// dropped
 		default:
-			if col < len(row) {
-				row[col] = r
-			} else {
-				row = append(row, r)
+			w := max(ansi.StringWidth(string(r)), 1)
+			for len(row) < col+w {
+				row = append(row, ' ')
 			}
-			col++
+			for i := col; i < col+w; i++ {
+				if row[i] == 0 && i > 0 {
+					row[i-1] = ' '
+				}
+				if i+1 < len(row) && row[i+1] == 0 && row[i] != 0 {
+					row[i+1] = ' '
+				}
+			}
+			row[col] = r
+			for i := 1; i < w; i++ {
+				row[col+i] = 0
+			}
+			col += w
 		}
 	}
-	return string(row)
+	out := make([]rune, 0, len(row))
+	for _, r := range row {
+		if r != 0 {
+			out = append(out, r)
+		}
+	}
+	return string(out)
 }
