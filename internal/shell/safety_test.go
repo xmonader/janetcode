@@ -321,7 +321,9 @@ func TestNestedShellsAreBounded(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(20 * time.Second):
+	// An unbounded walk never finishes; a bounded one takes about a
+	// second, and 16s under -race on a loaded machine, which 20 missed.
+	case <-time.After(60 * time.Second):
 		t.Fatal("classifying a deeply nested command did not finish")
 	}
 	// Ordinary nesting is still judged by the command inside.
