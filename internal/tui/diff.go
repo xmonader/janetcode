@@ -52,7 +52,7 @@ func parseUnifiedDiff(s string) ([]diffHunk, bool) {
 	var hunks []diffHunk
 	for _, l := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
 		switch {
-		case strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ "):
+		case len(hunks) == 0 && (strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ")):
 			// The file name is already on the tool line.
 		case strings.HasPrefix(l, "@@"):
 			o, n, ok := parseHunkHeader(l)

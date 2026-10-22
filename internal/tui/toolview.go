@@ -328,14 +328,25 @@ func pendingExpandable(c agent.ToolCall) bool {
 
 // previewLines counts the lines renderPreview would draw for a preview.
 func previewLines(preview string) int {
-	n := 0
+	return len(previewBody(preview))
+}
+
+// previewBody is a preview's lines without the file header: only the
+// "---"/"+++" lines before the first hunk are the header, so a removed
+// line whose text starts with "-- " is content, not a header.
+func previewBody(preview string) []string {
+	var lines []string
+	inHunk := false
 	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
-		if strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ") {
-			continue
+		if strings.HasPrefix(l, "@@") {
+			inHunk = true
 		}
-		n++
+		if !inHunk && (strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ")) {
+			continue // the file name is already on the tool line
+		}
+		lines = append(lines, l)
 	}
-	return n
+	return lines
 }
 
 // renderPreview draws a unified diff with line numbers, elided gaps and
@@ -345,13 +356,7 @@ func renderPreview(sty *styles, preview string, width, maxLines int, expandable 
 	if hunks, ok := parseUnifiedDiff(preview); ok {
 		return renderDiff(sty, hunks, width, maxLines, expandable)
 	}
-	var lines []string
-	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
-		if strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ") {
-			continue // the file name is already on the tool line
-		}
-		lines = append(lines, l)
-	}
+	lines := previewBody(preview)
 	hidden := 0
 	if len(lines) >= maxLines+clipSlack {
 		hidden, lines = len(lines)-maxLines, lines[:maxLines]
