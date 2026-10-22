@@ -27,6 +27,10 @@ const (
 	// gate, and `sh -c "sh -c \"sh -c ...\""` is not a shape an honest
 	// command line takes.
 	RiskUnknown
+	// RiskDestructive writes or deletes through something the paths of
+	// the command line do not show: an interpreter one-liner, xargs, or
+	// a git command that discards work or rewrites history. It asks.
+	RiskDestructive
 	// RiskEscapes mutates paths outside the workspace root.
 	RiskEscapes
 	// RiskCatastrophic is never run, even with auto-approve.
@@ -37,6 +41,8 @@ func (r Risk) String() string {
 	switch r {
 	case RiskUnknown:
 		return "too deeply nested to classify"
+	case RiskDestructive:
+		return "destructive"
 	case RiskEscapes:
 		return "escapes workspace"
 	case RiskCatastrophic:
@@ -444,6 +450,17 @@ func classifyOne(seg string, toks []string, root string, cwd string, cwdKnown bo
 // classifyWords peels wrappers so `sudo sh -c "rm -rf /"` is judged by what
 // it runs. seg is the raw text, for redirection checks.
 func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
+	r, why := classifyPaths(toks, seg, root, cwd, cwdKnown, depth)
+	if r >= RiskDestructive {
+		return r, why
+	}
+	r2, why2 := destructiveRisk(commandWords(toks))
+	return worse(r, why, r2, why2)
+}
+
+// classifyPaths grades a command by the paths it names; destructiveRisk
+// covers what it does to them without naming any.
+func classifyPaths(toks []string, seg, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
 	if len(toks) == 0 {
 		return RiskOrdinary, ""
 	}
