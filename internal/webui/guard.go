@@ -35,11 +35,31 @@ func (s *server) guard(next http.Handler) http.Handler {
 			http.Error(w, "forbidden: cross-site request", http.StatusForbidden)
 			return
 		}
+		frameHeaders(w, r)
 		if s.requireToken(w, r) {
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// frameHeaders says who may frame a response. The editor embed
+// (editors/vscode) frames the page from a VS Code webview, with a
+// SameSite=None cookie, so without this any site could frame it too and
+// click through for the user. The only embedder is that webview: its
+// document is on vscode-webview:, and frame-ancestors checks every
+// ancestor, so the workbench around it (vscode-file: in the desktop app)
+// is listed too. A VS Code served over http(s) (code-server, vscode.dev)
+// is not allowed. Only loopback names may be framed at all, since that is
+// where the embed cookie is issued; X-Frame-Options has no way to name
+// the webview scheme, so it is sent only where nothing may frame.
+func frameHeaders(w http.ResponseWriter, r *http.Request) {
+	if loopbackHost(r.Host) {
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'self' vscode-webview: vscode-file:")
+		return
+	}
+	w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	w.Header().Set("X-Frame-Options", "DENY")
 }
 
 // crossSite reports whether a browser sent r from a page that is not

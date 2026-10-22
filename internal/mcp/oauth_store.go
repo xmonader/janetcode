@@ -240,6 +240,7 @@ func (s *TokenStore) Bearer(ctx context.Context, client *http.Client, name, serv
 		return "", true, fmt.Errorf("%w: refresh failed: %w", ErrAuthRequired, err)
 	}
 	nt.ClientID, nt.ClientSecret, nt.TokenEndpoint = t.ClientID, t.ClientSecret, t.TokenEndpoint
+	nt.RedirectURI = t.RedirectURI
 	if nt.RefreshToken == "" {
 		// No rotation: the refresh token just spent is still the live one.
 		nt.RefreshToken = t.RefreshToken

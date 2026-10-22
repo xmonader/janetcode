@@ -83,7 +83,7 @@ type rpcError struct {
 
 // Serve answers MCP requests on in and out until in ends or ctx is done.
 func Serve(ctx context.Context, in io.Reader, out io.Writer, o Options) error {
-	s := &server{o: o, out: out, running: map[string]context.CancelFunc{}}
+	s := &server{o: o, out: out, running: map[string]*running{}}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	sc := bufio.NewScanner(in)
@@ -125,7 +125,14 @@ type server struct {
 	wg  sync.WaitGroup
 
 	mu      sync.Mutex
-	running map[string]context.CancelFunc // request id → cancel
+	running map[string]*running // request id → its task
+}
+
+// running is a tools/call in flight. A request the client cancelled is
+// not answered (MCP: the receiver SHOULD NOT send a response for it).
+type running struct {
+	cancel    context.CancelFunc
+	cancelled bool
 }
 
 func (s *server) write(m msg) {
@@ -195,10 +202,13 @@ func (s *server) notification(m msg) {
 		return
 	}
 	s.mu.Lock()
-	cancel := s.running[string(p.RequestID)]
+	r := s.running[string(p.RequestID)]
+	if r != nil {
+		r.cancelled = true
+	}
 	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if r != nil {
+		r.cancel()
 	}
 }
 
@@ -268,10 +278,19 @@ func (s *server) call(ctx context.Context, m msg) {
 		s.reply(m.ID, toolError("prompt is required"))
 		return
 	}
-	tctx, cancel := context.WithCancel(ctx)
 	key := string(m.ID)
+	tctx, cancel := context.WithCancel(ctx)
+	task := &running{cancel: cancel}
 	s.mu.Lock()
-	s.running[key] = cancel
+	if s.running[key] != nil {
+		// A second call under a live id would replace the first's cancel
+		// func, so a cancel meant for one would stop or miss the other.
+		s.mu.Unlock()
+		cancel()
+		s.fail(m.ID, -32600, "invalid request: id "+key+" is already in flight")
+		return
+	}
+	s.running[key] = task
 	s.mu.Unlock()
 	var progress func(string)
 	if len(p.Meta.ProgressToken) > 0 {
@@ -290,13 +309,15 @@ func (s *server) call(ctx context.Context, m msg) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer func() {
-			cancel()
-			s.mu.Lock()
-			delete(s.running, key)
-			s.mu.Unlock()
-		}()
 		rep, err := s.o.Runner.Run(tctx, Task{Prompt: p.Arguments.Prompt, SessionID: p.Arguments.SessionID}, progress)
+		cancel()
+		s.mu.Lock()
+		delete(s.running, key)
+		cancelled := task.cancelled
+		s.mu.Unlock()
+		if cancelled {
+			return
+		}
 		if err != nil {
 			s.reply(m.ID, toolError(err.Error()))
 			return

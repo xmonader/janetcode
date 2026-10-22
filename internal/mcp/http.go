@@ -43,6 +43,9 @@ type httpTransport struct {
 	closed    chan struct{}
 	closeOnce sync.Once
 	sseReady  chan error
+	// readers are the goroutines reading a server's event stream; close
+	// ends their bodies and waits for them.
+	readers sync.WaitGroup
 }
 
 func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTransport, error) {
@@ -318,13 +321,25 @@ func (t *httpTransport) sendStreamable(ctx context.Context, msg rpcMessage) erro
 	if strings.HasPrefix(ct, "text/event-stream") {
 		// The stream ends when the server has sent the reply (and any
 		// requests or notifications it wanted to interleave).
-		go func() {
+		if !t.track(func() {
+			stop := make(chan struct{})
+			defer close(stop)
+			go func() {
+				select {
+				case <-t.closed:
+					resp.Body.Close() // unblocks the read below
+				case <-stop:
+				}
+			}()
 			defer resp.Body.Close()
 			t.readSSE(resp.Body, nil)
 			if isRequest {
 				t.c.unanswered(msg.ID, fmt.Errorf("%w: the server's event stream for %s ended without a reply", ErrDisconnected, msg.Method))
 			}
-		}()
+		}) {
+			resp.Body.Close()
+			return ErrDisconnected
+		}
 		return nil
 	}
 	defer resp.Body.Close()
@@ -395,12 +410,22 @@ func (t *httpTransport) ensureSSE(ctx context.Context) error {
 		t.mu.Unlock()
 		return nil
 	}
-	if t.sseReady == nil {
-		t.sseReady = make(chan error, 1)
-		go t.openSSE(t.sseReady)
-	}
 	ready := t.sseReady
-	t.mu.Unlock()
+	if ready == nil {
+		ready = make(chan error, 1)
+		t.sseReady = ready
+		t.mu.Unlock()
+		if !t.track(func() { t.openSSE(ready) }) {
+			t.mu.Lock()
+			if t.sseReady == ready {
+				t.sseReady = nil
+			}
+			t.mu.Unlock()
+			return ErrDisconnected
+		}
+	} else {
+		t.mu.Unlock()
+	}
 	select {
 	case err := <-ready:
 		ready <- err // let later callers see the same outcome
@@ -585,8 +610,29 @@ func (t *httpTransport) readSSE(r io.Reader, onEvent func(event, data string) bo
 	}
 }
 
+// track runs f as a reader goroutine close waits for, and reports false,
+// running nothing, when the transport is already closed.
+func (t *httpTransport) track(f func()) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	select {
+	case <-t.closed:
+		return false
+	default:
+	}
+	t.readers.Add(1)
+	go func() {
+		defer t.readers.Done()
+		f()
+	}()
+	return true
+}
+
 func (t *httpTransport) close() {
+	t.mu.Lock()
 	t.closeOnce.Do(func() { close(t.closed) })
+	t.mu.Unlock()
+	defer t.readers.Wait()
 	t.mu.Lock()
 	sid, mode := t.sessionID, t.mode
 	t.mu.Unlock()

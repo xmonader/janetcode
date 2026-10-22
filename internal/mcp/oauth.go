@@ -54,8 +54,11 @@ func (e *AuthError) Is(target error) bool { return target == ErrAuthRequired }
 
 // Token is what the authorization server issued for one MCP server.
 type Token struct {
-	ClientID      string    `json:"client_id"`
-	ClientSecret  string    `json:"client_secret,omitempty"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret,omitempty"`
+	// RedirectURI is what a dynamically registered client was registered
+	// with; the next login binds the same loopback port.
+	RedirectURI   string    `json:"redirect_uri,omitempty"`
 	AccessToken   string    `json:"access_token"`
 	RefreshToken  string    `json:"refresh_token,omitempty"`
 	Expiry        time.Time `json:"expiry,omitempty"`
@@ -349,16 +352,31 @@ func Authorize(ctx context.Context, o AuthOptions) (Token, error) {
 	if host, _, err := net.SplitHostPort(listen); err != nil || !isLoopbackHost(host) {
 		return Token{}, fmt.Errorf("the redirect listener %q must be a loopback address", listen)
 	}
-	ln, err := net.Listen("tcp", listen)
-	if err != nil {
-		return Token{}, fmt.Errorf("listen for the redirect: %w", err)
+	old, hadOld := o.Store.Get(o.ServerName, o.ServerURL)
+	clientID, clientSecret := o.ClientID, o.ClientSecret
+	reuse := clientID == "" && hadOld && old.ClientID != "" && old.TokenEndpoint == meta.TokenEndpoint
+	// A server that holds the exact redirect URI a client registered
+	// rejects the same client on another port, so a stored registration
+	// is logged in on the port it was made for. Taken by something else,
+	// the client is registered again for a fresh one.
+	var ln net.Listener
+	if reuse && o.Listen == "" && old.RedirectURI != "" {
+		if u, err := url.Parse(old.RedirectURI); err == nil && isLoopbackHost(u.Hostname()) {
+			ln, _ = net.Listen("tcp", u.Host)
+		}
+	}
+	if ln == nil {
+		ln, err = net.Listen("tcp", listen)
+		if err != nil {
+			return Token{}, fmt.Errorf("listen for the redirect: %w", err)
+		}
 	}
 	defer ln.Close()
 	redirect := fmt.Sprintf("http://%s/callback", ln.Addr().String())
-
-	old, hadOld := o.Store.Get(o.ServerName, o.ServerURL)
-	clientID, clientSecret := o.ClientID, o.ClientSecret
-	if clientID == "" && hadOld && old.ClientID != "" && old.TokenEndpoint == meta.TokenEndpoint {
+	if reuse && old.RedirectURI != redirect && meta.RegistrationEndpoint != "" {
+		reuse = false
+	}
+	if reuse {
 		clientID, clientSecret = old.ClientID, old.ClientSecret
 	}
 	// What to ask for: the configured scope, else what the server's
@@ -496,6 +514,9 @@ func Authorize(ctx context.Context, o AuthOptions) (Token, error) {
 		return Token{}, fmt.Errorf("exchange code: %w", err)
 	}
 	tok.ClientID, tok.ClientSecret, tok.TokenEndpoint = clientID, clientSecret, meta.TokenEndpoint
+	if o.ClientID == "" {
+		tok.RedirectURI = redirect
+	}
 	if tok.Scope == "" {
 		// RFC 6749 §5.1: a reply that names no scope granted the scope
 		// asked for. Recording it is what lets the next step-up keep it.
