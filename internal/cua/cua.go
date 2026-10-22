@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
 // ServerName is the MCP server id used for whichever driver is found, so
@@ -116,6 +117,10 @@ func runCmd(ctx context.Context, name string, args ...string) (string, error) {
 	c, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(c, name, args...)
+	// A timeout killed the binary alone; a child it started kept the
+	// output pipe open and Run waited on it past the 8 seconds.
+	procgroup.KillOnCancel(cmd)
+	cmd.WaitDelay = 2 * time.Second
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
