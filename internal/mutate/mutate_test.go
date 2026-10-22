@@ -416,3 +416,16 @@ func TestChangedIgnoresTheUsersDiffConfiguration(t *testing.T) {
 		git("config", "--unset", cfg[0])
 	}
 }
+
+// A line starting with a dereference is code; a block comment's
+// continuation lines are not.
+func TestMutateDereferenceLineIsCode(t *testing.T) {
+	if got := Mutate("a.go", 1, "\t*p = a + b"); len(got) == 0 {
+		t.Fatal("no mutants for *p = a + b")
+	}
+	for _, c := range []string{" * a + b", " */", " *", " ** a + b"} {
+		if got := Mutate("a.go", 1, c); len(got) != 0 {
+			t.Errorf("mutants for comment line %q: %+v", c, got)
+		}
+	}
+}
