@@ -93,3 +93,21 @@ func TestNoIgnoreFiles(t *testing.T) {
 		t.Fatal("path outside root excluded")
 	}
 }
+
+func TestCaseInsensitiveFileSystems(t *testing.T) {
+	defer func(old bool) { foldCase = old }(foldCase)
+	for _, fold := range []bool{false, true} {
+		foldCase = fold
+		root := t.TempDir()
+		put(t, root, ".aiignore", "secrets.env\nPrivate/\n")
+		m := For(root)
+		for _, c := range []struct {
+			path string
+			dir  bool
+		}{{"SECRETS.env", false}, {"private", true}} {
+			if hit, _ := m.Excluded(filepath.Join(root, c.path), c.dir); hit != fold {
+				t.Errorf("foldCase=%v: %s excluded = %v, want %v", fold, c.path, hit, fold)
+			}
+		}
+	}
+}
