@@ -2,6 +2,7 @@ package shell
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -190,6 +191,24 @@ func TestWriteTargetsTracksCdAndVars(t *testing.T) {
 				t.Errorf("%q: targets = %v, want %v", c.cmd, got, c.want)
 			}
 		}
+	}
+}
+
+// `~name/x` is that user's home, not the current home with "name" glued on:
+// ~root/.ssh/authorized_keys must resolve to where the shell writes it.
+func TestWriteTargetsExpandsTildeUser(t *testing.T) {
+	u, err := user.Current()
+	if err != nil || u.HomeDir == "" {
+		t.Skip("no current user")
+	}
+	root := t.TempDir()
+	got := WriteTargets("echo x > ~"+u.Username+"/.ssh/authorized_keys", root)
+	want := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("targets = %v, want [%s]", got, want)
+	}
+	if got := WriteTargets("echo x > ~no-such-user-jc/f", root); len(got) != 0 {
+		t.Fatalf("an unknown user cannot be resolved, got %v", got)
 	}
 }
 

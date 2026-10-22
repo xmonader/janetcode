@@ -98,6 +98,19 @@ func TestBashWarn(t *testing.T) {
 	}
 }
 
+// A destructive in-workspace command is a warning on the prompt, not a
+// forced prompt: whether it asks follows the permission mode.
+func TestBashDestructiveWarnsButDoesNotGuard(t *testing.T) {
+	b := Bash{Root: t.TempDir()}
+	in := raw(`{"command":"git reset --hard HEAD~1"}`)
+	if ask, why := b.Guard(in); ask {
+		t.Fatalf("guard forced a prompt: %q", why)
+	}
+	if w := b.Warn(in); !strings.Contains(w, "git reset --hard") {
+		t.Fatalf("warn = %q", w)
+	}
+}
+
 func TestBashRefusesCatastrophicAndGuardsEscapes(t *testing.T) {
 	b := Bash{Root: t.TempDir()}
 	_, err := b.Run(context.Background(), raw(`{"command":"echo hi && sudo rm -rf /"}`))

@@ -346,7 +346,7 @@ func (t Bash) guardFrom(command, root, cwd string, known bool) (bool, string) {
 	// Anything the classifier could not grade (shell.RiskUnknown) asks
 	// too: "I could not work out what this runs" is a reason to put the
 	// command in front of the user, not a reason to wave it through.
-	if risk, why := shell.ClassifyFrom(in.Command, root, cwd, known); risk >= shell.RiskUnknown {
+	if risk, why := shell.ClassifyFrom(in.Command, root, cwd, known); risk == shell.RiskUnknown || risk >= shell.RiskEscapes {
 		return true, why
 	}
 	if what := selfModifyingCommand(in.Command, root); what != "" {

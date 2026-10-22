@@ -11,8 +11,44 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
+
+// TestScriptRunsInsideTheSandbox: with the sandbox on, the script is
+// confined like a bash command, not run on the host.
+func TestScriptRunsInsideTheSandbox(t *testing.T) {
+	pythonOrSkip(t)
+	root := t.TempDir()
+	_, s := scriptAgent(t, root)
+	sb := &shell.Sandbox{}
+	if err := sb.SetBackend(shell.BackendBwrap); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.SetProfile("read-only"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.Enable(); err != nil {
+		t.Skipf("bwrap is not usable here: %v", err)
+	}
+	s.Parent.Sandbox = sb
+	out := runScript(t, s, `
+try:
+    open("escaped.txt", "w").write("x")
+    print("WROTE")
+except OSError:
+    print("DENIED")
+from janetcode_tools import list_dir
+list_dir(path=".")
+print("TOOLS")
+`)
+	if !strings.Contains(out, "DENIED") || strings.Contains(out, "WROTE") || !strings.Contains(out, "TOOLS") {
+		t.Fatalf("script was not confined: %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "escaped.txt")); err == nil {
+		t.Fatal("the script wrote through the read-only sandbox")
+	}
+}
 
 func pythonOrSkip(t *testing.T) string {
 	t.Helper()

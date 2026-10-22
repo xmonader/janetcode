@@ -51,6 +51,24 @@ func outsideDir(t *testing.T) string {
 	return d
 }
 
+// A sandboxed command must not be able to plant a hook or a config key
+// (core.fsmonitor, core.sshCommand) that git runs on the host later.
+func TestBwrapGitConfigAndHooksReadOnly(t *testing.T) {
+	sb := bwrapSandbox(t, "workspace")
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".git", "hooks"), 0o755)
+	os.WriteFile(filepath.Join(root, ".git", "config"), []byte("[core]\n"), 0o644)
+	if o, err := runIn(t, sb, root, "echo '[core]' >> .git/config"); err == nil {
+		t.Fatalf(".git/config writable: %q", o)
+	}
+	if o, err := runIn(t, sb, root, "echo x > .git/hooks/pre-commit"); err == nil {
+		t.Fatalf(".git/hooks writable: %q", o)
+	}
+	if o, err := runIn(t, sb, root, "echo x > .git/HEAD"); err != nil {
+		t.Fatalf("the rest of .git must stay writable: %q %v", o, err)
+	}
+}
+
 func TestBwrapConfinesWrites(t *testing.T) {
 	sb := bwrapSandbox(t, "workspace")
 	root, out := t.TempDir(), outsideDir(t)

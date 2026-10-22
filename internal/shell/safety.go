@@ -3,6 +3,7 @@ package shell
 import (
 	"cmp"
 	"os"
+	"os/user"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -26,6 +27,12 @@ const (
 	// gate, and `sh -c "sh -c \"sh -c ...\""` is not a shape an honest
 	// command line takes.
 	RiskUnknown
+	// RiskDestructive writes or deletes through something the paths of
+	// the command line do not show: an interpreter one-liner, xargs, or
+	// a git command that discards work or rewrites history. It is a
+	// warning on the prompt and never a safe read, but it does not force
+	// a prompt: inside the workspace it follows the permission mode.
+	RiskDestructive
 	// RiskEscapes mutates paths outside the workspace root.
 	RiskEscapes
 	// RiskCatastrophic is never run, even with auto-approve.
@@ -36,6 +43,8 @@ func (r Risk) String() string {
 	switch r {
 	case RiskUnknown:
 		return "too deeply nested to classify"
+	case RiskDestructive:
+		return "destructive"
 	case RiskEscapes:
 		return "escapes workspace"
 	case RiskCatastrophic:
@@ -465,6 +474,17 @@ func classifyOne(seg string, toks []string, root string, cwd string, cwdKnown bo
 // classifyWords peels wrappers so `sudo sh -c "rm -rf /"` is judged by what
 // it runs. seg is the raw text, for redirection checks.
 func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
+	r, why := classifyPaths(toks, seg, root, cwd, cwdKnown, depth)
+	if r >= RiskDestructive {
+		return r, why
+	}
+	r2, why2 := destructiveRisk(commandWords(toks))
+	return worse(r, why, r2, why2)
+}
+
+// classifyPaths grades a command by the paths it names; destructiveRisk
+// covers what it does to them without naming any.
+func classifyPaths(toks []string, seg, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
 	if len(toks) == 0 {
 		return RiskOrdinary, ""
 	}
@@ -1174,9 +1194,11 @@ var shellVarRe = regexp.MustCompile(`\$(?:HOME\b|\{HOME\}|TMPDIR\b|\{TMPDIR\})`)
 // the workspace).
 func resolvePathArg(tk, cwd string) (string, bool) {
 	if strings.HasPrefix(tk, "~") {
-		if home, err := os.UserHomeDir(); err == nil {
-			tk = home + tk[1:]
+		exp, ok := ExpandTilde(tk)
+		if !ok {
+			return "", false
 		}
+		tk = exp
 	}
 	if strings.Contains(tk, "$") {
 		tk = shellVarRe.ReplaceAllStringFunc(tk, func(m string) string {
@@ -1193,6 +1215,28 @@ func resolvePathArg(tk, cwd string) (string, bool) {
 		return "", false // a glob or variable: cannot judge, leave it to the prompt
 	}
 	return absFrom(tk, cwd), true
+}
+
+// ExpandTilde expands a leading ~ the way the shell does: ~ and ~/x to the
+// home directory, ~name/x to that user's home. ~+, ~- and a user that
+// cannot be looked up are not judgeable, so ok is false.
+func ExpandTilde(tk string) (string, bool) {
+	name, rest, _ := strings.Cut(tk[1:], "/")
+	if name == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return tk, true // as before: left unexpanded, judged as written
+		}
+		return home + tk[1:], true
+	}
+	u, err := user.Lookup(name)
+	if err != nil || u.HomeDir == "" {
+		return "", false
+	}
+	if rest == "" {
+		return u.HomeDir, true
+	}
+	return u.HomeDir + "/" + rest, true
 }
 
 // WriteTargets returns the file paths a shell command line would write
