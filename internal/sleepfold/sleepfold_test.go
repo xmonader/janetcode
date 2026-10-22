@@ -86,3 +86,25 @@ func TestFoldEmpty(t *testing.T) {
 		t.Fatalf("in = %+v", in)
 	}
 }
+
+// Capping keeps the facts in the order they happened: the goal, user
+// lines and the verdict interleave as the session had them.
+func TestCapSleepFactsKeepsChronology(t *testing.T) {
+	var facts []memory.SleepFact
+	for i := 1; i <= sleepFactCap+10; i++ {
+		kind := "user"
+		if i%10 == 0 {
+			kind = "verdict"
+		}
+		facts = append(facts, memory.SleepFact{Seq: i, Kind: kind})
+	}
+	got := capSleepFacts(facts)
+	if len(got) != sleepFactCap {
+		t.Fatalf("kept %d, want %d", len(got), sleepFactCap)
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i].Seq < got[i-1].Seq {
+			t.Fatalf("fact %d (seq %d) after seq %d", i, got[i].Seq, got[i-1].Seq)
+		}
+	}
+}

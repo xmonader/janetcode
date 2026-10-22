@@ -3,6 +3,7 @@ package sleepfold
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -173,7 +174,11 @@ func capSleepFacts(facts []memory.SleepFact) []memory.SleepFact {
 		}
 		rest = rest[len(rest)-room:]
 	}
-	return append(kept, rest...)
+	// Back into the order things happened: appended as kept-then-rest,
+	// a user line from early on read as if it came after the verdict.
+	out := append(kept, rest...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
+	return out
 }
 
 // firstLines is the head of a result, enough to say what came back.
