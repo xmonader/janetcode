@@ -42,6 +42,22 @@ type workspace struct {
 	Terminals []termItem  `json:"terminals,omitempty"`
 	Ptc       []ptcItem   `json:"ptc,omitempty"`
 	Branch    string      `json:"branch,omitempty"`
+	// Ctx feeds the context-meter popover on the ctx chip.
+	Ctx *ctxMeter `json:"ctx,omitempty"`
+}
+
+// ctxMeter is the numbers behind the ctx chip: the model, how much of its
+// context window the next call carries, the session's token totals, and
+// when the history was last compacted (RFC 3339, "" when never).
+type ctxMeter struct {
+	Model       string `json:"model"`
+	Used        int    `json:"used"`
+	Limit       int    `json:"limit"`
+	Pct         int    `json:"pct"`
+	Prompt      int    `json:"prompt_tokens"`
+	Completion  int    `json:"completion_tokens"`
+	Total       int    `json:"total_tokens"`
+	LastCompact string `json:"last_compact,omitempty"`
 }
 
 type termItem struct {
@@ -203,7 +219,28 @@ func (s *server) workspace() workspace {
 		}
 		ws.CtxLabel = fmt.Sprintf("%s / %s", textfmt.Tokens(est), textfmt.Tokens(lim))
 	}
+	ws.Ctx = s.ctxMeter(ag, est)
 	return ws
+}
+
+func (s *server) ctxMeter(ag *agent.Agent, est int) *ctxMeter {
+	m := &ctxMeter{Model: ag.Settings().Model, Used: est, Limit: ag.CompactThreshold()}
+	if m.Limit > 0 {
+		m.Pct = min(100, est*100/m.Limit)
+	}
+	u := ag.UsageSnapshot()
+	m.Prompt, m.Completion = u.InputTokens, u.OutputTokens
+	m.Total = m.Prompt + m.Completion
+	if ag.Log != nil {
+		evs := ag.Log.Events()
+		for i := len(evs) - 1; i >= 0; i-- {
+			if evs[i].Type == session.TypeCompactEnd {
+				m.LastCompact = evs[i].Time.Format(time.RFC3339)
+				break
+			}
+		}
+	}
+	return m
 }
 
 func (s *server) changeAPI(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +428,7 @@ func (s *server) openSession(id string, fork bool) (string, int, error) {
 		}
 	}
 	s.resetView()
-	s.replayHistory(msgs)
+	s.replayHistory(msgs, modelsOf(sess.Events()))
 	s.noteInterrupted()
 	s.emitStatus()
 	return sess.Meta.ID, http.StatusOK, nil
@@ -399,13 +436,21 @@ func (s *server) openSession(id string, fork bool) (string, int, error) {
 
 // replayHistory rebuilds the thread view from a loaded session. Tool calls
 // are paired with their results; results that never arrived are closed out.
-func (s *server) replayHistory(msgs []llm.Message) {
+func (s *server) replayHistory(msgs []llm.Message, models ...[]string) {
+	var modelAt []string
+	if len(models) > 0 {
+		modelAt = models[0]
+	}
 	// Tool-call id → the id of the thread entry showing it, so the
 	// matching result can close it out. The entries themselves belong to
 	// the server's lock, not to this loop.
 	open := map[string]string{}
 	inputs := map[string]string{}
-	for _, m := range msgs {
+	for mi, m := range msgs {
+		model := ""
+		if mi < len(modelAt) {
+			model = modelAt[mi]
+		}
 		for _, b := range m.Blocks {
 			switch b.Type {
 			case llm.BlockText:
@@ -418,7 +463,7 @@ func (s *server) replayHistory(msgs []llm.Message) {
 					}
 					s.add(entry{Kind: "user", Text: b.Text, Done: true})
 				} else if strings.TrimSpace(b.Text) != "" {
-					s.add(entry{Kind: "assistant", Text: b.Text, Done: true})
+					s.add(entry{Kind: "assistant", Text: b.Text, Done: true, Model: model})
 				}
 			case llm.BlockThinking:
 				if strings.TrimSpace(b.Text) != "" {
@@ -539,4 +584,21 @@ func createUpload(dir, name string) (string, *os.File, error) {
 			return dst, f, err
 		}
 	}
+}
+
+// modelsOf is the model that answered each live message, aligned with the
+// conversation fold ("" for messages no model wrote).
+func modelsOf(events []session.Event) []string {
+	seqs := session.CurrentSeqs(events)
+	bySeq := map[int]string{}
+	for _, e := range events {
+		if e.Type == session.TypeAssistant && e.Model != "" {
+			bySeq[e.Seq] = e.Model
+		}
+	}
+	out := make([]string, len(seqs))
+	for i, q := range seqs {
+		out[i] = bySeq[q]
+	}
+	return out
 }

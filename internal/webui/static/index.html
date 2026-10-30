@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#161618" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#141417" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c5cff'/%3E%3Cstop offset='.45' stop-color='%235b3df5'/%3E%3Cstop offset='1' stop-color='%2319c8d8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M18.4 13.6v8.2a4.6 4.6 0 0 1-4.6 4.6h-1.6' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round'/%3E%3Cpath d='M18.4 4.4l1.25 3.05 3.05 1.25-3.05 1.25-1.25 3.05-1.25-3.05-3.05-1.25 3.05-1.25z' fill='white'/%3E%3C/svg%3E">
 <script>
 (function () {
@@ -13,6 +13,7 @@
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.themeChoice = t;
   document.documentElement.dataset.fontScale = localStorage.getItem("janetcode-font-scale") || "medium";
+  document.documentElement.dataset.density = localStorage.getItem("janetcode-density") === "compact" ? "compact" : "comfortable";
   // Filled in by the server when it serves this page: the build the UI
   // belongs to. The hello event carries the server's build; a mismatch
   // means the server was restarted with a new binary and this page is
@@ -31,9 +32,12 @@
 <link rel="preload" href="/static/fonts/jetbrainsmono-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/vendor/xterm.min.css">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/sessions_ui.css">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
   <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
@@ -104,14 +108,9 @@
         <button type="button" data-view="trajectory">Trajectory</button>
         <button type="button" data-view="terminal">Terminal</button>
       </nav>
-      <span class="model-group">
-        <button type="button" id="model" class="model-btn" title="Switch model"></button>
-        <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
-      </span>
       <span id="title" class="session-title"></span>
       <span class="top-right">
         <span id="git-pill" class="git-pill" hidden></span>
-        <span id="ctx-chip" class="ctx-chip" title="Context window used" hidden></span>
         <span id="conn" class="conn" title="Connected" role="status"></span>
         <span class="top-sep" aria-hidden="true"></span>
         <button type="button" id="export-btn" class="icon-btn" title="Save conversation (.md)" aria-label="Save conversation"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg></button>
@@ -180,6 +179,7 @@
     <div class="dock">
     <div class="bottom">
       <div id="ask" class="ask" role="alertdialog" aria-labelledby="ask-line" aria-describedby="ask-impact" tabindex="-1" hidden>
+        <div class="ask-meta"><span id="ask-src" class="ask-src"></span><span id="ask-queue" class="ask-queue" hidden></span></div>
         <p id="ask-line"></p>
         <p id="ask-rule" hidden></p>
         <p id="ask-rungs" hidden>
@@ -188,11 +188,11 @@
         </p>
         <p id="ask-impact" hidden></p>
         <pre id="ask-preview" hidden></pre>
-        <div class="ask-actions">
-          <button type="button" class="primary" data-d="allow">Allow once</button>
-          <button type="button" data-d="session">Always this session</button>
-          <button type="button" data-d="always">Remember this rule</button>
-          <button type="button" data-d="deny">Deny</button>
+        <div class="ask-actions ladder" role="group" aria-label="How long to allow this">
+          <button type="button" class="primary" data-d="allow"><span class="lad-t">Allow once</span><span class="lad-s">this call only</span></button>
+          <button type="button" data-d="session"><span class="lad-t">Always this session</span><span class="lad-s">until you close it</span></button>
+          <button type="button" data-d="always"><span class="lad-t">Remember this rule</span><span class="lad-s">this project</span></button>
+          <button type="button" class="deny" data-d="deny"><span class="lad-t">Deny</span><span class="lad-s">tell the model no</span></button>
           <button type="button" class="ghost" data-d="cancel">Stop</button>
         </div>
       </div>
@@ -219,14 +219,24 @@
         <div id="chips" class="chips-row" hidden></div>
         <textarea id="input" rows="1" placeholder="What should we do next?" aria-label="Message"></textarea>
         <div class="composer-bar">
-          <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-paperclip"/></svg></button>
-          <input id="attach-file" type="file" multiple hidden>
-          <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands"><svg class="i" aria-hidden="true"><use href="#i-command"/></svg></button>
+          <div class="cb-tools">
+            <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-paperclip"/></svg></button>
+            <input id="attach-file" type="file" multiple hidden>
+            <button type="button" id="search-btn" class="cmd-btn" title="Commands (Ctrl+K)" aria-label="Commands"><svg class="i" aria-hidden="true"><use href="#i-command"/></svg></button>
           <button type="button" id="voice-btn" class="cmd-btn" title="Record a voice prompt" aria-label="Record a voice prompt" aria-pressed="false" hidden><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
-          <button type="button" id="mode-chip" class="mode-chip">ask</button>
-          <span class="spacer"></span>
-          <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop"><svg class="i" aria-hidden="true"><use href="#i-stop"/></svg></button>
-          <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send (Enter)"><svg class="i" aria-hidden="true"><use href="#i-arrow-up"/></svg></button>
+          </div>
+          <div class="cb-pick">
+            <span class="model-group">
+              <button type="button" id="model" class="model-btn" title="Switch model"></button>
+              <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
+            </span>
+            <button type="button" id="mode-chip" class="mode-chip">ask</button>
+          </div>
+          <div class="cb-send">
+            <span id="ctx-chip" class="ctx-chip" title="Context window used" hidden></span>
+            <button type="button" id="stop" class="stop-btn" hidden title="Stop the turn" aria-label="Stop"><svg class="i" aria-hidden="true"><use href="#i-stop"/></svg></button>
+            <button type="submit" id="send" class="send-btn" aria-label="Send" title="Send (Enter)"><svg class="i" aria-hidden="true"><use href="#i-arrow-up"/></svg></button>
+          </div>
         </div>
       </form>
       <p id="cwd" class="cwd-chip" title="Working directory"></p>
@@ -252,9 +262,9 @@
       <div class="drag-handle" id="work-resize" title="Drag to resize · double-click to reset"></div>
       <div class="work-tabs" role="tablist">
         <button type="button" role="tab" data-pane="plan" class="on">Plan</button>
-        <button type="button" role="tab" data-pane="files">Files</button>
-        <button type="button" role="tab" data-pane="jobs">Jobs</button>
-        <button type="button" role="tab" data-pane="agents">Agents</button>
+        <button type="button" role="tab" data-pane="files">Files<i class="tab-n" id="tab-n-files" hidden></i></button>
+        <button type="button" role="tab" data-pane="jobs">Jobs<i class="tab-n" id="tab-n-jobs" hidden></i></button>
+        <button type="button" role="tab" data-pane="agents">Agents<i class="tab-n" id="tab-n-agents" hidden></i></button>
         <button type="button" role="tab" data-pane="ptc" title="Scripts the model ran to call tools in bulk">Scripts</button>
         <button type="button" role="tab" data-pane="session">Session</button>
       </div>
@@ -267,6 +277,7 @@
         <div class="file-actions">
           <button type="button" id="undo-btn" hidden>Undo last turn</button>
         </div>
+        <p id="files-sum" class="files-sum" hidden></p>
         <ul id="files"><li class="quiet">No files changed</li></ul>
       </section>
       <section class="work-pane" id="jobs-sec" data-pane="jobs" hidden>
@@ -324,6 +335,11 @@
           <button type="button" data-theme="dark">Dark</button>
           <button type="button" data-theme="system">System</button>
         </div>
+        <h3>Density</h3>
+        <div class="seg" id="density-seg">
+          <button type="button" data-density="comfortable">Comfortable</button>
+          <button type="button" data-density="compact">Compact</button>
+        </div>
         <h3>Font size</h3>
         <div class="seg" id="font-seg">
           <button type="button" data-font="small">S</button>
@@ -358,7 +374,8 @@
             <dt><kbd>@</kbd></dt><dd>mention a file</dd>
             <dt><kbd>Ctrl Shift O</kbd></dt><dd>new session</dd>
             <dt><kbd>?</kbd></dt><dd>this sheet</dd>
-            <dt><kbd>/</kbd> outside the composer</dt><dd>search the trajectory ledger</dd>
+            <dt><kbd>/</kbd> outside a field</dt><dd>focus the prompt (searches the ledger in Trajectory)</dd>
+            <dt><kbd>Ctrl F</kbd></dt><dd>find in the conversation</dd>
             <dt><kbd>j</kbd> <kbd>k</kbd> · <kbd>g</kbd> <kbd>G</kbd></dt><dd>scroll · jump to ends</dd>
             <dt><kbd>Esc</kbd></dt><dd>stop the turn · close what is open</dd>
           </dl>
@@ -397,11 +414,15 @@
       </div>
       <label class="cx-field"><span>Base URL</span><input id="cx-url" type="url" autocomplete="off" spellcheck="false"></label>
       <label class="cx-field" id="cx-key-row"><span>API key</span><input id="cx-key" type="password" autocomplete="off" spellcheck="false"></label>
+      <label class="cx-check" id="cx-env-row"><input id="cx-env-on" type="checkbox"> <span>Use an environment variable instead of pasting a key</span></label>
+      <label class="cx-field" id="cx-env-field" hidden><span>Variable name</span><input id="cx-env" autocomplete="off" spellcheck="false" placeholder="MY_PROVIDER_API_KEY"></label>
       <label class="cx-field"><span>Model</span><input id="cx-model" list="cx-models" autocomplete="off" spellcheck="false"><datalist id="cx-models"></datalist></label>
+      <label class="cx-check"><input id="cx-default" type="checkbox" checked> <span>Also make this the default for new sessions</span></label>
       <p id="cx-msg" class="cx-msg" role="status" aria-live="polite"></p>
       <div class="ask-actions cx-actions">
         <button type="button" id="cx-cancel" class="ghost">Cancel</button>
         <span class="spacer"></span>
+        <button type="button" id="cx-test">Test connection</button>
         <button type="button" id="cx-list">List models</button>
         <button type="submit" id="cx-go" class="primary">Connect</button>
       </div>
@@ -424,9 +445,12 @@
 <script src="/static/format.js"></script>
 <script src="/static/render.js"></script>
 <script src="/static/trajectory.js"></script>
+<script src="/static/toolgroups.js"></script>
 <script src="/static/terminal.js"></script>
 <script src="/static/connect.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/extras.js"></script>
 <script src="/static/voice.js"></script>
+<script src="/static/sessions_ui.js"></script>
 </body>
 </html>

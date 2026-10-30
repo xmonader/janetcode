@@ -1,0 +1,31 @@
+/* Session tabs, row dots and menu, context popover, workspace picker. */
+.sess-tabs { display: flex; gap: 2px; margin: 0 0.5rem 0.35rem; padding: 2px; border-radius: var(--radius-s); background: var(--surface-2, rgba(127,127,127,.12)); }
+.sess-tabs button { flex: 1; border: 0; background: transparent; color: var(--mute); font: inherit; font-size: 0.78rem; padding: 0.22rem 0.4rem; border-radius: 6px; cursor: pointer; }
+.sess-tabs button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card); }
+.sess-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; margin-left: 4px; align-self: center; }
+.sess-dot.unread { background: var(--accent); }
+.sess-dot.run { background: var(--ok); animation: sess-pulse 1.2s ease-in-out infinite; }
+@keyframes sess-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .sess-dot.run { animation: none; } }
+.sess-more { flex: none; border: 0; background: transparent; color: var(--mute); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 4px; border-radius: 4px; opacity: 0; }
+#sessions li:hover .sess-more, #sessions li:focus-within .sess-more, .sess-more:focus-visible { opacity: 1; }
+.sess-more:hover { background: var(--accent-soft); color: var(--ink); }
+.sess-rename { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--accent-soft-border); border-radius: 6px; padding: 1px 4px; }
+.sess-menu, .jc-pop { position: fixed; z-index: 60; background: var(--surface); color: var(--ink); border-radius: var(--radius); box-shadow: var(--shadow-pop); border: 1px solid var(--line); }
+.sess-menu { display: flex; flex-direction: column; min-width: 130px; padding: 4px; }
+.sess-menu button { border: 0; background: transparent; color: inherit; font: inherit; text-align: left; padding: 0.35rem 0.6rem; border-radius: 6px; cursor: pointer; }
+.sess-menu button:hover, .sess-menu button:focus-visible { background: var(--accent-soft); }
+.sess-menu .danger { color: var(--bad); }
+.jc-pop { padding: 0.8rem 0.95rem; width: min(320px, calc(100vw - 16px)); font-size: 0.85rem; }
+.jc-pop h3 { margin: 0 0 0.5rem; font-size: 0.85rem; }
+.jc-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.8rem; margin: 0.5rem 0; }
+.jc-pop dt { color: var(--mute); }
+.jc-pop dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.jc-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.jc-bar i { display: block; height: 100%; background: var(--accent); }
+.jc-form label { display: flex; flex-direction: column; gap: 4px; color: var(--mute); }
+.jc-form input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-s); padding: 0.35rem 0.5rem; }
+.jc-note { min-height: 1.2em; margin: 0.4rem 0; color: var(--mute); overflow-wrap: anywhere; }
+.jc-note.bad { color: var(--bad); }
+.jc-row { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.cx-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; margin: 0.3rem 0; }

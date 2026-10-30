@@ -24,6 +24,11 @@
       models: document.getElementById("cx-models"),
       msg: document.getElementById("cx-msg"),
       list: document.getElementById("cx-list"),
+      test: document.getElementById("cx-test"),
+      envOn: document.getElementById("cx-env-on"),
+      envField: document.getElementById("cx-env-field"),
+      env: document.getElementById("cx-env"),
+      makeDefault: document.getElementById("cx-default"),
       go: document.getElementById("cx-go"),
       providers: [],
       busy: false,
@@ -52,6 +57,10 @@
       const p = cxChosen();
       cx.custom.hidden = !p.custom;
       if (!p.custom) cx.url.value = p.url || "";
+      cx.envOn.checked = !!p.key_env;
+      cx.env.value = p.key_env || "";
+      cx.envField.hidden = !cx.envOn.checked;
+      cx.keyRow.hidden = cx.envOn.checked;
       cx.url.placeholder = p.type === "anthropic" ? "default (api.anthropic.com)" : "https://…/v1";
       cx.key.placeholder = p.has_key ? "saved · leave empty to keep it" : (p.needs_key === false ? "not needed for a local server" : "Paste your API key");
       cx.models.innerHTML = "";
@@ -61,7 +70,7 @@
     }
     function cxBody(action) {
       const p = cxChosen();
-      return { action, name: p.name, type: p.custom ? p.type : "", url: cx.url.value.trim(), keys: cx.key.value, model: cx.model.value.trim() };
+      return { action, name: p.name, type: p.custom ? p.type : "", url: cx.url.value.trim(), keys: cx.envOn.checked ? "" : cx.key.value, key_env: cx.envOn.checked ? cx.env.value.trim() : "", make_default: cx.makeDefault.checked, model: cx.model.value.trim() };
     }
     async function cxCall(action) {
       const r = await fetch("/api/connect", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cxBody(action)) });
@@ -70,7 +79,7 @@
     }
     function cxBusy(on, label) {
       cx.busy = on;
-      cx.list.disabled = cx.go.disabled = on;
+      cx.list.disabled = cx.go.disabled = cx.test.disabled = on;
       cx.root.setAttribute("aria-busy", on ? "true" : "false");
       if (on) cxSay(label);
     }
@@ -91,6 +100,22 @@
       cxSay(ms.length ? `${ms.length} ${ms.length === 1 ? "model" : "models"} available. Pick one, then Connect.` : "The provider lists no models; type the model id.", "ok");
       cx.model.focus();
     }
+    // Test connection reaches the provider with the key as typed and saves
+    // nothing; the model list it finds is offered like List models does.
+    async function cxTest() {
+      if (cx.busy) return;
+      cxBusy(true, "Testing the connection…");
+      let out;
+      try { out = await cxCall("test"); } catch (e) { out = { error: { reason: String(e) } }; }
+      cxBusy(false);
+      cx.key.removeAttribute("aria-invalid");
+      if (out.error) {
+        if (out.error.headline === "Authentication failed") cx.key.setAttribute("aria-invalid", "true");
+        cxSay(cxExplain(out.error), "bad");
+        return;
+      }
+      cxSay((out.note || "Connection works") + ". Nothing was saved.", "ok");
+    }
     async function openConnect(note) {
       closePalette();
       // Opening again while open would reset what is half filled in.
@@ -103,7 +128,8 @@
       if (!data) { cxSay("Connecting is not available in this session.", "bad"); return; }
       cx.providers = data.providers || [];
       if (data.config) document.getElementById("cx-path").textContent = data.config;
-      const opt = (p) => `<option value="${esc(p.name)}">${esc(p.label + (p.has_key ? " · key saved" : ""))}</option>`;
+      const badge = (p) => (p.connected ? " · Connected" : p.key_env ? " · key from $" + p.key_env : p.has_key ? " · key saved" : "");
+      const opt = (p) => `<option value="${esc(p.name)}">${esc(p.label + badge(p))}</option>`;
       cx.provider.innerHTML = cx.providers.map(opt).join("") +
         `<option value="custom-openai">Custom · OpenAI-compatible</option><option value="custom-anthropic">Custom · Anthropic-compatible</option>`;
       if (data.current && cx.providers.some((p) => p.name === data.current)) cx.provider.value = data.current;
@@ -120,6 +146,12 @@
     }
     cx.provider.addEventListener("change", cxPaint);
     cx.list.addEventListener("click", cxListModels);
+    cx.test.addEventListener("click", cxTest);
+    cx.envOn.addEventListener("change", () => {
+      cx.envField.hidden = !cx.envOn.checked;
+      cx.keyRow.hidden = cx.envOn.checked;
+      if (cx.envOn.checked) cx.env.focus(); else cx.key.focus();
+    });
     document.getElementById("cx-cancel").addEventListener("click", closeConnect);
     cx.root.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); closeConnect(); return; }

@@ -74,13 +74,32 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  // Consecutive tool calls live in one collapsible card (toolgroups.js).
+  // toolIsOpen is the one place that says whether a call's body shows:
+  // edits open by default, the reader's click flips it.
+  function toolIsOpen(e) {
+    const k = toolKind(e.name || "").k;
+    let byDefault = (k === "edit" || k === "write") && !!e.preview && !e.denied;
+    // Settings > Tool calls (extras.js): all open or all collapsed.
+    const pref = window.JanetExtras && window.JanetExtras.toolDefault ? window.JanetExtras.toolDefault() : "auto";
+    if (pref === "open") byDefault = !!(e.preview || e.output) && !e.denied;
+    else if (pref === "collapsed") byDefault = false;
+    return byDefault !== openTools.has(e.id);
+  }
+  function toolSetOpen(e, want) {
+    if (toolIsOpen(e) === want) return;
+    if (openTools.has(e.id)) openTools.delete(e.id); else openTools.add(e.id);
+    render(latest.get(e.id));
+  }
+  const groups = JanetToolGroups({ log, entry: (id) => latest.get(id), isOpen: toolIsOpen, setOpen: toolSetOpen, icon });
+
   let lastCreated = 0;
   function render(e) {
     if (e.gone) {
       // The server dropped it from the thread (an empty thinking
       // placeholder, discarded text): drop the row too.
       const g = nodes.get(e.id);
-      if (g) g.remove();
+      if (g) { groups.release(g); g.remove(); }
       nodes.delete(e.id);
       latest.delete(e.id);
       return;
@@ -99,7 +118,7 @@
       const now = performance.now();
       if (now - lastCreated > 60 && log.childElementCount > 0) n.dataset.enter = "";
       lastCreated = now;
-      log.appendChild(n);
+      groups.place(n, e);
       nodes.set(e.id, n);
     }
     if (e.at) n.title = new Date(e.at).toLocaleString();
@@ -111,16 +130,18 @@
       loadSessions();
       n.innerHTML = `<div class="bubble">${esc(e.text || "")}</div><div class="msg-actions">` +
         `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy" aria-label="Copy message">${icon("copy")}</button>` +
-        `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button></div>`;
+        `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button>` +
+        `<button type="button" class="act" data-branch="${e.id}" title="Branch here" aria-label="Branch the conversation from this message">${icon("branch")}</button></div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
-      const copyBtn = `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy reply" aria-label="Copy reply">${icon("copy")}</button>`;
+      const copyBtn = `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy as Markdown" aria-label="Copy reply as Markdown">${icon("copy")}</button><button type="button" class="act" data-copyturn="${e.id}" title="Copy the whole turn as Markdown" aria-label="Copy the whole turn as Markdown">${icon("file")}</button>`;
       const regenBtn = lastUserText ? `<button type="button" class="act" data-regen="1" title="Ask again" aria-label="Ask again">${icon("refresh")}</button>` : "";
       const meta = [];
       if (e.at) meta.push(new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (e.model) meta.push(e.model);
       if (e.tok_in || e.tok_out) meta.push("↑" + fmtTok(e.tok_in) + " ↓" + fmtTok(e.tok_out));
       if (e.ms) meta.push(fmtDur(e.ms));
-      const metaRow = e.done ? `<div class="msg-foot"><span class="msg-actions">${copyBtn}${regenBtn}</span><span class="msg-meta">${esc(meta.join(" · "))}</span></div>` : "";
+      const metaRow = e.done ? `<div class="msg-foot"><span class="msg-actions">${copyBtn}${regenBtn}<button type="button" class="act" data-branch="${e.id}" title="Branch here" aria-label="Branch the conversation from this reply">${icon("branch")}</button></span><span class="msg-meta">${esc(meta.join(" · "))}</span></div>` : "";
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Show full reply</button>` : "";
@@ -158,8 +179,7 @@
       // An edit shows what it changed without a click: that is the work.
       // Everything else opens on demand. openTools holds the calls whose
       // default the reader flipped.
-      const openByDefault = (kind.k === "edit" || kind.k === "write") && !!e.preview && !e.denied;
-      const open = openByDefault !== openTools.has(e.id);
+      const open = toolIsOpen(e);
       let bar = "";
       if (e.run_head) {
         // Only the "(n failed)" count is red: the bar is a summary, and
@@ -190,6 +210,8 @@
         else openTools.add(e.id);
         render(latest.get(e.id));
       };
+      groups.refresh(n);
+      if (pending) paintAskQueue();
     } else if (e.kind === "perf") {
       n.className = "turn card";
       n.innerHTML = perfCardHTML(e.data);
@@ -450,7 +472,14 @@
   let pageSession = "";
   function applyHello(h) {
     if (!h) return;
+    const prevSession = pageSession;
     if (h.session) pageSession = h.session;
+    if (prevSession && h.session && prevSession !== h.session) {
+      // Another conversation: its own draft, not the last one's.
+      input.value = "";
+      restoreDraft();
+      resize();
+    }
     // A different build than the page was served from means the server
     // restarted with a new binary; this JavaScript is stale no matter
     // how hard the user refreshes against the old process's memory.
@@ -581,14 +610,36 @@
       askLine.append(code);
     }
     askLine.append("?");
-    if (p.warning) {
+    // Warnings carries each cause on its own (a path outside the workspace,
+    // a hook that asked); warning is the same line joined, for old servers.
+    const warns = p.warnings && p.warnings.length ? p.warnings : p.warning ? [p.warning] : [];
+    if (warns.length) {
       const w = document.createElement("span");
       w.className = "ask-warn";
-      w.textContent = " Warning: " + p.warning;
+      w.textContent = " Warning: " + warns.join("; ");
       askLine.append(w);
+    }
+    if (p.source) {
+      const src = document.createElement("span");
+      src.className = "ask-source";
+      src.dataset.source = p.source;
+      src.textContent = " asked by " + ({ hook: "a hook", rule: "an ask rule", egress: "the egress policy", taint: "the taint check", protected: "a protected path", tool: "the tool's guard" }[p.source] || p.source);
+      askLine.append(src);
     }
   }
 
+  // The card says where the request comes from and how many more calls are
+  // lined up behind it: tool entries that have not started yet.
+  const askSrc = document.getElementById("ask-src");
+  const askQueue = document.getElementById("ask-queue");
+  function paintAskQueue() {
+    if (!pending) { askQueue.hidden = true; return; }
+    let more = 0;
+    latest.forEach((e) => { if (e.kind === "tool" && !e.done && !e.running && !e.denied && !e.error) more++; });
+    more = Math.max(0, more - 1);
+    askQueue.hidden = more === 0;
+    askQueue.textContent = more + " more waiting";
+  }
   function showAsk(p) {
     const was = ask.hidden ? null : pending;
     pending = p && p.name ? p : null;
@@ -596,6 +647,8 @@
     if (!pending) return;
     markUnseen();
     askQuestion(p);
+    askSrc.textContent = toolKind(p.name || "").k + " · " + (p.name || "tool");
+    paintAskQueue();
     // A new request, not the same one sent again on a reconnect.
     const same = was && was.name === p.name && was.summary === p.summary && was.preview === p.preview;
     if (!same) {
@@ -829,6 +882,7 @@
     histPush(text);
     const draft = input.value, attached = chips.slice();
     input.value = "";
+    saveDraft();
     chips.length = 0;
     paintChips();
     resize();
@@ -837,7 +891,7 @@
     if (!(await post("/api/prompt", { text }))) {
       // Not sent: put it back rather than let it vanish. post has already
       // said why in the status line.
-      if (!input.value) input.value = draft;
+      if (!input.value) { input.value = draft; saveDraft(); }
       if (!chips.length) chips.push(...attached);
       paintChips();
       resize();
@@ -913,7 +967,30 @@
     resize();
     input.focus();
   }
+  // The unsent prompt survives a reload or a closed tab. A session switch
+  // or a send clears it; storage that throws just means no draft.
+  // Drafts are per session: the key carries the session id. The old
+  // global key is migrated into the first session that loads.
+  const LEGACY_DRAFT_KEY = "janetcode-draft";
+  const draftKey = () => LEGACY_DRAFT_KEY + (pageSession ? ":" + pageSession : "");
+  function saveDraft() {
+    try {
+      if (input.value) localStorage.setItem(draftKey(), input.value);
+      else localStorage.removeItem(draftKey());
+    } catch (_) {}
+  }
+  function restoreDraft() {
+    try {
+      let d = localStorage.getItem(draftKey());
+      if (!d && pageSession) {
+        d = localStorage.getItem(LEGACY_DRAFT_KEY);
+        if (d) { localStorage.setItem(draftKey(), d); localStorage.removeItem(LEGACY_DRAFT_KEY); }
+      }
+      if (d && !input.value) { input.value = d; resize(); }
+    } catch (_) {}
+  }
   input.addEventListener("input", () => {
+    saveDraft();
     resize();
     slashIdx = 0;
     drawSlash();
@@ -1262,20 +1339,79 @@
 
   // The /connect dialog lives in connect.js.
   const { open: openConnect } = JanetConnect({ closePalette, composer: input, status: statusEl });
+  // The palette merges everything the page can do: actions, views, the
+  // workbench tabs, settings, and the server's slash commands. Each item
+  // carries its own run(); a slash command that takes arguments fills the
+  // composer instead of running.
+  function paletteActions() {
+    const act = (group, name, help, run, key) => ({ group, name, help, run, key });
+    const mdFor = (c) => act("Commands", c.name, c.help || "", async () => {
+      if (c.args) { input.value = c.name + " "; resize(); input.focus(); } else await post("/api/command", { text: c.name });
+    });
+    const tab = (pane, label) => act("Workbench", label, "open the " + label.toLowerCase() + " tab", () => openWorkTab(pane));
+    return [
+      act("Actions", "New session", "start a fresh conversation", () => document.getElementById("new-chat").click(), "Ctrl Shift O"),
+      act("Actions", "Find in conversation", "search the thread", () => openFind(), "Ctrl F"),
+      act("Actions", "Export conversation", "save the chat as Markdown", exportChat),
+      act("Actions", "Copy conversation", "copy the chat as Markdown", async () => { try { await navigator.clipboard.writeText(chatMarkdown()); statusEl.textContent = "Conversation copied as Markdown"; } catch (_) {} }),
+      act("Actions", "Switch model", "pick another model", () => (connected ? openModelMenu() : openConnect())),
+      act("Actions", "Set effort", "reasoning tier", () => openEffortMenu()),
+      act("Actions", "Permission mode", "ask, auto, plan, read-only…", () => { paintModeMenu(); modeMenuEl.hidden = false; }),
+      act("Actions", "Connect a provider", "add or change an API key", () => openConnect()),
+      act("Actions", "Keyboard shortcuts", "the help sheet", () => openHelp(), "?"),
+      act("Actions", "Toggle sidebar", "conversations rail", () => navToggle.click()),
+      act("Actions", "Toggle workbench", "plan, changes, jobs…", () => workToggle.click()),
+      act("Actions", "Toggle web preview", "preview a running app", () => pvToggle.click()),
+      act("Views", "Chat", "the conversation", () => setView("chat")),
+      act("Views", "Trajectory", "the session as a timeline", () => setView("trajectory")),
+      act("Views", "Terminal", "a shell in the project", () => setView("terminal")),
+      tab("plan", "Plan"), tab("files", "Changes"), tab("jobs", "Jobs"), tab("agents", "Agents"), tab("ptc", "Scripts"), tab("session", "Session"),
+      act("Settings", "Theme: light", "", () => applyThemeChoice("light")),
+      act("Settings", "Theme: dark", "", () => applyThemeChoice("dark")),
+      act("Settings", "Theme: system", "", () => applyThemeChoice("system")),
+      act("Settings", "Density: comfortable", "", () => setDensity("comfortable")),
+      act("Settings", "Density: compact", "tighter rows", () => setDensity("compact")),
+      act("Settings", "Font size: small", "", () => setFontScale("small")),
+      act("Settings", "Font size: medium", "", () => setFontScale("medium")),
+      act("Settings", "Font size: large", "", () => setFontScale("large")),
+      act("Settings", "Open settings", "appearance, sound, notifications", () => openSettings()),
+    ].concat(window.JanetExtras && window.JanetExtras.actions ? window.JanetExtras.actions(act) : [], commands.map(mdFor));
+  }
   function drawPalette(q) {
     q = q.toLowerCase().replace(/^\//, "");
-    palItems = commands.filter((c) => {
-      if (!q) return true;
-      const n = c.name.slice(1);
+    const fuzzy = (n) => {
       let i = 0;
       for (const ch of n) if (ch === q[i] && ++i === q.length) return true;
-      return (c.help || "").toLowerCase().includes(q);
-    }).slice(0, 10);
+      return false;
+    };
+    palItems = paletteActions().filter((c) => {
+      if (!q) return c.group !== "Commands" && c.group !== "Settings" && c.group !== "Workbench";
+      const n = c.name.toLowerCase().replace(/^\//, "");
+      return n.includes(q) || fuzzy(n) || (c.help || "").toLowerCase().includes(q);
+    });
+    // Best matches first: a name that starts with the query beats a
+    // scattered one.
+    if (q) palItems.sort((x, y) => (y.name.toLowerCase().replace(/^\//, "").startsWith(q) ? 1 : 0) - (x.name.toLowerCase().replace(/^\//, "").startsWith(q) ? 1 : 0));
+    palItems = palItems.slice(0, q ? 14 : 24);
+    palIdx = Math.min(palIdx, Math.max(palItems.length - 1, 0));
+    let last = "";
     paletteList.innerHTML = palItems.length
-      ? palItems.map((c, i) =>
-        `<div class="${i === palIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help)}</span></div>`
-      ).join("")
-      : `<div class="empty-pal">No commands match</div>`;
+      ? palItems.map((c, i) => {
+        const head = !q && c.group !== last ? `<div class="pal-group">${esc(c.group)}</div>` : "";
+        last = c.group;
+        return head + `<div class="${i === palIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help || "")}</span>${c.key ? `<kbd class="pal-key">${esc(c.key)}</kbd>` : ""}</div>`;
+      }).join("")
+      : `<div class="empty-pal">Nothing matches</div>`;
+    const on = paletteList.querySelector(".on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  }
+  async function runPaletteItem(c) {
+    closePalette();
+    if (!c) return;
+    // Actions that open a menu or field take focus themselves; give the
+    // palette's close a tick to finish first.
+    await new Promise((r) => setTimeout(r, 0));
+    await c.run();
   }
   document.getElementById("search-btn").addEventListener("click", openPalette);
   const attachInput = document.getElementById("attach-file");
@@ -1310,6 +1446,24 @@
     else return;
     ev.preventDefault();
   });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const el = document.activeElement;
+    const inField = el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable || el.tagName === "SELECT");
+    if (ev.key === "/" && !inField && currentView === "chat" && palette.hidden && helpEl.hidden && settingsEl.hidden) {
+      ev.preventDefault();
+      input.focus();
+      return;
+    }
+    if (ev.key === "Escape" && !inField) {
+      const viewer = document.getElementById("viewer");
+      if (!viewer.hidden) { ev.preventDefault(); viewer.hidden = true; return; }
+      if (!switchMenu.hidden) { ev.preventDefault(); closeSwitchMenu(); return; }
+      if (!modeMenuEl.hidden) { ev.preventDefault(); hideModeMenu(); return; }
+      if (!palette.hidden) return;
+      if (narrow.matches) { shell.classList.add("nav-collapsed", "work-collapsed"); }
+    }
+  });
   paletteQ.addEventListener("input", () => { palIdx = 0; drawPalette(paletteQ.value); });
   paletteQ.addEventListener("keydown", async (ev) => {
     if (ev.key === "Escape") { ev.preventDefault(); closePalette(); }
@@ -1317,25 +1471,14 @@
     if (ev.key === "ArrowUp") { ev.preventDefault(); palIdx = Math.max(palIdx - 1, 0); drawPalette(paletteQ.value); }
     if (ev.key === "Enter") {
       ev.preventDefault();
-      const c = palItems[palIdx];
-      if (!c) return;
-      closePalette();
-      if (c.args) {
-        input.value = c.name + " ";
-        input.focus();
-      } else {
-        await post("/api/command", { text: c.name });
-      }
+      await runPaletteItem(palItems[palIdx]);
     }
   });
   paletteList.addEventListener("click", async (ev) => {
     const row = ev.target.closest("[data-i]");
     if (!row) return;
     palIdx = Number(row.dataset.i);
-    const c = palItems[palIdx];
-    closePalette();
-    if (c.args) { input.value = c.name + " "; input.focus(); }
-    else await post("/api/command", { text: c.name });
+    await runPaletteItem(palItems[palIdx]);
   });
 
   // The header's switch menu. The model button opens a searchable picker
@@ -1492,6 +1635,48 @@
     await post("/api/cancel", {});
   });
 
+  // A small count on a workbench tab: how many jobs run, how many
+  // subagents are live, how many files changed.
+  function tabCount(pane, n) {
+    const el = document.getElementById("tab-n-" + pane);
+    if (!el) return;
+    el.hidden = !n;
+    el.textContent = n ? String(n) : "";
+  }
+  // The Changes tab: one row per change with an M/A/D/U badge, the path
+  // with its name emphasised, and a unified diff that opens in place.
+  const openFileRows = new Set();
+  const diffCache = new Map();
+  function fileBadge(f) {
+    if (!f.add && !f.del) return "U";
+    if (/^(write_file|write|create_file)$/.test(f.tool || "") && !f.del) return "A";
+    if (f.del && !f.add) return "D";
+    return "M";
+  }
+  function paintFiles(files) {
+    const el = document.getElementById("files");
+    const sum = document.getElementById("files-sum");
+    tabCount("files", files.length);
+    if (!files.length) {
+      el.innerHTML = `<li class="quiet">No files changed</li>`;
+      sum.hidden = true;
+      return;
+    }
+    let add = 0, del = 0;
+    for (const f of files) { add += f.add || 0; del += f.del || 0; }
+    sum.hidden = false;
+    sum.innerHTML = `${files.length} change${files.length === 1 ? "" : "s"} <span class="add">+${add}</span> <span class="del">−${del}</span>`;
+    el.innerHTML = files.map((f) => {
+      const slash = f.path.lastIndexOf("/");
+      const dir = slash >= 0 ? f.path.slice(0, slash + 1) : "";
+      const open = openFileRows.has(f.seq);
+      const b = fileBadge(f);
+      return `<li class="frow${open ? " open" : ""}" data-seq="${f.seq}"><div class="frow-h" title="${esc(f.path)}"><span class="fbadge b-${b}">${b}</span>` +
+        `<span class="fpath"><span class="fdir">${esc(dir)}</span><b>${esc(f.path.slice(slash + 1))}</b></span>` +
+        `<span class="fstat"><span class="add">+${f.add || 0}</span> <span class="del">−${f.del || 0}</span></span></div>` +
+        (open ? `<pre class="diff fdiff">${diffCache.has(f.seq) ? diffHTML(diffCache.get(f.seq)) : "Loading…"}</pre>` : "") + `</li>`;
+    }).join("");
+  }
   async function refreshWorkspace() {
     try {
       const ws = await (await fetch("/api/workspace")).json();
@@ -1501,12 +1686,10 @@
         const cls = t.status === "completed" || t.status === "done" ? "done" : t.status === "in_progress" ? "doing" : "";
         return `<li class="${cls}">${esc(t.text)}</li>`;
       }).join("");
-      const files = document.getElementById("files");
-      if (!ws.files || !ws.files.length) files.innerHTML = `<li class="quiet">No files changed</li>`;
-      else files.innerHTML = ws.files.map((f) =>
-        `<li data-seq="${f.seq}"><span>${esc(f.path)}</span> <span class="add">+${f.add}</span> <span class="del">−${f.del}</span></li>`
-      ).join("");
+      paintFiles(ws.files || []);
       document.getElementById("undo-btn").hidden = !ws.can_undo;
+      tabCount("jobs", (ws.jobs || []).length);
+      tabCount("agents", (ws.agents || []).filter((a) => !a.done).length);
       const jobsEl = document.getElementById("jobs");
       if (ws.jobs && ws.jobs.length) {
         jobsEl.innerHTML = ws.jobs.map((j) => `<li data-job="${j.id}" title="Open log">${esc(j.summary || j.command)}</li>`).join("");
@@ -1577,6 +1760,16 @@
   // renderSessions paints the rail: the live conversation up top, then
   // the directory's past conversations under History, grouped by day,
   // filtered by the rail's search field.
+  // Pinned conversations ride at the top of the rail, kept in this browser.
+  // Pins live in the session files (row.starred); sessions_ui.js moves the
+  // old browser-local ones across once.
+  let pinnedIds = new Set();
+  function pinnedSet() { return pinnedIds; }
+  async function togglePin(id) {
+    await post("/api/session/pin", { id, pinned: !pinnedIds.has(id) });
+    loadSessions();
+  }
+  window.addEventListener("janet:sessions-refresh", () => loadSessions());
   function renderSessions(rows, filter) {
     const live = rows.find((r) => r.current);
     const curEl = document.getElementById("current-session");
@@ -1599,22 +1792,29 @@
       (r.id || "").toLowerCase().includes(q) ||
       (r.note || "").toLowerCase().includes(q) ||
       !!r.hit;
-    const kept = rows.filter((r) => !r.current).filter(match).slice(0, 40);
+    pinnedIds = new Set(rows.filter((r) => r.starred).map((r) => r.id));
+    const ui = window.sessionsUI;
+    if (ui) ui.seen(rows);
+    const archivedTab = ui && ui.tab() === "archived";
+    const kept = rows.filter((r) => !r.current).filter((r) => !!r.archived === archivedTab).filter(match).slice(0, 40);
     if (!kept.length) {
-      ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : "Earlier conversations in this project will appear here."}</li>`;
+      ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : archivedTab ? "Archived conversations will appear here." : "Earlier conversations in this project will appear here."}</li>`;
       return;
     }
-    const order = ["Today", "Yesterday", "2 days ago", "3 days ago", "4 days ago", "5 days ago", "6 days ago", "Older"];
+    const pins = pinnedSet();
     const seen = new Set();
     const parts = [];
-    for (const r of kept) {
-      const b = dayBucket(r.updated);
+    const ordered = kept.filter((r) => pins.has(r.id)).concat(kept.filter((r) => !pins.has(r.id)));
+    for (const r of ordered) {
+      const isPin = pins.has(r.id);
+      const b = isPin ? "Pinned" : dayBucket(r.updated);
       if (!seen.has(b)) {
         seen.add(b);
         parts.push(`<li class="sess-group">${esc(b)}</li>`);
       }
+      const pinBtn = `<button type="button" class="pin${isPin ? " on" : ""}" data-pin="${esc(r.id)}" title="${isPin ? "Unpin" : "Pin to the top"}" aria-label="${isPin ? "Unpin" : "Pin"} conversation">${icon("pin")}</button>`;
       parts.push(
-        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span>${r.hit ? `<span class="sess-hit">${r.turn ? "turn " + r.turn + ": " : ""}${esc(r.hit)}</span>` : ""}</li>`
+        `<li class="${r.current ? "on" : ""}${isPin ? " pinned" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span>${ui ? ui.rowExtras(r) : ""}${pinBtn}${r.hit ? `<span class="sess-hit">${r.turn ? "turn " + r.turn + ": " : ""}${esc(r.hit)}</span>` : ""}</li>`
       );
     }
     ul.innerHTML = parts.join("");
@@ -1640,6 +1840,9 @@
   });
 
   document.getElementById("sessions").addEventListener("click", async (ev) => {
+    if (window.sessionsUI && window.sessionsUI.click(ev)) return;
+    const pin = ev.target.closest("[data-pin]");
+    if (pin) { ev.stopPropagation(); togglePin(pin.dataset.pin); return; }
     const li = ev.target.closest("li[data-id]");
     if (!li || li.classList.contains("on")) return;
     // The server clears the page itself: it sends "reset" and then the
@@ -1671,9 +1874,18 @@
 
   document.getElementById("files").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-seq]");
-    if (!li) return;
-    const data = await (await fetch("/api/change?n=" + li.dataset.seq)).json();
-    showDetail(data.path || "", data.diff || "", true);
+    if (!li || ev.target.closest(".fdiff")) return;
+    const seq = Number(li.dataset.seq);
+    if (openFileRows.has(seq)) openFileRows.delete(seq); else openFileRows.add(seq);
+    if (openFileRows.has(seq) && !diffCache.has(seq)) {
+      try {
+        const data = await (await fetch("/api/change?n=" + seq)).json();
+        diffCache.set(seq, data.diff || "(no diff)");
+      } catch (_) {
+        openFileRows.delete(seq);
+      }
+    }
+    if (lastWorkspace) paintFiles(lastWorkspace.files || []);
   });
   document.getElementById("jobs").addEventListener("click", async (ev) => {
     const li = ev.target.closest("li[data-job]");
@@ -1717,25 +1929,56 @@
   fetch("/api/commands").then((r) => r.json()).then((c) => { commands = c || []; }).catch(() => {});
   // Save the conversation as markdown, built client-side from the
   // entries on screen — no server round trip, and it saves what you see.
-  document.getElementById("export-btn").addEventListener("click", () => {
-    const parts = [];
-    for (const art of log.querySelectorAll("article.turn")) {
-      const e = latest.get(art.dataset.id);
-      if (!e) continue;
-      if (e.kind === "user") parts.push("## you\n\n" + (e.text || ""));
-      else if (e.kind === "assistant") parts.push("## janetcode\n\n" + (e.text || ""));
-      else if (e.kind === "tool" && e.output) {
-        parts.push("### " + (e.name || "tool") + " " + (e.summary || "") + "\n\n```\n" + e.output + "\n```");
+  // entryMarkdown is one entry as the Markdown a reader would paste: the
+  // prompt, the reply, a tool call with its output. Thinking and cards
+  // are left out, as they are in the saved file.
+  function entryMarkdown(e, o) {
+    if (!e) return "";
+    if (o) {
+      if (e.kind === "thinking") return o.reasoning && (e.text || "").trim() ? "> **Reasoning**\n>\n" + e.text.trim().split("\n").map((l) => "> " + l).join("\n") : "";
+      if (e.kind === "tool" && !o.tools) return "";
+      if (e.kind === "tool" && !o.output) {
+        return "- `" + (e.name || "tool") + "`" + (e.summary ? " " + e.summary.replace(/`/g, "'") : "") + (e.denied ? " (declined)" : e.error ? " (failed)" : "");
       }
     }
-    if (!parts.length) return;
-    const blob = new Blob([parts.join("\n\n")], { type: "text/markdown" });
+    if (e.kind === "user") return "## you\n\n" + (e.text || "");
+    if (e.kind === "assistant") return "## janetcode\n\n" + (e.text || "");
+    if (e.kind === "tool") {
+      const head = "### " + (e.name || "tool") + (e.summary ? " `" + e.summary.replace(/`/g, "'") + "`" : "") + (e.denied ? " (declined)" : e.error ? " (failed)" : "");
+      if (e.preview) return head + "\n\n```diff\n" + e.preview + "\n```";
+      if (e.output) return head + "\n\n```\n" + e.output + "\n```";
+      return head;
+    }
+    return "";
+  }
+  // turnMarkdown is the exchange an assistant reply belongs to: from the
+  // prompt before it through every tool call to the reply itself.
+  function turnMarkdown(id) {
+    const arts = [...log.querySelectorAll("article.turn")];
+    let i = arts.findIndex((a) => a.dataset.id === id);
+    if (i < 0) return "";
+    let from = i;
+    while (from > 0 && !arts[from].classList.contains("you")) from--;
+    return arts.slice(from, i + 1).map((a) => entryMarkdown(latest.get(a.dataset.id))).filter(Boolean).join("\n\n");
+  }
+  function chatMarkdown(o) {
+    return [...log.querySelectorAll("article.turn")].map((a) => entryMarkdown(latest.get(a.dataset.id), o)).filter(Boolean).join("\n\n");
+  }
+  function exportChat() {
+    // extras.js asks what to include first; without it, save everything as before.
+    if (window.JanetExtras && window.JanetExtras.openExport) { window.JanetExtras.openExport(); return; }
+    downloadMarkdown(chatMarkdown());
+  }
+  function downloadMarkdown(md) {
+    if (!md) return;
+    const blob = new Blob([md + "\n"], { type: "text/markdown" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = (curTitle || "janetcode") + ".md";
+    a.download = (cleanTitle(curTitle) || "janetcode").replace(/[\\/:*?"<>|]+/g, "-") + ".md";
     a.click();
     URL.revokeObjectURL(a.href);
-  });
+  }
+  document.getElementById("export-btn").addEventListener("click", exportChat);
 
   // The hamburger in the header opens the rail as a drawer on narrow
   // screens, where the rail's own toggle is hidden inside the drawer.
@@ -1753,6 +1996,7 @@
     (st.entries || []).forEach(render);
     showAsk(st.permission);
     refreshWorkspace();
+    restoreDraft();
   }).catch((err) => { console.error("BOOT FAILED", err); });
   const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");
@@ -1779,8 +2023,9 @@
     const b = document.getElementById("sound-btn");
     if (b) b.setAttribute("aria-checked", soundOn ? "true" : "false");
   }
+  const quiet = () => { try { return localStorage.getItem("janetcode-quiet") === "1"; } catch (_) { return false; } };
   function ding() {
-    if (!soundOn) return;
+    if (!soundOn || quiet()) return;
     try {
       const ctx = new AudioContext();
       const o = ctx.createOscillator();
@@ -1800,6 +2045,8 @@
     const fs = document.documentElement.dataset.fontScale || "medium";
     document.querySelectorAll("#font-seg [data-font]").forEach((b) => b.classList.toggle("on", b.dataset.font === fs));
     paintSound();
+    const dn = document.documentElement.dataset.density || "comfortable";
+    document.querySelectorAll("#density-seg [data-density]").forEach((b) => b.classList.toggle("on", b.dataset.density === dn));
   }
   document.getElementById("settings-btn").addEventListener("click", openSettings);
   document.getElementById("settings-close").addEventListener("click", () => { settingsEl.hidden = true; });
@@ -1807,12 +2054,23 @@
     const b = ev.target.closest("[data-theme]");
     if (b) applyThemeChoice(b.dataset.theme);
   });
+  function setFontScale(v) {
+    document.documentElement.dataset.fontScale = v;
+    try { localStorage.setItem("janetcode-font-scale", v); } catch (_) {}
+    document.querySelectorAll("#font-seg [data-font]").forEach((x) => x.classList.toggle("on", x.dataset.font === v));
+  }
+  function setDensity(v) {
+    document.documentElement.dataset.density = v;
+    try { localStorage.setItem("janetcode-density", v); } catch (_) {}
+    document.querySelectorAll("#density-seg [data-density]").forEach((x) => x.classList.toggle("on", x.dataset.density === v));
+  }
   document.getElementById("font-seg").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-font]");
-    if (!b) return;
-    document.documentElement.dataset.fontScale = b.dataset.font;
-    localStorage.setItem("janetcode-font-scale", b.dataset.font);
-    document.querySelectorAll("#font-seg [data-font]").forEach((x) => x.classList.toggle("on", x === b));
+    if (b) setFontScale(b.dataset.font);
+  });
+  document.getElementById("density-seg").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-density]");
+    if (b) setDensity(b.dataset.density);
   });
   document.getElementById("sound-btn").addEventListener("click", () => {
     soundOn = !soundOn;
@@ -1904,6 +2162,10 @@
   const chatView = document.getElementById("chat-view");
   const trajView = document.getElementById("trajectory");
 
+  function setView(name) {
+    const btn = document.querySelector('#view-ring [data-view="' + name + '"]');
+    if (btn) btn.click();
+  }
   document.getElementById("view-ring").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-view]");
     if (!btn) return;
@@ -1954,6 +2216,12 @@
   if (localStorage.getItem("janetcode-nav-collapsed") === "1" || narrow.matches) shell.classList.add("nav-collapsed");
   // A panel left open on a desktop does not reopen over a phone's thread.
   if (localStorage.getItem("janetcode-work-collapsed") !== "" || narrow.matches) shell.classList.add("work-collapsed");
+  // openWorkTab opens the workbench on a tab, from the palette or a link.
+  function openWorkTab(pane) {
+    if (shell.classList.contains("work-collapsed")) setCollapsed("work-collapsed", false);
+    const btn = document.querySelector('.work-tabs [data-pane="' + pane + '"]');
+    if (btn) btn.click();
+  }
   document.querySelector(".work-tabs").addEventListener("click", (ev) => {
     const btn = ev.target.closest("[data-pane]");
     if (!btn) return;
@@ -2048,12 +2316,12 @@
   };
   dragResize(document.getElementById("nav-resize"), 1,
     () => navPanel.getBoundingClientRect().width,
-    (w) => document.documentElement.style.setProperty("--nav-w", (w || 268) + "px"),
+    (w) => document.documentElement.style.setProperty("--nav-w", (w || 276) + "px"),
     200, 440, "janetcode-nav-w");
   dragResize(document.getElementById("work-resize"), -1,
     () => workPanel.getBoundingClientRect().width,
     setWorkVar,
-    260, 640, "janetcode-work-w");
+    300, 520, "janetcode-work-w");
   dragResize(document.getElementById("pv-resize"), -1,
     () => pvPane.getBoundingClientRect().width,
     setPvVar,
@@ -2062,7 +2330,7 @@
     const savedNav = parseInt(localStorage.getItem("janetcode-nav-w") || "", 10);
     if (savedNav >= 200 && savedNav <= 440) document.documentElement.style.setProperty("--nav-w", savedNav + "px");
     const savedWork = parseInt(localStorage.getItem("janetcode-work-w") || "", 10);
-    if (savedWork >= 260 && savedWork <= 640) setWorkVar(savedWork);
+    if (savedWork >= 300 && savedWork <= 520) setWorkVar(savedWork);
     const savedPv = parseInt(localStorage.getItem("janetcode-preview-w") || "", 10);
     if (savedPv >= 320 && savedPv <= 960) setPvVar(savedPv);
   } catch (_) {}
@@ -2082,6 +2350,9 @@
     const editBtn = ev.target.closest("[data-edit]");
     if (editBtn) {
       const src = latest.get(editBtn.dataset.edit);
+      // A true rewind: the server cuts the history back to before this
+      // message. Without sessions_ui.js it only refills the composer.
+      if (src && window.sessionsUI && (await window.sessionsUI.edit(editBtn.dataset.edit, src))) return;
       if (src) {
         input.value = src.text || "";
         resize();
@@ -2091,6 +2362,15 @@
     }
     if (ev.target.closest("[data-regen]")) {
       if (lastUserText) await post("/api/prompt", { text: lastUserText });
+      return;
+    }
+    const copyTurn = ev.target.closest("[data-copyturn]");
+    if (copyTurn) {
+      try {
+        await navigator.clipboard.writeText(turnMarkdown(copyTurn.dataset.copyturn));
+        copyTurn.innerHTML = icon("check");
+        setTimeout(() => { copyTurn.innerHTML = icon("file"); }, 1500);
+      } catch (_) {}
       return;
     }
     const copy = ev.target.closest(".copy-btn");
@@ -2132,6 +2412,7 @@
       const r = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await r.json();
       if (!r.ok) { statusEl.textContent = typeof data === "string" ? data : r.statusText; return; }
+      try { if (window.JanetExtras) window.JanetExtras.uploaded(files, data.paths || []); } catch (_) {}
       const refs = (data.paths || []).map(mentionOf).join(" ");
       input.value = (input.value ? input.value.replace(/\s+$/, "") + " " : "") + refs + " ";
       resize();
@@ -2194,7 +2475,7 @@
     if (!prevRunning || st.running || !document.hidden) return;
     markUnseen();
     if (soundOn) ding();
-    if (!notifyOn) return;
+    if (!notifyOn || quiet()) return;
     const title = document.getElementById("title").textContent || "janetcode";
     const body = lastReply ? lastReply.split("\n")[0].slice(0, 120) : (st.status || "Turn finished");
     try { new Notification("janetcode · " + title, { body }); } catch (_) {}
@@ -2206,12 +2487,31 @@
   function notifyAsk(line) {
     if (!document.hidden) return;
     if (soundOn) ding();
-    if (!notifyOn) return;
+    if (!notifyOn || quiet()) return;
     try { new Notification("janetcode · approval needed", { body: line, tag: "janetcode-ask" }); } catch (_) {}
   }
 
+  // The small surface extras.js (quick prompts, previews, gallery, export,
+  // settings) reaches the page through.
+  window.JanetApp = {
+    entries: () => [...log.querySelectorAll("article.turn")].map((a) => latest.get(a.dataset.id)).filter(Boolean),
+    chatMarkdown, downloadMarkdown, openFind, openConnect, openHelp, openPalette,
+    setComposer: (t) => { input.value = t; resize(); input.dispatchEvent(new Event("input")); input.focus(); },
+    insertComposer: (t) => {
+      const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? a;
+      input.value = input.value.slice(0, a) + t + input.value.slice(b);
+      input.selectionStart = input.selectionEnd = a + t.length;
+      resize(); input.dispatchEvent(new Event("input")); input.focus();
+    },
+    rerenderTools: () => { openTools.clear(); latest.forEach((e) => { if (e.kind === "tool") render(e); }); },
+    session: () => pageSession,
+    title: () => cleanTitle(curTitle),
+  };
+  if (window.JanetExtras && window.JanetExtras.ready) window.JanetExtras.ready();
+
   const conn = document.getElementById("conn");
   const es = new EventSource("/events");
+  window.__es = es;
   let lost = false;
   es.onopen = () => {
     conn.classList.remove("off"); conn.textContent = ""; conn.title = "Connected";
