@@ -41,6 +41,8 @@ type entry struct {
 	TokIn  int   `json:"tok_in,omitempty"`
 	TokOut int   `json:"tok_out,omitempty"`
 	Ms     int64 `json:"ms,omitempty"`
+	// Model is the model that wrote an assistant entry.
+	Model string `json:"model,omitempty"`
 	// Data is a structured payload for kinds the front-end renders as
 	// views of their own (perf, usage): the same numbers Text would
 	// carry, but drawable.
@@ -265,6 +267,9 @@ func (s *server) addLocked(e entry) *entry {
 	}
 	if e.Kind == "assistant" {
 		s.lastAssistant = e.ID
+		if e.Model == "" && s.opts.Agent != nil {
+			e.Model = s.opts.Agent.Settings().Model
+		}
 	}
 	p := &e
 	s.entries = append(s.entries, p)

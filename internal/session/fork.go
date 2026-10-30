@@ -21,12 +21,27 @@ func StayArg(arg string) (stay bool, title string) {
 // Fork starts a new session holding a copy of this one's messages, so a
 // conversation can branch: try one approach here, another in the fork.
 func Fork(dir string, from *Session, title string) (*Session, error) {
+	return ForkAt(dir, from, 0, title)
+}
+
+// ForkAt is Fork keeping only the events before cutSeq (every event when
+// cutSeq is 0), so a conversation can branch from a given message.
+func ForkAt(dir string, from *Session, cutSeq int, title string) (*Session, error) {
 	// One snapshot of the parent under its lock: the UI goroutine that
 	// forks is not the one that appends or rewrites metadata.
 	from.mu.Lock()
 	meta := from.Meta
 	events := append([]Event(nil), from.ev...)
 	from.mu.Unlock()
+	if cutSeq > 0 {
+		kept := events[:0:0]
+		for _, e := range events {
+			if e.Seq < cutSeq {
+				kept = append(kept, e)
+			}
+		}
+		events = kept
+	}
 	ns, err := New(dir, meta.Cwd, meta.Provider, meta.Model)
 	if err != nil {
 		return nil, err

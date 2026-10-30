@@ -39,6 +39,12 @@ type Meta struct {
 	// Settled marks a session the user is done with; it lists after the
 	// active ones. Any new event clears it.
 	Settled bool `json:"settled,omitempty"`
+	// Archived hides the session from the sidebar's Active tab; unlike
+	// Settled it survives new events, so only the person clears it.
+	Archived bool `json:"archived,omitempty"`
+	// Starred keeps the session at the top of the sidebar list. It is the
+	// server-side home of what the page used to keep in localStorage.
+	Starred bool `json:"starred,omitempty"`
 	// Loops are armed /loop jobs restored on resume of this session.
 	Loops []LoopSpec `json:"loops,omitempty"`
 	// ExtraDirs are additional local roots file tools may read and edit.

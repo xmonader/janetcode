@@ -2615,3 +2615,7 @@ html[data-density="compact"] .you .bubble { padding: 0.4rem 0.85rem; }
   .ask-actions.ladder { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ask-actions.ladder button { border-bottom: 0.5px solid var(--line); }
 }
+
+/* Permission card: what made the call ask. */
+.ask-source { margin-left: 6px; padding: 1px 6px; border-radius: 8px; font-size: 11px; background: var(--chip-bg, rgba(127,127,127,.15)); color: var(--muted, inherit); }
+.ask-source[data-source="hook"] { background: rgba(217,119,6,.18); }

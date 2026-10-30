@@ -396,13 +396,18 @@ type statusPayload struct {
 }
 
 type permPayload struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Summary    string `json:"summary"`
-	Preview    string `json:"preview,omitempty"`
-	Warning    string `json:"warning,omitempty"`
-	Rule       string `json:"rule,omitempty"`
-	Expandable bool   `json:"expandable,omitempty"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Summary string `json:"summary"`
+	Preview string `json:"preview,omitempty"`
+	Warning string `json:"warning,omitempty"`
+	// Warnings is Warning split into its separate causes, plus the ones
+	// the page's server adds (a path outside the workspace); Source is
+	// what made the call ask (see agent.ToolCall.Source).
+	Warnings   []string `json:"warnings,omitempty"`
+	Source     string   `json:"source,omitempty"`
+	Rule       string   `json:"rule,omitempty"`
+	Expandable bool     `json:"expandable,omitempty"`
 	// Rungs is the ladder of rules the "remember this rule" button may
 	// save, narrowest first, and RuleIndex the one it starts on — the
 	// same choice the terminal offers with its arrow keys (see
@@ -518,6 +523,9 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/connect", s.connectAPI)
 	mux.HandleFunc("/api/inspect", s.inspectAPI)
 	mux.HandleFunc("/api/sessions", s.sessionsAPI)
+	mux.HandleFunc("/api/session/", s.sessionOp)
+	mux.HandleFunc("/api/workspace/check", s.workspaceCheck)
+	mux.HandleFunc("/api/workspace/apply", s.workspaceApply)
 	mux.HandleFunc("/api/panel", s.panelAPI)
 	mux.HandleFunc("/api/workspace", s.workspaceAPI)
 	mux.HandleFunc("/api/agent", s.agentAPI)

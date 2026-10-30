@@ -126,16 +126,18 @@
       loadSessions();
       n.innerHTML = `<div class="bubble">${esc(e.text || "")}</div><div class="msg-actions">` +
         `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy" aria-label="Copy message">${icon("copy")}</button>` +
-        `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button></div>`;
+        `<button type="button" class="act" data-edit="${e.id}" title="Edit & resend" aria-label="Edit and resend">${icon("pencil")}</button>` +
+        `<button type="button" class="act" data-branch="${e.id}" title="Branch here" aria-label="Branch the conversation from this message">${icon("branch")}</button></div>`;
     } else if (e.kind === "assistant") {
       n.className = "turn";
       const copyBtn = `<button type="button" class="act copy-btn" data-copy="${e.id}" title="Copy as Markdown" aria-label="Copy reply as Markdown">${icon("copy")}</button><button type="button" class="act" data-copyturn="${e.id}" title="Copy the whole turn as Markdown" aria-label="Copy the whole turn as Markdown">${icon("file")}</button>`;
       const regenBtn = lastUserText ? `<button type="button" class="act" data-regen="1" title="Ask again" aria-label="Ask again">${icon("refresh")}</button>` : "";
       const meta = [];
       if (e.at) meta.push(new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (e.model) meta.push(e.model);
       if (e.tok_in || e.tok_out) meta.push("↑" + fmtTok(e.tok_in) + " ↓" + fmtTok(e.tok_out));
       if (e.ms) meta.push(fmtDur(e.ms));
-      const metaRow = e.done ? `<div class="msg-foot"><span class="msg-actions">${copyBtn}${regenBtn}</span><span class="msg-meta">${esc(meta.join(" · "))}</span></div>` : "";
+      const metaRow = e.done ? `<div class="msg-foot"><span class="msg-actions">${copyBtn}${regenBtn}<button type="button" class="act" data-branch="${e.id}" title="Branch here" aria-label="Branch the conversation from this reply">${icon("branch")}</button></span><span class="msg-meta">${esc(meta.join(" · "))}</span></div>` : "";
       const long = e.done && (e.text || "").length > 1800;
       const clipped = long && !openAnswers.has(e.id);
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Show full reply</button>` : "";
@@ -597,11 +599,21 @@
       askLine.append(code);
     }
     askLine.append("?");
-    if (p.warning) {
+    // Warnings carries each cause on its own (a path outside the workspace,
+    // a hook that asked); warning is the same line joined, for old servers.
+    const warns = p.warnings && p.warnings.length ? p.warnings : p.warning ? [p.warning] : [];
+    if (warns.length) {
       const w = document.createElement("span");
       w.className = "ask-warn";
-      w.textContent = " Warning: " + p.warning;
+      w.textContent = " Warning: " + warns.join("; ");
       askLine.append(w);
+    }
+    if (p.source) {
+      const src = document.createElement("span");
+      src.className = "ask-source";
+      src.dataset.source = p.source;
+      src.textContent = " asked by " + ({ hook: "a hook", rule: "an ask rule", egress: "the egress policy", taint: "the taint check", protected: "a protected path", tool: "the tool's guard" }[p.source] || p.source);
+      askLine.append(src);
     }
   }
 
@@ -1731,15 +1743,15 @@
   // the directory's past conversations under History, grouped by day,
   // filtered by the rail's search field.
   // Pinned conversations ride at the top of the rail, kept in this browser.
-  function pinnedSet() {
-    try { return new Set(JSON.parse(localStorage.getItem("janetcode-pinned") || "[]")); } catch (_) { return new Set(); }
-  }
-  function togglePin(id) {
-    const p = pinnedSet();
-    if (p.has(id)) p.delete(id); else p.add(id);
-    try { localStorage.setItem("janetcode-pinned", JSON.stringify([...p])); } catch (_) {}
+  // Pins live in the session files (row.starred); sessions_ui.js moves the
+  // old browser-local ones across once.
+  let pinnedIds = new Set();
+  function pinnedSet() { return pinnedIds; }
+  async function togglePin(id) {
+    await post("/api/session/pin", { id, pinned: !pinnedIds.has(id) });
     loadSessions();
   }
+  window.addEventListener("janet:sessions-refresh", () => loadSessions());
   function renderSessions(rows, filter) {
     const live = rows.find((r) => r.current);
     const curEl = document.getElementById("current-session");
@@ -1762,9 +1774,13 @@
       (r.id || "").toLowerCase().includes(q) ||
       (r.note || "").toLowerCase().includes(q) ||
       !!r.hit;
-    const kept = rows.filter((r) => !r.current).filter(match).slice(0, 40);
+    pinnedIds = new Set(rows.filter((r) => r.starred).map((r) => r.id));
+    const ui = window.sessionsUI;
+    if (ui) ui.seen(rows);
+    const archivedTab = ui && ui.tab() === "archived";
+    const kept = rows.filter((r) => !r.current).filter((r) => !!r.archived === archivedTab).filter(match).slice(0, 40);
     if (!kept.length) {
-      ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : "Earlier conversations in this project will appear here."}</li>`;
+      ul.innerHTML = `<li class="quiet">${q ? "No conversation matches" : archivedTab ? "Archived conversations will appear here." : "Earlier conversations in this project will appear here."}</li>`;
       return;
     }
     const pins = pinnedSet();
@@ -1780,7 +1796,7 @@
       }
       const pinBtn = `<button type="button" class="pin${isPin ? " on" : ""}" data-pin="${esc(r.id)}" title="${isPin ? "Unpin" : "Pin to the top"}" aria-label="${isPin ? "Unpin" : "Pin"} conversation">${icon("pin")}</button>`;
       parts.push(
-        `<li class="${r.current ? "on" : ""}${isPin ? " pinned" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span>${pinBtn}${r.hit ? `<span class="sess-hit">${r.turn ? "turn " + r.turn + ": " : ""}${esc(r.hit)}</span>` : ""}</li>`
+        `<li class="${r.current ? "on" : ""}${isPin ? " pinned" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span>${ui ? ui.rowExtras(r) : ""}${pinBtn}${r.hit ? `<span class="sess-hit">${r.turn ? "turn " + r.turn + ": " : ""}${esc(r.hit)}</span>` : ""}</li>`
       );
     }
     ul.innerHTML = parts.join("");
@@ -1806,6 +1822,7 @@
   });
 
   document.getElementById("sessions").addEventListener("click", async (ev) => {
+    if (window.sessionsUI && window.sessionsUI.click(ev)) return;
     const pin = ev.target.closest("[data-pin]");
     if (pin) { ev.stopPropagation(); togglePin(pin.dataset.pin); return; }
     const li = ev.target.closest("li[data-id]");
@@ -2303,6 +2320,9 @@
     const editBtn = ev.target.closest("[data-edit]");
     if (editBtn) {
       const src = latest.get(editBtn.dataset.edit);
+      // A true rewind: the server cuts the history back to before this
+      // message. Without sessions_ui.js it only refills the composer.
+      if (src && window.sessionsUI && (await window.sessionsUI.edit(editBtn.dataset.edit, src))) return;
       if (src) {
         input.value = src.text || "";
         resize();

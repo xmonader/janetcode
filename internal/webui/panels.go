@@ -56,6 +56,10 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 		Updated  string `json:"updated"`
 		Current  bool   `json:"current"`
 		Settled  bool   `json:"settled"`
+		Archived bool   `json:"archived"`
+		Starred  bool   `json:"starred"`
+		// Running is the live session with a turn in flight: the row's dot.
+		Running bool `json:"running"`
 		// Depth, Prefix and Note carry the fork lineage (see
 		// session.Lineage): a fork is listed under the session it was
 		// copied from, and one whose parent is not in this listing says so.
@@ -79,6 +83,7 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 			hits[h.Info.Meta.ID] = h
 		}
 	}
+	running := s.isRunning()
 	nodes := session.Lineage(infos, cur)
 	out := make([]row, 0, len(nodes))
 	for _, n := range nodes {
@@ -87,7 +92,9 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 			ID: in.Meta.ID, Label: in.Label(), Title: in.Meta.Title,
 			Messages: in.Messages, Updated: in.Updated.Format(time.RFC3339),
 			Current: n.Current, Settled: in.Meta.Settled,
-			Depth: n.Depth, Prefix: n.Prefix(), Note: n.Note(),
+			Archived: in.Meta.Archived, Starred: in.Meta.Starred,
+			Running: n.Current && running,
+			Depth:   n.Depth, Prefix: n.Prefix(), Note: n.Note(),
 			Hit: hits[in.Meta.ID].Snippet, Turn: hits[in.Meta.ID].Turn,
 		})
 	}
