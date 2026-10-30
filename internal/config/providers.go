@@ -59,6 +59,9 @@ type Provider struct {
 	// Authorization: Bearer (gateways and proxies that speak the
 	// Messages API, as ANTHROPIC_AUTH_TOKEN does for Claude Code).
 	Auth string `json:"auth,omitempty"`
+	// KeyEnv names the environment variable the keys are read from at
+	// load, so the secret stays out of the config file.
+	KeyEnv string `json:"key_env,omitempty"`
 
 	// envKeys is set when the keys came from the environment, so Update
 	// does not copy them into the config file.
@@ -210,6 +213,35 @@ func (c *Config) ProviderNames() []string {
 // missing). Keys that came from the environment are not written; keys the
 // file already holds for that entry are kept in that case.
 func Update(path, name string, p Provider, model string) error {
+	return update(path, name, p, model, true)
+}
+
+// UpdateProvider is Update that leaves the file's default provider and
+// model alone: the provider is saved and ready, but not the one a new
+// session starts on.
+func UpdateProvider(path, name string, p Provider, model string) error {
+	return update(path, name, p, model, false)
+}
+
+// UseEnvKey makes the provider read its keys from the environment
+// variable name, resolved now through getenv and again at every load.
+func (p *Provider) UseEnvKey(name string, getenv func(string) string) error {
+	name = strings.TrimSpace(name)
+	if name == "" || strings.IndexFunc(name, func(r rune) bool {
+		return !(r == '_' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+	}) >= 0 || name[0] >= '0' && name[0] <= '9' {
+		return errors.New("an environment variable name is letters, digits and underscores")
+	}
+	v := strings.TrimSpace(getenv(name))
+	if v == "" {
+		return errors.New("the environment variable " + name + " is not set where janetcode runs")
+	}
+	p.SetKeys(strings.Split(v, ","))
+	p.KeyEnv, p.envKeys = name, true
+	return nil
+}
+
+func update(path, name string, p Provider, model string, setDefault bool) error {
 	raw := map[string]json.RawMessage{}
 	data, err := os.ReadFile(path)
 	switch {
@@ -246,8 +278,10 @@ func Update(path, name string, p Provider, model string) error {
 	}
 	set(provs, name, p)
 	set(raw, "providers", provs)
-	set(raw, "provider", name)
-	set(raw, "model", model)
+	if setDefault {
+		set(raw, "provider", name)
+		set(raw, "model", model)
+	}
 	if marshalErr != nil {
 		return marshalErr
 	}

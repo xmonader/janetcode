@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -37,15 +38,27 @@ type connectProvider struct {
 	HasKey     bool `json:"has_key"`
 	NeedsKey   bool `json:"needs_key"`
 	Configured bool `json:"configured"`
+	// Connected marks the provider the session is talking to now, Default
+	// the one a new session starts on, KeyEnv the environment variable its
+	// key is read from (the key itself never goes to the page).
+	Connected bool   `json:"connected"`
+	Default   bool   `json:"default"`
+	KeyEnv    string `json:"key_env,omitempty"`
 }
 
 type connectRequest struct {
-	Action string `json:"action"` // "models" or "connect"
+	Action string `json:"action"` // "models", "test" or "connect"
 	Name   string `json:"name"`
 	Type   string `json:"type"`
 	URL    string `json:"url"`
 	Keys   string `json:"keys"`
 	Model  string `json:"model"`
+	// KeyEnv reads the key from this environment variable instead of
+	// Keys; the config file then stores the name, not the secret.
+	KeyEnv string `json:"key_env"`
+	// MakeDefault false saves the provider without making it the one new
+	// sessions start on. Absent means true, as connecting always did.
+	MakeDefault *bool `json:"make_default"`
 }
 
 type connectModel struct {
@@ -86,15 +99,23 @@ func (s *server) connectAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, map[string]any{"models": models})
+	case "test":
+		// Reaches the provider with the key as typed and saves nothing.
+		models, err := s.listConnectModels(r.Context(), next)
+		if err != nil {
+			writeJSON(w, map[string]any{"error": llm.Explain(err, providerDisplayName(req.Name), connectRemedies)})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "models": len(models), "note": fmt.Sprintf("Connection works · %d models", len(models))})
 	case "connect":
-		note, err := s.applyConnect(next, req.Name, p, strings.TrimSpace(req.Model))
+		note, err := s.applyConnect(next, req.Name, p, strings.TrimSpace(req.Model), req.MakeDefault == nil || *req.MakeDefault)
 		if err != nil {
 			writeJSON(w, map[string]any{"error": llm.Explain(err, providerDisplayName(req.Name), connectRemedies)})
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true, "note": note})
 	default:
-		http.Error(w, "action is models or connect", http.StatusBadRequest)
+		http.Error(w, "action is models, test or connect", http.StatusBadRequest)
 	}
 }
 
@@ -122,7 +143,8 @@ func (s *server) connectProviders() []connectProvider {
 			label = pre.Label
 		}
 		out = append(out, connectProvider{Name: n, Label: label, Type: p.Type, URL: p.BaseURL,
-			HasKey: len(p.Keys()) > 0, NeedsKey: p.NeedsKey(), Configured: true})
+			HasKey: len(p.Keys()) > 0, NeedsKey: p.NeedsKey(), Configured: true,
+			Connected: n == s.provider(), Default: n == cfg.Provider, KeyEnv: p.KeyEnv})
 	}
 	for _, pre := range config.Presets {
 		p, ok := cfg.Providers[pre.Name]
@@ -168,8 +190,13 @@ func (s *server) connectConfig(req connectRequest) (*config.Config, config.Provi
 		return nil, p, errors.New("an OpenAI-compatible server needs a base URL")
 	}
 	p.BaseURL = u
-	if keys := strings.FieldsFunc(req.Keys, func(r rune) bool { return strings.ContainsRune(", \n\t;", r) }); len(keys) > 0 {
+	if env := strings.TrimSpace(req.KeyEnv); env != "" {
+		if err := p.UseEnvKey(env, os.Getenv); err != nil {
+			return nil, p, err
+		}
+	} else if keys := strings.FieldsFunc(req.Keys, func(r rune) bool { return strings.ContainsRune(", \n\t;", r) }); len(keys) > 0 {
 		p.SetKeys(keys)
+		p.KeyEnv = ""
 	} else if len(p.Keys()) == 0 && p.NeedsKey() {
 		return nil, p, errors.New("this provider needs an API key")
 	}
@@ -216,7 +243,7 @@ func (s *server) listConnectModels(ctx context.Context, cfg *config.Config) ([]c
 
 // applyConnect switches the agent onto the new provider and saves the
 // choice. It refuses while a turn runs: the turn holds the old client.
-func (s *server) applyConnect(next *config.Config, name string, p config.Provider, model string) (string, error) {
+func (s *server) applyConnect(next *config.Config, name string, p config.Provider, model string, makeDefault bool) (string, error) {
 	if model == "" {
 		return "", errors.New("pick a model, or type its id")
 	}
@@ -255,7 +282,11 @@ func (s *server) applyConnect(next *config.Config, name string, p config.Provide
 	s.cfgMu.Unlock()
 	note := fmt.Sprintf("Connected to %s · %s", name, model)
 	if s.opts.ConfigPath != "" {
-		if err := config.Update(s.opts.ConfigPath, name, p, model); err != nil {
+		save := config.Update
+		if !makeDefault {
+			save = config.UpdateProvider
+		}
+		if err := save(s.opts.ConfigPath, name, p, model); err != nil {
 			s.errf("connected, but saving the config failed: %v", err)
 		} else {
 			note += " · saved to " + perm.ShortenHome(s.opts.ConfigPath)

@@ -813,6 +813,12 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 			}
 		}
 		e.Type = strings.ToLower(strings.TrimSpace(e.Type))
+		if e.KeyEnv != "" {
+			if k := strings.TrimSpace(getenv(e.KeyEnv)); k != "" {
+				e.SetKeys(strings.Split(k, ","))
+				e.envKeys = true
+			}
+		}
 		// The gemini preset used to be the OpenAI-compatible endpoint. An
 		// entry saved then, with its type left to the preset, still points
 		// there; it keeps the protocol that URL speaks.
