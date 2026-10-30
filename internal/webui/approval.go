@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -286,7 +288,11 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 			}
 		}
 	}
+	warnings := splitWarning(c.Warning)
+	warnings = append(warnings, outsideWorkspace(s.cwd(), c.Input)...)
 	return permPayload{
+		Warnings:  warnings,
+		Source:    c.Source,
 		ID:        c.ID,
 		Name:      c.Name,
 		Summary:   present.ToolSummary(c.Name, string(c.Input), 80, s.cwd()),
@@ -298,4 +304,50 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 		Learned:   c.Learned,
 		Impact:    c.Impact,
 	}
+}
+
+// splitWarning breaks the "; "-joined warning line into its causes.
+func splitWarning(w string) []string {
+	var out []string
+	for _, p := range strings.Split(w, "; ") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// pathKeys are the arguments tools take file paths in.
+var pathKeys = []string{"path", "file_path", "filepath", "file", "filename", "dir", "directory", "cwd"}
+
+// outsideWorkspace names the path arguments of a call that point outside
+// the workspace root, as warnings for the ask card.
+func outsideWorkspace(root string, input json.RawMessage) []string {
+	if root == "" || len(input) == 0 {
+		return nil
+	}
+	var args map[string]any
+	if json.Unmarshal(input, &args) != nil {
+		return nil
+	}
+	var out []string
+	for _, k := range pathKeys {
+		v, _ := args[k].(string)
+		if v = strings.TrimSpace(v); v == "" {
+			continue
+		}
+		if v == "~" || strings.HasPrefix(v, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				v = filepath.Join(home, strings.TrimPrefix(v, "~"))
+			}
+		}
+		if !filepath.IsAbs(v) {
+			v = filepath.Join(root, v)
+		}
+		rel, err := filepath.Rel(root, filepath.Clean(v))
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			out = append(out, "path "+v+" is outside the workspace")
+		}
+	}
+	return out
 }

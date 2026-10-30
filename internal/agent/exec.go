@@ -315,6 +315,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// describeCall writes call.Warning from the tool's own Warner, so
 		// this goes on afterwards or it would be overwritten.
 		mustAsk = true
+		call.Source = "hook"
 		call.Warning = strings.TrimPrefix(call.Warning+"; a hook from this repository rewrote this call's input", "; ")
 	}
 	// A write to a protected path always asks, under /edits, /auto, an
@@ -332,6 +333,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		return nil, refusal, nil
 	case why != "":
 		mustAsk, egressAsk = true, true
+		setAskSource(call, "egress")
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 	}
 	// A tainted turn asks about the calls an injection is after — the
@@ -342,11 +344,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	taintAsk := taintWhy != ""
 	if taintAsk {
 		mustAsk = true
+		setAskSource(call, "taint")
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+taintWhy, "; ")
 	}
 	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
 			mustAsk = true
+			setAskSource(call, "protected")
 			if !strings.Contains(call.Warning, why) {
 				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 			}
@@ -393,6 +397,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	sensitive := verdict == perm.Ask && !rule.IsZero()
 	if sensitive {
 		mustAsk = true
+		setAskSource(call, "rule")
 		why := "asks because of rule " + rule.String() + a.outranked(u, subject)
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 	}
@@ -486,6 +491,7 @@ func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, cal
 	if g, ok := t.(tool.Guard); ok && tool.MutatingCall(t, u.Input) {
 		if ask, why := g.Guard(u.Input); ask {
 			mustAsk = true
+			setAskSource(call, "tool")
 			if why != "" && !strings.Contains(call.Warning, why) {
 				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 			}
@@ -1092,4 +1098,11 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		}
 	}
 	return out, isErr, false
+}
+
+// setAskSource records what made a call ask; the first cause stands.
+func setAskSource(call *ToolCall, src string) {
+	if call.Source == "" {
+		call.Source = src
+	}
 }

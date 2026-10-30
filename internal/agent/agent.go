@@ -53,6 +53,11 @@ type ToolCall struct {
 	Preview string
 	// Warning flags a risky input (destructive shell commands).
 	Warning string
+	// Source is what made this call ask: "hook" (a repository or
+	// pre-tool hook), "rule" (an ask rule), "egress", "taint",
+	// "protected" (a protected path) or "tool" (the tool's own guard).
+	// Empty when the mode alone asked. The first cause found stands.
+	Source string
 	// Intent is the model's own one-line reason for making this call,
 	// when the registry asks for one. Shown to the user as it runs.
 	Intent string
