@@ -79,7 +79,11 @@
   // edits open by default, the reader's click flips it.
   function toolIsOpen(e) {
     const k = toolKind(e.name || "").k;
-    const byDefault = (k === "edit" || k === "write") && !!e.preview && !e.denied;
+    let byDefault = (k === "edit" || k === "write") && !!e.preview && !e.denied;
+    // Settings > Tool calls (extras.js): all open or all collapsed.
+    const pref = window.JanetExtras && window.JanetExtras.toolDefault ? window.JanetExtras.toolDefault() : "auto";
+    if (pref === "open") byDefault = !!(e.preview || e.output) && !e.denied;
+    else if (pref === "collapsed") byDefault = false;
     return byDefault !== openTools.has(e.id);
   }
   function toolSetOpen(e, want) {
@@ -466,7 +470,14 @@
   let pageSession = "";
   function applyHello(h) {
     if (!h) return;
+    const prevSession = pageSession;
     if (h.session) pageSession = h.session;
+    if (prevSession && h.session && prevSession !== h.session) {
+      // Another conversation: its own draft, not the last one's.
+      input.value = "";
+      restoreDraft();
+      resize();
+    }
     // A different build than the page was served from means the server
     // restarted with a new binary; this JavaScript is stale no matter
     // how hard the user refreshes against the old process's memory.
@@ -946,16 +957,23 @@
   }
   // The unsent prompt survives a reload or a closed tab. A session switch
   // or a send clears it; storage that throws just means no draft.
-  const DRAFT_KEY = "janetcode-draft";
+  // Drafts are per session: the key carries the session id. The old
+  // global key is migrated into the first session that loads.
+  const LEGACY_DRAFT_KEY = "janetcode-draft";
+  const draftKey = () => LEGACY_DRAFT_KEY + (pageSession ? ":" + pageSession : "");
   function saveDraft() {
     try {
-      if (input.value) localStorage.setItem(DRAFT_KEY, input.value);
-      else localStorage.removeItem(DRAFT_KEY);
+      if (input.value) localStorage.setItem(draftKey(), input.value);
+      else localStorage.removeItem(draftKey());
     } catch (_) {}
   }
   function restoreDraft() {
     try {
-      const d = localStorage.getItem(DRAFT_KEY);
+      let d = localStorage.getItem(draftKey());
+      if (!d && pageSession) {
+        d = localStorage.getItem(LEGACY_DRAFT_KEY);
+        if (d) { localStorage.setItem(draftKey(), d); localStorage.removeItem(LEGACY_DRAFT_KEY); }
+      }
       if (d && !input.value) { input.value = d; resize(); }
     } catch (_) {}
   }
@@ -1345,7 +1363,7 @@
       act("Settings", "Font size: medium", "", () => setFontScale("medium")),
       act("Settings", "Font size: large", "", () => setFontScale("large")),
       act("Settings", "Open settings", "appearance, sound, notifications", () => openSettings()),
-    ].concat(commands.map(mdFor));
+    ].concat(window.JanetExtras && window.JanetExtras.actions ? window.JanetExtras.actions(act) : [], commands.map(mdFor));
   }
   function drawPalette(q) {
     q = q.toLowerCase().replace(/^\//, "");
@@ -1362,7 +1380,7 @@
     // Best matches first: a name that starts with the query beats a
     // scattered one.
     if (q) palItems.sort((x, y) => (y.name.toLowerCase().replace(/^\//, "").startsWith(q) ? 1 : 0) - (x.name.toLowerCase().replace(/^\//, "").startsWith(q) ? 1 : 0));
-    palItems = palItems.slice(0, q ? 14 : 16);
+    palItems = palItems.slice(0, q ? 14 : 24);
     palIdx = Math.min(palIdx, Math.max(palItems.length - 1, 0));
     let last = "";
     paletteList.innerHTML = palItems.length
@@ -1897,8 +1915,15 @@
   // entryMarkdown is one entry as the Markdown a reader would paste: the
   // prompt, the reply, a tool call with its output. Thinking and cards
   // are left out, as they are in the saved file.
-  function entryMarkdown(e) {
+  function entryMarkdown(e, o) {
     if (!e) return "";
+    if (o) {
+      if (e.kind === "thinking") return o.reasoning && (e.text || "").trim() ? "> **Reasoning**\n>\n" + e.text.trim().split("\n").map((l) => "> " + l).join("\n") : "";
+      if (e.kind === "tool" && !o.tools) return "";
+      if (e.kind === "tool" && !o.output) {
+        return "- `" + (e.name || "tool") + "`" + (e.summary ? " " + e.summary.replace(/`/g, "'") : "") + (e.denied ? " (declined)" : e.error ? " (failed)" : "");
+      }
+    }
     if (e.kind === "user") return "## you\n\n" + (e.text || "");
     if (e.kind === "assistant") return "## janetcode\n\n" + (e.text || "");
     if (e.kind === "tool") {
@@ -1919,11 +1944,15 @@
     while (from > 0 && !arts[from].classList.contains("you")) from--;
     return arts.slice(from, i + 1).map((a) => entryMarkdown(latest.get(a.dataset.id))).filter(Boolean).join("\n\n");
   }
-  function chatMarkdown() {
-    return [...log.querySelectorAll("article.turn")].map((a) => entryMarkdown(latest.get(a.dataset.id))).filter(Boolean).join("\n\n");
+  function chatMarkdown(o) {
+    return [...log.querySelectorAll("article.turn")].map((a) => entryMarkdown(latest.get(a.dataset.id), o)).filter(Boolean).join("\n\n");
   }
   function exportChat() {
-    const md = chatMarkdown();
+    // extras.js asks what to include first; without it, save everything as before.
+    if (window.JanetExtras && window.JanetExtras.openExport) { window.JanetExtras.openExport(); return; }
+    downloadMarkdown(chatMarkdown());
+  }
+  function downloadMarkdown(md) {
     if (!md) return;
     const blob = new Blob([md + "\n"], { type: "text/markdown" });
     const a = document.createElement("a");
@@ -1977,8 +2006,9 @@
     const b = document.getElementById("sound-btn");
     if (b) b.setAttribute("aria-checked", soundOn ? "true" : "false");
   }
+  const quiet = () => { try { return localStorage.getItem("janetcode-quiet") === "1"; } catch (_) { return false; } };
   function ding() {
-    if (!soundOn) return;
+    if (!soundOn || quiet()) return;
     try {
       const ctx = new AudioContext();
       const o = ctx.createOscillator();
@@ -2362,6 +2392,7 @@
       const r = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await r.json();
       if (!r.ok) { statusEl.textContent = typeof data === "string" ? data : r.statusText; return; }
+      try { if (window.JanetExtras) window.JanetExtras.uploaded(files, data.paths || []); } catch (_) {}
       const refs = (data.paths || []).map(mentionOf).join(" ");
       input.value = (input.value ? input.value.replace(/\s+$/, "") + " " : "") + refs + " ";
       resize();
@@ -2424,7 +2455,7 @@
     if (!prevRunning || st.running || !document.hidden) return;
     markUnseen();
     if (soundOn) ding();
-    if (!notifyOn) return;
+    if (!notifyOn || quiet()) return;
     const title = document.getElementById("title").textContent || "janetcode";
     const body = lastReply ? lastReply.split("\n")[0].slice(0, 120) : (st.status || "Turn finished");
     try { new Notification("janetcode · " + title, { body }); } catch (_) {}
@@ -2436,9 +2467,27 @@
   function notifyAsk(line) {
     if (!document.hidden) return;
     if (soundOn) ding();
-    if (!notifyOn) return;
+    if (!notifyOn || quiet()) return;
     try { new Notification("janetcode · approval needed", { body: line, tag: "janetcode-ask" }); } catch (_) {}
   }
+
+  // The small surface extras.js (quick prompts, previews, gallery, export,
+  // settings) reaches the page through.
+  window.JanetApp = {
+    entries: () => [...log.querySelectorAll("article.turn")].map((a) => latest.get(a.dataset.id)).filter(Boolean),
+    chatMarkdown, downloadMarkdown, openFind, openConnect, openHelp, openPalette,
+    setComposer: (t) => { input.value = t; resize(); input.dispatchEvent(new Event("input")); input.focus(); },
+    insertComposer: (t) => {
+      const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? a;
+      input.value = input.value.slice(0, a) + t + input.value.slice(b);
+      input.selectionStart = input.selectionEnd = a + t.length;
+      resize(); input.dispatchEvent(new Event("input")); input.focus();
+    },
+    rerenderTools: () => { openTools.clear(); latest.forEach((e) => { if (e.kind === "tool") render(e); }); },
+    session: () => pageSession,
+    title: () => cleanTitle(curTitle),
+  };
+  if (window.JanetExtras && window.JanetExtras.ready) window.JanetExtras.ready();
 
   const conn = document.getElementById("conn");
   const es = new EventSource("/events");
