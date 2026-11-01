@@ -482,12 +482,31 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 	if len(qs) == 0 {
 		return nil, fmt.Errorf("no questions")
 	}
-	if c.Scrub != nil {
-		state = c.Scrub(state)
-	}
 	questions := make(map[string]Question, len(qs))
 	for _, q := range qs {
+		if q.ID == "" {
+			return nil, fmt.Errorf("question has no id")
+		}
+		if _, exists := questions[q.ID]; exists {
+			return nil, fmt.Errorf("duplicate question id %q", q.ID)
+		}
+		switch q.Kind {
+		case Noul:
+		case Choice:
+			if len(q.Options) == 0 {
+				return nil, fmt.Errorf("choice question %q has no options", q.ID)
+			}
+		case Score:
+			if len(q.Levels) == 0 {
+				return nil, fmt.Errorf("score question %q has no levels", q.ID)
+			}
+		default:
+			return nil, fmt.Errorf("question %q has unknown kind %q", q.ID, q.Kind)
+		}
 		questions[q.ID] = q
+	}
+	if c.Scrub != nil {
+		state = c.Scrub(state)
 	}
 	body, err := json.Marshal(wireRequest{State: state, Model: c.Model, Questions: questions})
 	if err != nil {
@@ -559,6 +578,14 @@ func (c *Client) Evaluate(ctx context.Context, state string, qs []Question) (*Re
 		res.Answers[id] = Answer{
 			Kind: Kind(wa.Type), Noul: wa.Noul, Choice: wa.Choice,
 			Score: wa.Score, Confidence: wa.Confidence, Probabilities: wa.Probabilities,
+		}
+	}
+	for _, q := range qs {
+		wa, ok := wr.Answers[q.ID]
+		if !ok || Kind(wa.Type) != q.Kind {
+			err := fmt.Errorf("decisions: malformed response: question %q has a missing or mismatched answer", q.ID)
+			c.record(d, err, probe)
+			return nil, err
 		}
 	}
 	c.record(d, nil, probe)
