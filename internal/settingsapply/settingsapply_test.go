@@ -317,3 +317,57 @@ func TestDecisionsKillSwitchBeatsTheKeys(t *testing.T) {
 		t.Fatal("JANETCODE_OFF=decisions was overridden by /jev")
 	}
 }
+
+func TestApplyDecisionsDoesNotWriteConfigCopies(t *testing.T) {
+	cfg := &config.Config{Decisions: &config.DecisionsConfig{}}
+	requestCopy := *cfg
+	stop := make(chan struct{})
+	started := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		close(started)
+		for {
+			select {
+			case <-stop:
+				close(done)
+				return
+			default:
+				_ = requestCopy.Decisions.Triage
+			}
+		}
+	}()
+	<-started
+	var err error
+	for i := 0; i < 21 && err == nil; i++ {
+		val := "off"
+		if i%2 == 0 {
+			val = "on"
+		}
+		_, err = Apply(cfg, nil, "", "decisions.triage", val)
+	}
+	close(stop)
+	<-done
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Decisions.Triage {
+		t.Fatal("the setting did not reach the live config")
+	}
+	if requestCopy.Decisions.Triage {
+		t.Fatal("applying a setting mutated a shallow config copy owned by another request")
+	}
+}
+
+func TestApplyVoiceDoesNotWriteConfigCopies(t *testing.T) {
+	cfg := &config.Config{Voice: &config.VoiceConfig{Model: "before"}}
+	requestCopy := *cfg
+	if _, err := Apply(cfg, nil, "", "voice.model", "after"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Voice.Model != "after" {
+		t.Fatalf("live config voice model = %q, want after", cfg.Voice.Model)
+	}
+	if requestCopy.Voice.Model != "before" {
+		t.Fatalf("request copy voice model = %q, want before", requestCopy.Voice.Model)
+	}
+}

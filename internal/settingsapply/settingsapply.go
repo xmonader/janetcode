@@ -19,9 +19,31 @@ import (
 // comes through here, so a key set in one is set the same way in all.
 func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, error) {
 	key, val = strings.TrimSpace(key), strings.TrimSpace(val)
-	applied, err := config.ApplyKV(cfg, key, val)
+	target := cfg
+	switch {
+	case cfg != nil && strings.HasPrefix(key, "decisions."):
+		next := *cfg
+		if cfg.Decisions != nil {
+			decisions := *cfg.Decisions
+			next.Decisions = &decisions
+		}
+		target = &next
+	case cfg != nil && strings.HasPrefix(key, "voice."):
+		next := *cfg
+		if cfg.Voice != nil {
+			voice := *cfg.Voice
+			next.Voice = &voice
+		}
+		target = &next
+	}
+	applied, err := config.ApplyKV(target, key, val)
 	if err != nil {
 		return nil, err
+	}
+	// Web requests retain shallow config copies after releasing cfgMu.
+	// Commit nested blocks by replacement so those snapshots stay immutable.
+	if target != cfg {
+		*cfg = *target
 	}
 	if path != "" {
 		// A key inside the decisions block writes the block: the file
