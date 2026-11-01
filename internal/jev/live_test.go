@@ -9,8 +9,11 @@ import (
 
 // The live smoke: one decisions call over the OpenRouter route, the
 // same three shapes the fake-server tests cover against a real model.
-// Skipped without OPENROUTER_API_KEY, like the real-gopls test.
+// Ambient credentials are not consent to spend credits on a test run.
 func TestLiveOpenRouterDecisions(t *testing.T) {
+	if os.Getenv("JANETCODE_JEV_LIVE") != "1" {
+		t.Skip("set JANETCODE_JEV_LIVE=1 with OPENROUTER_API_KEY to run the live smoke")
+	}
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
 		t.Skip("OPENROUTER_API_KEY is not set")
