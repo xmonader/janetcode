@@ -118,8 +118,8 @@ func (s *stream) add(name string, data []byte) (bool, error) {
 	switch e.Type {
 	case "response.output_item.added":
 		var it item
-		if json.Unmarshal(e.Item, &it) != nil {
-			return false, nil
+		if err := json.Unmarshal(e.Item, &it); err != nil {
+			return false, llm.Truncate(fmt.Errorf("responses: bad output item: %w", err))
 		}
 		i := s.index(e)
 		if it.ID != "" {
@@ -127,6 +127,9 @@ func (s *stream) add(name string, data []byte) (bool, error) {
 		}
 		switch it.Type {
 		case "function_call":
+			if it.Name == "" {
+				return false, fmt.Errorf("responses: tool call %q has no name", callID(it))
+			}
 			sl := s.slot(i, llm.BlockToolUse)
 			sl.block.ID, sl.block.Name = callID(it), it.Name
 			start := sl.block
@@ -164,8 +167,11 @@ func (s *stream) add(name string, data []byte) (bool, error) {
 		s.emit(llm.Event{Type: llm.EventToolUseDelta, Text: e.Delta})
 	case "response.output_item.done":
 		var it item
-		if json.Unmarshal(e.Item, &it) != nil {
-			return false, nil
+		if err := json.Unmarshal(e.Item, &it); err != nil {
+			return false, llm.Truncate(fmt.Errorf("responses: bad output item: %w", err))
+		}
+		if it.Type == "function_call" && it.Name == "" {
+			return false, fmt.Errorf("responses: tool call %q has no name", callID(it))
 		}
 		s.finishItem(s.index(e), it)
 	case "response.completed", "response.incomplete":
