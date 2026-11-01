@@ -141,17 +141,17 @@ func (m *model) transcriptCell(x, y int, clamp bool) (cell, bool) {
 
 // mouseSelect handles the left button over the transcript, reporting
 // whether it used the event.
-func (m *model) mouseSelect(msg tea.MouseMsg) bool {
+func (m *model) mouseSelect(msg tea.MouseMsg) (tea.Cmd, bool) {
 	switch {
 	case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft:
 		c, ok := m.transcriptCell(msg.X, msg.Y, false)
 		if !ok {
-			return false
+			return nil, false
 		}
 		m.viewport.clearSelection()
 		m.drag = drag{pressed: true, at: c, y: msg.Y}
 		m.refresh(false)
-		return true
+		return nil, true
 	case msg.Action == tea.MouseActionMotion && m.drag.pressed:
 		// Past the top or bottom edge the view scrolls, so a selection can
 		// be longer than a screen.
@@ -163,27 +163,28 @@ func (m *model) mouseSelect(msg tea.MouseMsg) bool {
 		}
 		c, ok := m.transcriptCell(msg.X, msg.Y, true)
 		if !ok {
-			return true
+			return nil, true
 		}
 		if c != m.drag.at {
 			m.drag.moved = true
 		}
+		var cmd tea.Cmd
 		if m.drag.moved {
 			m.viewport.setSelection(m.drag.at, c)
-			m.syncPinned()
+			cmd = m.syncPinned()
 			m.refresh(false)
 		}
-		return true
+		return cmd, true
 	case msg.Action == tea.MouseActionRelease && m.drag.pressed:
 		d := m.drag
 		m.drag = drag{}
 		if !d.moved {
-			return m.clickTranscript(d.y)
+			return nil, m.clickTranscript(d.y)
 		}
 		m.copySelection()
-		return true
+		return nil, true
 	}
-	return false
+	return nil, false
 }
 
 // copySelection puts the selection on the clipboard: the system's

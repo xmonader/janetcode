@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
@@ -30,7 +32,7 @@ func (f *findState) from(q string, offset int) int {
 	return offset
 }
 
-func (m *model) find(q string) {
+func (m *model) find(q string) tea.Cmd {
 	from := m.finder.from(q, m.viewport.YOffset)
 	lines := strings.Split(m.lastContent, "\n")
 	needle := strings.ToLower(q)
@@ -42,7 +44,7 @@ func (m *model) find(q string) {
 	}
 	if len(hits) == 0 {
 		m.status = fmt.Sprintf("no match for %q", q)
-		return
+		return nil
 	}
 	next := hits[0]
 	idx := 0
@@ -54,6 +56,7 @@ func (m *model) find(q string) {
 	}
 	m.finder.at = next
 	m.viewport.SetYOffset(next)
-	m.syncPinned()
+	cmd := m.syncPinned()
 	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
+	return cmd
 }

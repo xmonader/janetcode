@@ -13,14 +13,12 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 )
 
-// TestFlashSettlesWhenTheReaderReturns: no flash timer runs while the
-// reader is scrolled up, so a call that finished then kept its bright
-// mark when they scrolled back down — until something else, perhaps
-// nothing for the rest of an idle session, redrew the transcript.
-func TestFlashSettlesWhenTheReaderReturns(t *testing.T) {
+func newScrolledFlash(t *testing.T) (*harness, string) {
+	t.Helper()
 	saved := lipgloss.ColorProfile()
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	defer lipgloss.SetColorProfile(saved)
+	t.Cleanup(func() { lipgloss.SetColorProfile(saved) })
+	t.Setenv("NO_COLOR", "")
 
 	h := newHarness(t)
 	h.update(tea.WindowSizeMsg{Width: 80, Height: 20})
@@ -43,14 +41,41 @@ func TestFlashSettlesWhenTheReaderReturns(t *testing.T) {
 	if !strings.Contains(strings.Join(h.m.viewport.lines, "\n"), bright) {
 		t.Fatal("test setup: the finished call is not drawn bright")
 	}
-	h.m.transcript.findTool("1").ended = time.Now().Add(-time.Second)
+	return h, bright
+}
+
+func pageToTail(h *harness) {
+	h.t.Helper()
 	for i := 0; i < 20 && !h.m.pinned; i++ {
 		h.update(tea.KeyMsg{Type: tea.KeyPgDown})
 	}
 	if !h.m.pinned {
-		t.Fatal("pgdn never reached the bottom")
+		h.t.Fatal("pgdn never reached the bottom")
 	}
+}
+
+// TestFlashSettlesWhenTheReaderReturns: no flash timer runs while the
+// reader is scrolled up, so a call that finished then kept its bright
+// mark when they scrolled back down — until something else, perhaps
+// nothing for the rest of an idle session, redrew the transcript.
+func TestFlashSettlesWhenTheReaderReturns(t *testing.T) {
+	h, bright := newScrolledFlash(t)
+	h.m.transcript.findTool("1").ended = time.Now().Add(-time.Second)
+	pageToTail(h)
 	if strings.Contains(h.m.viewport.View(), bright) {
 		t.Fatal("back at the tail, the faded call is still drawn bright")
+	}
+}
+
+func TestFlashTimerRestartsWhenTheReaderReturns(t *testing.T) {
+	h, bright := newScrolledFlash(t)
+	pageToTail(h)
+	if !h.m.flashPending {
+		t.Fatal("returning to a live flash did not arm its fade timer")
+	}
+	h.m.transcript.findTool("1").ended = time.Now().Add(-time.Second)
+	h.update(flashDoneMsg{})
+	if strings.Contains(h.m.viewport.View(), bright) {
+		t.Fatal("the restarted timer did not settle the flash")
 	}
 }

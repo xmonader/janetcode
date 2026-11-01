@@ -759,8 +759,7 @@ func (m *model) cmdFind(text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.errorf("usage: /find <text>")
 		return nil, false
 	}
-	m.find(q)
-	return nil, true
+	return m.find(q), true
 }
 
 func (m *model) cmdResume(text string, fields []string) (tea.Cmd, bool) {

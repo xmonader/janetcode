@@ -592,8 +592,7 @@ func (m *model) keyPageUp(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.viewport.scrollUp(m.viewport.Height)
-	m.syncPinned()
-	return nil, true
+	return m.syncPinned(), true
 }
 
 func (m *model) keyPageDown(msg tea.KeyMsg) (tea.Cmd, bool) {
@@ -601,8 +600,7 @@ func (m *model) keyPageDown(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.viewport.scrollDown(m.viewport.Height)
-	m.syncPinned()
-	return nil, true
+	return m.syncPinned(), true
 }
 
 func (m *model) pageKeyPages(msg tea.KeyMsg) bool {

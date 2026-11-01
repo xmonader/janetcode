@@ -250,22 +250,29 @@ func (m *model) refresh(resized bool) {
 func (m *model) scroll(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
-	m.syncPinned()
-	return cmd
+	flash := m.syncPinned()
+	if cmd == nil {
+		return flash
+	}
+	if flash == nil {
+		return cmd
+	}
+	return tea.Batch(cmd, flash)
 }
 
 // syncPinned re-reads whether the transcript follows new output after the
 // view was moved. Every way of moving it comes through here.
-func (m *model) syncPinned() {
+func (m *model) syncPinned() tea.Cmd {
 	was := m.pinned
 	m.pinned = m.viewport.AtBottom()
 	if m.pinned && !was {
 		// Back at the tail. No flash timer runs while the reader is
-		// scrolled away (see scheduleFlash), so a call that finished then
-		// is still drawn in its bright finishing mark: one redraw, almost
-		// all of it from the cache, settles it.
+		// scrolled away (see scheduleFlash): settle a flash that expired,
+		// or arm the timer for one that is still visible.
 		m.refresh(false)
+		return m.scheduleFlash()
 	}
+	return nil
 }
 
 // repin makes the transcript follow new output again.

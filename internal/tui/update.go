@@ -129,8 +129,8 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 
 	case tea.MouseMsg:
-		if m.mouseSelect(msg) {
-			return nil, true
+		if cmd, handled := m.mouseSelect(msg); handled {
+			return cmd, true
 		}
 		return m.scroll(msg), true
 
