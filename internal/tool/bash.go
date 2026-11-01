@@ -221,6 +221,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		job, perr := t.Jobs.AdoptWith(in.Command, cmd, out, wait, pipe.hand())
 		if perr != nil {
 			fg.hand(0)
+			pipe.unhand()
 			pipe.eof()
 			err = <-wait
 			break
@@ -234,6 +235,8 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if perr != nil {
 			// Promotion failed, so nothing was handed over: wait it out.
 			fg.hand(0)
+			pipe.unhand()
+			pipe.eof()
 			err = <-wait
 			break
 		}

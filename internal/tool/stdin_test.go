@@ -130,6 +130,16 @@ func TestBashPromptWithoutJobsSaysItReadStdin(t *testing.T) {
 	}
 }
 
+func TestBashPromptAdoptionFailureGetsEOF(t *testing.T) {
+	needsProc(t)
+	jobs := &Jobs{Dir: "/dev/null/jobs"}
+	b := Bash{Root: t.TempDir(), Jobs: jobs, DefaultTimeout: 2 * time.Second}
+	out := bashRun(t, b, map[string]any{"command": `printf 'Continue? [y/N] '; read x`})
+	if strings.Contains(out, "timed out") || !strings.Contains(out, "[exit code 1]") {
+		t.Fatalf("got %q", out)
+	}
+}
+
 func TestInteractiveJobRunsOnATerminal(t *testing.T) {
 	jobs := &Jobs{Dir: t.TempDir()}
 	defer jobs.KillAll()

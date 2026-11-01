@@ -55,6 +55,16 @@ func (p *inputPipe) hand() *os.File {
 	return p.w
 }
 
+// unhand takes the pipe back when job adoption failed.
+func (p *inputPipe) unhand() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.handed = false
+}
+
 func (p *inputPipe) sawRead() bool {
 	if p == nil {
 		return false
