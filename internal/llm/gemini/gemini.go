@@ -86,6 +86,9 @@ func (p *Provider) SupportsEffort() bool { return true }
 
 // Stream implements llm.Provider.
 func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	return p.c.Stream(ctx, req, emit)
 }
 

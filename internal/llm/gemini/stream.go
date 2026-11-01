@@ -93,6 +93,9 @@ func (s *stream) add(data []byte) error {
 	if len(c.Candidates) > 0 { // one candidate is asked for
 		cand := c.Candidates[0]
 		for _, p := range cand.Content.Parts {
+			if p.FunctionCall != nil && p.FunctionCall.Name == "" {
+				return fmt.Errorf("gemini: tool call %q has no name", p.FunctionCall.ID)
+			}
 			s.part(p.Text, p.Thought, p.ThoughtSignature, p.FunctionCall)
 		}
 		if cand.FinishReason != "" {
