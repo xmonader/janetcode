@@ -356,6 +356,7 @@ func (s *Session) Append(e Event) (int, error) {
 	if e.Time.IsZero() {
 		e.Time = time.Now().UTC()
 	}
+	e.Message = cloneMessage(e.Message)
 	b, err := json.Marshal(eventLine{Type: "event", Event: e})
 	if err != nil {
 		return 0, err

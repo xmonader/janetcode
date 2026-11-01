@@ -577,11 +577,15 @@ func TestPrunedMessagesAreLogged(t *testing.T) {
 		}
 		_, _ = mem.Append(session.Event{Type: typ, Surface: true, Message: &a.Messages[i]})
 	}
+	before := len(mem.Events())
 	a.Messages[1].Blocks[0].Text = "sure (condensed)"
 	a.syncSurface()
 	got := session.FoldSurface(mem.Events())
 	if len(got) != 2 || got[1].Text() != "sure (condensed)" {
 		t.Fatalf("fold = %+v", got)
+	}
+	if len(mem.Events()) != before+1 {
+		t.Fatalf("syncSurface added %d events, want one replacement", len(mem.Events())-before)
 	}
 	// Nothing changed since: no further events.
 	n := len(mem.Events())

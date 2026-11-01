@@ -221,13 +221,26 @@ func live(events []Event) []int {
 	return out
 }
 
+func cloneMessage(m *llm.Message) *llm.Message {
+	if m == nil {
+		return nil
+	}
+	cp := *m
+	cp.Blocks = append([]llm.Block(nil), m.Blocks...)
+	for i := range cp.Blocks {
+		cp.Blocks[i].Input = append(json.RawMessage(nil), m.Blocks[i].Input...)
+	}
+	return &cp
+}
+
 // FoldSurface returns the model-visible messages: surface events whose seq
-// was not shadowed by a later replacement, in model order.
+// was not shadowed by a later replacement, in model order. The messages are
+// detached from the log so pruning them cannot rewrite an existing event.
 func FoldSurface(events []Event) []llm.Message {
 	idx := live(events)
 	out := make([]llm.Message, 0, len(idx))
 	for _, i := range idx {
-		out = append(out, *events[i].Message)
+		out = append(out, *cloneMessage(events[i].Message))
 	}
 	if len(out) == 0 {
 		return nil
@@ -432,6 +445,7 @@ func (m *Memory) Append(e Event) (int, error) {
 	if e.Time.IsZero() {
 		e.Time = time.Now().UTC()
 	}
+	e.Message = cloneMessage(e.Message)
 	m.Ev = append(m.Ev, e)
 	return e.Seq, nil
 }
