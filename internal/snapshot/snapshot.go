@@ -51,10 +51,16 @@ func (r *Repo) Shadow() bool { return r != nil && r.env != nil }
 func Open(ctx context.Context, dir string) (*Repo, error) {
 	top, err := gitx.Run(ctx, dir, nil, "rev-parse", "--show-toplevel")
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, ErrNotRepo
 	}
 	gd, err := gitx.Run(ctx, dir, nil, "rev-parse", "--absolute-git-dir")
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, ErrNotRepo
 	}
 	r := &Repo{Root: top, gitDir: gd}
