@@ -23,6 +23,8 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
@@ -30,6 +32,7 @@ import (
 
 // Provider answers each request with the next recorded assistant message.
 type Provider struct {
+	mu        sync.Mutex
 	responses []*llm.Response
 	// turns is the user turn each response in responses answered, same
 	// index for same index, so a caller (Until) can find where one turn's
@@ -39,7 +42,17 @@ type Provider struct {
 }
 
 // Remaining is how many recorded responses have not been used.
-func (p *Provider) Remaining() int { return len(p.responses) - p.at }
+func (p *Provider) Remaining() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.responses) - p.at
+}
+
+func (p *Provider) position() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.at
+}
 
 func (p *Provider) Name() string { return "replay" }
 
@@ -48,6 +61,8 @@ func (p *Provider) Name() string { return "replay" }
 // what the whole session would have cost; --ab-replay clears it, since
 // its result object reports what the run bought.
 func (p *Provider) Free() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	for _, r := range p.responses {
 		r.Usage = llm.Usage{}
 	}
@@ -60,13 +75,20 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	p.mu.Lock()
 	if p.at >= len(p.responses) {
-		return nil, fmt.Errorf("replay: the recording holds %d model call(s) and a %dth was asked for", len(p.responses), p.at+1)
+		at := p.at
+		p.mu.Unlock()
+		return nil, fmt.Errorf("replay: the recording holds %d model call(s) and a %dth was asked for", len(p.responses), at+1)
 	}
 	r := p.responses[p.at]
 	p.at++
+	p.mu.Unlock()
 	if emit != nil {
 		for _, b := range r.Message.Blocks {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			switch b.Type {
 			case llm.BlockText:
 				emit(llm.Event{Type: llm.EventTextDelta, Text: b.Text})
@@ -78,6 +100,9 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 				emit(llm.Event{Type: llm.EventToolUseEnd, Block: &bb})
 			}
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return r, nil
 }
@@ -97,7 +122,9 @@ func Read(r io.Reader) (*Provider, error) {
 	p := &Provider{}
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	lineNo := 0
 	for sc.Scan() {
+		lineNo++
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || !strings.HasPrefix(line, "{") {
 			continue
@@ -113,12 +140,21 @@ func Read(r io.Reader) (*Provider, error) {
 			}
 		}
 		// The log writes the event's fields alongside "type":"event", so
-		// the envelope and the event are decoded from the same object.
-		if json.Unmarshal([]byte(line), &rec) != nil {
-			continue
+		// the envelope and the event are decoded from the same object. As
+		// with session.Open, a partial final line is dropped, but corruption
+		// before another record cannot be skipped without desynchronising
+		// every later response.
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			if sc.Scan() {
+				return nil, fmt.Errorf("replay: line %d: %w", lineNo, err)
+			}
+			break
 		}
-		if json.Unmarshal([]byte(line), &rec.Event) != nil {
-			continue
+		if err := json.Unmarshal([]byte(line), &rec.Event); err != nil {
+			if sc.Scan() {
+				return nil, fmt.Errorf("replay: line %d: %w", lineNo, err)
+			}
+			break
 		}
 		switch rec.Event.Type {
 		case session.TypeAssistant:
@@ -165,6 +201,7 @@ func Read(r io.Reader) (*Provider, error) {
 // behaves as recorded alone (Remaining still reads straight off it). The
 // caller drives the turns themselves from the session log (session.Turns).
 func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
+	recorded.mu.Lock()
 	cutoff := len(recorded.responses)
 	for i, t := range recorded.turns {
 		if t >= turn {
@@ -172,6 +209,7 @@ func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
 			break
 		}
 	}
+	recorded.mu.Unlock()
 	return &untilProvider{recorded: recorded, cutoff: cutoff, live: live}
 }
 
@@ -190,7 +228,9 @@ func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
 // never runs; calls beyond the recording serve all of it and then go
 // live.
 func UntilCall(recorded *Provider, calls int, live llm.Provider, served func()) llm.Provider {
+	recorded.mu.Lock()
 	cutoff := min(max(calls, 0), len(recorded.responses))
+	recorded.mu.Unlock()
 	return &untilProvider{recorded: recorded, cutoff: cutoff, live: live, served: served}
 }
 
@@ -199,32 +239,36 @@ func UntilCall(recorded *Provider, calls int, live llm.Provider, served func()) 
 // rest of the run is live, even for the model calls of a turn already
 // under way.
 type untilProvider struct {
+	mu       sync.Mutex
 	recorded *Provider
 	cutoff   int
 	live     llm.Provider
-	switched bool
+	switched atomic.Bool
 	// served runs once the last recorded response has been handed out
 	// (see UntilCall); nil for Until.
 	served func()
 }
 
 func (p *untilProvider) Name() string {
-	if p.switched {
+	if p.switched.Load() {
 		return p.live.Name()
 	}
 	return p.recorded.Name()
 }
 
 func (p *untilProvider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
-	if !p.switched && p.recorded.at < p.cutoff {
+	p.mu.Lock()
+	if !p.switched.Load() && p.recorded.position() < p.cutoff {
 		r, err := p.recorded.Stream(ctx, req, emit)
-		if err == nil && p.recorded.at == p.cutoff && p.served != nil {
+		if err == nil && p.recorded.position() == p.cutoff && p.served != nil {
 			p.served()
 			p.served = nil
 		}
+		p.mu.Unlock()
 		return r, err
 	}
-	p.switched = true
+	p.switched.Store(true)
+	p.mu.Unlock()
 	return p.live.Stream(ctx, req, emit)
 }
 

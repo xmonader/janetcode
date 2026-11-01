@@ -10,7 +10,11 @@ import (
 )
 
 // Calls is how many model calls the recording holds.
-func (p *Provider) Calls() int { return len(p.responses) }
+func (p *Provider) Calls() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.responses)
+}
 
 // Rebase rewrites every recorded reply so a path under from reads as the
 // same path under to: tool-call arguments, text and thinking alike. A
@@ -23,6 +27,8 @@ func (p *Provider) Calls() int { return len(p.responses) }
 // The rewrite is textual and anchored on the whole directory, so a path
 // that merely shares a prefix with from (from + "-old") is left alone.
 func (p *Provider) Rebase(from, to string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	from, to = strings.TrimRight(from, "/"), strings.TrimRight(to, "/")
 	if from == "" || to == "" || from == to {
 		return 0
