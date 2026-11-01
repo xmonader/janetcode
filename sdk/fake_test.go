@@ -45,7 +45,13 @@ func fakeACP() {
 		case "initialize":
 			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"protocolVersion": 1, "agentInfo": map[string]any{"name": "janetcode", "version": "fake"}}})
 		case "session/new":
-			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"sessionId": "s1"}})
+			id := "s1"
+			if os.Getenv("SDK_FAKE_ACP_EMPTY_SESSION") == "1" {
+				id = ""
+			}
+			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"sessionId": id}})
+		case "session/load":
+			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{}})
 		case "session/prompt":
 			update(map[string]any{"sessionUpdate": "agent_message_chunk", "messageId": "msg-1", "content": map[string]any{"type": "text", "text": "Hello wor"}})
 			update(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "\n_(cut off, resent)_\n"}, "_meta": discard})

@@ -387,11 +387,17 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	if err := c.call(ctx, "session/new", map[string]any{"cwd": c.opts.Dir, "mcpServers": c.opts.acpServers()}, &res); err != nil {
 		return nil, err
 	}
+	if res.SessionID == "" {
+		return nil, errors.New("sdk: session/new returned an empty session id")
+	}
 	return &Session{c: c, ID: res.SessionID}, nil
 }
 
 // LoadSession reopens a saved conversation by id.
 func (c *Client) LoadSession(ctx context.Context, id string) (*Session, error) {
+	if id == "" {
+		return nil, errors.New("sdk: session id is empty")
+	}
 	if err := c.call(ctx, "session/load", map[string]any{"sessionId": id, "cwd": c.opts.Dir, "mcpServers": c.opts.acpServers()}, nil); err != nil {
 		return nil, err
 	}
