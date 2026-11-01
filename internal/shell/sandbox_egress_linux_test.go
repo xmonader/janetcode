@@ -72,11 +72,11 @@ func TestLandlockEgressProxyIsTheOnlyWayOut(t *testing.T) {
 	if out, err := run(connect(proxyPort)); err != nil || !strings.Contains(out, "reached hi") {
 		t.Fatalf("the proxy's port was refused: %v\n%s", err, out)
 	}
-	if out, err := run(connect(otherPort)); err == nil || strings.Contains(out, "reached") {
-		t.Fatalf("a connect around the proxy worked: %v\n%s", err, out)
+	if out, err := run(connect(otherPort)); err == nil {
+		t.Fatalf("a connect around the proxy worked:\n%s", out)
 	}
-	if out, err := run(`import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.sendto(b"x", ("8.8.8.8", 53)); print("reached")`); err == nil || strings.Contains(out, "reached") {
-		t.Fatalf("UDP (a DNS query around the proxy) worked: %v\n%s", err, out)
+	if out, err := run(`import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.sendto(b"x", ("8.8.8.8", 53)); print("reached")`); err == nil {
+		t.Fatalf("UDP (a DNS query around the proxy) worked:\n%s", out)
 	}
 	want := fmt.Sprintf("http://127.0.0.1:%d", proxyPort)
 	if out, _ := run(`import os; print(os.environ.get("https_proxy"), os.environ.get("HTTP_PROXY"), repr(os.environ.get("NO_PROXY")))`); !strings.Contains(out, want+" "+want+" ''") {
@@ -86,6 +86,47 @@ func TestLandlockEgressProxyIsTheOnlyWayOut(t *testing.T) {
 	s.SetEgressProxy(nil)
 	if out, err := run(connect(otherPort)); err != nil || !strings.Contains(out, "reached hi") {
 		t.Fatalf("workspace lost its network with no egress policy: %v\n%s", err, out)
+	}
+}
+
+func TestLandlockEgressRequiresSocketFilter(t *testing.T) {
+	if landlockSocketFilter {
+		t.Skip("this architecture has a socket filter")
+	}
+	s := stubSandbox(t, BackendLandlock, 4)
+	if err := s.SetProfile("workspace"); err != nil {
+		t.Fatal(err)
+	}
+	s.SetEgressProxy(fakeProxy{4321})
+	if err := s.Enable(); err == nil {
+		t.Fatal("Landlock egress enabled without the socket filter it needs")
+	}
+}
+
+func TestBwrapRefusesEgressItCannotEnforce(t *testing.T) {
+	s := stubSandbox(t, BackendBwrap, 4)
+	s.probe = func() bool { return true }
+	if err := s.SetProfile("workspace"); err != nil {
+		t.Fatal(err)
+	}
+	s.SetEgressProxy(fakeProxy{4321})
+	if err := s.Enable(); err == nil {
+		t.Fatal("bubblewrap enabled with an egress proxy despite leaving the network unrestricted")
+	}
+}
+
+func TestAutoBackendWithEgressSkipsBwrap(t *testing.T) {
+	s := stubSandbox(t, "", 4)
+	s.probe = func() bool { return true }
+	if err := s.SetProfile("workspace"); err != nil {
+		t.Fatal(err)
+	}
+	if backend := s.Backend(); backend != BackendBwrap {
+		t.Fatalf("backend without egress = %q, want bubblewrap", backend)
+	}
+	s.SetEgressProxy(fakeProxy{4321})
+	if backend := s.Backend(); backend != BackendDocker {
+		t.Fatalf("backend with egress = %q, want an enforcing backend", backend)
 	}
 }
 

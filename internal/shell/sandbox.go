@@ -282,8 +282,9 @@ func (s *Sandbox) backendFor() (string, error) {
 	case "linux":
 		// bubblewrap first: it confines the command on this machine's
 		// own toolchain, which is what the model was asked to work with,
-		// and enforces more of a profile than Landlock can.
-		if s.bwrapUsable() {
+		// and enforces more of a profile than Landlock can. It cannot
+		// narrow an existing network namespace to the egress proxy.
+		if s.bwrapUsable() && s.proxyPort(s.Profile()) == 0 {
 			return BackendBwrap, nil
 		}
 		if _, err := s.lookPath("docker"); err == nil {
@@ -311,10 +312,17 @@ func (s *Sandbox) usable() (string, error) {
 		return "", err
 	}
 	p := s.Profile()
+	proxy := s.proxyPort(p) > 0
+	if backend == BackendBwrap && proxy {
+		return "", fmt.Errorf("bubblewrap cannot narrow the network to the egress proxy; use the docker or landlock backend, or set egress.default to allow")
+	}
 	if backend == BackendLandlock && !p.Network && s.landlockABI() < 4 {
 		return "", fmt.Errorf("the %s profile needs the network taken away, and Landlock ABI %d cannot do that (needs ABI 4, Linux 6.7); install docker, or use the workspace profile", p.Name, s.landlockABI())
 	}
-	if backend == BackendLandlock && !p.Network && !landlockSocketFilter {
+	if backend == BackendLandlock && (!p.Network || proxy) && !landlockSocketFilter {
+		if proxy {
+			return "", fmt.Errorf("the egress policy needs unix sockets and UDP taken away, and this architecture has no socket filter for Landlock to pair with; install docker, or set egress.default to allow")
+		}
 		return "", fmt.Errorf("the %s profile needs unix sockets and UDP taken away, and this architecture has no socket filter for Landlock to pair with; install docker, or use the workspace profile", p.Name)
 	}
 	return backend, nil

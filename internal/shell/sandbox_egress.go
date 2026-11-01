@@ -65,9 +65,14 @@ func (s *Sandbox) EgressNote() string {
 		return "the sandbox cannot run here (" + err.Error() + "), so bash is not held to the egress policy"
 	}
 	switch backend {
+	case BackendBwrap:
+		return "bubblewrap cannot narrow the network to the egress proxy, so sandboxed commands are refused while the policy is active"
 	case BackendLandlock:
 		if s.landlockABI() < 4 {
 			return fmt.Sprintf("Landlock ABI %d cannot narrow TCP to the egress proxy (needs ABI 4, Linux 6.7), so sandboxed commands are refused while the policy is active", s.landlockABI())
+		}
+		if !landlockSocketFilter {
+			return "this architecture has no socket filter to take UDP and unix sockets away, so sandboxed commands are refused while the policy is active"
 		}
 		return "bash can connect only to the egress proxy (Landlock allows TCP connect to its port alone; a seccomp filter takes UDP and unix sockets away). The rule is by port: a remote host listening on that same port is reachable too"
 	case BackendDocker:
