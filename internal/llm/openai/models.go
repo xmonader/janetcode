@@ -59,7 +59,7 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
 	if resp.StatusCode/100 != 2 {
 		msg := llm.SafeErrorMessage(resp.StatusCode, strings.TrimSpace(string(raw)))
 		if msg == "" {
@@ -74,6 +74,9 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 			}
 		}
 		return nil, &APIError{Status: resp.StatusCode, Message: msg}
+	}
+	if readErr != nil {
+		return nil, fmt.Errorf("models: read response: %w", readErr)
 	}
 	var out struct {
 		Data []struct {

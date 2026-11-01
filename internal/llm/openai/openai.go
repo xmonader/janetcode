@@ -203,7 +203,7 @@ func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
 	if resp.StatusCode/100 != 2 {
 		msg := llm.SafeErrorMessage(resp.StatusCode, strings.TrimSpace(string(raw)))
 		if msg == "" {
@@ -219,6 +219,9 @@ func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][
 		}
 		return nil, &APIError{Status: resp.StatusCode, Message: msg}
 	}
+	if readErr != nil {
+		return nil, fmt.Errorf("embeddings: read response: %w", readErr)
+	}
 	var out struct {
 		Data []struct {
 			Index     int       `json:"index"`
@@ -232,11 +235,16 @@ func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][
 		return nil, fmt.Errorf("embeddings: got %d vectors for %d inputs", len(out.Data), len(texts))
 	}
 	vecs := make([][]float32, len(texts))
-	for i, d := range out.Data {
+	seen := make([]bool, len(texts))
+	for _, d := range out.Data {
 		idx := d.Index
 		if idx < 0 || idx >= len(texts) {
-			idx = i
+			return nil, fmt.Errorf("embeddings: vector index %d out of range for %d inputs", idx, len(texts))
 		}
+		if seen[idx] {
+			return nil, fmt.Errorf("embeddings: duplicate vector index %d", idx)
+		}
+		seen[idx] = true
 		vecs[idx] = d.Embedding
 	}
 	return vecs, nil
