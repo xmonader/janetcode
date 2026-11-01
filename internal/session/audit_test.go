@@ -73,6 +73,19 @@ func TestAuditCatchesAChangedEvent(t *testing.T) {
 	}
 }
 
+func TestAuditCatchesReorderedEvents(t *testing.T) {
+	s, _ := auditedSession(t)
+	rewriteFile(t, s.Path(), func(b string) string {
+		lines := strings.Split(strings.TrimSuffix(b, "\n"), "\n")
+		lines[1], lines[2] = lines[2], lines[1]
+		return strings.Join(lines, "\n") + "\n"
+	})
+	rep := verify(t, s.Path())
+	if rep.OK() || !strings.Contains(strings.Join(rep.Problems, "\n"), "out of order") {
+		t.Fatalf("reordered events went unnoticed: %+v", rep)
+	}
+}
+
 func TestAuditCatchesARemovedEvent(t *testing.T) {
 	s, _ := auditedSession(t)
 	rewriteFile(t, s.Path(), func(b string) string {

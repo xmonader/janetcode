@@ -261,11 +261,13 @@ func VerifyAudit(sessionPath string) (AuditReport, error) {
 		return rep, err
 	}
 	seen := map[int]bool{}
+	var currentOrder []int
 	for _, e := range s.ev {
 		if e.Seq < rep.From {
 			rep.Before++
 			continue
 		}
+		currentOrder = append(currentOrder, e.Seq)
 		seen[e.Seq] = true
 		want, ok := digests[e.Seq]
 		if !ok {
@@ -285,6 +287,14 @@ func VerifyAudit(sessionPath string) (AuditReport, error) {
 	for _, seq := range order {
 		if !seen[seq] {
 			rep.Problems = append(rep.Problems, "event seq "+strconv.Itoa(seq)+" is in the audit log but no longer in the session: it was removed")
+		}
+	}
+	if len(currentOrder) == len(order) {
+		for i := range order {
+			if currentOrder[i] != order[i] {
+				rep.Problems = append(rep.Problems, "events are out of order relative to the audit log")
+				break
+			}
 		}
 	}
 	return rep, nil
