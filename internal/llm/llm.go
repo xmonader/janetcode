@@ -494,6 +494,9 @@ func (r Request) Validate() error {
 		return errors.New("llm: first message must be from user")
 	}
 	for i, m := range r.Messages {
+		if m.Role != RoleUser && m.Role != RoleAssistant {
+			return fmt.Errorf("llm: unsupported role %q at index %d", m.Role, i)
+		}
 		if len(m.Blocks) == 0 {
 			return fmt.Errorf("llm: empty message at index %d", i)
 		}
