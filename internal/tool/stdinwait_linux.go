@@ -80,7 +80,7 @@ func probeStdin(sid int, ino uint64) inputState {
 		}
 		wchan, _ := os.ReadFile(fmt.Sprintf("/proc/%d/wchan", pid))
 		switch w := strings.TrimSpace(string(wchan)); {
-		case w == "pipe_read" || w == "pipe_wait" || w == "pipe_wait_readable":
+		case w == "anon_pipe_read" || w == "pipe_read" || w == "pipe_wait" || w == "pipe_wait_readable":
 			st.reading = true
 		case pollWchans[w]:
 			st.polling = true
