@@ -535,6 +535,12 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	before := len(a.Messages)
 	resume := a.resume
 	a.resume = nil
+	if resume != nil {
+		// Close the dead turn only once its continuation is actually opening.
+		// A failure before this point leaves it available to retry; a second
+		// crash during the continuation leaves only the continuation open.
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: resume.turn, Reason: session.TurnEndInterrupted})
+	}
 	merged := false
 	if resume == nil {
 		merged = a.appendUserBlocks(blocks...)

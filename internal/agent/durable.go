@@ -75,9 +75,6 @@ func (a *Agent) ContinueInterrupted(ctx context.Context, emit func(Event)) error
 	if it == nil {
 		return ErrNothingToContinue
 	}
-	// The dead turn is closed first, so it is offered once: a second
-	// crash during the continuation leaves the continuation open, not both.
-	a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: it.Turn, Reason: session.TurnEndInterrupted})
 	a.resume = &resumeState{turn: it.Turn, calls: it.Calls}
 	return a.RunBlocks(ctx, nil, emit)
 }
