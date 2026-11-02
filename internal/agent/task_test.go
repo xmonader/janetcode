@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/persona"
 	"github.com/xmonader/janetcode/internal/session"
 	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -810,5 +811,54 @@ func TestASubagentWithNoToolsIsAnErrorNotACrash(t *testing.T) {
 	_, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"look"}`))
 	if err == nil || !strings.Contains(err.Error(), "no read-only tools") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestTaskAppliesAPersonaOverlay(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{text("done"), text("done again")}}
+	parent := &Agent{Provider: f, Tools: tool.NewRegistry(tool.ReadFile{Root: root}), Model: "big", System: "sys"}
+	parent.ContextWindow = 200_000
+	parent.Windows = func(string) int { return 200_000 }
+	task := &Task{Parent: parent, Personas: func() ([]persona.Persona, []string) {
+		return []persona.Persona{{Name: "terse", Description: "short answers", Tone: "curt", Instructions: "No filler.", Model: "small", Effort: "low",
+			Outputs: []persona.IOField{{Name: "report", Description: "one paragraph"}}}}, nil
+	}}
+	parent.Tools.Add(task)
+	if d := task.Description(); !strings.Contains(d, "Personas, selectable with persona: terse (short answers)") {
+		t.Fatalf("description = %q", d)
+	}
+	if !strings.Contains(string(task.Schema()), `"persona"`) {
+		t.Fatal("schema lacks the persona parameter")
+	}
+	// The persona's model applies when nothing else names one.
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"d","prompt":"p","persona":"Terse"}`)); err != nil {
+		t.Fatal(err)
+	}
+	req := f.requests[0]
+	if !strings.HasPrefix(req.System, "sys") || !strings.Contains(req.System, `<persona name="terse">`) ||
+		!strings.Contains(req.System, "Tone: curt") || !strings.Contains(req.System, "- report (text): one paragraph") {
+		t.Fatalf("system = %q", req.System)
+	}
+	if req.Model != "small" || req.Effort != "low" {
+		t.Fatalf("persona model/effort not applied: %q %q", req.Model, req.Effort)
+	}
+	// An explicit model on the call wins over the persona's.
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"d","prompt":"p","persona":"terse","model":"mid"}`)); err == nil || !strings.Contains(err.Error(), "route") {
+		t.Fatalf("explicit model without routing: %v", err)
+	}
+}
+
+func TestTaskUnknownPersonaFailsBeforeStarting(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("never")}}
+	parent := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", System: "sys"}
+	task := &Task{Parent: parent}
+	parent.Tools.Add(task)
+	_, err := task.Run(context.Background(), json.RawMessage(`{"description":"d","prompt":"p","persona":"ghost"}`))
+	if err == nil || !strings.Contains(err.Error(), `no persona named "ghost"`) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.requests) != 0 || len(task.ChildIDs()) != 0 {
+		t.Fatalf("a subagent started without its persona: %d requests", len(f.requests))
 	}
 }

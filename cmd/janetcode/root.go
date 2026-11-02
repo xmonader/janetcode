@@ -252,6 +252,7 @@ func (r *root) wireProject() error {
 	} else if hooksCfg.Len() > 0 && o.headless() && !o.safeMode {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
+	r.loadEnvrc(cwd)
 	// session_end runs before the servers and jobs the hooks might look
 	// at are closed (closers run newest first).
 	r.onClose(func() { ag.EndSession("exit") })

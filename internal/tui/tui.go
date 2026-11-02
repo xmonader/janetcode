@@ -146,7 +146,12 @@ type model struct {
 	// followupOn is the session toggle for ghost-text next-prompt
 	// suggestions; followup is the last suggestion, followupGen
 	// invalidates a stale one.
-	followupOn  bool
+	followupOn bool
+	// recap state: a recap in flight, the last key press (idle break
+	// detection) and the history length the last auto recap covered.
+	recapBusy   bool
+	lastKey     time.Time
+	recapAtMsgs int
 	followup    string
 	followupGen int
 	// sleptGoals are the goal ids the memory consolidation has already

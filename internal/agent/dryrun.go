@@ -207,6 +207,9 @@ func dryMutating(t tool.Tool, input json.RawMessage) bool {
 	if tool.MutatingCall(t, input) {
 		return true
 	}
+	if t.Name() == "send_subagent_message" {
+		return true // it changes what a running subagent does
+	}
 	if t.Name() == "task" {
 		var in struct {
 			Edit bool `json:"edit"`

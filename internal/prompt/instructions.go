@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -65,6 +66,9 @@ func Instructions(cwd string) []Instruction {
 	for i := len(dirs) - 1; i >= 0; i-- {
 		in, ok := readInstruction(dirs[i], root, &budget)
 		if ok {
+			out = append(out, in)
+		}
+		if in, ok := cursorInstruction(dirs[i], root, &budget); ok {
 			out = append(out, in)
 		}
 	}
@@ -205,4 +209,36 @@ func resolvePath(p string) string {
 		return filepath.Clean(r)
 	}
 	return filepath.Clean(p)
+}
+
+// cursorInstruction folds a directory's Cursor rules marked alwaysApply
+// into one instruction entry, the way AGENTS.md is read. The glob-scoped
+// ones are not here: they are sent when a tool touches a matching path
+// (internal/rules). Like the other instruction files it is read at every
+// trust level.
+func cursorInstruction(dir, root string, budget *int) (Instruction, bool) {
+	var sb strings.Builder
+	var first string
+	for _, r := range rules.CursorRules(dir) {
+		if !r.Always {
+			continue
+		}
+		if first == "" {
+			first = r.Path
+		}
+		fmt.Fprintf(&sb, "## %s\n\n%s\n\n", r.Rel, r.Body)
+	}
+	text := strings.TrimSpace(sb.String())
+	if text == "" || *budget <= 0 {
+		return Instruction{}, false
+	}
+	if len(text) > *budget {
+		text = textfmt.CutBytes(text, *budget) + "\n... (truncated)"
+	}
+	*budget -= len(text)
+	label := rules.CursorDir + " (alwaysApply)"
+	if rel, err := filepath.Rel(root, dir); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		label = filepath.ToSlash(rel) + "/" + label
+	}
+	return Instruction{Name: label, Path: filepath.Dir(first), Text: text}, true
 }

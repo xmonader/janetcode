@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/gitx"
+	"github.com/xmonader/janetcode/internal/persona"
 )
 
 // PlanApprovedPrompt is the turn /plan approve starts, in every front-end.
@@ -26,6 +27,7 @@ type TaskInput struct {
 	Cancel      string   `json:"cancel,omitempty"`
 	Steer       string   `json:"steer,omitempty"`
 	Fork        bool     `json:"fork,omitempty"`
+	Persona     string   `json:"persona,omitempty"`
 }
 
 // Kind names what the input starts, for a front-end's status line.
@@ -141,4 +143,13 @@ func ReviewDiff(ctx context.Context, cwd string) (string, error) {
 		out = out[:max] + "\n… (diff truncated)"
 	}
 	return out, nil
+}
+
+// PersonaReport is /personas: the personas the task tool can apply.
+func PersonaReport(a *Agent) string {
+	t := a.TaskTool()
+	if t == nil || t.Personas == nil {
+		return persona.Report(nil, nil)
+	}
+	return persona.Report(t.Personas())
 }

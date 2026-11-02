@@ -525,6 +525,11 @@ turn. They are off by default. A cheap side query (no system prompt, no
 tools) proposes 2–12 words; Tab accepts them in the terminal. `/followup
 on|off` toggles the running session; `/config followup=true` saves it.
 
+`"recap_idle_minutes": N` writes a `/recap` into the terminal transcript on
+the first keypress after N minutes without one, when the conversation has
+grown since the last recap. 0 (the default) is off. `/config
+recap_idle_minutes=30` saves it.
+
 `"hints": false` turns off the one-time notes about features a session
 could have used. They are on by default, and there are nine of them: the
 verification gate after the third changing turn or the second time you run
@@ -1213,6 +1218,21 @@ the path the call named, `*` spans anything including `/`, and a glob
 without a `/` is matched against the file name too. `/rules` lists what
 is defined, what brings each in, and which have been sent this session;
 `janetcode --inspect rules` prints the same outside the UI.
+
+#### Cursor rules
+
+A project's Cursor rules in `.cursor/rules/` (`.mdc` or `.md`, nested
+folders included, up to 128 files) are read as well; the frontmatter is
+Cursor's own. A rule with `alwaysApply: true` joins the project
+instructions beside `AGENTS.md`, from the repository root down to the
+working directory, and is read at every trust level as `AGENTS.md` is. A
+rule with `globs:` (a comma-separated string or a list) is a path-scoped
+rule named `cursor:<file>`: it is sent once per session after a tool call
+touches a matching path, and it follows the instruction trust level
+(`/trust instructions`) like the rest of the path-scoped rules. A rule that
+has only a `description` is Cursor's "agent requested" kind and nothing
+brings it in here, so it is skipped. Only the `.cursor/rules` at the
+project root is searched for glob rules, not those in subdirectories.
 
 ## Themes
 

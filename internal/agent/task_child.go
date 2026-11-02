@@ -206,7 +206,7 @@ func withholdFromChild(r *tool.Registry, profile *agentprofile.Profile) {
 	if r == nil {
 		return
 	}
-	for _, n := range []string{"ask", "task", "goal_status", "workflow"} {
+	for _, n := range []string{"ask", "task", "send_subagent_message", "goal_status", "workflow"} {
 		r.Withhold(n, "this tool stays on the parent session")
 	}
 	if profile == nil {

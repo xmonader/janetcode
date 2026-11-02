@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/persona"
 	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -27,6 +28,9 @@ type Task struct {
 	// Profiles, when set, supplies custom subagent definitions selectable
 	// with the agent parameter.
 	Profiles func() []agentprofile.Profile
+	// Personas, when set, supplies the behavioural overlays selectable
+	// with the persona parameter, and the files it skipped.
+	Personas func() ([]persona.Persona, []string)
 	// Root is the project directory; editing subagents check it out into
 	// a git worktree and return their changes as a patch.
 	Root string
@@ -77,6 +81,11 @@ type subagent struct {
 	report string
 	// cancel stops this child's Run. Nil until the run has a context.
 	cancel context.CancelFunc
+	// queued are messages waiting to run as this child's later turns
+	// (send_subagent_message, delivery queue); sent counts every message
+	// ever sent to it, for the quota.
+	queued []string
+	sent   int
 }
 
 // ChildInfo is a live snapshot of one subagent for status lines, /agents
@@ -203,6 +212,16 @@ func (t *Task) Description() string {
 		}
 		d += " Custom agents, selectable with agent: " + strings.Join(names, "; ") + "."
 	}
+	if t.Personas != nil {
+		ps, _ := t.Personas()
+		var names []string
+		for _, p := range ps {
+			names = append(names, p.Name+" ("+p.Summary()+")")
+		}
+		if len(names) > 0 {
+			d += " Personas, selectable with persona: " + strings.Join(names, "; ") + "."
+		}
+	}
 	return d
 }
 
@@ -225,7 +244,8 @@ func (*Task) Schema() json.RawMessage {
 "continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."},
 "cancel":{"type":"string","description":"Optional: id of a running subagent to stop. The parent should use this when the user says to cancel that child."},
 "steer":{"type":"string","description":"Optional: id of a running subagent to inject a note into, delivered before its next model call. prompt is the note."},
-"fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."}},
+"fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."},
+"persona":{"type":"string","description":"Optional: name of a persona, a tone/output-format/contract overlay on the subagent's prompt (see the list in this tool's description). Unknown names fail."}},
 "additionalProperties":false}`)
 }
 
@@ -473,6 +493,21 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			in.Tools = profile.Tools
 		}
 	}
+	// A persona is looked up before anything is built and a miss is an
+	// error: a subagent that was asked to behave a certain way does not
+	// start behaving another.
+	var pers *persona.Persona
+	if in.Persona != "" && in.Continue == "" {
+		var ps []persona.Persona
+		if t.Personas != nil {
+			ps, _ = t.Personas()
+		}
+		p, perr := persona.Find(ps, in.Persona)
+		if perr != nil {
+			return "", perr
+		}
+		pers = &p
+	}
 	// A model asked for by name is resolved to whatever backend serves it,
 	// which may not be the one running this session. Refusing is better
 	// than sending the name to an endpoint that does not have it — and it
@@ -511,6 +546,12 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if kid != nil && !running {
 			kid.done = false
 			kid.last = "starting"
+			// Messages queued for it while it was busy run first, as
+			// part of this turn.
+			if len(kid.queued) > 0 {
+				in.Prompt = strings.Join(kid.queued, "\n\n") + "\n\n" + in.Prompt
+				kid.queued = nil
+			}
 		}
 		t.mu.Unlock()
 		if kid == nil {
@@ -571,6 +612,24 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.ContextWindow = prov, model, window })
 		}
 	}
+	if pers != nil {
+		kid.agent.System += "\n\n" + pers.Block()
+		// The persona's model and effort fill in after the call and the
+		// profile have had their say.
+		if pers.Model != "" && in.Model == "" && (profile == nil || profile.Model == "") {
+			model, prov := pers.Model, kid.agent.Settings().Provider
+			if t.Models != nil {
+				if p, resolved, err := t.Models(pers.Model); err == nil {
+					prov, model = p, resolved
+				}
+			}
+			window := t.Parent.WindowOf(model)
+			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.ContextWindow = prov, model, window })
+		}
+		if pers.Effort != "" {
+			kid.agent.UpdateSettings(func(s *Settings) { s.Effort = pers.Effort })
+		}
+	}
 	if routedProv != nil {
 		// The child was built with the session's window; on another model
 		// it compacts and guards oversized output by that model's own.
@@ -618,20 +677,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// and the child is watched with /agents. The session context is
 		// cancelled from Close, so quitting the TUI stops it. Cancel(id)
 		// stops just this child.
-		runCtx := t.bindChildCtx(t.sessionCtx(), kid, minutes)
-		t.running.Add(1)
-		desc := in.Description
-		go func() {
-			defer t.running.Done()
-			defer t.releaseChild(kid)
-			err := child.Run(runCtx, in.Prompt, emit)
-			t.Parent.subagentStopHook(childID, kind, child)
-			t.mu.Lock()
-			kid.done = true
-			kid.report = forkReport(childID, desc, time.Since(start), child, err)
-			t.bill(kid, child)
-			t.mu.Unlock()
-		}()
+		t.runBackground(kid, childID, kind, in.Description, in.Prompt, minutes, "fork", start, emit)
 		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s, cancel with task cancel=%s", in.Description, childID, childID, childID), nil
 	}
 	runCtx := t.bindChildCtx(ctx, kid, minutes)
@@ -777,13 +823,52 @@ func usageSince(before, now llm.Usage) llm.Usage {
 	}
 }
 
+// runBackground runs prompt on kid in a goroutine that outlives the
+// calling tool call, then any messages queued for it (send_subagent_message
+// with delivery queue) one turn at a time, and files the report for the
+// parent. label is "fork" or "subagent" for the report's first line.
+func (t *Task) runBackground(kid *subagent, childID, kind, desc, prompt string, minutes int, label string, start time.Time, emit func(Event)) {
+	child := kid.agent
+	runCtx := t.bindChildCtx(t.sessionCtx(), kid, minutes)
+	t.running.Add(1)
+	go func() {
+		defer t.running.Done()
+		defer t.releaseChild(kid)
+		var err error
+		for {
+			err = child.Run(runCtx, prompt, emit)
+			t.Parent.subagentStopHook(childID, kind, child)
+			t.mu.Lock()
+			next := ""
+			if err == nil && runCtx.Err() == nil && len(kid.queued) > 0 {
+				next, kid.queued = kid.queued[0], kid.queued[1:]
+				kid.last = "starting a queued message"
+			}
+			if next == "" {
+				kid.done = true
+				kid.report = bgReport(label, childID, desc, time.Since(start), child, err)
+				t.bill(kid, child)
+				t.mu.Unlock()
+				return
+			}
+			t.bill(kid, child)
+			t.mu.Unlock()
+			prompt = next
+		}
+	}()
+}
+
 // forkReport is what the parent is told when a background fork ends. A
 // fork edits the parent's own workspace and its work used to reach the
 // parent only if someone ran /agents: a recorded session spawned two
 // forks, replied, and the session log ended — the files they wrote
 // appear nowhere in the transcript.
 func forkReport(id, desc string, took time.Duration, child *Agent, err error) string {
-	head := fmt.Sprintf("fork %q id=%s finished after %s", desc, id, took.Round(time.Second))
+	return bgReport("fork", id, desc, took, child, err)
+}
+
+func bgReport(label, id, desc string, took time.Duration, child *Agent, err error) string {
+	head := fmt.Sprintf("%s %q id=%s finished after %s", label, desc, id, took.Round(time.Second))
 	switch {
 	case errors.Is(err, context.Canceled):
 		return head + " (cancelled)"

@@ -18,6 +18,15 @@ func (a *Agent) Steer(text string) {
 	a.queueSteer(text)
 }
 
+// Interject is Steer for a note that must come first: it is delivered
+// ahead of any steering already waiting for the turn's next model call.
+func (a *Agent) Interject(text string) {
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	a.interjectSteer(text)
+}
+
 // deliverSteering hands any queued notes to the model. It runs on the
 // turn goroutine, just before the call that will read them.
 func (a *Agent) deliverSteering(emit func(Event)) {

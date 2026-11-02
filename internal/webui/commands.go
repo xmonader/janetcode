@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/claudeimport"
 	"github.com/xmonader/janetcode/internal/managed"
 	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/session"
@@ -26,25 +28,26 @@ var webCommands = []string{
 	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
-	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
+	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/plugin", "/cua", "/trust", "/egress",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress",
 }
 
 var webArgs = map[string]string{
-	"/help":        "[topic]",
-	"/undo":        "[preview | turn <n> [--files-only] | about <description> | apply [--force]]",
-	"/accept":      "[<request> | approve | lock | unlock | command <cmd> | off]",
-	"/diff":        "[path]",
-	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
-	"/loop":        "[duration] [prompt|off]",
-	"/jobs":        "[kill n | stdin n <text>]",
-	"/memory":      "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
-	"/remember":    "[-g] <fact>",
-	"/permissions": "[check <command>]",
-	"/resume":      "[<n|id> [fork]]",
-	"/eval":        "keep [name] [--check cmd]",
-	"/mcp":         "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
+	"/help":          "[topic]",
+	"/undo":          "[preview | turn <n> [--files-only] | about <description> | apply [--force]]",
+	"/accept":        "[<request> | approve | lock | unlock | command <cmd> | off]",
+	"/diff":          "[path]",
+	"/plan":          "[request | review | comment <line> <text> | changes | approve | off]",
+	"/loop":          "[duration] [prompt|off]",
+	"/jobs":          "[kill n | stdin n <text>]",
+	"/memory":        "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
+	"/remember":      "[-g] <fact>",
+	"/permissions":   "[check <command>]",
+	"/resume":        "[<n|id> [fork]]",
+	"/eval":          "keep [name] [--check cmd]",
+	"/import-claude": "[mcp|permissions|skills|agents ...] | apply <id>",
+	"/mcp":           "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
 }
 
 var commandSpecs = func() []slash.Command {
@@ -259,6 +262,10 @@ var webDispatch = map[string]webHandler{
 		s.btw(arg)
 		return false, nil
 	},
+	"/recap": func(s *server, arg string) (bool, error) {
+		s.recap()
+		return false, nil
+	},
 	"/copy": func(s *server, arg string) (bool, error) {
 		s.copyLast()
 		return false, nil
@@ -295,6 +302,15 @@ var webDispatch = map[string]webHandler{
 	},
 	"/docker": func(s *server, arg string) (bool, error) {
 		s.retarget("docker", arg, tool.DialDocker)
+		return false, nil
+	},
+	"/import-claude": func(s *server, arg string) (bool, error) {
+		home, _ := os.UserHomeDir()
+		s.showResult(claudeimport.Exec(claudeimport.Env{Home: home, Cwd: s.cwd(), ConfigPath: s.opts.ConfigPath, ConfigDir: s.opts.ConfigDir}, arg), nil)
+		return false, nil
+	},
+	"/personas": func(s *server, arg string) (bool, error) {
+		s.sheet("personas", agent.PersonaReport(s.opts.Agent))
 		return false, nil
 	},
 	"/reload": (*server).cmdReload,

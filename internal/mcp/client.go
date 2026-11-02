@@ -34,6 +34,11 @@ type ServerConfig struct {
 	// with automatic fallback to the older SSE transport.
 	URL     string            `json:"url,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+	// TokenFile names a file holding a bearer token, read again for every
+	// request so a rotated credential stays fresh. It is for http/sse
+	// servers, absolute or ~/-relative, may use ${VAR}, replaces an
+	// Authorization header and skips OAuth.
+	TokenFile string `json:"token_file,omitempty"`
 	// Type may say "stdio", "http" or "sse"; it is inferred when empty.
 	Type string `json:"type,omitempty"`
 	// ClientID and ClientSecret are for remote servers that do not offer

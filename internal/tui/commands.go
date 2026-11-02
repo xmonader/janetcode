@@ -3,11 +3,13 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/claudeimport"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/keymap"
@@ -87,6 +89,11 @@ var dispatch = map[string]cmdHandler{
 	"/yolo":    (*model).cmdYolo,
 	"/routing": (*model).cmdRouting,
 	"/auto":    (*model).cmdAuto,
+	"/import-claude": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		home, _ := os.UserHomeDir()
+		m.showResult(claudeimport.Exec(claudeimport.Env{Home: home, Cwd: m.opts.Cwd, ConfigPath: m.opts.ConfigPath, ConfigDir: m.opts.ConfigDir}, cmdArg(text, fields)), nil)
+		return nil, false
+	},
 	"/sandbox": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.sandboxCommand(cmdArg(text, fields))
 		return nil, false
@@ -143,6 +150,10 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/agents": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.agentsCommand(cmdArg(text, fields))
+		return nil, false
+	},
+	"/personas": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.transcript.code(agent.PersonaReport(m.opts.Agent))
 		return nil, false
 	},
 	"/cd": func(m *model, text string, fields []string) (tea.Cmd, bool) {
@@ -233,6 +244,9 @@ var dispatch = map[string]cmdHandler{
 	"/add-dir": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.addDirCommand(cmdArg(text, fields))
 		return nil, false
+	},
+	"/recap": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		return m.recapCommand(false), true
 	},
 	"/btw": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.btwCommand(cmdArg(text, fields)), true

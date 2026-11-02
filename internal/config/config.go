@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/persona"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/statusline"
 	"github.com/xmonader/janetcode/internal/theme"
@@ -311,6 +312,16 @@ type Config struct {
 	// Followup enables a cheap next-prompt suggestion as ghost text
 	// after a turn; tab accepts it. Nil means off.
 	Followup *bool `json:"followup,omitempty"`
+	// RecapIdleMinutes writes a /recap on its own when the terminal
+	// session sees a keypress after this many idle minutes. 0 is off.
+	RecapIdleMinutes int `json:"recap_idle_minutes,omitempty"`
+	// Envrc turns the project's .envrc loading off ("envrc": false). It
+	// loads by default, but only for a project trusted at the full level.
+	Envrc *bool `json:"envrc,omitempty"`
+	// Personas are named behavioural overlays for subagents (tone, output
+	// format, a contract of inputs and outputs), selected with the task
+	// tool's persona parameter. Files in .janetcode/personas/ add to them.
+	Personas map[string]persona.Persona `json:"personas,omitempty"`
 	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
 	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
 	ComputerUse *bool `json:"computer_use,omitempty"`
@@ -1178,6 +1189,12 @@ func (c *Config) IntentEnabled() bool {
 // FollowupEnabled reports whether ghost-text next-prompt suggestions run.
 func (c *Config) FollowupEnabled() bool {
 	return c != nil && c.Followup != nil && *c.Followup
+}
+
+// EnvrcEnabled reports whether a trusted project's .envrc is loaded:
+// on unless the config says false.
+func (c *Config) EnvrcEnabled() bool {
+	return c == nil || c.Envrc == nil || *c.Envrc
 }
 
 // ComputerUseEnabled reports whether the Cua Driver MCP server should start.

@@ -34,6 +34,7 @@ var setters = map[string]setter{
 	"lean_tools":    boolPtr(func(c *Config) **bool { return &c.LeanTools_ }),
 	"intent":        boolPtr(func(c *Config) **bool { return &c.Intent }),
 	"hints":         boolPtr(func(c *Config) **bool { return &c.Hints }),
+	"envrc":         boolPtr(func(c *Config) **bool { return &c.Envrc }),
 	"followup":      boolPtr(func(c *Config) **bool { return &c.Followup }),
 	"computer_use":  boolPtr(func(c *Config) **bool { return &c.ComputerUse }),
 	"memory":        boolPtr(func(c *Config) **bool { return &c.Memory }),
@@ -49,7 +50,8 @@ var setters = map[string]setter{
 		return b, nil
 	},
 
-	"compact_at": intKey("compact_at", false, func(c *Config) *int { return &c.CompactAt }),
+	"recap_idle_minutes": intKey("recap_idle_minutes", false, func(c *Config) *int { return &c.RecapIdleMinutes }),
+	"compact_at":         intKey("compact_at", false, func(c *Config) *int { return &c.CompactAt }),
 	// A zero or negative cap is not a smaller budget, it is a session
 	// that cannot make a call, so these two refuse it.
 	"max_tokens":     intKey("max_tokens", true, func(c *Config) *int { return &c.MaxTokens }),

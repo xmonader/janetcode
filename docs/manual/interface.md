@@ -530,6 +530,9 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /features [name [on|off]]  (the model slots, the cascade, the forced advisor, the stale-check nudge and the decision consumers)
 /jev [on|off|model|provider|triage|intake|route|outcome [on|off]]  (the optional decision service)
 /compact-fast (also /compress-fast: prune old results and thinking, no summary call)
+/import-claude [mcp|permissions|skills|agents ...] | apply <id>  (bring over Claude Code setup; previews first)
+/personas  (subagent personas: tone, output format and contract overlays for the task tool)
+/recap  (a "where was I" summary shown to you only, never added to the conversation)
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
 /cua [on|off|doctor]  (start Cua Driver as an MCP desktop server)
@@ -1312,10 +1315,87 @@ their own for a project nobody has chosen a level for. Every change of
 level is written to the session log with the project and the files it
 affects.
 
+A project's `.envrc` is a file that runs, so it follows `full` too. With
+the level set, janetcode loads it at start and after `/cd` (not mid-session
+after `/trust full`): `direnv export json` when direnv is installed (a
+refusal by direnv means no environment, never a bash re-run), else bash
+with direnv's helpers (`PATH_add`, `source_env`, `layout`, ...) stubbed. The
+variables it sets or changes reach the bash tool, hooks and verification.
+Every wait is bounded: 10 s for the evaluation (`JANETCODE_ENVRC_TIMEOUT_SECS`,
+0 disables), a 4 MiB output cap, and a result cut short is discarded whole.
+Loader and interpreter hooks (`LD_PRELOAD`, `LD_*`, `DYLD_*`, `BASH_ENV`,
+`PROMPT_COMMAND`, `GIT_EXTERNAL_DIFF`, `NODE_OPTIONS`, ...) and janetcode's
+own credentials are refused, named on stderr and never set;
+`"envrc": false` turns the loader off. Editing `.envrc` from the model asks
+for permission whatever the mode.
+
 Trust never approves a tool call: a trusted project's hook or MCP tool
 runs, but a write or a command still asks as your permission mode says.
 `JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as
 they always were.
+
+### Subagent personas
+
+A persona is a behavioural overlay for a subagent: how it speaks and what
+it hands back, kept apart from what the subagent is. An agent profile
+(`.janetcode/agents/<name>.md`) picks tools, a model and a job; a persona
+(`terse`, `adversarial reviewer`) combines with any of them instead of being
+copied into each profile's prompt.
+
+```json
+{"personas": {"reviewer": {
+  "description": "blunt reviewer",
+  "tone": "blunt, no praise",
+  "output_format": "a numbered list, worst first",
+  "instructions": "Report only defects you can point at a line for.",
+  "inputs":  [{"name": "diff", "type": "file", "required": true, "description": "path of the diff to review"}],
+  "outputs": [{"name": "report", "description": "findings, each with file:line"}],
+  "model": "", "effort": "low"}}}
+```
+
+The same object can be a file: `.janetcode/personas/<name>.json`, or
+`<name>.md` with `description`, `tone`, `output_format`, `model` and
+`effort` in the frontmatter and the instructions as the body. Files come
+from `personas/` in the config directory and from the project (the project
+ones follow the instruction trust level, `/trust instructions`); a project
+persona shadows a global one, which shadows the config's.
+
+The task tool takes `persona: "<name>"`. The persona is added to the
+subagent's system prompt as a `<persona>` block, with the contract spelled
+out so the parent knows what to put in the brief and what comes back. Its
+`model` and `effort` apply only when the call and the agent profile name no
+model. A persona that does not exist is an error and no subagent starts.
+It applies when a subagent is created, not when `continue` resumes one.
+`/personas` lists them with where each came from.
+
+### Importing from Claude Code
+
+`/import-claude` brings over what you already set up for Claude Code. Alone
+it only previews: every item is listed with where it would go, and a plan id
+is printed. `/import-claude apply <id>` writes exactly that plan; if the
+Claude files changed since, the id no longer matches and nothing is written.
+`/import-claude mcp` (or `permissions`, `skills`, `agents`) limits it to one
+kind. What it reads:
+
+| from | to |
+|---|---|
+| `~/.claude.json` `mcpServers` | the config file's `mcp_servers` |
+| `~/.claude.json` `projects.<this project>.mcpServers` | the project's `.mcp.json` (needs `/mcp trust`) |
+| `permissions.allow/deny/ask` in `~/.claude/settings.json` | the config file's `permissions` |
+| the same in `.claude/settings.json` and `settings.local.json` | `.janetcode/permissions.json` (allow rules need `/permissions trust`) |
+| `~/.claude/skills/*` and `~/.claude/agents/*.md` | `skills/` and `agents/` in the config directory |
+
+Rules are translated: `Bash(npm test:*)` becomes `bash(npm test)` and
+`bash(npm test *)`, `Read`/`Edit` paths become `read_file`/`edit_file` (and
+`write_file`) patterns, `WebFetch(domain:x)` becomes `fetch_url(domain:x)`;
+a rule with no janetcode tool (a server-wide `mcp__server`, `Task`) is
+listed as skipped. An entry that already exists is skipped, never replaced.
+A server's env values and headers are copied so it works but are never
+printed: the preview shows the command's program or the URL's host and a
+count. A skill with a symlink or a very large file is refused. A project's
+`.claude/skills`, `.claude/agents`, `.claude/rules`, `.mcp.json` and
+`CLAUDE.md` are read in place and need no import. Hooks, `env`, `model` and
+the other settings are not imported; the preview names them.
 
 ### Changing janetcode's own settings always asks
 
@@ -1668,6 +1748,25 @@ A running child can be steered without waiting for it to finish:
 `task {"steer":"task-2","prompt":"also check the tests"}` or
 `/agents steer task-2 also check the tests`. That is the existing Steer
 path (ctrl+s in the parent turn) pointed at the child.
+
+The model has a tool for the same, `send_subagent_message`, which names
+the subagent by id (`task-2`) or by its description and takes a `delivery`:
+
+| delivery | what happens to a running subagent |
+|---|---|
+| `steer` (default) | it reads the text before its next model call |
+| `interject` | the same, but ahead of any steering already waiting |
+| `queue` | it runs the text as a later turn once the current one ends (`task continue` runs it too) |
+
+A subagent that has finished is woken instead, whatever the delivery: it
+runs the text as its next turn in the background and its answer comes back
+as a background update, like a fork's (an editing subagent is resumed with
+`task continue`, since its worktree and patch belong to that call). The
+text reaches the child marked as the parent's message with an id. Limits:
+16 KB a message, 8 waiting per subagent, 32 in all per subagent; past them
+the call fails and nothing is sent. Only the main session has the tool, so
+messaging is one level deep: neither a subagent nor a fork can message
+another.
 
 `/agents new <brief>` starts a built-in `general` subagent immediately
 (read-only, like `task` without `edit:true`) and opens the overlay so you
@@ -2693,6 +2792,14 @@ on. It runs on its own, in the background, when a `/goal` finishes;
 `read_file` extracts text from PDF (pdftotext, else a crude stream) and
 PPTX, and describes images instead of refusing them as binary.
 
+`/recap` writes two to four sentences on where the session stands: what you
+were doing, what is done, the next step. It is a side call on the cheap
+model slot when one is set, over the recent turns only, with no tools. The
+text goes to the scrollback (a sheet in the web UI) and is never added to
+the conversation, so it costs the model no context. `"recap_idle_minutes": 30`
+writes one on its own on the first keypress after 30 idle minutes (terminal
+only; 0, the default, is off).
+
 A follow-up suggestion is off by default. `/followup on` (or
 `"followup": true` in the config) asks a cheap side query after a turn —
 not the session system prompt, not the tool schemas — and puts 2–12 words
@@ -3632,6 +3739,24 @@ document, used instead of discovery. pi's spelling is read as well:
 Token replies are read leniently: `"scope": ""` and `null` fields count as
 absent, and `expires_in` may be a number or a string. A reply that names
 no scope granted the scope asked for.
+
+#### A token another process keeps fresh
+
+A remote server whose credential is rotated by a helper, sidecar or cron job
+takes `"token_file"`: an absolute path (or `~/...`, `${VAR}` allowed) to a
+file holding the bearer token. It is read again for every request, so a new
+token takes effect on the next call without a reconnect, and it replaces an
+`Authorization` header and skips OAuth:
+
+```json
+{"mcpServers": {"internal": {"url": "https://mcp.internal.example/mcp",
+  "token_file": "~/.config/internal/token"}}}
+```
+
+A request fails, naming the path and never the contents, when the file is
+missing, empty, over 16 KiB, or holds anything that is not a header-safe
+token (a key file or a document is refused rather than sent). Replace the
+file by writing a sibling and renaming it over the old one.
 
 #### When a server goes away
 

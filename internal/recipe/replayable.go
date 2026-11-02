@@ -13,6 +13,6 @@ package recipe
 // where these tools are defined, without a cycle) both read this map when deciding what a fixed list of steps may contain; extend it
 // here, not in a second list.
 var NotReplayable = map[string]bool{
-	"task": true, "workflow": true, "execute_code": true, "run_code": true,
+	"task": true, "send_subagent_message": true, "workflow": true, "execute_code": true, "run_code": true,
 	"ask": true, "cron": true, "todo": true, "goal_status": true, "expand_output": true,
 }

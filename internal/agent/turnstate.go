@@ -91,6 +91,13 @@ func (s *turnState) queueSteer(text string) {
 	s.steerMu.Unlock()
 }
 
+// interjectSteer puts a note ahead of any already waiting.
+func (s *turnState) interjectSteer(text string) {
+	s.steerMu.Lock()
+	s.steer = append([]string{text}, s.steer...)
+	s.steerMu.Unlock()
+}
+
 // queueHarness adds harness text for the running turn, from any
 // goroutine: a path-scoped project rule a tool call brought in.
 func (s *turnState) queueHarness(text string) {
