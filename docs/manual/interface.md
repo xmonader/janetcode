@@ -530,6 +530,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /features [name [on|off]]  (the model slots, the cascade, the forced advisor, the stale-check nudge and the decision consumers)
 /jev [on|off|model|provider|triage|intake|route|outcome [on|off]]  (the optional decision service)
 /compact-fast (also /compress-fast: prune old results and thinking, no summary call)
+/import-claude [mcp|permissions|skills|agents ...] | apply <id>  (bring over Claude Code setup; previews first)
 /recap  (a "where was I" summary shown to you only, never added to the conversation)
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
@@ -1331,6 +1332,35 @@ Trust never approves a tool call: a trusted project's hook or MCP tool
 runs, but a write or a command still asks as your permission mode says.
 `JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as
 they always were.
+
+### Importing from Claude Code
+
+`/import-claude` brings over what you already set up for Claude Code. Alone
+it only previews: every item is listed with where it would go, and a plan id
+is printed. `/import-claude apply <id>` writes exactly that plan; if the
+Claude files changed since, the id no longer matches and nothing is written.
+`/import-claude mcp` (or `permissions`, `skills`, `agents`) limits it to one
+kind. What it reads:
+
+| from | to |
+|---|---|
+| `~/.claude.json` `mcpServers` | the config file's `mcp_servers` |
+| `~/.claude.json` `projects.<this project>.mcpServers` | the project's `.mcp.json` (needs `/mcp trust`) |
+| `permissions.allow/deny/ask` in `~/.claude/settings.json` | the config file's `permissions` |
+| the same in `.claude/settings.json` and `settings.local.json` | `.janetcode/permissions.json` (allow rules need `/permissions trust`) |
+| `~/.claude/skills/*` and `~/.claude/agents/*.md` | `skills/` and `agents/` in the config directory |
+
+Rules are translated: `Bash(npm test:*)` becomes `bash(npm test)` and
+`bash(npm test *)`, `Read`/`Edit` paths become `read_file`/`edit_file` (and
+`write_file`) patterns, `WebFetch(domain:x)` becomes `fetch_url(domain:x)`;
+a rule with no janetcode tool (a server-wide `mcp__server`, `Task`) is
+listed as skipped. An entry that already exists is skipped, never replaced.
+A server's env values and headers are copied so it works but are never
+printed: the preview shows the command's program or the URL's host and a
+count. A skill with a symlink or a very large file is refused. A project's
+`.claude/skills`, `.claude/agents`, `.claude/rules`, `.mcp.json` and
+`CLAUDE.md` are read in place and need no import. Hooks, `env`, `model` and
+the other settings are not imported; the preview names them.
 
 ### Changing janetcode's own settings always asks
 
