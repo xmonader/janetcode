@@ -33,8 +33,13 @@ func Layout(d *Diagram, width int) (lines []string, ok bool) {
 	if width < minWidth || !narrowText(d) {
 		return nil, false
 	}
-	if d.Kind == Sequence {
+	switch d.Kind {
+	case Sequence:
 		return drawSequence(d, width)
+	case Pie:
+		return drawPie(d, width)
+	case ER, Class:
+		return drawBoxes(d, width)
 	}
 	l, err := build(d)
 	if err != nil {
@@ -82,6 +87,26 @@ func narrowText(d *Diagram) bool {
 	}
 	for _, m := range d.Msgs {
 		if !one(m.Label) {
+			return false
+		}
+	}
+	if !one(d.Title) {
+		return false
+	}
+	for _, s := range d.Slices {
+		if !one(s.Label) {
+			return false
+		}
+	}
+	for _, b := range d.Boxes {
+		for _, s := range append(append([]string{b.Name, b.Stereotype}, b.Attrs...), b.Methods...) {
+			if !one(s) {
+				return false
+			}
+		}
+	}
+	for _, r := range d.Rels {
+		if !one(r) {
 			return false
 		}
 	}

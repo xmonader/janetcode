@@ -2,8 +2,8 @@
 // shows up in coding conversations and lays it out as terminal text.
 //
 // It is deliberately a subset: flowcharts (top-down and left-right),
-// sequence diagrams and state diagrams. Anything else — a class diagram,
-// a gantt chart, a subgraph, a note, a loop — is refused rather than
+// sequence, state, pie, entity-relationship and class diagrams. Anything
+// else — a gantt chart, a subgraph, a note, a loop — is refused rather than
 // approximated, because a diagram that quietly drops half of what the
 // model drew is worse than showing the source. Every refusal is an
 // error from Parse, and the caller falls back to the code block.
@@ -29,6 +29,12 @@ const (
 	// State is `stateDiagram` / `stateDiagram-v2`; it is laid out as a
 	// flowchart whose `[*]` ends became start and end nodes.
 	State
+	// Pie is `pie`: drawn as proportional bars.
+	Pie
+	// ER is `erDiagram`: entity boxes, then one line per relationship.
+	ER
+	// Class is `classDiagram`: class boxes, then one line per relationship.
+	Class
 )
 
 // Direction is the reading direction of a flowchart.
@@ -73,6 +79,13 @@ type Diagram struct {
 	Actors []Node
 	Msgs   []Message
 
+	// Pie, ER and Class diagrams (see blocks.go).
+	Title    string
+	ShowData bool
+	Slices   []Slice
+	Boxes    []Box
+	Rels     []string
+
 	index map[string]int
 }
 
@@ -111,6 +124,12 @@ func Parse(src string) (*Diagram, error) {
 		return parseState(head, lines[1:])
 	case matchHead(head, "sequenceDiagram"):
 		return parseSequence(lines[1:])
+	case matchHead(head, "pie"):
+		return parsePie(head, lines[1:])
+	case head == "erDiagram":
+		return parseER(lines[1:])
+	case head == "classDiagram", head == "classDiagram-v2":
+		return parseClass(lines[1:])
 	}
 	return nil, errUnsupported
 }

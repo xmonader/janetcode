@@ -60,8 +60,8 @@ func TestMermaidFallsBack(t *testing.T) {
 		{name: "narrow terminal", text: mermaidMsg, width: 30, keep: "flowchart TD"},
 		{name: "ansi-only terminal", text: mermaidMsg, width: 90, ansi: true, keep: "flowchart TD"},
 		{
-			name: "a kind we do not parse", width: 90, keep: "classDiagram",
-			text: "```mermaid\nclassDiagram\n  Animal <|-- Duck\n```\n",
+			name: "a kind we do not parse", width: 90, keep: "gantt",
+			text: "```mermaid\ngantt\n  title A\n```\n",
 		},
 		{
 			name: "a malformed diagram", width: 90, keep: "A[Start --> B",

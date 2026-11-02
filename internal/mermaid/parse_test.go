@@ -58,7 +58,7 @@ func TestParse(t *testing.T) {
 			nodes: []string{"start", "Idle", "Busy", "end"},
 			edges: []string{"0->1 ", "1->2 work", "2->3 "},
 		},
-		{name: "an unsupported kind falls back", src: "classDiagram\n  Animal <|-- Duck\n", err: true},
+		{name: "an unsupported kind falls back", src: "journey\n  title A\n", err: true},
 		{name: "gantt falls back", src: "gantt\n  title A\n", err: true},
 		{name: "a subgraph falls back", src: "flowchart TD\n  subgraph one\n  A --> B\n  end\n", err: true},
 		{name: "bottom-up would come out upside down", src: "flowchart BT\n  A --> B\n", err: true},

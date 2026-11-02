@@ -277,7 +277,7 @@ drawn by the terminal interface; `--web` does not show it.
 
 When the model answers with a ```mermaid block, janetcode draws it with
 box characters at the width of the transcript instead of showing the
-source. Three kinds are drawn:
+source. Six kinds are drawn:
 
 - `flowchart` / `graph`, top-down (`TD`, `TB`) and left-right (`LR`),
   with the usual shapes (`[ ]`, `( )`, `{ }`, `(( ))`), chains
@@ -289,9 +289,21 @@ source. Three kinds are drawn:
   dashed reply stays dashed.
 - `stateDiagram` / `stateDiagram-v2`, drawn as a flowchart whose `[*]`
   ends become a **start** and an **end** box.
+- `pie` (optionally `showData`, `title`), drawn as one proportional bar
+  per slice with its share (and its value with `showData`); a slice too
+  small to show still gets one cell.
+- `erDiagram`: entities as boxes with their attributes (`type name PK
+  "comment"`), then one line per relationship with the cardinalities
+  spelled out (`CUSTOMER 1 ──── 0..* ORDER : places`, dotted `╌╌╌╌` for a
+  non-identifying one).
+- `classDiagram`: classes as boxes (stereotype, attributes, methods) set
+  in rows that wrap at the terminal width, then one line per relationship
+  with its arrow (`Animal ◁─── Dog`, `◆` composition, `◇` aggregation,
+  `╌╌╌▶` dependency, quoted multiplicities and labels kept). Generics
+  (`List~int~`), notes and namespaces are not drawn.
 
 Everything else keeps today's behaviour and is shown as source: any other
-kind (class, gantt, pie, ER, journey…), and anything inside a supported
+kind (gantt, journey, mindmap…), and anything inside a supported
 kind that would have to be ignored to draw it — a `subgraph`, a `note`, a
 `loop`/`alt`, a composite `state X { … }`, `classDef` and friends,
 `BT`/`RL` directions, a self-loop, an `%%{init}%%` directive or YAML front
