@@ -152,6 +152,10 @@ var dispatch = map[string]cmdHandler{
 		m.agentsCommand(cmdArg(text, fields))
 		return nil, false
 	},
+	"/personas": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.transcript.code(agent.PersonaReport(m.opts.Agent))
+		return nil, false
+	},
 	"/cd": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.cdCommand(cmdArg(text, fields))
 		return nil, false

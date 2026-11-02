@@ -531,6 +531,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /jev [on|off|model|provider|triage|intake|route|outcome [on|off]]  (the optional decision service)
 /compact-fast (also /compress-fast: prune old results and thinking, no summary call)
 /import-claude [mcp|permissions|skills|agents ...] | apply <id>  (bring over Claude Code setup; previews first)
+/personas  (subagent personas: tone, output format and contract overlays for the task tool)
 /recap  (a "where was I" summary shown to you only, never added to the conversation)
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
@@ -1332,6 +1333,40 @@ Trust never approves a tool call: a trusted project's hook or MCP tool
 runs, but a write or a command still asks as your permission mode says.
 `JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as
 they always were.
+
+### Subagent personas
+
+A persona is a behavioural overlay for a subagent: how it speaks and what
+it hands back, kept apart from what the subagent is. An agent profile
+(`.janetcode/agents/<name>.md`) picks tools, a model and a job; a persona
+(`terse`, `adversarial reviewer`) combines with any of them instead of being
+copied into each profile's prompt.
+
+```json
+{"personas": {"reviewer": {
+  "description": "blunt reviewer",
+  "tone": "blunt, no praise",
+  "output_format": "a numbered list, worst first",
+  "instructions": "Report only defects you can point at a line for.",
+  "inputs":  [{"name": "diff", "type": "file", "required": true, "description": "path of the diff to review"}],
+  "outputs": [{"name": "report", "description": "findings, each with file:line"}],
+  "model": "", "effort": "low"}}}
+```
+
+The same object can be a file: `.janetcode/personas/<name>.json`, or
+`<name>.md` with `description`, `tone`, `output_format`, `model` and
+`effort` in the frontmatter and the instructions as the body. Files come
+from `personas/` in the config directory and from the project (the project
+ones follow the instruction trust level, `/trust instructions`); a project
+persona shadows a global one, which shadows the config's.
+
+The task tool takes `persona: "<name>"`. The persona is added to the
+subagent's system prompt as a `<persona>` block, with the contract spelled
+out so the parent knows what to put in the brief and what comes back. Its
+`model` and `effort` apply only when the call and the agent profile name no
+model. A persona that does not exist is an error and no subagent starts.
+It applies when a subagent is created, not when `continue` resumes one.
+`/personas` lists them with where each came from.
 
 ### Importing from Claude Code
 

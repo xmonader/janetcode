@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/persona"
 	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -27,6 +28,9 @@ type Task struct {
 	// Profiles, when set, supplies custom subagent definitions selectable
 	// with the agent parameter.
 	Profiles func() []agentprofile.Profile
+	// Personas, when set, supplies the behavioural overlays selectable
+	// with the persona parameter, and the files it skipped.
+	Personas func() ([]persona.Persona, []string)
 	// Root is the project directory; editing subagents check it out into
 	// a git worktree and return their changes as a patch.
 	Root string
@@ -203,6 +207,16 @@ func (t *Task) Description() string {
 		}
 		d += " Custom agents, selectable with agent: " + strings.Join(names, "; ") + "."
 	}
+	if t.Personas != nil {
+		ps, _ := t.Personas()
+		var names []string
+		for _, p := range ps {
+			names = append(names, p.Name+" ("+p.Summary()+")")
+		}
+		if len(names) > 0 {
+			d += " Personas, selectable with persona: " + strings.Join(names, "; ") + "."
+		}
+	}
 	return d
 }
 
@@ -225,7 +239,8 @@ func (*Task) Schema() json.RawMessage {
 "continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."},
 "cancel":{"type":"string","description":"Optional: id of a running subagent to stop. The parent should use this when the user says to cancel that child."},
 "steer":{"type":"string","description":"Optional: id of a running subagent to inject a note into, delivered before its next model call. prompt is the note."},
-"fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."}},
+"fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."},
+"persona":{"type":"string","description":"Optional: name of a persona, a tone/output-format/contract overlay on the subagent's prompt (see the list in this tool's description). Unknown names fail."}},
 "additionalProperties":false}`)
 }
 
@@ -473,6 +488,21 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			in.Tools = profile.Tools
 		}
 	}
+	// A persona is looked up before anything is built and a miss is an
+	// error: a subagent that was asked to behave a certain way does not
+	// start behaving another.
+	var pers *persona.Persona
+	if in.Persona != "" && in.Continue == "" {
+		var ps []persona.Persona
+		if t.Personas != nil {
+			ps, _ = t.Personas()
+		}
+		p, perr := persona.Find(ps, in.Persona)
+		if perr != nil {
+			return "", perr
+		}
+		pers = &p
+	}
 	// A model asked for by name is resolved to whatever backend serves it,
 	// which may not be the one running this session. Refusing is better
 	// than sending the name to an endpoint that does not have it — and it
@@ -569,6 +599,24 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			}
 			window := t.Parent.WindowOf(model)
 			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.ContextWindow = prov, model, window })
+		}
+	}
+	if pers != nil {
+		kid.agent.System += "\n\n" + pers.Block()
+		// The persona's model and effort fill in after the call and the
+		// profile have had their say.
+		if pers.Model != "" && in.Model == "" && (profile == nil || profile.Model == "") {
+			model, prov := pers.Model, kid.agent.Settings().Provider
+			if t.Models != nil {
+				if p, resolved, err := t.Models(pers.Model); err == nil {
+					prov, model = p, resolved
+				}
+			}
+			window := t.Parent.WindowOf(model)
+			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model, s.ContextWindow = prov, model, window })
+		}
+		if pers.Effort != "" {
+			kid.agent.UpdateSettings(func(s *Settings) { s.Effort = pers.Effort })
 		}
 	}
 	if routedProv != nil {

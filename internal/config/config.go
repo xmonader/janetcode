@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/netcfg"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/persona"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/statusline"
 	"github.com/xmonader/janetcode/internal/theme"
@@ -317,6 +318,10 @@ type Config struct {
 	// Envrc turns the project's .envrc loading off ("envrc": false). It
 	// loads by default, but only for a project trusted at the full level.
 	Envrc *bool `json:"envrc,omitempty"`
+	// Personas are named behavioural overlays for subagents (tone, output
+	// format, a contract of inputs and outputs), selected with the task
+	// tool's persona parameter. Files in .janetcode/personas/ add to them.
+	Personas map[string]persona.Persona `json:"personas,omitempty"`
 	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
 	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
 	ComputerUse *bool `json:"computer_use,omitempty"`

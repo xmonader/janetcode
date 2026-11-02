@@ -69,6 +69,7 @@ var Commands = withIdle([]Command{
 	{Name: "/feedback", Args: "up|down [note]", Help: "rate the last assistant message (not sent to the model)"},
 	{Name: "/goal", Args: "[objective|rounds=N objective|rounds N|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete, blocked, or out of rounds (8 by default; rounds=N sets the budget, rounds N gives a stopped goal more)"},
 	{Name: "/agents", Args: "[id|new <brief>|fork <brief>|cancel <id>|steer <id> <note>]", Help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript; new starts a general subagent, fork inherits this conversation, cancel stops a running one, steer injects a note before its next model call"},
+	{Name: "/personas", Args: "", Help: "subagent personas: behavioural overlays (tone, output format, contract) the task tool applies with persona: <name>; lists them with where each came from"},
 	{Name: "/cd", Args: "[path]", Help: "move this session's working directory without restarting; no argument says where it is"},
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},

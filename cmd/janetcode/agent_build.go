@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/persona"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/repomap"
@@ -619,6 +620,8 @@ func (b *agentBuilder) stepKnowledge() error {
 	b.ruleIn = &rules.Injector{Rules: b.rules}
 	ag.PathRules = b.ruleIn.For
 	ag.PathSkills = b.skillIn.ForPaths
+	cfgPersonas := b.d.cfg.Personas
+	b.task.Personas = func() ([]persona.Persona, []string) { return persona.Load(cfgPersonas, project(), cfgDir) }
 	b.task.Profiles = func() []skill.Profile { return skill.LoadProfiles(project(), cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: b.skills, Used: b.skillIn.MarkUsed})
 	// The indexes are the part of the system prompt that grows with use

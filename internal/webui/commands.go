@@ -30,7 +30,7 @@ var webCommands = []string{
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/plugin", "/cua", "/trust", "/egress",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress",
 }
 
 var webArgs = map[string]string{
@@ -307,6 +307,10 @@ var webDispatch = map[string]webHandler{
 	"/import-claude": func(s *server, arg string) (bool, error) {
 		home, _ := os.UserHomeDir()
 		s.showResult(claudeimport.Exec(claudeimport.Env{Home: home, Cwd: s.cwd(), ConfigPath: s.opts.ConfigPath, ConfigDir: s.opts.ConfigDir}, arg), nil)
+		return false, nil
+	},
+	"/personas": func(s *server, arg string) (bool, error) {
+		s.sheet("personas", agent.PersonaReport(s.opts.Agent))
 		return false, nil
 	},
 	"/reload": (*server).cmdReload,
