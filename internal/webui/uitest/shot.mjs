@@ -50,6 +50,10 @@ await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
         { label: 'Check the last commit', prompt: 'Explain what commit 1a2b3c4 changed' },
         { label: 'Add tests to inifile', prompt: 'The Go package in internal/inifile has no tests' },
       ]), { headers: { 'Content-Type': 'application/json' } }))
+    : String(url).startsWith('/api/workspace') && !opts
+    // The branch and the context share come from the tree and the model
+    // this run happens to have; pin them so the pixels do not follow it.
+    ? realFetch(url, opts).then(async (r) => { const d = await r.clone().json(); d.branch = 'main'; d.ctx_pct = 34; d.ctx_label = '68k / 200k'; return new Response(JSON.stringify(d), { headers: { 'Content-Type': 'application/json' } }); })
     : realFetch(url, opts);
 `});
 await cmd('Page.navigate', { url: APP });
