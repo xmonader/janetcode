@@ -566,7 +566,7 @@ button:disabled { cursor: default; opacity: 0.55; }
      on every chunk, and an animating scroll falls behind the growing
      tail until the stick-to-bottom check reads "reader scrolled away"
      and stops following. Smoothness is opted into per user gesture. */
-  padding: 28px var(--gutter) 12px;
+  padding: var(--chat-pt, 28px) var(--gutter) 12px;
 }
 #chat-view > *, .bottom {
   width: min(var(--col-w), 100%);
@@ -1249,7 +1249,8 @@ pre.sheetbody {
 }
 .ask p { margin: 0 0 0.6rem; font-weight: 600; font-size: 0.92rem; }
 #ask-line code { font-weight: 500; overflow-wrap: anywhere; }
-#ask-line .ask-warn { color: var(--bad); }
+#ask-line .ask-warn { display: block; margin-top: 0.3rem; padding-left: 1.1rem; position: relative; color: var(--bad); font-size: 0.8rem; font-weight: 500; line-height: 1.4; }
+#ask-line .ask-warn::before { content: "!"; position: absolute; left: 0; top: 0.12rem; width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--bad); color: var(--bg); font-size: 0.65rem; font-weight: 700; line-height: 0.8rem; text-align: center; }
 #ask-rule { font-weight: 400; font-family: var(--mono); font-size: 0.78rem; color: var(--mute); }
 #ask-rungs {
   display: flex;
@@ -1534,7 +1535,7 @@ pre.sheetbody {
 .to-latest:hover { color: var(--ink); border-color: var(--faint); }
 .findbar {
   position: fixed;
-  top: 60px;
+  top: 112px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 35;
@@ -2250,7 +2251,7 @@ kbd {
   :root { --gutter: 12px; }
   .bottom { padding-bottom: 10px; }
   .top { gap: 6px; padding: 8px 10px; min-height: 48px; }
-  #chat-view { padding-top: 18px; }
+  #chat-view { --chat-pt: 18px; padding-top: 18px; }
   .findbar { width: 94vw; }
   .to-latest { right: 14px; }
   .help-cols { grid-template-columns: 1fr; }
@@ -2377,7 +2378,7 @@ html[data-density="compact"] {
 html[data-density="compact"] body { line-height: 1.5; }
 html[data-density="compact"] .md { line-height: 1.6; }
 html[data-density="compact"] .md p { margin: 0.4em 0; }
-html[data-density="compact"] #chat-view { padding-top: 16px; }
+html[data-density="compact"] #chat-view { --chat-pt: 16px; padding-top: 16px; }
 html[data-density="compact"] .tool .head { min-height: 1.5rem; }
 html[data-density="compact"] .work li { padding: 0.2rem 0; }
 html[data-density="compact"] .you .bubble { padding: 0.4rem 0.85rem; }
@@ -2393,6 +2394,7 @@ html[data-density="compact"] .you .bubble { padding: 0.4rem 0.85rem; }
 .new-session:hover { border-color: var(--accent-soft-border); }
 .new-plus { color: var(--accent); }
 #sessions .sess-group {
+  margin: 0;
   font-size: 0.66rem;
   font-weight: 650;
   letter-spacing: 0.08em;
@@ -2692,7 +2694,7 @@ dialog.xdlg :focus-visible, .recover-bar button:focus-visible, .convo-bar :focus
 .recover-bar[hidden] { display: none; }
 .rb-msg { flex: 1; }
 /* conversation toolbar */
-.convo-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 6px 0; background: var(--bg); font-size: 12px; color: var(--mute); }
+.convo-bar { position: sticky; top: calc(-1 * var(--chat-pt, 28px)); z-index: 3; display: flex; align-items: center; gap: 6px; margin-top: calc(-1 * var(--chat-pt, 28px) + 4px); padding: calc(var(--chat-pt, 28px) - 4px) 0 6px; margin-bottom: 4px; background: var(--bg); font-size: 12px; color: var(--mute); }
 .convo-bar select { height: 28px; border: 0.5px solid var(--line-strong); border-radius: var(--radius-s); background: var(--surface); color: var(--ink); font: 12.5px var(--sans); padding: 0 6px; }
 .convo-bar button { height: 28px; display: inline-flex; align-items: center; gap: 5px; }
 .convo-bar .i { width: 14px; height: 14px; }
@@ -2713,9 +2715,27 @@ dialog.xdlg :focus-visible, .recover-bar button:focus-visible, .convo-bar :focus
 /* stopped reply */
 .stopped-tag { display: inline-block; margin-top: 0.35rem; padding: 2px 8px; border-radius: 999px; font: 500 11.5px/1.4 var(--sans); color: var(--warn); background: var(--warn-soft); border: 0.5px solid var(--warn-border); }
 /* settings, wrap, a11y */
-.settings-extra { padding-top: 0; }
+.settings-card .settings-extra { padding-top: 0; }
 .settings-links { display: flex; gap: 8px; margin-bottom: 14px; }
 html[data-wrap-code] .codeblock pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.drag-handle:focus-visible { outline: none; opacity: 1; }
+.drag-handle:focus, .drag-handle:focus-visible { outline: none; opacity: 1; box-shadow: inset 0 0 0 2px var(--accent-soft-border); }
 .drag-handle:focus-visible::before { opacity: 1; background: var(--accent); }
 .work-tabs [role="tab"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft-border); border-radius: var(--radius-s); }
+
+/* ---- session rows: the title owns the line, actions overlay the right edge */
+#sessions li[data-id] > span:first-child { padding-right: 24px; }
+#sessions li[data-id]:hover > span:first-child, #sessions li[data-id]:focus-within > span:first-child { padding-right: 48px; }
+#sessions li .pin { top: 7px; }
+#sessions li .sess-more { position: absolute; right: 28px; top: 7px; width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; letter-spacing: -1px; }
+#sessions li .sess-dot { position: absolute; left: 1px; top: 50%; margin: -3.5px 0 0; }
+#sessions li.pinned .pin { opacity: 0.85; }
+#sessions li:hover .pin { opacity: 1; }
+
+/* ---- palette rows: name, description, key on one line */
+.palette:not(.connect) { width: min(38rem, 92vw); }
+#palette-list { max-height: min(22rem, 60vh); }
+#palette-list div { grid-template-columns: 10rem minmax(0, 1fr) auto; align-items: baseline; }
+#palette-list .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#palette-list .pal-group { display: block; }
+#palette-list .pal-key { margin-left: 0; white-space: nowrap; }
+@media (max-width: 640px) { #palette-list div { grid-template-columns: minmax(0, 8rem) minmax(0, 1fr); } #palette-list .pal-key { display: none; } }

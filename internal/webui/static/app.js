@@ -614,10 +614,13 @@
     // a hook that asked); warning is the same line joined, for old servers.
     const warns = p.warnings && p.warnings.length ? p.warnings : p.warning ? [p.warning] : [];
     if (warns.length) {
-      const w = document.createElement("span");
-      w.className = "ask-warn";
-      w.textContent = " Warning: " + warns.join("; ");
-      askLine.append(w);
+      // Each cause on its own line, under the question, not run into it.
+      for (const t of warns) {
+        const w = document.createElement("span");
+        w.className = "ask-warn";
+        w.textContent = t;
+        askLine.append(w);
+      }
     }
     if (p.source) {
       const src = document.createElement("span");

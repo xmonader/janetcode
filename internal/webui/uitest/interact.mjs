@@ -26,6 +26,9 @@ const pageErrors = [];
 ws.onmessage = (ev) => {
   const m = JSON.parse(ev.data);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+  // A reload with a draft or a running turn asks "Leave site?" (beforeunload);
+  // nobody is there to answer in a headless run, so leave.
+  if (m.method === 'Page.javascriptDialogOpening') cmd('Page.handleJavaScriptDialog', { accept: true });
   if (m.method === 'Runtime.exceptionThrown') {
     const d = m.params.exceptionDetails;
     pageErrors.push((d.exception && d.exception.description || d.text || '').split('\n')[0]);
@@ -43,9 +46,10 @@ const evaljs = async (expression) => {
 };
 
 await cmd('Runtime.enable');
+await cmd('Page.enable');
 await sleep(2500); // let app.js boot, SSE settle
 const results = [];
-const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); };
+const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (process.env.UI_LIVE) console.error(results[results.length-1]); };
 
 // 0. the page carries the server's stamped build (stale-UI toast data)
 check('build stamped into page', await evaljs(`window.__janetUIBuild && window.__janetUIBuild !== "__JANET_UI_BUILD__"`), await evaljs(`window.__janetUIBuild`));
@@ -79,9 +83,12 @@ await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: h.x, y: h.y, b
 await cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x: h.x, y: h.y, button: 'left', buttons: 1, clickCount: 2 });
 await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: h.x, y: h.y, button: 'left', buttons: 0, clickCount: 2 });
 const navAfterReset = await evaljs(`getComputedStyle(document.documentElement).getPropertyValue('--nav-w').trim()`);
-check('nav dbl-click resets', Math.abs(parseInt(navAfterReset) - 268) <= 1, `--nav-w=${navAfterReset}`);
+check('nav dbl-click resets', Math.abs(parseInt(navAfterReset) - 276) <= 1, `--nav-w=${navAfterReset}`);
 
-// 4. work drawer toggle (was covered by its own drawer)
+// 4. work drawer toggle (was covered by its own drawer). Start closed: a
+// profile that remembers it open would make the first click close it.
+await evaljs(`(() => { const s = document.querySelector('.shell'); if (!s.classList.contains('work-collapsed')) document.getElementById('work-toggle').click(); return 1; })()`);
+await sleep(300);
 await evaljs(`document.getElementById('work-toggle').click()`);
 await sleep(400);
 const workOpen = await evaljs(`!document.querySelector('.shell').classList.contains('work-collapsed') && getComputedStyle(document.getElementById('work')).transform === 'none'`);
@@ -91,10 +98,12 @@ const workBefore = await evaljs(`document.getElementById('work').getBoundingClie
 // 5. drag the work drawer wider by 60px (drag left = wider)
 h = await evaljs(`(() => { const r = document.getElementById('work-resize').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 200 }; })()`);
 await cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x: h.x, y: h.y, button: 'left', buttons: 1, clickCount: 1 });
-for (let i = 1; i <= 6; i++) await cmd('Input.dispatchMouseEvent', { type: 'mouseMoved', x: h.x - i * 10, y: h.y, button: 'left', buttons: 1 });
-await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: h.x - 60, y: h.y, button: 'left', buttons: 0, clickCount: 1 });
+// a profile that remembers a wide drawer is at the cap: drag it narrower
+const wd = workBefore > 440 ? -1 : 1;
+for (let i = 1; i <= 6; i++) await cmd('Input.dispatchMouseEvent', { type: 'mouseMoved', x: h.x - wd * i * 10, y: h.y, button: 'left', buttons: 1 });
+await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: h.x - wd * 60, y: h.y, button: 'left', buttons: 0, clickCount: 1 });
 const workAfter = await evaljs(`document.getElementById('work').getBoundingClientRect().width`);
-check('work drawer drag resizes', Math.abs(workAfter - (workBefore + 60)) <= 2, `${workBefore} -> ${workAfter}`);
+check('work drawer drag resizes', Math.abs(workAfter - (workBefore + wd * 60)) <= 2, `${workBefore} -> ${workAfter}`);
 
 // 6. work drawer closes again from the same toggle
 await evaljs(`document.getElementById('work-toggle').click()`);

@@ -430,7 +430,7 @@
     XF.map(([v, l]) => `<option value="${v}">${l}</option>`).join("") + `</select></label>` +
     `<button type="button" id="tools-expand">Expand all</button><button type="button" id="tools-collapse">Collapse all</button>` +
     `<span class="spacer"></span>` +
-    `<button type="button" id="convo-files" title="Files attached to this conversation">Files</button>` +
+    `<button type="button" id="convo-files" title="Files attached to this conversation">Attachments</button>` +
     `<button type="button" id="convo-find" title="Find in conversation (Ctrl+F)">${ico("search")} Find</button>`;
   if (log) log.before(tb);
   $("tool-filter").addEventListener("change", (ev) => {
@@ -551,11 +551,14 @@
     sec.className = "settings-extra";
     sec.innerHTML =
       `<h3>Code blocks</h3><label class="switch-row" for="wrap-btn"><span>Wrap long lines</span><button type="button" id="wrap-btn" class="switch" role="switch" aria-checked="false"></button></label>` +
-      `<h3>Quiet mode</h3><label class="switch-row" for="quiet-btn"><span>No sound and no notifications</span><button type="button" id="quiet-btn" class="switch" role="switch" aria-checked="false"></button></label>` +
       `<h3>Tool calls</h3>` + seg("toolopen-seg", "tool", [["auto", "Edits open"], ["open", "All open"], ["collapsed", "All collapsed"]], toolDefault()) +
       `<h3>Workbench panel</h3>` + seg("layout-seg", "layout", [["auto", "Automatic"], ["open", "Always open"], ["closed", "Always closed"]], layoutMode()) +
       `<h3>More</h3><div class="settings-links"><button type="button" id="set-providers">Providers…</button><button type="button" id="set-shortcuts">Keyboard shortcuts</button></div>`;
     card.appendChild(sec);
+    // Quiet mode is a notification setting: it sits with the sound switch.
+    const snd = $("sound-btn") && $("sound-btn").closest("label");
+    const quiet = `<label class="switch-row" for="quiet-btn"><span>Quiet mode: no sound, no notifications</span><button type="button" id="quiet-btn" class="switch" role="switch" aria-checked="false"></button></label>`;
+    if (snd) snd.insertAdjacentHTML("afterend", quiet); else sec.insertAdjacentHTML("afterbegin", quiet);
     setWrap(wrapOn()); setQuiet(quietOn());
     $("wrap-btn").addEventListener("click", () => setWrap(!wrapOn()));
     $("quiet-btn").addEventListener("click", () => setQuiet(!quietOn()));
