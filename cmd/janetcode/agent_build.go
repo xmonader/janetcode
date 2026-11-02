@@ -515,6 +515,7 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
+	ag.Adaptive = os.Getenv("JANETCODE_ADAPTIVE") == "1"
 	// Signed evidence beside each proof note: the local key is created on
 	// the first commit that gets one, not here.
 	if dir, err := proof.DefaultKeyDir(); err == nil {

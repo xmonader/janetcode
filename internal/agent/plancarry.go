@@ -30,7 +30,12 @@ const planCarryNote = "[harness] Your earlier reasoning is no longer visible to 
 
 // planCarryNote returns the note for the step that ran resp's calls, or "".
 func (a *Agent) planCarryNote(resp *llm.Response) string {
-	if a.Off["plancarry"] || a.pl.planCarried || !a.riskyTurn() {
+	if a.Off["plancarry"] || a.pl.planCarried {
+		return ""
+	}
+	// Adaptive: only when the plan named product files still unwritten,
+	// the shape where a later reply writes one cold (risk.go).
+	if a.Adaptive && len(plannedUnwritten(a.Messages)) == 0 {
 		return ""
 	}
 	if !isPlanReply(resp.Message, resp.Usage) {

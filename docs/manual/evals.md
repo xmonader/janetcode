@@ -76,10 +76,10 @@ checked against its own published data.
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled.
 The names are the list `--eval-off` prints on a misspelling (and the
-usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `claimcheck`, `coach`, `critic`, `depgate`, `evidence`, `extratools`,
+usage string of the flag): `accept`, `asyncdiag`, `burstcap`, `claimcheck`, `coach`, `compactskip`, `critic`, `depgate`, `edgerules`, `evidence`, `extratools`,
 `faults`, `headlesscore`, `honeytoken`, `impact`, `inline`, `intent`, `keeprevert`, `ladder`, `leanprompt`, `lineedit`, `loops`,
-`memoryrank`, `mermaid`, `numclaim`, `opentodos`, `oversized`, `plan`, `planbudget`, `probes`, `proof`, `protected`, `prune`, `recipe`,
-`repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `specreview`, `syntax`, `taint`, `testguard`, `testledger`, `thenrun`, `todo`, `tour`, `undoabout`,
+`memoryrank`, `mermaid`, `numclaim`, `opentodos`, `oversized`, `plan`, `plancarry`, `planbudget`, `probes`, `proof`, `protected`, `prune`, `readdedup`, `recipe`,
+`repomap`, `richskip`, `routing`, `script`, `scrub`, `sleep`, `specreview`, `steplimit`, `syntax`, `taint`, `testguard`, `testledger`, `thenrun`, `todo`, `tour`, `undoabout`,
 `verdict`, `verify`, `working`. The variant name is recorded in the results file so
 a comparison says what it compared. The same names work as
 `JANETCODE_OFF=script` for a real session.

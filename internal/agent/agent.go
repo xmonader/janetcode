@@ -288,6 +288,8 @@ type Agent struct {
 	// SpecReview, when set, sends a turn that changed files and passed its
 	// checks back once to hold the change against the task (specreview.go).
 	SpecReview bool
+	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go). Off by default.
+	Adaptive bool
 	// TestGuard, when set, refuses the first write to each test file
 	// (testguard.go).
 	TestGuard   bool
@@ -1062,7 +1064,7 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	// and bounded by the same one-correction-a-turn counter, because the
 	// expensive mistake here is nagging a turn that is genuinely finished
 	// into another round of model calls.
-	if !g.conflicted && a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 {
+	if !g.conflicted && a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 && a.riskyTurn() {
 		g.corrections++
 		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
 		a.appendHarnessText(outcome.StaleCheckNote())

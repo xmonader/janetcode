@@ -14,7 +14,3 @@ type portLoop struct {
 }
 
 func (p *portLoop) startTurn() { *p = portLoop{reads: p.reads} }
-
-// riskyTurn gates the expensive checks; see risk.go. Until that lands every
-// turn counts as risky, i.e. all checks on.
-func (a *Agent) riskyTurn() bool { return true }

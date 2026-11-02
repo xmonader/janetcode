@@ -26,7 +26,7 @@ const reviewWrapNote = "[harness] The review has had its calls. Finish now: if y
 // not yet done this turn, and a turn that changed files and passed its
 // checks.
 func (a *Agent) specReview(outcome TurnOutcome, reviewed *bool, emit func(Event)) bool {
-	if !a.SpecReview || a.Off["specreview"] || *reviewed {
+	if !a.SpecReview || a.Off["specreview"] || *reviewed || !a.riskyTurn() {
 		return false
 	}
 	if outcome.Verdict == VerdictNoChanges || !outcome.OK() {
