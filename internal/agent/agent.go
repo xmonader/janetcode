@@ -732,6 +732,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.resetDiagnostics()
 	a.outBoost = 0
 	a.planCuts, a.planCutNow = 0, false
+	a.pl.startTurn()
 	a.effort.start(a.Settings().Effort)
 	a.reviewSteps = -1
 	a.conflict = nil
@@ -1129,6 +1130,10 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("the reply kept starting tool calls; ran its first %d and dropped the rest", a.burstRan)})
 	}
 	a.burstRan, a.burstRepeat = 0, false
+	if note := a.planCarryNote(resp); note != "" && len(results) > 0 {
+		results[len(results)-1].Text += "\n\n" + note
+		emit(Event{Kind: EvNotice, Text: "a large plan was just written; asking the model to re-read the brief before the next file"})
+	}
 	if note := a.reviewStepNote(); note != "" && len(results) > 0 {
 		results[len(results)-1].Text += "\n\n" + note
 		emit(Event{Kind: EvNotice, Text: "the review has used its calls; asking the model to wrap up"})

@@ -77,6 +77,9 @@ type turnMonitor struct {
 	// run, until the note saying so goes out with their results.
 	burstRan    int
 	burstRepeat bool
+	// pl is the per-turn state of the loop behaviours ported from
+	// hero_agent (planCarry, stepdedup, edgerules, steplimit, risk).
+	pl portLoop
 	// effort is the effort controller's state for this turn;
 	// effortIdleSaid keeps its "on but idle" notice to one a session;
 	// lastCallEffort is the tier the controller gave the latest call,
