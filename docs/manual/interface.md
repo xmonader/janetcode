@@ -805,7 +805,7 @@ ask: changing files, running commands and network access ask first
                shell commands
                web fetches and searches
                MCP tools that change things
-               protected paths (dotfiles, git hooks, keys), in every mode
+               protected paths (dotfiles, git hooks, keys), in every mode but Allow all
   never runs   commands that would wreck the machine
   where        commands run on this machine, as you (no sandbox)
 ```
