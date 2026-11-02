@@ -644,7 +644,11 @@ func (b *agentBuilder) stepKnowledge() error {
 // leaves it on, and gives the agent the per-edit diagnostics note.
 func (b *agentBuilder) stepDiagnostics() error {
 	b.diag = lsp.New(b.d.cwd, b.d.cfg.LSP)
+	b.diag.Plain = b.off["lspsupervise"]
 	if b.diag.Enabled() {
+		if !b.diag.Plain {
+			b.ag.ShellChanged = b.diag.SyncFromDisk
+		}
 		b.ag.Tools.Add(lsp.Tool{M: b.diag})
 		b.ag.Tools.Add(lsp.SymbolTool{M: b.diag})
 		b.ag.Diagnose = diagnoseNote(b.diag)

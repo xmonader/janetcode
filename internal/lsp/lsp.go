@@ -76,7 +76,22 @@ type Manager struct {
 	// restarts counts how often a server has been started again after
 	// dying, so one that keeps crashing is given up on.
 	restarts map[string]int
-	byExt    map[string]string // extension → server name
+	// retryAt is when a crashed server may be started again (backoff);
+	// startedAt when the running one came up, so a stable run clears the
+	// crash count; replay holds the documents the dead one had open.
+	retryAt   map[string]time.Time
+	startedAt map[string]time.Time
+	replay    map[string][]string
+	// stamps is SyncFromDisk's record of dirty files.
+	stamps map[string]fileStamp
+	// RestartBackoff is the wait before a crashed server's first restart,
+	// doubling each time; zero means a second.
+	RestartBackoff time.Duration
+	// Plain turns off pull diagnostics, watched-file notifications and
+	// hung-server detection (JANETCODE_OFF=lspsupervise), leaving the
+	// push-only client with lazy restarts.
+	Plain bool
+	byExt map[string]string // extension → server name
 	// life is cancelled by Close, which is what ends a handshake that is
 	// still running. closed says the manager is gone, so a start that
 	// finishes after it is stopped rather than registered as a server
@@ -97,7 +112,7 @@ type pending struct {
 // New prepares a manager; nothing starts until Diagnose is called.
 func New(root string, cfg Config) *Manager {
 	m := &Manager{Root: root, Config: cfg, clients: map[string]*client{}, starting: map[string]*pending{},
-		failed: map[string]string{}, restarts: map[string]int{}, byExt: map[string]string{}}
+		failed: map[string]string{}, restarts: map[string]int{}, retryAt: map[string]time.Time{}, startedAt: map[string]time.Time{}, replay: map[string][]string{}, byExt: map[string]string{}}
 	m.life, m.stop = context.WithCancel(context.Background())
 	for name, s := range cfg.Active() {
 		for _, e := range s.Extensions {
@@ -200,6 +215,9 @@ func (m *Manager) Status() []string {
 			state = "unavailable: " + why
 		} else if c, up := running[n]; up {
 			state = fmt.Sprintf("running (pid %d, %d files open)", c.cmd.Process.Pid, c.openCount())
+			if c.hung() {
+				state = fmt.Sprintf("not answering (pid %d, %d requests pending); restarts on the next edit", c.cmd.Process.Pid, c.pending())
+			}
 		} else if _, err := exec.LookPath(s.Command[0]); err != nil {
 			state = "not installed (" + s.Command[0] + " not on PATH)"
 		}
@@ -267,6 +285,9 @@ func (m *Manager) Reroot(dir string) []string {
 	m.clients = map[string]*client{}
 	m.failed = map[string]string{}
 	m.restarts = map[string]int{}
+	m.retryAt = map[string]time.Time{}
+	m.replay = map[string][]string{}
+	m.stamps = nil
 	m.Root = dir
 	stop := m.stop
 	// A fresh lifetime, because the old one is about to be cancelled to
@@ -318,18 +339,37 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 		// fact about the code rather than as a crashed process. It is
 		// dropped and started fresh, once — a server that keeps dying is
 		// remembered as failed rather than restarted forever.
-		if !c.alive() {
-			delete(m.clients, name)
-			m.restarts[name]++
-			if m.restarts[name] > maxRestarts {
-				m.failed[name] = fmt.Sprintf("exited %d times; not started again this session", m.restarts[name])
-				m.mu.Unlock()
-				return nil, nil
+		//
+		// One that is running but has stopped answering (several requests
+		// in a row timed out with nothing back) is stopped and treated
+		// the same way, so a hung server cannot hold up every turn.
+		if c.alive() && (m.Plain || !c.hung()) {
+			if time.Since(m.startedAt[name]) > stableAfter {
+				m.restarts[name] = 0
 			}
-		} else {
 			m.mu.Unlock()
 			return c, nil
 		}
+		why := "exited"
+		if c.alive() {
+			why = "stopped answering"
+			go c.close()
+		}
+		delete(m.clients, name)
+		m.replay[name] = c.openFiles()
+		m.restarts[name]++
+		if m.restarts[name] > maxRestarts {
+			m.failed[name] = fmt.Sprintf("%s %d times; not started again this session", why, m.restarts[name])
+			m.mu.Unlock()
+			return nil, nil
+		}
+		m.retryAt[name] = time.Now().Add(m.backoff(m.restarts[name]))
+	}
+	// A crashed server is left alone until its backoff has passed: the
+	// query goes without diagnostics rather than into a crash loop.
+	if at, ok := m.retryAt[name]; ok && time.Now().Before(at) {
+		m.mu.Unlock()
+		return nil, nil
 	}
 	if _, bad := m.failed[name]; bad {
 		m.mu.Unlock()
@@ -379,8 +419,24 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 		// to stop: nothing gets a client out of a closed manager.
 		defer c.close()
 	default:
+		if m.Plain {
+			c.pull = false
+		}
 		m.clients[name] = c
+		m.startedAt[name] = time.Now()
+		delete(m.retryAt, name)
 		p.c = c
+		if m.stamps == nil {
+			go m.SyncFromDisk(life) // the baseline later shell changes are measured against
+		}
+		if files := m.replay[name]; len(files) > 0 {
+			delete(m.replay, name)
+			go func() {
+				ctx, cancel := context.WithTimeout(life, 10*time.Second)
+				defer cancel()
+				c.replay(ctx, files)
+			}()
+		}
 	}
 	m.mu.Unlock()
 	close(p.ready)

@@ -441,6 +441,9 @@ type Agent struct {
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
 	Diagnose func(ctx context.Context, path string) string
+	// ShellChanged, when set, is called in the background after a bash
+	// command so language servers learn of files it changed.
+	ShellChanged func(ctx context.Context)
 	// settingsMu guards the fields Settings mirrors, Rules and Pins: a
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).

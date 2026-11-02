@@ -812,6 +812,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		}
 		hookNotes = append(hookNotes, a.runHook(ctx, in, emit).Notes...)
 	}
+	if a.ShellChanged != nil && u.Name == "bash" {
+		go a.ShellChanged(context.WithoutCancel(ctx))
+	}
 	if a.Diagnose != nil && !isErr && editTool(u.Name) {
 		path := perm.Subject(u.Name, u.Input)
 		if a.Off["asyncdiag"] {

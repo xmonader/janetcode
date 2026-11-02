@@ -23,7 +23,7 @@ import (
 )
 
 // maxRestarts bounds how often one server is restarted after dying.
-const maxRestarts = 2
+const maxRestarts = 3
 
 // client is one running language server.
 type client struct {
@@ -59,6 +59,18 @@ type client struct {
 	// server stopped writing; stopping the process group has to wait for
 	// the real exit, or close returns while a zombie is still there.
 	reaped chan struct{}
+	// stalls counts requests that timed out with no answer since the
+	// server last said anything (see hung). Atomic: the read loop resets it.
+	stalls int32
+	// pull is set when the server advertised textDocument/diagnostic;
+	// resultIDs holds the last resultId per document for it.
+	pull      bool
+	resultIDs map[string]string
+	// watchM guards the didChangeWatchedFiles registrations and the
+	// events held until the first one arrives.
+	watchM sync.Mutex
+	regs   []registration
+	queued []FileEvent
 	// err is why the server stopped answering, guarded by pendM. The
 	// first reason wins: a frame the reader refused explains more than
 	// the exit status that follows it.
@@ -140,16 +152,20 @@ func start(ctx context.Context, root string, command []string, log func(string))
 				"references":         map[string]any{},
 				"hover":              map[string]any{"contentFormat": []string{"markdown", "plaintext"}},
 				"documentSymbol":     map[string]any{"hierarchicalDocumentSymbolSupport": true},
+				"diagnostic":         map[string]any{"dynamicRegistration": false},
 			},
-			"workspace": map[string]any{"configuration": true, "workspaceFolders": true, "symbol": map[string]any{}},
-			"window":    map[string]any{"workDoneProgress": true},
+			"workspace": map[string]any{"configuration": true, "workspaceFolders": true, "symbol": map[string]any{},
+				"didChangeWatchedFiles": map[string]any{"dynamicRegistration": true, "relativePatternSupport": true}},
+			"window": map[string]any{"workDoneProgress": true},
 		},
 		"initializationOptions": map[string]any{},
 	}
-	if _, err := c.call(ictx, "initialize", params); err != nil {
+	res, err := c.call(ictx, "initialize", params)
+	if err != nil {
 		c.close()
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
+	c.readCaps(res)
 	if err := c.notifyCtx(ictx, "initialized", map[string]any{}); err != nil {
 		c.close()
 		return nil, err
@@ -195,6 +211,17 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 	_ = c.notifyCtx(ctx, "textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
+	if c.pull {
+		// Ask instead of waiting: a pull server may never push. A pull
+		// that fails (cancelled, unsupported for this file) falls back
+		// to waiting for a push below.
+		pctx, cancel := context.WithTimeout(ctx, timeout)
+		items, ok := c.pullDiagnostics(pctx, uri, version)
+		cancel()
+		if ok {
+			return items, true, nil
+		}
+	}
 	for {
 		c.docM.Lock()
 		st := c.diags[uri]
@@ -206,6 +233,7 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 		select {
 		case <-wait:
 		case <-deadline.C:
+			c.stall() // nothing at all came back for this edit
 			return st.items, false, nil
 		case <-ctx.Done():
 			return nil, false, ctx.Err()
@@ -281,6 +309,11 @@ func (c *client) close() {
 }
 
 func (c *client) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	if _, ok := ctx.Deadline(); !ok && method != "shutdown" {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultCallTimeout)
+		defer cancel()
+	}
 	c.pendM.Lock()
 	if c.err != nil {
 		c.pendM.Unlock()
@@ -310,6 +343,14 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 		c.pendM.Lock()
 		delete(c.pend, id)
 		c.pendM.Unlock()
+		// Tell the server to drop the work, and count the silence: a
+		// run of unanswered requests marks the server hung (see hung).
+		cctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_ = c.notifyCtx(cctx, "$/cancelRequest", map[string]any{"id": id})
+		cancel()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) && method != "shutdown" {
+			c.stall()
+		}
 		return nil, ctx.Err()
 	case <-c.done:
 		// The reader is gone, so no answer is coming — but the process
@@ -410,6 +451,7 @@ func (c *client) read(r *bufio.Reader) {
 			}
 			return
 		}
+		c.touch()
 		var msg struct {
 			ID     json.RawMessage `json:"id"`
 			Method string          `json:"method"`
@@ -454,7 +496,13 @@ func (c *client) serve(id json.RawMessage, method string, params json.RawMessage
 		c.reply(id, out)
 	case "workspace/workspaceFolders":
 		c.reply(id, []any{})
-	case "client/registerCapability", "client/unregisterCapability", "window/workDoneProgress/create", "workspace/applyEdit":
+	case "client/registerCapability":
+		c.register(params)
+		c.reply(id, nil)
+	case "client/unregisterCapability":
+		c.unregister(params)
+		c.reply(id, nil)
+	case "window/workDoneProgress/create", "workspace/applyEdit":
 		c.reply(id, nil)
 	default:
 		_ = c.send(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": -32601, "message": "method not supported: " + method}})

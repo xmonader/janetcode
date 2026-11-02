@@ -58,20 +58,64 @@ for arg in sys.argv[1:]:
         kid = subprocess.Popen(["sleep", "100"])
         with open(arg[len("--child="):], "w") as f:
             f.write(str(kid.pid))
+# --pull advertises diagnosticProvider and answers textDocument/diagnostic
+# without ever pushing; --watch registers a **/*.foo file watcher; --hang
+# stops answering after initialize; --log=PATH appends every method the
+# client sends (and the uris of didOpen / watched changes) to PATH.
+pull = "--pull" in sys.argv
+watch = "--watch" in sys.argv
+hang = "--hang" in sys.argv
+logpath = None
+for arg in sys.argv[1:]:
+    if arg.startswith("--log="):
+        logpath = arg[len("--log="):]
+docs = {}
+
+def log(line):
+    if logpath:
+        with open(logpath, "a") as f:
+            f.write(line + "\n")
+
 while True:
     msg = read()
     if msg is None:
         break
     method = msg.get("method")
+    if method:
+        log(method)
+    if hang and method not in ("initialize", "initialized", "shutdown", "exit"):
+        continue
     if method == "initialize":
         if slow_init:
             time.sleep(slow_init)
-        send({"jsonrpc": "2.0", "id": msg["id"], "result": {"capabilities": {"textDocumentSync": 1}}})
+        caps = {"textDocumentSync": 1}
+        if pull:
+            caps["diagnosticProvider"] = {"interFileDependencies": False, "workspaceDiagnostics": False}
+        send({"jsonrpc": "2.0", "id": msg["id"], "result": {"capabilities": caps}})
+    elif method == "workspace/didChangeWatchedFiles":
+        for ch in msg["params"]["changes"]:
+            log("watched %d %s" % (ch["type"], ch["uri"]))
+    elif method == "textDocument/diagnostic":
+        uri = msg["params"]["textDocument"]["uri"]
+        text = docs.get(uri, "")
+        items = []
+        for i, line in enumerate(text.split("\n")):
+            if "ERR" in line:
+                items.append({"range": {"start": {"line": i, "character": line.index("ERR")}, "end": {"line": i, "character": line.index("ERR") + 3}},
+                              "severity": 1, "source": "fake", "message": "found ERR"})
+        send({"jsonrpc": "2.0", "id": msg["id"], "result": {"kind": "full", "items": items}})
     elif method == "initialized":
+        if watch:
+            send({"jsonrpc": "2.0", "id": 98, "method": "client/registerCapability", "params": {"registrations": [
+                {"id": "w1", "method": "workspace/didChangeWatchedFiles", "registerOptions": {"watchers": [{"globPattern": "**/*.foo"}]}}]}})
         send({"jsonrpc": "2.0", "id": 99, "method": "workspace/configuration", "params": {"items": [{"section": "fake"}]}})
         send({"jsonrpc": "2.0", "method": "window/logMessage", "params": {"type": 1, "message": "fake server error log"}})
     elif method == "textDocument/didOpen":
         td = msg["params"]["textDocument"]
+        docs[td["uri"]] = td["text"]
+        log("open " + td["uri"])
+        if pull:
+            continue
         diagnose(td["uri"], None if no_version else td["version"], td["text"])
         if garbage_after_open:
             sys.stdout.buffer.write(b"Not-An-LSP-Header: 1\r\n\r\n")
@@ -80,6 +124,9 @@ while True:
                 time.sleep(3600)
     elif method == "textDocument/didChange":
         td = msg["params"]["textDocument"]
+        docs[td["uri"]] = msg["params"]["contentChanges"][-1]["text"]
+        if pull:
+            continue
         diagnose(td["uri"], None if no_version else td["version"], msg["params"]["contentChanges"][-1]["text"])
     elif method == "shutdown":
         send({"jsonrpc": "2.0", "id": msg["id"], "result": None})

@@ -3503,6 +3503,29 @@ status. Configure or disable under `"lsp"` in the config file:
 An empty command removes a default; `"disabled": true` turns diagnostics
 off.
 
+#### When a server misbehaves
+
+- **Pull diagnostics.** A server that advertises `textDocument/diagnostic`
+  is asked for a file's problems directly after an edit instead of being
+  waited on for a push; if the pull fails the push wait is the fallback.
+- **Files changed by the shell.** After a `bash` call, the files git
+  reports as changed since the last look are sent to each running server
+  as `workspace/didChangeWatchedFiles`, filtered through the globs the
+  server registered (held, up to 256, until it registers any), so it does
+  not serve answers about a file a formatter or checkout rewrote.
+- **Crash restart.** A server that exits is started again on the next
+  query after a backoff (1 s, doubling), with the documents it had open
+  re-sent; three crashes in a row (a run of two minutes clears the count)
+  and it is marked unavailable for the session. Until the backoff passes
+  an edit just goes without diagnostics.
+- **Hung server.** Every request has a deadline (30 s when the caller set
+  none), is cancelled with `$/cancelRequest` when it expires, and three in
+  a row with no message of any kind from the server mark it `not
+  answering` in `/lsp`; it is then stopped and restarted like a crash.
+
+`JANETCODE_OFF=lspsupervise` turns pull diagnostics, watched-file
+notifications and hung-server restarts off (crash restart stays).
+
 #### Asking the server about the code
 
 Diagnostics say what is wrong; `symbols` asks what is *there*. It answers
