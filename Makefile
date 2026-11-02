@@ -119,23 +119,22 @@ UI_PORT ?= 18991
 UI_TOKEN := uitest-token
 CHROME ?= google-chrome
 ui-test: build
-	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode; \
+	@tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; mkdir -p $$tmp/janetcode; \
 	printf '%s' '{"provider":"stub","model":"stub/stub-model","providers":{"stub":{"type":"openai","base_url":"http://127.0.0.1:9/v1","api_key":"sk-test","models":["stub-model"]}}}' > $$tmp/janetcode/config.json; \
 	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_PORT) >/dev/null 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_PORT)/ && break; sleep 0.5; done; \
-	rm -rf /tmp/janetcode-chrome-cdp; \
-	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=/tmp/janetcode-chrome-cdp about:blank >/dev/null 2>&1 & \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
 	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/?token=$(UI_TOKEN); \
-	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp /tmp/janetcode-chrome-cdp; exit $$rc
+	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; exit $$rc
 
 # First run in a real browser: --web with no config and no key opens on
 # the connect form; a rejected key is said, a good one connects and is
 # saved. env -i keeps the developer's own API keys out of the run.
 UI_FIRSTRUN_PORT ?= 18993
 ui-firstrun: build
-	@tmp=$$(mktemp -d); \
+	@tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; \
 	env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_FIRSTRUN_PORT) </dev/null >$$tmp/server.log 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_FIRSTRUN_PORT)/ && break; sleep 0.5; done; \
@@ -150,7 +149,7 @@ ui-firstrun: build
 UI_TURN_PORT ?= 18995
 UI_TURN_MODEL_PORT ?= 18996
 ui-turn: build
-	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode $$tmp/work; \
+	@tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; mkdir -p $$tmp/janetcode $$tmp/work; \
 	printf '%s' '{"provider":"scripted","model":"scripted/turn-model","providers":{"scripted":{"type":"openai","base_url":"http://127.0.0.1:$(UI_TURN_MODEL_PORT)/v1","api_key":"sk-test","models":["turn-model"]}}}' > $$tmp/janetcode/config.json; \
 	(cd $$tmp/work && env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp XDG_STATE_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) $(CURDIR)/bin/janetcode --web --web-addr 127.0.0.1:$(UI_TURN_PORT) </dev/null >$$tmp/server.log 2>&1) & \
 	srv=$$!; \
@@ -167,7 +166,7 @@ ui-turn: build
 # make ui-visual UPDATE=1 accepts the new shots as the baseline.
 UI_VISUAL_PORT ?= 18992
 ui-visual: build
-	@tmp=$$(mktemp -d); mkdir -p $$tmp/janetcode $$tmp/shots; \
+	@tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; mkdir -p $$tmp/janetcode $$tmp/shots; \
 	printf '%s' '{"provider":"stub","model":"stub/stub-model","providers":{"stub":{"type":"openai","base_url":"http://127.0.0.1:9/v1","api_key":"sk-test","models":["stub-model"]}}}' > $$tmp/janetcode/config.json; \
 	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_VISUAL_PORT) >/dev/null 2>&1 & \
 	srv=$$!; \
@@ -182,11 +181,11 @@ ui-visual: build
 
 # Screenshot the RUNNING webui (UI_URL) into ui-shots/ for visual review.
 ui-shot:
-	@mkdir -p ui-shots; rm -rf /tmp/janetcode-chrome-cdp; \
-	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=/tmp/janetcode-chrome-cdp about:blank >/dev/null 2>&1 & \
+	@mkdir -p ui-shots; tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
 	node internal/webui/uitest/shot.mjs $(or $(UI_URL),http://127.0.0.1:8787/) ui-shots; \
-	rc=$$?; kill $$chr 2>/dev/null; wait $$chr 2>/dev/null; rm -rf /tmp/janetcode-chrome-cdp; exit $$rc
+	rc=$$?; kill $$chr 2>/dev/null; wait $$chr 2>/dev/null; exit $$rc
 
 clean:
 	rm -rf bin dist
