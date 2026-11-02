@@ -35,6 +35,9 @@ type Bash struct {
 	// Sandbox, when enabled, wraps local commands in docker or sandbox-exec.
 	// Shared with Jobs so background starts take the same wrapping.
 	Sandbox *shell.Sandbox
+	// NoIdleBound disables the idle bound on inline interpreter checks
+	// (JANETCODE_OFF=idlebound); see shell_idle.go.
+	NoIdleBound bool
 }
 
 func (Bash) Name() string { return "bash" }
@@ -123,6 +126,8 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if max == 0 {
 		max = 10 * time.Minute
 	}
+	// An inline check the call gave no timeout for is bounded by silence.
+	inline := !t.NoIdleBound && in.TimeoutMS == 0 && in.Stdin == nil && isInlineCheck(in.Command)
 	timeout := clampTimeout(in.TimeoutMS, def, max)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -151,6 +156,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	cmd.Stdout = out
 	cmd.Stderr = out
 	cmd.Stdin = nil
+	if inline && cmd.Env != nil {
+		cmd.Env = append(cmd.Env, "PYTHONUNBUFFERED=1", "NODE_DISABLE_COLORS=1")
+	}
 	// Standard input. Given text, the command reads it and then EOF.
 	// Otherwise it used to get EOF at once (a nil Stdin is /dev/null), so
 	// a program that asked a question read nothing and failed, and the
@@ -164,6 +172,8 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var pipeR *os.File
 	if in.Stdin != nil {
 		cmd.Stdin = strings.NewReader(*in.Stdin)
+	} else if inline {
+		// stdin stays /dev/null: a check that reads gets EOF at once.
 	} else if stdinWatchable() && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		if pr, pw, perr := os.Pipe(); perr == nil {
 			cmd.Stdin, pipeR = pr, pr
@@ -200,6 +210,12 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		wait <- err
 	}()
+	idleFired := make(chan struct{})
+	if inline {
+		stopIdle := make(chan struct{})
+		defer close(stopIdle)
+		go watchIdle(out, inlineIdle, killCmd, idleFired, stopIdle)
+	}
 	fg := t.Running.add(in.Command, cmd, out)
 	defer t.Running.remove(fg)
 
@@ -267,6 +283,8 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if err != nil {
 		var ee *exec.ExitError
 		switch {
+		case isClosed(idleFired):
+			return textfmt.Truncate(result + "\n" + idleMessage(in.Command)), nil
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
 			return textfmt.Truncate(result + fmt.Sprintf("\n[command timed out after %s and was killed]", timeout)), nil
 		case errors.Is(ctx.Err(), context.Canceled):
@@ -301,6 +319,15 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		t.Cache.put(cacheKey, result)
 	}
 	return result, nil
+}
+
+func isClosed(c <-chan struct{}) bool {
+	select {
+	case <-c:
+		return true
+	default:
+		return false
+	}
 }
 
 // maxCommandOutput bounds what one foreground command's output may cost
