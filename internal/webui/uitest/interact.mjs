@@ -610,6 +610,28 @@ const motion = await evaljs(`(async () => {
 })()`);
 check('a lone entry rises in, a burst does not', motion.alone && !motion.burst[0] && !motion.burst[1], JSON.stringify(motion));
 
+// The agent dashboard opens from the sidebar, lists the live session in
+// a group, shows the dispatch box, and closes with Escape.
+const dash = await evaljs(`(async () => {
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  document.getElementById('dash-btn').click();
+  await wait(700);
+  const root = document.getElementById('dashboard');
+  const out = {
+    open: !root.hidden,
+    groups: [...root.querySelectorAll('.dash-col')].map(c => c.dataset.group),
+    cards: root.querySelectorAll('.dash-card').length,
+    live: !!root.querySelector('.dash-card.cur'),
+    dispatch: !document.getElementById('dash-dispatch-form').hidden,
+    expanded: document.getElementById('dash-btn').getAttribute('aria-expanded'),
+  };
+  root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  out.closed = root.hidden;
+  return out;
+})()`);
+check('the dashboard lists sessions in three groups', dash.open && dash.groups.join() === 'awaiting,working,idle' && dash.live && dash.expanded === 'true', JSON.stringify(dash));
+check('the dashboard offers dispatch and closes on Escape', dash.dispatch && dash.closed, JSON.stringify(dash));
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));

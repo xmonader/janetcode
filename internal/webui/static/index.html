@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="/static/vendor/xterm.min.css">
 <link rel="stylesheet" href="/static/app.css">
 <link rel="stylesheet" href="/static/sessions_ui.css">
+<link rel="stylesheet" href="/static/dashboard.css">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -87,6 +88,9 @@
     <button type="button" id="new-chat" class="new-session" title="New session (Ctrl+Shift+O)">
       <span class="new-plus"><svg class="i" aria-hidden="true"><use href="#i-new"/></svg></span>
       <span class="new-session-label">New session</span>
+    </button>
+    <button type="button" id="dash-btn" class="dash-btn" aria-expanded="false" aria-controls="dashboard" title="Agent dashboard: sessions by what needs you">
+      <svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg><span>Dashboard</span>
     </button>
     <div id="current-session" class="current-session" hidden></div>
     <input id="session-filter" class="session-filter" type="search" placeholder="Search conversations" aria-label="Filter past conversations">
@@ -437,6 +441,19 @@
        a finished turn. The conversation itself streams token by token and
        is not live, or it would be read out a word at a time. -->
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+<section id="dashboard" class="dash" role="region" aria-label="Agent dashboard" hidden>
+  <div class="dash-top">
+    <h2>Agent dashboard</h2>
+    <span id="dash-note" role="status" aria-live="polite"></span>
+    <span class="spacer"></span>
+    <button type="button" id="dash-close" class="dash-close">Close</button>
+  </div>
+  <form id="dash-dispatch-form" hidden>
+    <input id="dash-prompt" type="text" autocomplete="off" aria-label="Dispatch a new prompt as a background run" placeholder="Dispatch a prompt: starts a background run in this directory">
+    <button type="submit">Dispatch</button>
+  </form>
+  <div id="dash-body"></div>
+</section>
 <script src="/static/vendor/xterm.min.js"></script>
 <script src="/static/vendor/addon-fit.min.js"></script>
 <script src="/static/vendor/highlight.min.js"></script>
@@ -452,5 +469,6 @@
 <script src="/static/extras.js"></script>
 <script src="/static/voice.js"></script>
 <script src="/static/sessions_ui.js"></script>
+<script src="/static/dashboard.js"></script>
 </body>
 </html>

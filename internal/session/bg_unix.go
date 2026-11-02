@@ -13,3 +13,7 @@ func processAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
+
+// stopProcess asks pid to end (SIGTERM, which the background run turns
+// into a clean stop).
+func stopProcess(pid int) error { return syscall.Kill(pid, syscall.SIGTERM) }

@@ -3898,6 +3898,29 @@ mode is not offered. Under ACP the editor can only choose, so text fields
 are limited to their default or left empty; with no front-end asking
 (`-p` runs) the request is declined.
 
+### The agent dashboard (web)
+
+`Dashboard` in the web sidebar opens an overlay that groups this
+directory's sessions by what they need from you: **Awaiting you** (an
+open permission prompt or question), **Working** (a turn or background
+run in flight) and **Idle**, with the last assistant message as a peek
+(refreshed every three seconds while it is open). Each card offers:
+
+- **Reply**: answers the open question (as free text), steers a running
+  turn, or sends the next prompt to the live session; for a background run
+  it answers its question, or its permission request with `allow`,
+  `session` or `deny`;
+- **Stop**: cancels the live turn, or ends a background run;
+- **Pin** (the same star the sidebar uses) and **Open** (loads the session
+  into this window);
+- the **dispatch box** starts a new background run (`--bg`, the
+  permission flags you launched with) in the working directory.
+
+`janetcode --web` serves one live session per process, so the dashboard
+can only act on that session and on background runs, which are separate
+processes it controls through their status files (`.bg.json`). Stored
+sessions at rest are listed and can be opened or pinned, not replied to.
+
 ### Custom commands
 
 Drop a prompt template at `.janetcode/commands/<name>.md` in the project (or

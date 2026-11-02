@@ -92,6 +92,7 @@ type Info struct {
 	Messages int
 	Preview  string    // first user text, trimmed
 	Updated  time.Time // last activity, from the file
+	Last     string    // the last thing the assistant said, one line, for a peek
 }
 
 // Label is the title when set, else the preview, else the id.
@@ -125,6 +126,7 @@ func List(dir, cwd string) ([]Info, error) {
 			info.Updated = st.ModTime()
 		}
 		info.Preview = preview(msgs)
+		info.Last = lastAssistant(msgs)
 		out = append(out, info)
 	}
 	// Active sessions first, most recently touched first; settled ones
@@ -165,6 +167,20 @@ func preview(msgs []llm.Message) string {
 		}
 	}
 	return fallback
+}
+
+// lastAssistant is the last thing the assistant said, as one clipped line
+// (a dashboard peek); empty when it has said nothing yet.
+func lastAssistant(msgs []llm.Message) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != llm.RoleAssistant {
+			continue
+		}
+		if t := strings.TrimSpace(msgs[i].Text()); t != "" {
+			return textfmt.FirstLine(t, 240)
+		}
+	}
+	return ""
 }
 
 // newer orders sessions newest first; ids made in the same second differ

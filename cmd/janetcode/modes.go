@@ -350,6 +350,16 @@ func (r *root) webMode() error {
 		},
 		Workspace: built.ws, CD: built.cd, MCP: mcpOpts, Skills: built.skillInjector,
 		Transcribe: transcribeFile(cfg),
+		Dispatch: func(_ context.Context, prompt string) (string, error) {
+			ns, err := session.New(r.sessDir, cwd, cfg.Provider, cfg.Model)
+			if err != nil {
+				return "", err
+			}
+			if _, err := startBackground(ns, prompt, nil, bgPermissionArgs(o)); err != nil {
+				return "", err
+			}
+			return ns.Meta.ID, nil
+		},
 		Doctor: func(ctx context.Context, w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a
 			// running session never changes files behind the user.

@@ -14,3 +14,12 @@ func processAlive(pid int) bool {
 	_ = p.Release()
 	return true
 }
+
+// stopProcess ends pid; Windows has no gentler signal to send.
+func stopProcess(pid int) error {
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return p.Kill()
+}
