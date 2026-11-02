@@ -28,16 +28,19 @@ type Settings struct {
 	Provider      llm.Provider
 	Price         *llm.Price
 	ContextWindow int
-	MaxTokens     int
-	Effort        string
-	MaxIterations int
-	CompactAt     int
-	AutoApprove   bool
-	AutoEdits     bool
-	AutoMode      bool
-	ReadOnly      bool
-	PlanMode      bool
-	ProofNotes    bool
+	// WindowOverride is the per-session context window chosen with
+	// /context-window; zero means the model's own ContextWindow.
+	WindowOverride int
+	MaxTokens      int
+	Effort         string
+	MaxIterations  int
+	CompactAt      int
+	AutoApprove    bool
+	AutoEdits      bool
+	AutoMode       bool
+	ReadOnly       bool
+	PlanMode       bool
+	ProofNotes     bool
 }
 
 // Settings is a consistent copy of the live settings, safe to take from
@@ -50,20 +53,21 @@ func (a *Agent) Settings() Settings {
 
 func (a *Agent) settingsLocked() Settings {
 	return Settings{
-		Model:         a.Model,
-		Provider:      a.Provider,
-		Price:         a.Price,
-		ContextWindow: a.ContextWindow,
-		MaxTokens:     a.MaxTokens,
-		Effort:        a.Effort,
-		MaxIterations: a.MaxIterations,
-		CompactAt:     a.CompactAt,
-		AutoApprove:   a.AutoApprove,
-		AutoEdits:     a.AutoEdits,
-		AutoMode:      a.AutoMode,
-		ReadOnly:      a.ReadOnly,
-		PlanMode:      a.PlanMode,
-		ProofNotes:    a.ProofNotes,
+		Model:          a.Model,
+		Provider:       a.Provider,
+		Price:          a.Price,
+		ContextWindow:  a.ContextWindow,
+		WindowOverride: a.WindowOverride,
+		MaxTokens:      a.MaxTokens,
+		Effort:         a.Effort,
+		MaxIterations:  a.MaxIterations,
+		CompactAt:      a.CompactAt,
+		AutoApprove:    a.AutoApprove,
+		AutoEdits:      a.AutoEdits,
+		AutoMode:       a.AutoMode,
+		ReadOnly:       a.ReadOnly,
+		PlanMode:       a.PlanMode,
+		ProofNotes:     a.ProofNotes,
 	}
 }
 
@@ -116,6 +120,7 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 	a.Provider = s.Provider
 	a.Price = s.Price
 	a.ContextWindow = s.ContextWindow
+	a.WindowOverride = s.WindowOverride
 	a.MaxTokens = s.MaxTokens
 	a.Effort = s.Effort
 	a.MaxIterations = s.MaxIterations
@@ -342,4 +347,13 @@ func (a *Agent) ModeRefusal(mode string) error {
 		return a.Policy.Refusal("/" + mode)
 	}
 	return nil
+}
+
+// EffectiveWindow is the context window the session works to: the
+// per-session choice when there is one, else the model's own.
+func (s Settings) EffectiveWindow() int {
+	if s.WindowOverride > 0 {
+		return s.WindowOverride
+	}
+	return s.ContextWindow
 }

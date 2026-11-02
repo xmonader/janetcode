@@ -92,6 +92,10 @@ type Options struct {
 	// Transcribe turns a recording the page made into text (the voice
 	// button). Nil hides the button.
 	Transcribe func(ctx context.Context, audioPath string) (string, error)
+	// Dispatch starts a new background session for prompt in the working
+	// directory and returns its id: the dashboard's dispatch box. Nil
+	// hides the box.
+	Dispatch func(ctx context.Context, prompt string) (string, error)
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -523,6 +527,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/connect", s.connectAPI)
 	mux.HandleFunc("/api/inspect", s.inspectAPI)
 	mux.HandleFunc("/api/sessions", s.sessionsAPI)
+	mux.HandleFunc("/api/dashboard", s.dashboardAPI)
+	mux.HandleFunc("/api/dashboard/", s.dashboardOp)
 	mux.HandleFunc("/api/session/", s.sessionOp)
 	mux.HandleFunc("/api/workspace/check", s.workspaceCheck)
 	mux.HandleFunc("/api/workspace/apply", s.workspaceApply)

@@ -166,6 +166,48 @@ await shot('05-permission');
 await evaljs(`(() => { document.getElementById('ask').hidden = true; window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', ctx_pct: 36, status: 'done in 21s' } }) }); return 1; })()`);
 await sleep(300);
 
+// MCP elicitation form: one field of a server's form as a question card
+await evaljs(`(() => {
+  const send = (env) => window.__es.onmessage({ data: JSON.stringify(env) });
+  send({ type: 'status', status: { running: true, phase: 'tool', ctx_pct: 36, mode: 'ask', status: 'waiting for your answer' } });
+  send({ type: 'question', questions: [
+    { id: 'region', intent: 'elicitation', prompt: 'Deploy region (required)', detail: 'deploy-server: Pick where the staging build goes\\nThe region the build is deployed to.', options: [
+      { label: 'EU West', description: 'eu-west-1' }, { label: 'US East', description: 'us-east-1' },
+      { label: 'Decline request', description: 'send nothing, refuse' }, { label: 'Cancel request', description: 'dismiss without answering' } ] },
+    { id: 'notes', intent: 'elicitation', prompt: 'Notes', detail: 'at most 200 characters\\nchoose Other and type the value', options: [
+      { label: '(leave empty)', description: 'optional' }, { label: 'Decline request' }, { label: 'Cancel request' } ] },
+  ] });
+  return 1;
+})()`);
+await sleep(500);
+await shot('05b-elicitation');
+await evaljs(`(() => { const send = (env) => window.__es.onmessage({ data: JSON.stringify(env) }); send({ type: 'question' }); send({ type: 'status', status: { running: false, mode: 'ask', ctx_pct: 36, status: 'done in 21s' } }); return 1; })()`);
+await sleep(300);
+
+// the agent dashboard, from a fixed listing
+await evaljs(`(() => {
+  const ago = (m) => new Date(Date.now() - m * 60000).toISOString();
+  const data = { dispatch: true, groups: {
+    awaiting: [
+      { id: 'a1', title: 'Migrate the billing tables', kind: 'bg', waiting: 'Which database should the migration target?', updated: ago(4), pinned: true, canReply: true, canStop: true },
+      { id: 'a2', title: 'Review the auth middleware', kind: 'bg', waiting: 'bash go test ./auth/...', updated: ago(11), canReply: true, canStop: true } ],
+    working: [
+      { id: 'w1', title: 'Fix the flaky scheduler test', kind: 'live', current: true, last: 'Running the suite 20 times to see whether the race reproduces.', updated: ago(1), canReply: true, canStop: true },
+      { id: 'w2', title: 'Upgrade the Go toolchain', kind: 'bg', last: 'Bumped go.mod to 1.24 and the CI image.', updated: ago(7), canStop: true } ],
+    idle: [
+      { id: 'i1', title: 'Explain the repo map ranking', kind: 'stored', last: 'The ranking weights files by how many symbols other files reference.', updated: ago(190) },
+      { id: 'i2', title: 'Add retries to the uploader', kind: 'stored', last: 'Done: three attempts with jittered backoff, covered by two table tests.', updated: ago(1500), pinned: true } ] } };
+  window.__dash = data;
+  const rf = window.fetch;
+  window.fetch = (url, opts) => String(url).startsWith('/api/dashboard') && !opts ? Promise.resolve(new Response(JSON.stringify(window.__dash), { headers: { 'Content-Type': 'application/json' } })) : rf(url, opts);
+  window.janetDashboard.open();
+  return 1;
+})()`);
+await sleep(600);
+await shot('05c-dashboard');
+await evaljs(`window.janetDashboard.close(); 1`);
+await sleep(200);
+
 // sheets and views: settings, help, palette, trajectory
 const hideAll = `['settings','help','palette'].forEach(id => document.getElementById(id).hidden = true)`;
 await evaljs(`document.getElementById('settings-btn').click(); 1`);

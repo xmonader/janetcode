@@ -1204,9 +1204,9 @@ func (a *Agent) CompactThreshold() int {
 		return 0
 	case s.CompactAt > 0:
 		return s.CompactAt
-	case s.ContextWindow > 0:
-		t := s.ContextWindow * 3 / 4
-		if t > MaxAutoCompactAt {
+	case s.EffectiveWindow() > 0:
+		t := s.EffectiveWindow() * 3 / 4
+		if s.WindowOverride == 0 && t > MaxAutoCompactAt {
 			t = MaxAutoCompactAt
 		}
 		if t < 8_000 {

@@ -47,6 +47,7 @@ type options struct {
 	// died in (docs/notes/durable-turns.md).
 	recoverTurn  bool
 	resumeR      string
+	wtShort      string
 	autoEdits    bool
 	evalPath     string
 	evalJobs     int
@@ -149,7 +150,7 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "add-dir", "theme", "plain", "screen-reader"}},
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "w", "add-dir", "theme", "plain", "screen-reader"}},
 	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "core-tools", "exclude-tools", "safe-mode", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version", "debug", "list-models"}},
@@ -285,6 +286,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.dryRun, "dry-run", false, "dry run: the model plans and edits a preview, and commands that change things are recorded instead of run; nothing reaches the disk until /dryrun apply. With -p the preview (diffs, commands not run) is printed at the end, and is the dry_run field of --output-format json")
 	fs.BoolVar(&o.continueC, "c", false, "short for --continue")
 	fs.StringVar(&o.resumeR, "r", "", "short for --resume <id>")
+	fs.StringVar(&o.wtShort, "w", "", "short for --worktree <name>")
 	fs.BoolVar(&o.autoEdits, "auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
 	fs.StringVar(&o.evalPath, "eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
 	fs.IntVar(&o.evalJobs, "eval-jobs", 2, "eval tasks to run at once")

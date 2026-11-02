@@ -80,7 +80,7 @@ ctrl+x ctrl+e    write the prompt in $VISUAL / $EDITOR
 `ctrl+r` searches the prompt history backwards the way a shell does. The
 history is the one up and down step through: every prompt typed in this
 directory, in this session and the earlier ones. Each character you type
-narrows the search and the newest match is put in the composer as you
+narrows the search (a substring, or else the letters in order: `ftlb` finds "fix the login bug") and the newest match is put in the composer as you
 go; `ctrl+r` again steps to an older match, skipping ones that read the
 same. The status line shows `(reverse-i-search)`query'`, and says
 `failing` when nothing matches. `enter` keeps the match in the composer —
@@ -548,6 +548,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
 /cua [on|off|doctor]  (start Cua Driver as an MCP desktop server)
+/context-window [size|default]  (this session's context window: 200k, 1m; compaction runs at three quarters of it)
 /effort [tier|up|down]  (how hard the model thinks: low, medium, high, xhigh, max)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /perf      (where the wall clock went: the model, the tools, waiting on you, the harness itself)
@@ -620,6 +621,16 @@ models take a reasoning tier today: with another provider the setting is
 remembered, `/effort` says it is not being sent, and nothing else changes.
 A session above the default shows its tier next to the mode on the status
 line, so `max` is never a surprise at the end of the month.
+
+`/context-window 1m` chooses the context window for this session only
+(`200k`, `1.5m` or a plain token count; `default` goes back to the
+model's own; alone it reports it). Automatic compaction then runs at
+three quarters of the chosen window instead of the model table's
+(without the 200k cap the table's window gets), and the context meter in
+the status line and the web composer counts against it. It survives
+`/model` switches, is never written to the config file, and is not
+checked against the provider: a window larger than the model accepts
+only fails at the provider. `compact_at` in the config still wins.
 
 Safety rules that apply in every mode, including `--yolo`: commands that
 would destroy the machine (deleting `/` or the home directory, formatting,
@@ -1710,6 +1721,21 @@ janetcode --worktree try/new-parser
 # worktree: branch try/new-parser has 3 commits
 # merge it with: git merge try/new-parser
 ```
+
+`-w <name>` is the short spelling of `--worktree <name>`. Inside a session,
+`/worktree` manages the same checkouts:
+
+```
+/worktree new try/parser       make (or reuse) the worktree and move the session into it
+/worktree list                 every managed worktree: * marks the one you are in,
+                               with "uncommitted changes" and "N commit(s) ahead"
+/worktree remove try/parser    delete the checkout; the branch is kept
+/worktree remove try/parser --force   discard a checkout that has uncommitted changes
+```
+
+`remove` refuses a checkout with uncommitted changes unless `--force` is
+given, refuses the one the session is working in, and never deletes the
+branch, so committed work is not lost. It works in the web UI too.
 
 ### Sending a job to another model
 
@@ -3901,6 +3927,54 @@ when the server marked the tool read-only or idempotent. Otherwise the
 model is told that the call may or may not have taken effect and that it
 was not repeated: a lost reply says nothing about whether the server
 created the issue or sent the message.
+
+#### MCP elicitation: a server asking you for input
+
+A server can stop a tool call to ask you for structured input
+(`elicitation/create`, form mode). janetcode advertises the capability and
+shows the form through the same question UI the `ask` tool uses: the
+terminal overlay, the web question card, or, under `--acp`, permission
+prompts in the editor. Each field of the server's schema is one question:
+
+- enums and `oneOf` lists are choices; booleans are Yes/No; strings,
+  numbers and integers are typed with **Other** (a default is offered as
+  a choice, and an optional field has **(leave empty)**);
+- arrays of enums are typed as a comma-separated list of the labels;
+- every value is checked against the schema (type, min/max, length,
+  `email`, `uri`, `date`, `date-time`, choices) and a rejected field is
+  asked again with the reason, twice at most, then the request is
+  cancelled;
+- **Decline request** answers `decline` (you refuse), **Cancel request**
+  or dismissing the card answers `cancel`; a form is accepted only when
+  every field passes. Nothing answered within five minutes cancels it.
+
+Forms are limited to 32 flat fields and 64 KiB, as the spec intends. URL
+mode is not offered. Under ACP the editor can only choose, so text fields
+are limited to their default or left empty; with no front-end asking
+(`-p` runs) the request is declined.
+
+### The agent dashboard (web)
+
+`Dashboard` in the web sidebar opens an overlay that groups this
+directory's sessions by what they need from you: **Awaiting you** (an
+open permission prompt or question), **Working** (a turn or background
+run in flight) and **Idle**, with the last assistant message as a peek
+(refreshed every three seconds while it is open). Each card offers:
+
+- **Reply**: answers the open question (as free text), steers a running
+  turn, or sends the next prompt to the live session; for a background run
+  it answers its question, or its permission request with `allow`,
+  `session` or `deny`;
+- **Stop**: cancels the live turn, or ends a background run;
+- **Pin** (the same star the sidebar uses) and **Open** (loads the session
+  into this window);
+- the **dispatch box** starts a new background run (`--bg`, the
+  permission flags you launched with) in the working directory.
+
+`janetcode --web` serves one live session per process, so the dashboard
+can only act on that session and on background runs, which are separate
+processes it controls through their status files (`.bg.json`). Stored
+sessions at rest are listed and can be opened or pinned, not replied to.
 
 ### Custom commands
 

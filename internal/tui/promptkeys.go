@@ -65,13 +65,34 @@ func (m *model) searchFrom(from int) {
 		if text == current && from <= s.idx {
 			continue
 		}
-		if strings.Contains(strings.ToLower(text), q) {
+		if fuzzyMatch(strings.ToLower(text), q) {
 			s.idx, s.fail = i, false
 			m.setInput(text)
 			return
 		}
 	}
 	s.fail = true
+}
+
+// fuzzyMatch reports whether q is a substring of text, or else its
+// characters appear in text in order (a subsequence), as grok's fuzzy
+// history search does. Both arguments are already lower-cased.
+func fuzzyMatch(text, q string) bool {
+	if strings.Contains(text, q) {
+		return true
+	}
+	t := []rune(text)
+	i := 0
+	for _, r := range q {
+		for i < len(t) && t[i] != r {
+			i++
+		}
+		if i == len(t) {
+			return false
+		}
+		i++
+	}
+	return true
 }
 
 // handleSearchKey reads the keyboard while the search is open.

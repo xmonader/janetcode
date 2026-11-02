@@ -261,3 +261,20 @@ func readPID(path string) int {
 	}
 	return pid
 }
+
+// StopBg ends the background run of the session file at sessionPath. It
+// refuses a run that is not running or waiting, and one that left no pid.
+func StopBg(sessionPath string) error {
+	st, ok, err := ReadBgStatus(sessionPath)
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return errors.New("not a background run")
+	case st.State != BgRunning && st.State != BgWaiting:
+		return fmt.Errorf("the run is %s, not running", st.State)
+	case st.PID <= 0:
+		return errors.New("the run did not say which process it is")
+	}
+	return stopProcess(st.PID)
+}

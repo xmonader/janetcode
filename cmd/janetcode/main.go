@@ -136,7 +136,7 @@ func wrapUsage(usage string, width int, indent string) string {
 // reads as an instruction where "--resume string" reads as a type.
 var argNames = map[string]string{
 	"model": "id", "provider": "name", "effort": "level", "r": "id", "resume": "id",
-	"web-addr": "host:port", "worktree": "branch", "add-dir": "dir", "theme": "name",
+	"web-addr": "host:port", "worktree": "branch", "w": "name", "add-dir": "dir", "theme": "name",
 	"p": "prompt", "output-format": "format", "until": "command", "watch": "command",
 	"allow": "rules", "deny": "rules", "ask": "rules", "mcp-auth": "server", "append-system-prompt": "text",
 	"off": "names", "prompt": "text", "recipe": "name", "replay": "session",
@@ -329,6 +329,9 @@ func (s *startup) stageFlags() (bool, error) {
 	}
 	if s.opts.continueC {
 		s.opts.cont = true
+	}
+	if s.opts.wtShort != "" && s.opts.wtBranch == "" {
+		s.opts.wtBranch = s.opts.wtShort
 	}
 	if s.opts.resumeR != "" {
 		s.opts.resume = s.opts.resumeR

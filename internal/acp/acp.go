@@ -78,10 +78,13 @@ type Server struct {
 	// mu guards sessions and client.
 	mu       sync.Mutex
 	sessions map[string]*acpSession
+	nextSeq  int
 	client   implInfo
 }
 
 type acpSession struct {
+	// seq orders sessions by creation, for askSession.
+	seq   int
 	id    string
 	cwd   string
 	agent TurnRunner
@@ -285,6 +288,8 @@ func (s *Server) open(cwd, resume string, servers map[string]mcp.ServerConfig) (
 	as := &acpSession{id: id, cwd: cwd, agent: ag, sess: sess, turn: make(chan struct{}, 1), cancelled: make(chan struct{})}
 	ag.SetApprover(&approver{s: s, as: as})
 	s.mu.Lock()
+	s.nextSeq++
+	as.seq = s.nextSeq
 	s.sessions[id] = as
 	s.mu.Unlock()
 	s.logf("session %s in %s", id, cwd)

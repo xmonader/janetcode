@@ -70,6 +70,7 @@ var Commands = withIdle([]Command{
 	{Name: "/goal", Args: "[objective|rounds=N objective|rounds N|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete, blocked, or out of rounds (8 by default; rounds=N sets the budget, rounds N gives a stopped goal more)"},
 	{Name: "/agents", Args: "[id|new <brief>|fork <brief>|cancel <id>|steer <id> <note>]", Help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript; new starts a general subagent, fork inherits this conversation, cancel stops a running one, steer injects a note before its next model call"},
 	{Name: "/personas", Args: "", Help: "subagent personas: behavioural overlays (tone, output format, contract) the task tool applies with persona: <name>; lists them with where each came from"},
+	{Name: "/worktree", Args: "new <name> | list | remove <name> [--force]", Help: "managed git worktrees: new makes one (or reuses it) on a branch under .git and moves the session there; list shows them with dirty/ahead state; remove deletes the checkout but keeps the branch, and refuses one with uncommitted changes unless --force"},
 	{Name: "/cd", Args: "[path]", Help: "move this session's working directory without restarting; no argument says where it is"},
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},
@@ -101,6 +102,7 @@ var Commands = withIdle([]Command{
 	{Name: "/connect", Args: "", Help: "connect to a provider (preset or custom API) and pick a model"},
 	{Name: "/model", Args: "[name | cheap|strong|advisor|vision [name|off]]", Help: "pick a model from a list, or set one by name; a slot name picks the model that slot uses, and an unset slot is the session's own"},
 	{Name: "/routing", Args: "", Help: "toggle step routing for this session: while off, every model call goes to the session's own model"},
+	{Name: "/context-window", Args: "[size|default]", Help: "choose the context window for this session (200k, 1m): compaction runs at three quarters of it and the context meter counts against it; alone it reports the window; default goes back to the model's own"},
 	{Name: "/effort", Args: "[tier|up|down]", Help: "how hard the model thinks: low, medium, high, xhigh, max (Anthropic models); alone reports the tier and whether the provider takes one; up and down step it", KeyHelp: "; alt+e cycles it (the keybindings config key can move it)"},
 	{Name: "/usage", Args: "", Help: "tokens and cost for this session"},
 	{Name: "/budget", Args: "[usd|off]", Help: "stop the session once it has spent this much; alone says what the ceiling is and what is left"},
@@ -126,7 +128,7 @@ var Commands = withIdle([]Command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/recover", "/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe", "/commit", "/pr", "/pr-comments", "/issue"}
+var idleOnly = []string{"/recover", "/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/worktree", "/ssh", "/docker", "/eval", "/recipe", "/commit", "/pr", "/pr-comments", "/issue"}
 
 // withIdle sets Idle on every command idleOnly names. It runs as part of
 // initialising Commands, so no reader ever sees the table without it.

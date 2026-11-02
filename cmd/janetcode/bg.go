@@ -37,8 +37,20 @@ func (s *stringList) Set(v string) error {
 // attach is --resume of the same id. A call the child's mode still asks about waits for
 // janetcode --answer (see headless.InboxApprover).
 func launchBackground(sess *session.Session, prompt string, extra []string, perms []string) error {
-	if err := sess.EnsureWritten(); err != nil {
+	pid, err := startBackground(sess, prompt, extra, perms)
+	if err != nil {
 		return err
+	}
+	fmt.Println(sess.Meta.ID)
+	fmt.Fprintf(os.Stderr, "background session %s (pid %d)\nreopen with: janetcode --resume %s\n", sess.Meta.ID, pid, sess.Meta.ID)
+	return nil
+}
+
+// startBackground is launchBackground without the report: it returns the
+// child's pid. The web dashboard's dispatch box uses it.
+func startBackground(sess *session.Session, prompt string, extra []string, perms []string) (int, error) {
+	if err := sess.EnsureWritten(); err != nil {
+		return 0, err
 	}
 	exe, err := os.Executable()
 	if err != nil {
@@ -53,7 +65,7 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 	logPath := strings.TrimSuffix(sess.Path(), ".jsonl") + ".bg.log"
 	log, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	cmd.Stdout = log
 	cmd.Stderr = log
@@ -71,15 +83,13 @@ func launchBackground(sess *session.Session, prompt string, extra []string, perm
 	if err := cmd.Start(); err != nil {
 		log.Close()
 		_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgFailed, Started: started, Ended: time.Now(), Detail: err.Error()})
-		return fmt.Errorf("background: %w", err)
+		return 0, fmt.Errorf("background: %w", err)
 	}
 	pid := cmd.Process.Pid
 	_ = sess.WritePID(pid)
 	_ = cmd.Process.Release()
 	_ = log.Close()
-	fmt.Println(sess.Meta.ID)
-	fmt.Fprintf(os.Stderr, "background session %s (pid %d)\nreopen with: janetcode --resume %s\n", sess.Meta.ID, pid, sess.Meta.ID)
-	return nil
+	return pid, nil
 }
 
 func backgroundChildArgs(id, prompt string, extra, perms []string) []string {

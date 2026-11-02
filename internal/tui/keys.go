@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/slash"
 	"strings"
 	"time"
 
@@ -665,6 +666,11 @@ func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
 // made "explain @README.md" take two presses to send.
 func completed(v, name string) bool {
 	if strings.TrimSpace(v) == name {
+		return true
+	}
+	// An alias typed in full (/new for /clear) is already a command: the
+	// fuzzy menu must not swap it for whatever happens to match first.
+	if t := strings.TrimSpace(v); strings.HasPrefix(t, "/") && slash.Canonical(t) != t {
 		return true
 	}
 	_, start, _, ok := prompt.MentionAtEnd(v)

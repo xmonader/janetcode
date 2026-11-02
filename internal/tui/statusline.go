@@ -73,7 +73,7 @@ func (m *model) statusLineInput() statusline.Input {
 	if m.branch != "" && m.branch != "git" {
 		in.Git = &statusline.Git{Branch: m.branch}
 	}
-	in.ContextWindow.SetUsage(m.tokensInUse(), s.ContextWindow)
+	in.ContextWindow.SetUsage(m.tokensInUse(), s.EffectiveWindow())
 	in.ContextWindow.TotalInputTokens = u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
 	in.ContextWindow.TotalOutputTokens = u.OutputTokens
 	if usd, _, _, known := ag.SessionCost(); known {

@@ -177,9 +177,9 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"everyday", []string{"/help", "/connect", "/model", "/effort", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/compact-fast", "/clear", "/resume", "/settle", "/quit", "/recover"}},
+	{"everyday", []string{"/help", "/connect", "/model", "/effort", "/context-window", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/compact-fast", "/clear", "/resume", "/settle", "/quit", "/recover"}},
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/tour", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/perf", "/context", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/checkpoints"}},
-	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/personas", "/jobs", "/cd", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/recap", "/import-claude", "/vim", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor", "/dryrun", "/voice"}},
+	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/personas", "/jobs", "/cd", "/worktree", "/ssh", "/docker", "/sandbox", "/loop", "/add-dir", "/btw", "/recap", "/import-claude", "/vim", "/copy", "/budget", "/routing", "/theme", "/config", "/doctor", "/dryrun", "/voice"}},
 	{"the project", []string{"/init", "/memory", "/remember", "/forget", "/dream", "/flush", "/sleep", "/skills", "/curator", "/verify", "/accept", "/rules", "/eval", "/recipe", "/proof", "/permissions", "/hooks", "/mcp", "/cua", "/lsp", "/trust", "/egress", "/plugin"}},
 	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints", "/followup", "/features", "/jev"}},
 }
@@ -201,7 +201,7 @@ func (m *model) keysHelpText() string {
 		sb.WriteString("  yours: " + strings.Join(names, ", ") + " (moved from the defaults by your config)\n")
 	}
 	sb.WriteString("permission prompt: y allow once · a this session · r save a rule · n deny · esc deny · c cancel the turn\n")
-	sb.WriteString("reverse search (" + m.keys.Label(keymap.HistorySearch) + "): type to narrow · again for an older match · enter keeps it · esc puts back what you had\n")
+	sb.WriteString("reverse search (" + m.keys.Label(keymap.HistorySearch) + "): type to narrow (fuzzy) · again for an older match · enter keeps it · esc puts back what you had\n")
 	sb.WriteString("vim mode (/vim, vim_mode): esc normal · h j k l w b e 0 ^ $ gg G move · x dd dw cw ciw diw D C p u edit · i a I A o O insert")
 	return sb.String()
 }
