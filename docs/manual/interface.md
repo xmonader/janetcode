@@ -1313,6 +1313,20 @@ their own for a project nobody has chosen a level for. Every change of
 level is written to the session log with the project and the files it
 affects.
 
+A project's `.envrc` is a file that runs, so it follows `full` too. With
+the level set, janetcode loads it at start and after `/cd` (not mid-session
+after `/trust full`): `direnv export json` when direnv is installed (a
+refusal by direnv means no environment, never a bash re-run), else bash
+with direnv's helpers (`PATH_add`, `source_env`, `layout`, ...) stubbed. The
+variables it sets or changes reach the bash tool, hooks and verification.
+Every wait is bounded: 10 s for the evaluation (`JANETCODE_ENVRC_TIMEOUT_SECS`,
+0 disables), a 4 MiB output cap, and a result cut short is discarded whole.
+Loader and interpreter hooks (`LD_PRELOAD`, `LD_*`, `DYLD_*`, `BASH_ENV`,
+`PROMPT_COMMAND`, `GIT_EXTERNAL_DIFF`, `NODE_OPTIONS`, ...) and janetcode's
+own credentials are refused, named on stderr and never set;
+`"envrc": false` turns the loader off. Editing `.envrc` from the model asks
+for permission whatever the mode.
+
 Trust never approves a tool call: a trusted project's hook or MCP tool
 runs, but a write or a command still asks as your permission mode says.
 `JANETCODE.md`, `AGENTS.md` and `CLAUDE.md` are read at every level, as

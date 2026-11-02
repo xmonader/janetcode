@@ -90,6 +90,7 @@ var nonUTF8Locales = map[string]bool{"C": true, "POSIX": true}
 // agent's credentials, with a C/POSIX LC_ALL replaced by a UTF-8 LC_CTYPE,
 // and with the non-interactive settings forced.
 func ScrubEnv(env []string) []string {
+	env = overlayEnv(env)
 	out := make([]string, 0, len(env)+len(nonInteractiveEnv))
 	forced := map[string]bool{}
 	for _, kv := range nonInteractiveEnv {

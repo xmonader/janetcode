@@ -34,6 +34,7 @@ var setters = map[string]setter{
 	"lean_tools":    boolPtr(func(c *Config) **bool { return &c.LeanTools_ }),
 	"intent":        boolPtr(func(c *Config) **bool { return &c.Intent }),
 	"hints":         boolPtr(func(c *Config) **bool { return &c.Hints }),
+	"envrc":         boolPtr(func(c *Config) **bool { return &c.Envrc }),
 	"followup":      boolPtr(func(c *Config) **bool { return &c.Followup }),
 	"computer_use":  boolPtr(func(c *Config) **bool { return &c.ComputerUse }),
 	"memory":        boolPtr(func(c *Config) **bool { return &c.Memory }),

@@ -98,6 +98,7 @@ var capabilitySpec = []struct {
 	{"rules", ".janetcode/rules", false, true},
 	{"rules", ".claude/rules", false, true},
 	{"hooks", ".janetcode/hooks.json", true, false},
+	{"envrc", ".envrc", true, false},
 	{"MCP servers", ".mcp.json", true, false},
 	{"verify commands", ".janetcode/verify.json", true, false},
 	{"allow rules", ".janetcode/permissions.json", true, false},

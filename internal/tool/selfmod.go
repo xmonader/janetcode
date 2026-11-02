@@ -55,6 +55,9 @@ func selfPathAs(root, abs string) string {
 		if under(abs, filepath.Join(root, ".mcp.json")) {
 			return "the project's MCP server list"
 		}
+		if under(abs, filepath.Join(root, ".envrc")) {
+			return "the project's .envrc (it runs as the environment of every command)"
+		}
 		if under(abs, filepath.Join(root, ".janetcode")) {
 			return "janetcode's project settings (hooks, permission rules, verification, rules, skills and commands)"
 		}

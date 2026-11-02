@@ -193,6 +193,9 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 		}
 		return "", nil
 	})
+	cd.Add("environment (.envrc)", func(dir string) (string, error) {
+		return r.loadEnvrc(dir), nil
+	})
 	cd.Add("verification", func(dir string) (string, error) {
 		cfg, hash, err := verify.Load(dir)
 		if err != nil {
