@@ -2525,7 +2525,10 @@ html[data-density="compact"] .you .bubble { padding: 0.4rem 0.85rem; }
   max-width: 220px;
 }
 .cb-pick .model-btn:hover { background: color-mix(in srgb, var(--surface-2) 70%, var(--line-strong)); }
-.cb-pick .model-group .effort-chip { height: 28px; border-color: transparent; background: var(--surface-2); }
+.cb-pick .model-group { gap: 6px; }
+.cb-pick .model-group .model-btn { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+.cb-pick .model-group .effort-chip { height: 28px; border: 0.5px solid var(--line-strong); border-radius: 8px; background: transparent; }
+.cb-pick .model-group .effort-chip:hover { background: var(--surface-2); }
 .cb-pick #mode-chip { margin-left: 0; height: 28px; background: transparent; color: var(--mute); border: 0.5px solid var(--line-strong); }
 .cb-pick #mode-chip:hover { background: var(--surface-2); }
 .cb-pick #mode-chip[data-mode="YOLO"] { color: var(--bad); border-color: var(--bad-border); }
