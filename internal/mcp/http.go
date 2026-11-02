@@ -37,6 +37,7 @@ type httpTransport struct {
 	authMeta string
 
 	mu        sync.Mutex
+	tokenFile string // resolved token_file path, read per request
 	sessionID string // Streamable HTTP session
 	endpoint  string // legacy SSE POST endpoint
 	lastHint  string
@@ -56,6 +57,17 @@ func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTra
 	headers := map[string]string{}
 	for k, v := range cfg.Headers {
 		headers[k] = os.ExpandEnv(v)
+	}
+	tokenFile := ""
+	if cfg.TokenFile != "" {
+		if tokenFile, err = resolveTokenPath(cfg.TokenFile); err != nil {
+			return nil, err
+		}
+		for k := range headers {
+			if strings.EqualFold(k, "Authorization") {
+				delete(headers, k)
+			}
+		}
 	}
 	mode := strings.ToLower(cfg.Type)
 	if mode != "http" && mode != "sse" {
@@ -77,13 +89,14 @@ func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTra
 	// blocks is refused before the arguments leave.
 	client.Transport = egress.Transport(client.Transport, egress.KindMCP)
 	return &httpTransport{
-		c:       c,
-		client:  client,
-		url:     cfg.URL,
-		headers: headers,
-		mode:    mode,
-		tokens:  tokens,
-		closed:  make(chan struct{}),
+		c:         c,
+		client:    client,
+		url:       cfg.URL,
+		headers:   headers,
+		tokenFile: tokenFile,
+		mode:      mode,
+		tokens:    tokens,
+		closed:    make(chan struct{}),
 	}, nil
 }
 
@@ -91,7 +104,7 @@ func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTra
 // expired (or when force is set after a 401). An explicit Authorization
 // header in the config wins.
 func (t *httpTransport) bearer(ctx context.Context, force bool) (string, error) {
-	if t.tokens == nil {
+	if t.tokens == nil || t.tokenFile != "" {
 		return "", nil
 	}
 	for k := range t.headers {
@@ -265,7 +278,13 @@ func (t *httpTransport) newRequest(ctx context.Context, method, target string, b
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}
-	if tok, err := t.bearer(ctx, false); err != nil {
+	if t.tokenFile != "" {
+		tok, err := readTokenFile(t.tokenFile)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+	} else if tok, err := t.bearer(ctx, false); err != nil {
 		return nil, err
 	} else if tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)

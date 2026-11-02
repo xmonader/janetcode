@@ -3642,6 +3642,24 @@ Token replies are read leniently: `"scope": ""` and `null` fields count as
 absent, and `expires_in` may be a number or a string. A reply that names
 no scope granted the scope asked for.
 
+#### A token another process keeps fresh
+
+A remote server whose credential is rotated by a helper, sidecar or cron job
+takes `"token_file"`: an absolute path (or `~/...`, `${VAR}` allowed) to a
+file holding the bearer token. It is read again for every request, so a new
+token takes effect on the next call without a reconnect, and it replaces an
+`Authorization` header and skips OAuth:
+
+```json
+{"mcpServers": {"internal": {"url": "https://mcp.internal.example/mcp",
+  "token_file": "~/.config/internal/token"}}}
+```
+
+A request fails, naming the path and never the contents, when the file is
+missing, empty, over 16 KiB, or holds anything that is not a header-safe
+token (a key file or a document is refused rather than sent). Replace the
+file by writing a sibling and renaming it over the old one.
+
 #### When a server goes away
 
 A stdio server whose process exits, or a remote one that stops
