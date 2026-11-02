@@ -554,3 +554,47 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-facts <n>` | after each run that compacted, probe up to n facts mined from what compaction removed and record how many the model still recalls |
 | `--eval-facts-blind` | probe without `expand_output`: what the compacted context alone retains |
 | `--eval-train` | fit the trajectory critic on the runs recorded so far |
+
+## Cross-agent benchmark (`effbench`)
+
+`cmd/effbench` is a Go port of hero_agent's effbench: several coding agents
+run the same `evals/*.json` tasks, graded by the tasks' own `check` and
+held-out tests, while every model request goes through one metering proxy.
+
+```
+go build -o bin/effbench ./cmd/effbench
+bin/effbench selftest                       # whole pipeline against a fake upstream; no network
+bin/effbench run --model M --arms janetcode,aider --dry-run   # plan + which binaries are installed
+AIBROKER_AI02_API_KEY=... bin/effbench run --campaign c1 --model M \
+    --arms janetcode,aider,opencode,codex,claude,pi --seeds 2 --only 03,12,21
+bin/effbench report evals/effbench/c1 --ref-arm janetcode -o report.md
+```
+
+Live runs use the ai02 broker only: `AIBROKER_AI02_API_KEY` (required) and
+`AIBROKER_AI02_BASE_URL` (default `https://api.ai02.ourhero.ai`). An
+OpenRouter URL is refused. The proxy holds the key; each agent gets a dummy
+one, a private `HOME` and a scrubbed environment, so it cannot find another
+provider.
+
+- **Proxy** (`internal/effbench`): pass-through for OpenAI-style
+  (`/v1/chat/completions`) and Anthropic-style (`/v1/messages`) requests,
+  streamed or not. It never swaps the model. Per request it writes to
+  `<out>/<campaign>/<arm>/<task>-s<seed>/meter.jsonl`: input, cached, fresh
+  input, output tokens, latency, time to first byte, decode tok/s, the model
+  asked for and the model the response says served it. A served model of a
+  different vendor (same check as `/eval`'s provenance) sets `mismatch`; the
+  report flags the row MISMATCH, as it is not a result for the model named.
+  For streamed OpenAI requests it adds `stream_options.include_usage`.
+- **Adj. time**: wall - decode time + output tokens / common decode speed.
+  The common speed is `--ref-tps`, else the pooled speed of `--ref-arm`,
+  else of all arms in that model's section, so runs from different days
+  compare on what the agent did.
+- **Adapters**: `Builtin()` in `internal/effbench/adapters.go` gives argv,
+  env and config files per agent, with `{base_url} {model} {prompt} {key}
+  {ws} {home}` placeholders. `--adapters file.json` (array of the same
+  fields) adds or overrides. janetcode's adapter is the tested one; aider,
+  opencode, codex, claude and pi are templates written from their docs and
+  not yet run. A binary that is not on PATH is skipped, not a failure.
+- **Tasks**: single-prompt tasks only; session and repo/patch tasks are
+  skipped (use `--eval` for those). The agent's stdout is `$EVAL_OUTPUT`.
+- Output lives under `evals/effbench/` (gitignored).
