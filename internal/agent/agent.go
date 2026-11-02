@@ -826,7 +826,10 @@ func (a *Agent) callStep(ctx context.Context, compactAt *int, emit func(Event)) 
 		*compactAt = w * 3 / 4
 		a.UpdateSettings(func(s *Settings) { s.CompactAt = *compactAt })
 	}
-	if cerr := a.Compact(ctx, emit); cerr != nil && !errors.Is(cerr, ErrNothingToCompact) {
+	a.pl.overflow = true
+	cerr := a.Compact(ctx, emit)
+	a.pl.overflow = false
+	if cerr != nil && !errors.Is(cerr, ErrNothingToCompact) {
 		return nil, fmt.Errorf("%w (compaction also failed: %v)", err, cerr)
 	}
 	return a.call(ctx, emit)

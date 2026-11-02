@@ -349,6 +349,14 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 	midTurn := len(tail) == 0 && history[len(history)-1].Role == llm.RoleUser // ends with tool results
 
 	typed := !a.Off["working"]
+	if !force && trigger == "auto" && !a.Off["compactskip"] && !a.pl.overflow && !(typed && !a.Off["richskip"] && a.working.rich(head)) &&
+		!a.summaryWouldShrink(before, head, false) {
+		if !a.pl.skipSaid {
+			a.pl.skipSaid = true
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("context summary skipped: it would shrink ~%d tokens by less than %d%%", before, int(compactMinShrink*100))})
+		}
+		return nil
+	}
 	instruction := compactSystem + "\n\nWrite the handoff note now."
 	if typed {
 		a.working.absorb(head)
@@ -421,6 +429,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 			}
 		}
 		note = w.Render()
+	}
+	if req := a.compactRequestNote(tail, pending); req != "" {
+		note += "\n\n" + req
 	}
 	for _, n := range hookNotes {
 		note += "\n\n[From a pre_compact hook:]\n" + n

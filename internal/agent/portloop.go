@@ -8,6 +8,9 @@ type portLoop struct {
 	// reads outlives the turn: whether an earlier copy is live is judged
 	// against the history, not remembered.
 	reads readViews
+	// overflow: a compaction forced by a context-overflow error, which
+	// must not be skipped. skipSaid: the skipped-summary notice was given.
+	overflow, skipSaid bool
 }
 
 func (p *portLoop) startTurn() { *p = portLoop{reads: p.reads} }
