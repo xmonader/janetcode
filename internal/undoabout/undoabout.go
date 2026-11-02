@@ -163,6 +163,10 @@ type Args struct {
 	// anything (see PreviewUndoTurn); zero when not given. Like About it
 	// is only a preview: the same "/undo apply" carries it out.
 	Turn int
+	// Agent unwinds one subagent attempt's file changes (/undo agent <id>);
+	// AgentList is the bare form, listing attempts.
+	Agent     string
+	AgentList bool
 	// FilesOnly is "--files-only" on a turn restore: put the work tree
 	// back but leave the conversation alone, which is what "/undo turn"
 	// did before it learned to rewind. The default is both, because a
@@ -190,6 +194,12 @@ func ParseArgs(rest string) (Args, error) {
 		return Args{}, nil
 	case "about":
 		return Args{About: true, Description: strings.TrimSpace(after)}, nil
+	case "agent":
+		ref := strings.TrimSpace(after)
+		if strings.ContainsAny(ref, " \t") {
+			return Args{}, errors.New("usage: /undo agent [attempt-id or task-id]")
+		}
+		return Args{Agent: ref, AgentList: ref == ""}, nil
 	case "turn":
 		tk, err := argspkg.Tokenize(after, argspkg.Spec{Bool: []string{"--files-only"}})
 		if err != nil || len(tk.Positional) != 1 {

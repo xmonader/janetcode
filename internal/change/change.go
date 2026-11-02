@@ -27,6 +27,9 @@ type Change struct {
 	// turn restore did. Undoing such a change puts Before back.
 	Gone   bool `json:"gone,omitempty"`
 	Undone bool `json:"undone,omitempty"`
+	// Attempt is the subagent attempt (see agent.AttemptStore) whose work
+	// this change is, so /undo agent can unwind exactly that child's files.
+	Attempt string `json:"attempt,omitempty"`
 }
 
 // Hunks is the change as a unified diff.

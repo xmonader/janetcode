@@ -12,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/impact"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/localize/tree"
@@ -433,6 +434,7 @@ func (b *agentBuilder) stepWorkspace() error {
 // record in step with them from here on.
 func (b *agentBuilder) stepLoops() error {
 	b.cron = agent.NewCron()
+	b.cron.SetJournal(cron.OpenJournal(strings.TrimSuffix(b.sess.Path(), ".jsonl") + ".cron.log"))
 	if len(b.sess.Meta.Loops) > 0 {
 		if err := b.cron.Restore(b.sess.Meta.Loops); err != nil {
 			return fmt.Errorf("restore loops: %w", err)
@@ -788,6 +790,10 @@ func (b *agentBuilder) stepUndo() error {
 	if err := ag.LoadUndo(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
+	// Subagent attempts the previous process left open are closed and
+	// reported on resume (see agent.AttemptStore); nothing is rerun.
+	ag.Attempts = agent.OpenAttempts(strings.TrimSuffix(b.sess.Path(), ".jsonl") + ".attempts.log")
+	ag.ReconcileAttempts()
 	return nil
 }
 

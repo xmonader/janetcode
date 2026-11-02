@@ -774,6 +774,19 @@ func (m *model) cmdUndo(text string, fields []string) (tea.Cmd, bool) {
 	switch {
 	case ua.Apply:
 		return m.undoApplyCommand(ua.Force), true
+	case ua.AgentList:
+		m.transcript.info(m.opts.Agent.AttemptsReport())
+	case ua.Agent != "":
+		if m.turn.running {
+			m.transcript.errorf("wait for the current turn to finish before undoing")
+			break
+		}
+		if out, err := m.opts.Agent.RewindAttempt(ua.Agent); err != nil {
+			m.transcript.errorf("%v", err)
+		} else {
+			m.transcript.info(out)
+			m.opts.Agent.AddHarnessContext("I rewound subagent attempt " + ua.Agent + ":\n" + out)
+		}
 	case ua.Turn != 0:
 		return m.undoTurnCommand(ua.Turn, ua.FilesOnly), true
 	case ua.About:

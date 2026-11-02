@@ -59,6 +59,9 @@ type Cron struct {
 	// newest snapshot already handed over.
 	notifyMu sync.Mutex
 	notified int
+
+	// journal records every occurrence (see journal.go); nil is fine.
+	journal *Journal
 }
 
 type cronJob struct {
@@ -104,6 +107,33 @@ func (c *Cron) SetOnChange(f func([]session.LoopSpec)) {
 	c.OnChange = f
 }
 
+// SetJournal installs the occurrence journal. Call it before Restore so a
+// resumed session can catch up on occurrences missed while it was down.
+func (c *Cron) SetJournal(j *Journal) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.journal = j
+}
+
+// Journal is the occurrence journal, or nil.
+func (c *Cron) Journal() *Journal {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.journal
+}
+
+// Note lets the front end record what became of a firing: KindSkipped when
+// a turn was already running, KindDone when the turn ended.
+func (c *Cron) Note(id, kind, detail string) {
+	c.Journal().Append(Occurrence{Job: id, Kind: kind, Detail: detail})
+}
+
 // checkEvery is the one place an interval is bounds-checked.
 func checkEvery(every time.Duration) error {
 	if every < minEvery {
@@ -142,6 +172,7 @@ func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 	c.nextID++
 	id := fmt.Sprintf("loop-%d", c.nextID)
 	c.armLocked(id, every, prompt)
+	c.journal.Append(Occurrence{Job: id, Kind: KindAdded, Detail: every.String()})
 	snap, cb, ver := c.changeLocked()
 	c.mu.Unlock()
 	c.notify(snap, cb, ver)
@@ -155,6 +186,34 @@ func (c *Cron) armLocked(id string, every time.Duration, prompt string) {
 	e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every), seq: c.nextSeq}
 	e.timer = time.AfterFunc(every, func() { c.tick(id, e) })
 	c.jobs[id] = e
+}
+
+// catchUpLocked applies the catch-up policy to a just-restored job: from the
+// journal's last run of id, occurrences missed during downtime coalesce into
+// one firing shortly after restore (or are dropped as stale). A job with no
+// journal history gets a fresh baseline and no catch-up. c.mu must be held.
+func (c *Cron) catchUpLocked(id string, every time.Duration) {
+	if c.journal == nil {
+		return
+	}
+	now := time.Now()
+	last, ok := c.journal.LastRun(id)
+	if !ok {
+		c.journal.Append(Occurrence{Job: id, Kind: KindAdded, Detail: "restored"})
+		return
+	}
+	missed, run := Missed(last, now, every)
+	if missed == 0 {
+		return
+	}
+	if !run {
+		c.journal.Append(Occurrence{Job: id, Kind: KindStale, Missed: missed, Detail: "down " + now.Sub(last).Round(time.Second).String()})
+		return
+	}
+	e := c.jobs[id]
+	e.timer.Stop()
+	e.Next = now.Add(catchupDelay)
+	e.timer = time.AfterFunc(catchupDelay, func() { c.fire(id, e, KindCatchup, missed) })
 }
 
 // listLocked snapshots armed jobs, oldest first. c.mu must be held.
@@ -196,6 +255,7 @@ func (c *Cron) Cancel(id string) bool {
 		e.timer.Stop()
 	}
 	delete(c.jobs, id)
+	c.journal.Append(Occurrence{Job: id, Kind: KindCancelled})
 	snap, cb, ver := c.changeLocked()
 	c.mu.Unlock()
 	c.notify(snap, cb, ver)
@@ -213,6 +273,7 @@ func (c *Cron) CancelAll() int {
 		if e.timer != nil {
 			e.timer.Stop()
 		}
+		c.journal.Append(Occurrence{Job: e.ID, Kind: KindCancelled})
 	}
 	c.jobs = map[string]*cronJob{}
 	snap, cb, ver := c.changeLocked()
@@ -272,6 +333,7 @@ func (c *Cron) restoreLocked(specs []session.LoopSpec) error {
 			continue
 		}
 		c.armLocked(id, every, prompt)
+		c.catchUpLocked(id, every)
 	}
 	c.version++
 	return nil
@@ -374,7 +436,12 @@ func (c *Cron) Close() {
 // Replace can arm another session's job under the same id: that job is
 // not this one, and firing it would run it early and leave it with a
 // second timer nothing can stop.
-func (c *Cron) tick(id string, e *cronJob) {
+func (c *Cron) tick(id string, e *cronJob) { c.fire(id, e, KindFired, 0) }
+
+// fire is tick with the journal kind: KindCatchup carries the coalesced
+// count of missed occurrences. The next regular firing is a full interval
+// after this one.
+func (c *Cron) fire(id string, e *cronJob, kind string, missed int) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -387,10 +454,11 @@ func (c *Cron) tick(id string, e *cronJob) {
 	prompt := e.Prompt
 	e.Next = time.Now().Add(e.Every)
 	e.timer = time.AfterFunc(e.Every, func() { c.tick(id, e) })
-	fire := c.OnFire
+	onFire := c.OnFire
+	c.journal.Append(Occurrence{Job: id, Kind: kind, Missed: missed})
 	c.mu.Unlock()
-	if fire != nil {
-		fire(id, prompt)
+	if onFire != nil {
+		onFire(id, prompt)
 	}
 }
 
@@ -417,15 +485,15 @@ type Tool struct {
 
 func (*Tool) Name() string { return "cron" }
 func (*Tool) Description() string {
-	return "Schedule a prompt to run on an interval for this session. Jobs are saved on the session and restored on resume; they stop when cancelled or when this process exits. action=add needs every (30s, 5m, 1h) and prompt; action=list; action=cancel needs id."
+	return "Schedule a prompt to run on an interval for this session. Jobs are saved on the session and restored on resume; they stop when cancelled or when this process exits. action=add needs every (30s, 5m, 1h) and prompt; action=list; action=cancel needs id; action=history shows recent firings (id filters)."
 }
 func (*Tool) Mutating() bool { return false }
 func (*Tool) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
-"action":{"type":"string","description":"add, list or cancel"},
+"action":{"type":"string","description":"add, list, cancel or history"},
 "every":{"type":"string","description":"Interval for add: 30s, 5m, 1h"},
 "prompt":{"type":"string","description":"The prompt to send when the loop fires"},
-"id":{"type":"string","description":"Job id for cancel"}},
+"id":{"type":"string","description":"Job id for cancel or history"}},
 "required":["action"],"additionalProperties":false}`)
 }
 
@@ -476,8 +544,25 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			return "", fmt.Errorf("no loop %q", id)
 		}
 		return "cancelled " + id, nil
+	case "history":
+		occ := t.Cron.Journal().Recent(20, strings.TrimSpace(in.ID))
+		if len(occ) == 0 {
+			return "no occurrences recorded", nil
+		}
+		var b strings.Builder
+		for _, o := range occ {
+			fmt.Fprintf(&b, "%s %s %s", o.Time.Format("01-02 15:04:05"), o.Job, o.Kind)
+			if o.Missed > 0 {
+				fmt.Fprintf(&b, " (%d missed)", o.Missed)
+			}
+			if o.Detail != "" {
+				b.WriteString(" " + o.Detail)
+			}
+			b.WriteByte('\n')
+		}
+		return strings.TrimRight(b.String(), "\n"), nil
 	default:
-		return "", fmt.Errorf("action must be add, list or cancel")
+		return "", fmt.Errorf("action must be add, list, cancel or history")
 	}
 }
 
