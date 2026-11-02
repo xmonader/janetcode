@@ -271,7 +271,7 @@ func writeTargets(c Call) []string {
 			return nil
 		}
 		return shell.WriteTargets(in.Text, c.Root)
-	case "write_file", "edit_file", "notebook_edit":
+	case "write_file", "edit_file", "notebook_edit", "ast_edit":
 		var in struct {
 			Path string `json:"path"`
 		}

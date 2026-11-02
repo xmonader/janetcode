@@ -120,6 +120,7 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 	edit := tool.EditFile{Root: cd.Dir(), WS: ws}
 	write := tool.WriteFile{Root: cd.Dir(), WS: ws}
 	notebook := tool.NotebookEdit{Root: cd.Dir(), WS: ws}
+	astEdit := tool.AstEdit{Root: cd.Dir(), WS: ws}
 	return func(ctx context.Context, call agent.ToolCall) string {
 		var path, before, after string
 		var err error
@@ -130,6 +131,8 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 			path, before, after, err = write.Result(ctx, call.Input)
 		case "notebook_edit":
 			path, before, after, err = notebook.Result(ctx, call.Input)
+		case "ast_edit":
+			path, before, after, err = astEdit.Result(ctx, call.Input)
 		default:
 			return ""
 		}
@@ -680,6 +683,11 @@ func (b *agentBuilder) stepSearchTools() error {
 	// from read_file could not (a turn's tool list is fixed when the turn
 	// starts, so the model was told to use a tool it had no schema for).
 	ag.Tools.AddDeferred(tool.NotebookEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
+	if !b.off["astedit"] {
+		// Replace-a-definition edits by syntax node: deferred like the
+		// notebook editor, found through tool_search.
+		ag.Tools.AddDeferred(tool.AstEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
+	}
 	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the
