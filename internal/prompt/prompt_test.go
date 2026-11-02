@@ -151,3 +151,18 @@ func TestNoProjectLeavesInstructionsOut(t *testing.T) {
 		t.Fatalf("NoProject prompt wrong:\n%s", got)
 	}
 }
+
+// The testing rules ported from hero_agent's CODING_RULES: its edge-rule
+// misses were tests of a neighbouring case or of the code's own output.
+func TestBaseInstructionsTestingRules(t *testing.T) {
+	for _, want := range []string{
+		"a few inline asserts on its edge cases",
+		"Assert what the task states, not the output of your own re-implementation",
+		"Skip this for a small change to a short request",
+		"fix a wrong check once, else drop it",
+	} {
+		if !strings.Contains(baseInstructions, want) {
+			t.Errorf("baseInstructions lacks %q", want)
+		}
+	}
+}

@@ -113,7 +113,12 @@ const (
 	// spent 10 of 27 calls debugging a 305-line scratch harness after the
 	// public tests passed; hero_agent measured the same class at up to 61
 	// calls a campaign. 198 bytes, cached, against those calls.
-	emptyProjectSystemCeiling = 6220
+	// 6,355 on 2026-11-02: the post-green testing rules from hero_agent's
+	// CODING_RULES (assert what the task states, a few edge asserts, skip
+	// for a small change to a short request). 135 bytes in the cached
+	// head against the edge-rule misses lean runs took there (tests of a
+	// neighbouring case, or of the code's own output).
+	emptyProjectSystemCeiling = 6360
 	// toolSchemaCeiling is name + description + schema over every tool a
 	// full session offers: 13,862 bytes for seventeen, after the
 	// duplicated edit_file locator came out. 14,707 on 2026-09-29, when
