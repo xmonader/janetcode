@@ -245,6 +245,61 @@ for (const theme of ['dark', 'light']) {
   await shot(`14-empty-${theme}`);
 }
 
+// States nobody exercised before: the conversation-files gallery with
+// real attachments, a tool group with failed and declined calls, and the
+// composer while a file is dragged over the page. Each in both themes at
+// desktop and phone width.
+const hello2 = { type: 'hello', hello: { cwd: '/home/xmonader/wspace/janetcode', model: 'qwen3.7-plus', provider: 'openrouter', session: 's2', title: 'Attach and retry', version: await evaljs('window.__janetUIBuild'), mode: 'ask' } };
+const UP = '.janetcode/uploads/';
+const FILES = [['shot.png', 'image/png'], ['wide.png', 'image/png'], ['notes.txt', 'text/plain'], ['main.go', 'text/plain'], ['trace.log', 'text/plain']];
+const FIX2 = [
+  hello2,
+  { type: 'status', status: { running: false, mode: 'ask', ctx_pct: 12 } },
+  { type: 'entry', entry: { id: 'g1', kind: 'user', text: 'Look at these: ' + FILES.map(([n]) => '@' + UP + n).join(' ') + ' and @docs/design.md, then fix the failing build.', at: '2026-01-15T14:50:00Z' } },
+  { type: 'entry', entry: { id: 'g2', kind: 'tool', name: 'read_file', summary: 'internal/inifile/parser.go', done: true, dur: '0.3s', output: 'package inifile' } },
+  { type: 'entry', entry: { id: 'g3', kind: 'tool', name: 'edit_file', summary: 'internal/inifile/parser.go', done: true, error: true, dur: '0.1s', output: 'edit failed: old_string not found in file' } },
+  { type: 'entry', entry: { id: 'g4', kind: 'tool', name: 'bash', summary: 'rm -rf build && make', done: true, error: true, denied: true } },
+  { type: 'entry', entry: { id: 'g5', kind: 'tool', name: 'bash', summary: 'go test ./internal/inifile/', done: true, error: true, dur: '2.2s', output: '--- FAIL: TestInterpolate (0.00s)\n    parser_test.go:41: got "", want "x"\nFAIL' } },
+  { type: 'entry', entry: { id: 'g6', kind: 'tool', name: 'grep', summary: 'Interpolate', done: true, dur: '0.1s', output: 'parser.go:120' } },
+  { type: 'entry', entry: { id: 'g7', kind: 'assistant', text: 'Two calls failed and one was declined; I will retry the edit with the current text.', done: true } },
+  idle,
+];
+await evaljs(`(async () => {
+  const mk = (w, h, c) => new Promise((r) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d'); x.fillStyle = c; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(255,255,255,.5)'; x.fillRect(w / 4, h / 4, w / 2, h / 2); cv.toBlob(r, 'image/png'); });
+  const files = [
+    new File([await mk(320, 240, '#3b82f6')], 'shot.png', { type: 'image/png' }),
+    new File([await mk(900, 200, '#10b981')], 'wide.png', { type: 'image/png' }),
+    new File(['remember the milk\\n'], 'notes.txt', { type: 'text/plain' }),
+    new File(['package main\\n\\nfunc main() {}\\n'], 'main.go', { type: 'text/plain' }),
+    new File(['x'.repeat(48000)], 'trace.log', { type: 'text/plain' }),
+  ];
+  window.__files = files; return 1;
+})()`);
+for (const theme of ['dark', 'light']) {
+  for (const [w, h] of [[1440, 900], [390, 844]]) {
+    await setTheme(theme);
+    await setSize(w, h);
+    const tag = `${theme}-${w}`;
+    await evaljs(closeAll);
+    await feedJS([{ type: 'reset' }, ...FIX2]);
+    await evaljs(`JanetExtras.uploaded(window.__files, ${JSON.stringify(FILES.map(([n]) => UP + n))}); 1`);
+    await sleep(500);
+    await evaljs(`(() => { const v = document.getElementById('chat-view'); v.scrollTop = v.scrollHeight; return 1; })()`);
+    await sleep(200);
+    await shot(`15-toolfail-${tag}`);
+    await evaljs(`document.getElementById('input').value = ${JSON.stringify(FILES.map(([n]) => '@' + UP + n).join(' ') + ' ')}; JanetExtras.uploaded(window.__files, ${JSON.stringify(FILES.map(([n]) => UP + n))}); document.getElementById('composer').classList.add('dragover'); 1`);
+    await sleep(300);
+    await shot(`17-dragover-${tag}`);
+    await evaljs(`document.getElementById('composer').classList.remove('dragover'); document.getElementById('input').value = ''; 1`);
+    await evaljs(`JanetExtras.openGallery(); 1`);
+    await sleep(400);
+    await shot(`16-gallery-${tag}`);
+    await evaljs(`document.querySelectorAll('dialog.xdlg .xd-close').forEach(b => b.click()); 1`);
+    await sleep(200);
+  }
+}
+await setSize(1440, 900);
+
 ws.close();
 console.log('done ->', OUT);
 process.exit(0);

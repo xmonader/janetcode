@@ -436,7 +436,7 @@ const header = await evaljs(`(() => {
   const chip = document.getElementById('effort-chip');
   return { effort: chip.textContent.trim(), label: chip.getAttribute('aria-label'), idle, live };
 })()`);
-check('the effort chip says auto, not default', header.effort === 'auto' && header.label === 'Effort: auto', JSON.stringify(header));
+check('the effort chip says effort: auto, not default', header.effort === 'effort: auto' && header.label === 'Effort: auto', JSON.stringify(header));
 check('the connection dot is not green with no model', header.idle !== header.live, JSON.stringify(header));
 
 // The model menu heads a group with the service it reaches, says sizes

@@ -580,9 +580,9 @@
     // jargon; "auto" says the model decides.
     // The chip is the right half of the model pill: a gauge and the level.
     // Its name is read out whole.
-    chip.innerHTML = icon("gauge") + `<span>${esc(effort || "auto")}</span>`;
+    chip.innerHTML = icon("gauge") + `<span><span class="eff-l">effort: </span>${esc(effort || "auto")}</span>`;
     chip.setAttribute("aria-label", "Effort: " + (effort || "auto"));
-    chip.title = effort ? "Reasoning effort " + effort + " — click to change" : "The model's own reasoning effort — click to set one";
+    chip.title = effort ? "Reasoning effort: " + effort + " — click to change" : "Reasoning effort: the model decides — click to set one";
     paintModel();
   }
 
