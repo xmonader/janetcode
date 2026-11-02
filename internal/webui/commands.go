@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/worktree"
 	"net/http"
 	"os"
 	"sort"
@@ -29,7 +30,7 @@ var webCommands = []string{
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/context-window", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
-	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
+	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/worktree", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress",
 }
 
@@ -296,6 +297,19 @@ var webDispatch = map[string]webHandler{
 	},
 	"/agents": func(s *server, arg string) (bool, error) {
 		s.agents(arg)
+		return false, nil
+	},
+	"/worktree": func(s *server, arg string) (bool, error) {
+		r := worktree.Command(context.Background(), s.cwd(), arg)
+		switch {
+		case r.Err != nil:
+			s.errf("%v", r.Err)
+		case r.Enter != "":
+			s.notice(r.Text)
+			s.cd(r.Enter)
+		default:
+			s.sheet("worktree", r.Text)
+		}
 		return false, nil
 	},
 	"/cd": func(s *server, arg string) (bool, error) {

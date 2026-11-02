@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/worktree"
 	"os"
 	"strings"
 
@@ -154,6 +155,19 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/personas": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.code(agent.PersonaReport(m.opts.Agent))
+		return nil, false
+	},
+	"/worktree": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		r := worktree.Command(context.Background(), m.opts.Cwd, cmdArg(text, fields))
+		switch {
+		case r.Err != nil:
+			m.transcript.errorf("%v", r.Err)
+		case r.Enter != "":
+			m.transcript.info(r.Text)
+			m.cdCommand(r.Enter)
+		default:
+			m.transcript.info(r.Text)
+		}
 		return nil, false
 	},
 	"/cd": func(m *model, text string, fields []string) (tea.Cmd, bool) {

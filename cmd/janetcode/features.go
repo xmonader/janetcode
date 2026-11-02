@@ -59,6 +59,7 @@ var flagWhen = map[string]string{
 	"dry-run":                "you want the whole change — every diff, every command it would run — laid out before any of it happens",
 	"trust":                  "a headless run should use (or refuse) the project's own skills, hooks, MCP servers and recipes without asking",
 	"c":                      "carry on where the last session in this directory left off",
+	"w":                      "the short spelling of --worktree",
 	"r":                      "reopen one session by id",
 	"auto-edits":             "you trust the edits but still want to see every command",
 	"eval":                   "measuring a change to the harness or to a prompt, not doing work",

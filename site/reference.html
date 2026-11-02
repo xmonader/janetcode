@@ -149,6 +149,8 @@
 <tr><td><code>/hints</code></td><td><code>[on|off]</code></td><td>one-time hints about features this session could have used; alone says how many have been given</td></tr>
 <tr><td><code>/cd</code></td><td><code>[path]</code></td><td>move this session&#x27;s working directory without restarting it</td></tr>
 <tr><td><code>/compact-fast</code></td><td></td><td>prune old tool results and thinking without a summary call</td></tr>
+<tr><td><code>/context-window</code></td><td><code>[size|default]</code></td><td>choose the context window for this session (200k, 1m): compaction runs at three quarters of it and the context meter counts against it</td></tr>
+<tr><td><code>/worktree</code></td><td><code>new &lt;name&gt; | list | remove &lt;name&gt; [--force]</code></td><td>managed git worktrees: new makes one on a branch under .git and moves the session there; remove keeps the branch and refuses a dirty checkout without --force</td></tr>
 <tr><td><code>/effort</code></td><td><code>[tier|up|down]</code></td><td>how hard the model thinks: low, medium, high, xhigh, max (also <code>alt+e</code>)</td></tr>
 <tr><td><code>/perf</code></td><td></td><td>where the time went: model, tools, waiting on you, the harness itself</td></tr>
 <tr><td><code>/routing</code></td><td></td><td>toggle the step router for this session: while it is off, every call goes to the session&#x27;s own model</td></tr>

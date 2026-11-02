@@ -182,3 +182,60 @@ func TestSummarizeFromADetachedRepository(t *testing.T) {
 		t.Fatalf("summary = %+v, want 1 commit", s)
 	}
 }
+
+func TestManageListRemove(t *testing.T) {
+	ctx := context.Background()
+	repo := initRepo(t)
+	if r := Command(ctx, repo, "list"); r.Err != nil || !strings.Contains(r.Text, "no managed") {
+		t.Fatalf("empty list: %+v", r)
+	}
+	r := Command(ctx, repo, "new feat/a")
+	if r.Err != nil || r.Enter == "" {
+		t.Fatalf("new: %+v", r)
+	}
+	wt := r.Enter
+	infos, err := List(ctx, repo)
+	if err != nil || len(infos) != 1 || infos[0].Branch != "feat/a" || infos[0].Dirty {
+		t.Fatalf("list: %+v %v", infos, err)
+	}
+	// Listing from inside the worktree finds the same set and marks it.
+	if r := Command(ctx, wt, "ls"); !strings.HasPrefix(r.Text, "* feat/a") {
+		t.Fatalf("marker: %q", r.Text)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "new.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name, arg, cwd string
+		wantErr        string
+	}{
+		{"unknown", "remove nope", repo, "no managed worktree"},
+		{"no name", "remove", repo, "usage"},
+		{"dirty refused", "remove feat/a", repo, "uncommitted"},
+		{"inside it", "remove feat/a --force", wt, "where this session"},
+		{"bad sub", "frob", repo, "usage"},
+	}
+	for _, c := range cases {
+		r := Command(ctx, c.cwd, c.arg)
+		if r.Err == nil || !strings.Contains(r.Err.Error(), c.wantErr) {
+			t.Errorf("%s: %+v", c.name, r)
+		}
+	}
+	if _, err := os.Stat(wt); err != nil {
+		t.Fatal("dirty worktree was removed")
+	}
+	if r := Command(ctx, repo, "remove feat/a --force"); r.Err != nil {
+		t.Fatalf("force remove: %+v", r)
+	}
+	if _, err := os.Stat(wt); err == nil {
+		t.Fatal("worktree still there")
+	}
+	if !branchExists(ctx, repo, "feat/a") {
+		t.Fatal("branch should be kept")
+	}
+	// A clean one removes without force.
+	Command(ctx, repo, "new feat/b")
+	if r := Command(ctx, repo, "rm feat/b"); r.Err != nil {
+		t.Fatalf("clean remove: %+v", r)
+	}
+}

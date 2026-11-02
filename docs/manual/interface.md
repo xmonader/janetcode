@@ -1690,6 +1690,21 @@ janetcode --worktree try/new-parser
 # merge it with: git merge try/new-parser
 ```
 
+`-w <name>` is the short spelling of `--worktree <name>`. Inside a session,
+`/worktree` manages the same checkouts:
+
+```
+/worktree new try/parser       make (or reuse) the worktree and move the session into it
+/worktree list                 every managed worktree: * marks the one you are in,
+                               with "uncommitted changes" and "N commit(s) ahead"
+/worktree remove try/parser    delete the checkout; the branch is kept
+/worktree remove try/parser --force   discard a checkout that has uncommitted changes
+```
+
+`remove` refuses a checkout with uncommitted changes unless `--force` is
+given, refuses the one the session is working in, and never deletes the
+branch, so committed work is not lost. It works in the web UI too.
+
 ### Sending a job to another model
 
 `task` takes a `model`, so a job can go to a cheaper or faster model for
