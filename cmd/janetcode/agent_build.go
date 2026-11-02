@@ -594,7 +594,7 @@ func (b *agentBuilder) stepAgentTools() error {
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
 	ag.Tools.Add(&agent.CronTool{Cron: b.cron})
-	ag.Tools.Add(&memory.Tool{Store: b.d.mem})
+	ag.Tools.Add(&memory.Tool{Store: b.d.mem, NoArchive: b.off["memarchive"]})
 	return nil
 }
 

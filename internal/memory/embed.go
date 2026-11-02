@@ -126,7 +126,7 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 	for _, e := range entries {
 		// Meaning alone never recalls a global entry that is hidden here
 		// or needs a strong word match (see Store.hidden).
-		if hide, strong := s.hidden(e); hide || strong {
+		if hide, strong := s.hidden(e); hide || strong || e.Archived {
 			continue
 		}
 		v := cached[e.Scope+"/"+e.Name]
