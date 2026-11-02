@@ -243,6 +243,25 @@ the summary replaced the messages that marked where turn n began, so
 that point can no longer be located in the conversation. The files go
 back anyway and the preview says why the conversation did not.
 
+## Scheduled loops and their journal
+
+`/loop` and the model's `cron` tool (`add`, `list`, `cancel`, `history`) arm
+prompts that fire on an interval; the armed set is saved on the session and
+restored on resume. Next to the session file, `<session>.cron.log` is an
+append-only journal of what happened to each job: `added`, `fired`,
+`catchup`, `stale`, `skipped`, `done`, `cancelled`. It is capped (the newest
+200 lines survive compaction), a damaged line is skipped, and the session
+record itself is unchanged, so older sessions load as before.
+
+Catch-up after downtime: on resume each job's last run is read from the
+journal. Occurrences that fell due while janetcode was not running are
+**coalesced into one catch-up firing** a couple of seconds after restore,
+never a burst, and the journal records how many were missed. If the gap is
+over 24 hours the missed occurrences are dropped (`stale`) and the job
+resumes its normal schedule. A job with no journal history starts a fresh
+baseline and does not catch up. `cron history` (optionally with `id`) shows
+the recent entries.
+
 ## Fork lineage in the listing
 
 Because `/fork` records which session a copy came from, every listing of
