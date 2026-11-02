@@ -78,6 +78,7 @@ var Commands = withIdle([]Command{
 	{Name: "/dryrun", Args: "[on|off|show|apply [n,m…]|discard]", Help: "dry run: the model plans and edits a preview, commands that change things are recorded but not run; show reviews it with diffs, apply writes the files (undoable), discard drops them"},
 	{Name: "/memory", Args: "[words | show <name> | about <path> | history <name> | current]", Help: "what janetcode remembers about this project"},
 	{Name: "/dream", Args: "", Help: "consolidate overlapping auto-memory entries; does not touch what you /remembered"},
+	{Name: "/flush", Args: "", Help: "capture everything useful from this session (decisions, context, debugging routes, fixes) into the memory inbox; /dream folds the inbox into entries. Never touches what you /remembered"},
 	{Name: "/sleep", Args: "", Help: "read this session's record and store what it established, with evidence; runs on its own when a goal finishes"},
 	{Name: "/init", Args: "[force]", Help: "write the project's starter instruction file from what this repository shows: languages, declared commands, layout; force overwrites an existing one"},
 	{Name: "/skills", Args: "", Help: "skill files available to the model, what each costs in tokens and which have fired this session"},

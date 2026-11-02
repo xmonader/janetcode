@@ -18,6 +18,11 @@ Output one JSON object per line, nothing else:
 {"action":"drop","name":"obsolete-slug"}
 Output exactly NONE when the set is already tight.`
 
+// dreamInboxNote is added to the prompt when /flush notes are waiting.
+const dreamInboxNote = `
+
+The input also holds an INBOX of long notes captured by /flush. Distil them: for each durable, reusable fact in a note that is not already covered by an entry, output a "merge" line with a new slug (type project, decision or reference; "replaces" empty unless an existing entry is made wrong or incomplete by it). Skip narration, task status and anything obvious from the code. One tight entry per fact, not one per note. An inbox note that holds nothing durable needs no line.`
+
 const dreamMinEntries = 3
 
 // DreamOp is one consolidation action. Distinct from Extracted: extract
@@ -34,10 +39,17 @@ type DreamOp struct {
 // Dream asks the model to merge overlapping memory entries. It does not
 // replace Extract: extract captures new facts, dream tightens the store.
 func Dream(ctx context.Context, p llm.Provider, model string, entries []Entry) ([]DreamOp, error) {
+	return DreamWith(ctx, p, model, entries, nil)
+}
+
+// DreamWith is Dream that also reads the observations inbox: /flush notes
+// are folded into merge ops next to the entry consolidation. The caller
+// marks the notes consumed once the ops are applied (Store.MarkConsumed).
+func DreamWith(ctx context.Context, p llm.Provider, model string, entries []Entry, inbox []Observation) ([]DreamOp, error) {
 	if p == nil {
 		return nil, fmt.Errorf("no provider")
 	}
-	if len(entries) < dreamMinEntries {
+	if len(entries) < dreamMinEntries && len(inbox) == 0 {
 		return nil, nil
 	}
 	var listing strings.Builder
@@ -47,14 +59,22 @@ func Dream(ctx context.Context, p llm.Provider, model string, entries []Entry) (
 		}
 		fmt.Fprintf(&listing, "- %s (%s): %s\n  %s\n", e.Name, e.Type, e.Description, clip(e.Body, 400))
 	}
+	system := dreamSystem
+	if len(inbox) > 0 {
+		system += dreamInboxNote
+		listing.WriteString("\nINBOX:\n")
+		for _, o := range inbox {
+			fmt.Fprintf(&listing, "--- note %s ---\n%s\n", o.ID, clip(o.Body, 3000))
+		}
+	}
 	if listing.Len() == 0 {
 		return nil, nil
 	}
 	resp, err := p.Stream(ctx, llm.Request{
 		Model:     model,
-		System:    dreamSystem,
+		System:    system,
 		Messages:  []llm.Message{llm.TextMessage(llm.RoleUser, listing.String())},
-		MaxTokens: 1200,
+		MaxTokens: 1200 + 400*min(len(inbox), 4),
 		Effort:    "low",
 	}, nil)
 	if err != nil {

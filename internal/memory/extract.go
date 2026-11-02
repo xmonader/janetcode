@@ -91,33 +91,7 @@ func Extract(ctx context.Context, p llm.Provider, model string, msgs []llm.Messa
 	if len(msgs) > extractWindow {
 		msgs = msgs[len(msgs)-extractWindow:]
 	}
-	var slim []llm.Message
-	for _, m := range msgs {
-		c := llm.Message{Role: m.Role}
-		for _, b := range m.Blocks {
-			switch b.Type {
-			case llm.BlockThinking:
-				continue
-			case llm.BlockToolResult:
-				b.Text = textfmt.TruncateTo(b.Text, 600)
-			case llm.BlockText:
-				if strings.HasPrefix(b.Text, "<skill ") || strings.HasPrefix(b.Text, "<memory ") {
-					continue // attached context, not conversation
-				}
-				if b.Synthetic {
-					b.Text = "<harness>\n" + b.Text + "\n</harness>"
-					b.Synthetic = false
-				}
-			}
-			c.Blocks = append(c.Blocks, b)
-		}
-		if len(c.Blocks) > 0 {
-			slim = append(slim, c)
-		}
-	}
-	if len(slim) == 0 || slim[0].Role != llm.RoleUser {
-		slim = append([]llm.Message{llm.TextMessage(llm.RoleUser, "(earlier conversation omitted)")}, slim...)
-	}
+	slim := slimMessages(msgs, 600)
 	var ask strings.Builder
 	ask.WriteString("Existing memory entries (name (type, scope): description):\n")
 	if len(existing) == 0 {
@@ -288,4 +262,39 @@ func cleanConcerns(in []string) []string {
 		}
 	}
 	return out
+}
+
+// slimMessages prepares a conversation window for a memory call: thinking
+// and attached context dropped, tool results cut to toolCap bytes, the
+// harness's own text marked so it is not read as the user's, and a user
+// turn first.
+func slimMessages(msgs []llm.Message, toolCap int) []llm.Message {
+	var slim []llm.Message
+	for _, m := range msgs {
+		c := llm.Message{Role: m.Role}
+		for _, b := range m.Blocks {
+			switch b.Type {
+			case llm.BlockThinking:
+				continue
+			case llm.BlockToolResult:
+				b.Text = textfmt.TruncateTo(b.Text, toolCap)
+			case llm.BlockText:
+				if strings.HasPrefix(b.Text, "<skill ") || strings.HasPrefix(b.Text, "<memory ") {
+					continue // attached context, not conversation
+				}
+				if b.Synthetic {
+					b.Text = "<harness>\n" + b.Text + "\n</harness>"
+					b.Synthetic = false
+				}
+			}
+			c.Blocks = append(c.Blocks, b)
+		}
+		if len(c.Blocks) > 0 {
+			slim = append(slim, c)
+		}
+	}
+	if len(slim) == 0 || slim[0].Role != llm.RoleUser {
+		slim = append([]llm.Message{llm.TextMessage(llm.RoleUser, "(earlier conversation omitted)")}, slim...)
+	}
+	return slim
 }

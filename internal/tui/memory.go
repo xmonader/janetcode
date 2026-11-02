@@ -54,11 +54,15 @@ func (m *model) dreamMemory() tea.Cmd {
 		m.transcript.errorf("not connected to a provider yet: run /connect")
 		return nil
 	}
+	var inbox []memory.Observation
+	if !ag.Off["flush"] {
+		inbox = store.Observations()
+	}
 	m.note("consolidating memory…")
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
-		ops, err := memory.Dream(ctx, ag.Settings().Provider, ag.Settings().Model, store.Entries())
+		ops, err := memory.DreamWith(ctx, ag.Settings().Provider, ag.Settings().Model, store.Entries(), inbox)
 		if err != nil {
 			return memoryMsg{err: err}
 		}
@@ -66,10 +70,69 @@ func (m *model) dreamMemory() tea.Cmd {
 		if err != nil {
 			return memoryMsg{err: err}
 		}
-		if n == 0 {
-			return memoryMsg{note: "memory already tight"}
+		// The inbox was read whole: its notes are consumed even when the
+		// model found nothing durable in them.
+		store.MarkConsumed(inbox)
+		suffix := ""
+		if len(inbox) > 0 {
+			suffix = " (" + textfmt.Plural(len(inbox), "inbox note") + " read)"
 		}
-		return memoryMsg{note: "dream: " + textfmt.Plural(n, "memory update")}
+		if n == 0 {
+			return memoryMsg{note: "memory already tight" + suffix}
+		}
+		return memoryMsg{note: "dream: " + textfmt.Plural(n, "memory update") + suffix}
+	}
+}
+
+// flushMemory is /flush: capture the rich knowledge of this session into
+// the observations inbox for the next /dream. It never writes entries, so
+// what the user /remembered is untouched.
+func (m *model) flushMemory() tea.Cmd {
+	ag, store, sess := m.opts.Agent, m.opts.Memory, m.opts.Session
+	if store == nil || ag == nil {
+		m.transcript.errorf("memory is not available in this session")
+		return nil
+	}
+	if ag.Off["flush"] {
+		m.transcript.errorf("/flush is switched off (JANETCODE_OFF=flush)")
+		return nil
+	}
+	if ag.Settings().Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect")
+		return nil
+	}
+	id := ""
+	if sess != nil {
+		id = sess.Meta.ID
+	}
+	msgs := ag.MessagesSnapshot()
+	tainted := ag.Tainted()
+	prev, _ := store.LastObservation(id)
+	m.note("flushing the session to the memory inbox…")
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
+		defer cancel()
+		note, res, err := memory.Flush(ctx, ag.Settings().Provider, ag.Settings().Model, msgs, prev.Body)
+		if err != nil {
+			return memoryMsg{err: err}
+		}
+		switch res {
+		case memory.FlushNothing:
+			return memoryMsg{note: "flush: nothing worth keeping"}
+		case memory.FlushRejected:
+			return memoryMsg{note: "flush: the model's answer was not a structured note; nothing filed"}
+		}
+		if tainted {
+			note = "(captured from a session that read untrusted content; treat with care)\n" + note
+		}
+		_, added, err := store.AddObservation(id, note)
+		if err != nil {
+			return memoryMsg{err: err}
+		}
+		if !added {
+			return memoryMsg{note: "flush: the inbox already holds this"}
+		}
+		return memoryMsg{note: "flush: filed to the inbox (" + textfmt.Plural(len(store.Observations()), "note") + " waiting for /dream)"}
 	}
 }
 

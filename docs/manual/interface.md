@@ -1073,6 +1073,16 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   any entry citing a line the record does not have). `concerns:` names
   the files or symbols an entry is about, and a turn that names them
   recalls the entry without any word of its text overlapping.
+- `/flush` captures what the session established, in the long form: one
+  markdown note (decisions and why, technical context, debugging routes,
+  problems and fixes) filed to an *observations inbox* beside the entries
+  (`memory/inbox-<project>/`). It never writes an entry, so what you
+  `/remember`ed is untouched. A second `/flush` in the same session writes
+  only what is new since the first; a note with a credential in it is
+  refused and a near-repeat is not filed twice. `/dream` then reads the
+  inbox together with the entries and folds it into tight entries; the
+  notes it read are kept a month as `.done` files. `JANETCODE_OFF=flush`
+  disables `/flush` and the inbox step of `/dream`.
 - `/sleep` records a gate that failed and later passed as one line of the
   record, and lists existing entries about the files the session changed
   under their own heading, so a correction says what it replaces.
