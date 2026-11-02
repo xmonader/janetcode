@@ -478,6 +478,8 @@ var switches = map[string]bool{
 	"numclaim":  true,
 	"typosquat": true,
 	"dossier":   true,
+	"mmr":       true, "queryexpand": true, "memchunk": true, "flush": true,
+	"lspsupervise": true,
 }
 
 // Switches names every behaviour Off understands, in order. The error for

@@ -30,6 +30,9 @@ const embedRetry = 5 * time.Minute
 type vecEntry struct {
 	Hash string    `json:"hash"`
 	Vec  []float32 `json:"vec"`
+	// More holds the vectors of the chunks after the first when the
+	// entry is long (see Chunk); a hit is the best of them.
+	More [][]float32 `json:"more,omitempty"`
 }
 
 // RecallCtx is Recall with semantic ranking when an EmbedFunc is set. It
@@ -47,29 +50,32 @@ func (s *Store) rankCtx(ctx context.Context, text string, max, min int) []Entry 
 	if max <= 0 {
 		max = MaxRecall
 	}
-	lexical := s.rank(text, max, min)
+	pool := s.pool(max)
+	lexical := s.rankPool(text, min, pool)
 	if s.Embed == nil || len(Words(text)) == 0 {
-		return lexical
+		return s.diversePick(lexical, max)
 	}
-	semantic, ok := s.semantic(ctx, text, max)
+	semantic, ok := s.semantic(ctx, text, pool)
 	if !ok {
-		return lexical
+		return s.diversePick(lexical, max)
 	}
+	// Meaning first, then words; relevance for MMR is the merged rank.
 	seen := map[string]bool{}
-	var out []Entry
+	var merged []Entry
 	for _, e := range semantic {
 		seen[e.Scope+"/"+e.Name] = true
-		out = append(out, e)
+		merged = append(merged, e)
 	}
-	for _, e := range lexical {
-		if !seen[e.Scope+"/"+e.Name] {
-			out = append(out, e)
+	for _, r := range lexical {
+		if !seen[r.e.Scope+"/"+r.e.Name] {
+			merged = append(merged, r.e)
 		}
 	}
-	if len(out) > max {
-		out = out[:max]
+	cands := make([]ranked, len(merged))
+	for i, e := range merged {
+		cands[i] = ranked{e, float64(len(merged) - i)}
 	}
-	return out
+	return s.diversePick(cands, max)
 }
 
 // semantic ranks entries by cosine similarity to the text. ok is false
@@ -95,9 +101,9 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 	var missing []int
 	for i, e := range entries {
 		key := e.Scope + "/" + e.Name
-		if v, ok := cached[key]; !ok || v.Hash != entryHash(e) {
+		if v, ok := cached[key]; !ok || v.Hash != s.entryHash(e) {
 			missing = append(missing, i)
-			texts = append(texts, embedText(e))
+			texts = append(texts, s.embedChunks(e)...)
 		}
 	}
 	vecs, err := s.Embed(ctx, texts)
@@ -108,9 +114,16 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 	s.embedDown = time.Time{}
 	query := vecs[0]
 	fresh := make(map[string]vecEntry, len(missing))
-	for j, i := range missing {
+	at := 1
+	for _, i := range missing {
 		e := entries[i]
-		fresh[e.Scope+"/"+e.Name] = vecEntry{Hash: entryHash(e), Vec: vecs[j+1]}
+		n := len(s.embedChunks(e))
+		ve := vecEntry{Hash: s.entryHash(e), Vec: vecs[at]}
+		if n > 1 {
+			ve.More = vecs[at+1 : at+n]
+		}
+		fresh[e.Scope+"/"+e.Name] = ve
+		at += n
 	}
 	if len(fresh) > 0 {
 		s.mergeVecs(fresh)
@@ -130,7 +143,13 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 			continue
 		}
 		v := cached[e.Scope+"/"+e.Name]
-		if sim := cosine(query, v.Vec); sim >= SemanticMin {
+		sim := cosine(query, v.Vec)
+		for _, m := range v.More {
+			if c := cosine(query, m); c > sim {
+				sim = c
+			}
+		}
+		if sim >= SemanticMin {
 			hits = append(hits, scored{e, sim})
 		}
 	}
@@ -149,9 +168,31 @@ func embedText(e Entry) string {
 	return textfmt.TruncateTo(e.Name+": "+e.Description+"\n"+e.Body, 2000)
 }
 
-func entryHash(e Entry) string {
-	sum := sha256.Sum256([]byte(embedText(e)))
-	return hex.EncodeToString(sum[:8])
+// embedChunks is what is embedded for e: one text, or, for a long entry
+// with chunking on, one per chunk, each led by the entry's name so a chunk
+// stands alone.
+func (s *Store) embedChunks(e Entry) []string {
+	full := e.Name + ": " + e.Description + "\n" + e.Body
+	if s.NoChunk || len(full) <= ChunkSize {
+		return []string{embedText(e)}
+	}
+	var out []string
+	for _, c := range Chunk(e.Body, ChunkSize) {
+		out = append(out, textfmt.TruncateTo(e.Name+": "+e.Description+"\n"+c, 2000))
+	}
+	if len(out) == 0 {
+		return []string{embedText(e)}
+	}
+	return out
+}
+
+func (s *Store) entryHash(e Entry) string {
+	h := sha256.New()
+	for _, t := range s.embedChunks(e) {
+		h.Write([]byte(t))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil)[:8])
 }
 
 func cosine(a, b []float32) float64 {

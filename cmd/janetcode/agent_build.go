@@ -632,6 +632,7 @@ func (b *agentBuilder) stepKnowledge() error {
 	// ceiling when the window is unknown.
 	indexBudget := memory.BudgetFor(ag.ContextWindow)
 	mem.PlainRanking = b.off["memoryrank"]
+	mem.NoMMR, mem.NoExpand, mem.NoChunk = b.off["mmr"], b.off["queryexpand"], b.off["memchunk"]
 	skills := b.skills
 	ag.SystemExtra = func() string {
 		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)

@@ -196,6 +196,10 @@ type Store struct {
 	// the work keeps needing above the ones it needed once.
 	PlainRanking bool
 	Ecosystem    string
+	// NoMMR, NoExpand and NoChunk switch off diversified selection,
+	// query expansion and chunked embeddings (JANETCODE_OFF=mmr,
+	// queryexpand, memchunk). See retrieval.go.
+	NoMMR, NoExpand, NoChunk bool
 	// Confirm holds what the model and the extractors save as pending
 	// until the user approves it (memory_confirm, /memory confirm).
 	Confirm atomic.Bool
@@ -735,7 +739,51 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	if max <= 0 {
 		max = MaxRecall
 	}
-	ws := Words(text)
+	return s.diversePick(s.rankPool(text, min, s.pool(max)), max)
+}
+
+// pool is how many candidates to rank so pick has a choice.
+func (s *Store) pool(max int) int {
+	if s.NoMMR {
+		return max
+	}
+	return max * mmrPool
+}
+
+// words is the query's match words: expanded unless the queryexpand
+// switch is off.
+func (s *Store) words(text string) []string {
+	if s.NoExpand {
+		return Words(text)
+	}
+	return ExpandQuery(text)
+}
+
+// ranked is a candidate with its relevance, best first.
+type ranked struct {
+	e   Entry
+	rel float64
+}
+
+// diversePick selects max entries from a best-first pool, diversified by MMR
+// unless switched off.
+func (s *Store) diversePick(pool []ranked, max int) []Entry {
+	es := make([]Entry, len(pool))
+	rel := make([]float64, len(pool))
+	for i, r := range pool {
+		es[i], rel[i] = r.e, r.rel
+	}
+	if s.NoMMR {
+		if len(es) > max {
+			es = es[:max]
+		}
+		return es
+	}
+	return diversify(es, rel, max, MMRLambda)
+}
+
+func (s *Store) rankPool(text string, min, max int) []ranked {
+	ws := s.words(text)
 	if len(ws) == 0 {
 		return nil
 	}
@@ -743,10 +791,7 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	for _, w := range ws {
 		have[w] = true
 	}
-	type scored struct {
-		e     Entry
-		score float64
-	}
+	type scored = ranked
 	now := time.Now()
 	var hits []scored
 	for _, e := range s.Entries() {
@@ -798,15 +843,11 @@ func (s *Store) rank(text string, max, min int) []Entry {
 			hits = append(hits, scored{e, total})
 		}
 	}
-	sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].rel > hits[j].rel })
 	if len(hits) > max {
 		hits = hits[:max]
 	}
-	out := make([]Entry, len(hits))
-	for i, h := range hits {
-		out[i] = h.e
-	}
-	return out
+	return hits
 }
 
 // strongRecall is the word score an untagged automatic global entry needs

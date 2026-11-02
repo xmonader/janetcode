@@ -1015,6 +1015,16 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   flat word-overlap order. Recalled entries count as used; past 200
   entries per scope the least used, oldest *automatic* ones are trimmed —
   entries you wrote with `/remember` are never evicted by the cap.
+- **Recall quality.** Three deterministic steps (no model call) sit on
+  top of word and embedding recall. *Query expansion* drops conversational
+  filler ("that thing we discussed about…") and adds the parts of
+  identifiers in the request (`parseConfig` also looks for `parse` and
+  `config`). *MMR diversification* picks the attached entries by relevance
+  minus word-overlap with those already picked (lambda 0.7), so four
+  near-duplicates do not crowd out a different relevant entry. *Chunking*
+  embeds a long entry per heading or paragraph chunk instead of one
+  truncated blob; a hit is its best chunk. Switch off with
+  `JANETCODE_OFF=queryexpand`, `mmr`, `memchunk`.
 - **The model has a `memory` tool**: `recall` by query, `remember` when
   you tell it something worth keeping (it picks the type; the entry is
   kept for this project), `forget` — of what it or the automatic
