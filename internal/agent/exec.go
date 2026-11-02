@@ -311,6 +311,15 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		return nil, hookRefusal, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
+	// Allow all (--yolo, /yolo) waives the local guards: the tool's own
+	// guard (a command reaching outside the workspace, a destructive
+	// one-liner) and the protected paths below. Their warning still shows.
+	// The egress and taint gates, a hook's ask and an ask rule are not
+	// local judgements, and they still put the call to the user.
+	yolo := a.yoloChosen()
+	if yolo {
+		mustAsk = false
+	}
 	if hookMustAsk {
 		// describeCall writes call.Warning from the tool's own Warner, so
 		// this goes on afterwards or it would be overwritten.
@@ -318,8 +327,8 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		call.Source = "hook"
 		call.Warning = strings.TrimPrefix(call.Warning+"; a hook from this repository rewrote this call's input", "; ")
 	}
-	// A write to a protected path always asks, under /edits, /auto, an
-	// allow rule and --yolo alike, and the prompt says which path it is
+	// A write to a protected path always asks, under /edits, /auto and an
+	// allow rule alike (Allow all waives it, above), and the prompt says which path it is
 	// asking about. It rides on the warning line the prompt already has,
 	// so both front-ends show it without knowing about any of this.
 	// The egress policy: a blocked host is refused here, and a host it
@@ -348,7 +357,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+taintWhy, "; ")
 	}
 	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
-		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
+		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" && !yolo {
 			mustAsk = true
 			setAskSource(call, "protected")
 			if !strings.Contains(call.Warning, why) {

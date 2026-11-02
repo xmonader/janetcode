@@ -640,12 +640,15 @@ are refused outright, seen through `sudo`, `env`, `timeout`, `sh -c` and
 (`rm ../x`, `cp a ~/b`, `> /etc/hosts`, `go build -o ~/bin/x`, `curl -o ../f`)
 always ask. Everything else follows the permission mode.
 
-Auto-approve means "do not stop me for what would be allowed", never "skip
-the check". A guarded command is put in front of you under `--yolo`, an
-allow rule and a `pre_tool` hook alike, and the only thing that lets it
-through is an answer. A run with nobody to answer -- an eval, a headless
-run with no approver -- refuses it and tells the model why, so the next
-attempt changes the command rather than the machine.
+A guarded command is put in front of you under an allow rule and a
+`pre_tool` hook alike. **Allow all** (`--yolo`, `/yolo`) is the exception
+when you are there to answer: choosing it waives these local guards and
+the protected-path prompt, and the warning still shows on the call. The
+egress and taint gates, a hook that answers "ask" and your own ask rules
+still prompt under Allow all. A run with nobody to answer -- an eval, a
+headless `-p --yolo` run -- keeps the guard: it refuses the call and tells
+the model why, so the next attempt changes the command rather than the
+machine.
 
 Whatever a tool reads, credentials are taken out of its result before
 anything sees it: a shell's whole environment, a `.env`, a 401 body

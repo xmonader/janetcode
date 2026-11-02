@@ -260,6 +260,10 @@ type Agent struct {
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.
 	AutoApprove bool
+	// userYolo, when set, says whether the user chose Allow all. An
+	// editing subagent auto-approves its own calls without the user having
+	// chosen anything, so it asks its parent instead (exec.go).
+	userYolo func() bool
 	// AutoEdits skips the Approver for file edits only: write_file and
 	// edit_file go through, commands still ask. The natural mode for a
 	// refactor, where every edit would be approved anyway.

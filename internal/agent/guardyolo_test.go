@@ -70,10 +70,10 @@ func TestAutoApproveStillRunsUnguardedCallsWithoutAsking(t *testing.T) {
 	}
 }
 
-// With an approver present, auto-approve puts the guarded call in front
-// of it rather than past it, and an approval runs it: the knob that lets
-// a guarded command through is a human saying yes, not a mode.
-func TestAutoApproveAsksTheApproverAboutAGuardedCall(t *testing.T) {
+// With a user there to answer, Allow all is their choice to stop being
+// asked: the guarded call runs without a prompt. The headless case above
+// still refuses, since nobody chose anything there.
+func TestAllowAllRunsAGuardedCallWithoutAsking(t *testing.T) {
 	var ran []string
 	asked := 0
 	f := &fake{responses: []*llm.Response{toolCall("c1", "run", `{"what":"outside"}`), text("done")}}
@@ -86,7 +86,7 @@ func TestAutoApproveAsksTheApproverAboutAGuardedCall(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	if asked != 1 || len(ran) != 1 {
+	if asked != 0 || len(ran) != 1 {
 		t.Fatalf("asked %d times, ran %v", asked, ran)
 	}
 }

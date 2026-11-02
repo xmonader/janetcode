@@ -441,7 +441,7 @@ func (guardTool) Run(context.Context, json.RawMessage) (string, error) {
 }
 func (g guardTool) Guard(json.RawMessage) (bool, string) { return g.ask, "reaches outside" }
 
-func TestGuardedToolAsksEvenWithAutoApprove(t *testing.T) {
+func TestAllowAllWaivesTheToolGuard(t *testing.T) {
 	asked := 0
 	approver := ApproverFunc(func(ctx context.Context, call ToolCall) (Decision, error) {
 		asked++
@@ -456,9 +456,9 @@ func TestGuardedToolAsksEvenWithAutoApprove(t *testing.T) {
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	// Auto-approve is bypassed and "always" does not stick for guarded calls.
-	if asked != 2 {
-		t.Fatalf("asked %d times, want 2", asked)
+	// Allow all, chosen by a user who is there, waives the tool's guard.
+	if asked != 0 {
+		t.Fatalf("asked %d times, want 0", asked)
 	}
 	asked = 0
 	f = &fake{responses: []*llm.Response{toolCall("1", "guarded", `{}`), text("done")}}

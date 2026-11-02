@@ -90,17 +90,18 @@ func TestProtectedPathAsksWithAllowRule(t *testing.T) {
 	onlyProtected(t, seen, root)
 }
 
-// --yolo asks too. A protected write is the one move whose consequences
-// outlive the session, and the set is small enough that ordinary work
-// never meets it.
-func TestProtectedPathAsksUnderYolo(t *testing.T) {
+// Allow all, chosen by a user who is there, waives the protected-path
+// prompt like the other local guards (exec.go).
+func TestProtectedPathDoesNotAskUnderAllowAll(t *testing.T) {
 	var seen []ToolCall
-	a, root := protectedAgent(t, &seen)
+	a, _ := protectedAgent(t, &seen)
 	a.AutoApprove = true
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
-	onlyProtected(t, seen, root)
+	if len(seen) != 0 {
+		t.Fatalf("Allow all still asked: %+v", seen)
+	}
 }
 
 // A shell command that writes a protected path is caught the same way,

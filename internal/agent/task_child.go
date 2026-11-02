@@ -50,6 +50,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	child.EgressPolicy = p.EgressPolicy
 	p.shareTaint(child)
 	child.Impact = p.Impact
+	child.userYolo = p.yoloChosen
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
 	// applied. A profile can ask for the other arrangement: the
@@ -197,6 +198,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	child.EgressPolicy = p.EgressPolicy
 	p.shareTaint(child)
 	child.Impact = p.Impact
+	child.userYolo = p.yoloChosen
 	child.Files = p.Files
 	withholdFromChild(child.Tools, profile)
 	return child, nil
@@ -285,6 +287,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.EgressPolicy = p.EgressPolicy
 	p.shareTaint(child)
 	child.Impact = p.Impact
+	child.userYolo = p.yoloChosen
 	child.Files = p.Files
 	withholdFromChild(child.Tools, nil)
 	if !ps.AutoApprove && p.Approver != nil {
@@ -343,4 +346,15 @@ func copyMessages(in []llm.Message) []llm.Message {
 // are its profile's.
 func childRules(rs perm.Rules) perm.Rules {
 	return perm.Rules{Deny: rs.Deny, Ask: rs.Ask}
+}
+
+// yoloChosen reports whether a user who is there to answer chose Allow
+// all, for this agent or the parent it was delegated from. A headless run
+// (no approver: -p, an eval) keeps the local guards, because with nobody
+// to ask they refuse a call reaching outside the workspace.
+func (a *Agent) yoloChosen() bool {
+	if a.userYolo != nil {
+		return a.userYolo()
+	}
+	return a.Settings().AutoApprove && a.Approver != nil
 }
