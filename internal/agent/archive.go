@@ -285,6 +285,9 @@ func (ar *Archive) List() []Entry {
 // instead (same archive note, the quotes in it are byte-exact); any
 // failure of that path leaves the preview exactly as it was.
 func (a *Agent) stash(toolUse, name, subject, out string) string {
+	if ex := a.failExcerpt(toolUse, name, subject, out); ex != "" {
+		return ex
+	}
 	budget := inlineBudget(name)
 	if len(out) <= budget || name == (&ExpandOutput{}).Name() {
 		return out
@@ -321,7 +324,7 @@ func archiveNote(id string, size, shown int, digest string) string {
 }
 
 // reArchiveNoteID finds the archive id in an archiveNote.
-var reArchiveNoteID = regexp.MustCompile(`^\[output is [^\n]*? The full output is saved as (ctx-\d+):`)
+var reArchiveNoteID = regexp.MustCompile(`^\[(?:output is|failure excerpt of a) [^\n]*? The full output is saved as (ctx-\d+):`)
 
 // archiveNoteID is the archive id named by the note at the head of a
 // tool result that was stashed or trimmed, or "". The note is the one
