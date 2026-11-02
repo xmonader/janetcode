@@ -76,7 +76,13 @@ func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 		if !exists && !p.existed || exists && p.existed && bytes.Equal(data, p.data) {
 			continue
 		}
-		a.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data, Gone: !exists})
+		// A fork's changes belong to the session's ledger, filed under
+		// its attempt, so /undo agent can find them.
+		owner := a
+		if a.UndoOwner != nil {
+			owner = a.UndoOwner
+		}
+		owner.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data, Gone: !exists, Attempt: a.attemptTag})
 		a.logEvent(session.Event{Type: session.TypeFileChange, CallID: u.ID, Name: p.path, Arguments: contentDigest(p.data, p.existed) + "->" + contentDigest(data, exists)})
 	}
 }

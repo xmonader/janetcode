@@ -374,7 +374,7 @@ func (t *Task) applyMerge(ctx context.Context, w *worktree, id, desc string, res
 			return fmt.Errorf("%s: %w", rel, err)
 		}
 		owner.record(Change{Turn: p.turnN, Tool: "task", Intent: intentLine("merged from subagent "+id+": "+desc, 120),
-			Path: abs[i], Existed: before.Exists, Before: before.Data, After: after.Data, Gone: !after.Exists})
+			Path: abs[i], Existed: before.Exists, Before: before.Data, After: after.Data, Gone: !after.Exists, Attempt: p.Attempts.OpenFor(id)})
 		p.logEvent(session.Event{Type: session.TypeFileChange, Name: abs[i], Arguments: contentDigest(before.Data, before.Exists) + "->" + contentDigest(after.Data, after.Exists)})
 	}
 	t.merged.Store(true)

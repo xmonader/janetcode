@@ -69,6 +69,9 @@ type subagent struct {
 	wt    *worktree
 	seen  llm.Usage
 
+	// attempt is the id of the attempt now running (see attempts.go).
+	attempt string
+
 	desc    string
 	started time.Time
 	done    bool
@@ -650,7 +653,18 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	kind := subagentKind(kid, profile)
 	in.Prompt += t.Parent.subagentStartHook(ctx, childID, kind)
 	start := time.Now()
+	// The intent is on disk before the child starts: if this process dies
+	// mid-run, resume finds the attempt open (see ReconcileAttempts).
+	attempt := Attempt{Child: childID, Desc: in.Description, Kind: kind, Edit: wt != nil, Fork: kid.fork, Turn: t.Parent.turnN}
+	if wt != nil {
+		attempt.Worktree = wt.Dir
+	}
+	attemptID := t.Parent.Attempts.Begin(attempt)
+	if kid.fork {
+		child.attemptTag = attemptID
+	}
 	t.mu.Lock()
+	kid.attempt = attemptID
 	kid.desc = in.Description
 	kid.started = start
 	kid.done = false
@@ -687,6 +701,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	t.mu.Lock()
 	kid.done = true
 	t.mu.Unlock()
+	defer func() { t.Parent.Attempts.Finish(attemptID, attemptOutcome(err, ctx, runCtx), errText(err)) }()
 	if err != nil && ctx.Err() == nil && runCtx.Err() != nil {
 		t.mu.Lock()
 		t.bill(kid, child)
@@ -845,6 +860,7 @@ func (t *Task) runBackground(kid *subagent, childID, kind, desc, prompt string, 
 				kid.last = "starting a queued message"
 			}
 			if next == "" {
+				t.Parent.Attempts.Finish(kid.attempt, attemptOutcome(err, nil, runCtx), errText(err))
 				kid.done = true
 				kid.report = bgReport(label, childID, desc, time.Since(start), child, err)
 				t.bill(kid, child)
@@ -942,4 +958,25 @@ func (t *Task) SetRoot(dir string) (running int) {
 		}
 	}
 	return running
+}
+
+// attemptOutcome classifies how a run ended for the attempt store. parent
+// is the tool call's context (nil for a background run, which has none).
+func attemptOutcome(err error, parent, run context.Context) string {
+	switch {
+	case err == nil:
+		return OutcomeOK
+	case parent != nil && parent.Err() != nil, run != nil && run.Err() == context.Canceled:
+		return OutcomeCancelled
+	case run != nil && run.Err() == context.DeadlineExceeded:
+		return OutcomeTimeout
+	}
+	return OutcomeFailed
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

@@ -785,6 +785,10 @@ func (b *agentBuilder) stepUndo() error {
 	if err := ag.LoadUndo(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
+	// Subagent attempts the previous process left open are closed and
+	// reported on resume (see agent.AttemptStore); nothing is rerun.
+	ag.Attempts = agent.OpenAttempts(strings.TrimSuffix(b.sess.Path(), ".jsonl") + ".attempts.log")
+	ag.ReconcileAttempts()
 	return nil
 }
 

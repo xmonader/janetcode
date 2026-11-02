@@ -394,3 +394,21 @@ func TestFormatUndoReport(t *testing.T) {
 		})
 	}
 }
+
+func TestParseArgsAgent(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want Args
+		bad  bool
+	}{
+		{"agent", Args{AgentList: true}, false},
+		{"agent a3", Args{Agent: "a3"}, false},
+		{"agent task-2", Args{Agent: "task-2"}, false},
+		{"agent a3 b4", Args{}, true},
+	} {
+		got, err := ParseArgs(c.in)
+		if (err != nil) != c.bad || got != c.want {
+			t.Errorf("%q = %+v %v", c.in, got, err)
+		}
+	}
+}

@@ -508,6 +508,13 @@ type Agent struct {
 	// fork wrote were absent from the session's undo manifest and /undo
 	// could not put them back. Nil for an ordinary agent.
 	UndoOwner *Agent
+	// Attempts, on the session agent, is the durable record of subagent
+	// attempts (see attempts.go). attemptTag, on a fork, is the attempt its
+	// file changes are filed under. orphans are the attempts the previous
+	// process left open, found by ReconcileAttempts.
+	Attempts   *AttemptStore
+	attemptTag string
+	orphans    []Attempt
 	// planComments are the remarks the user has left on the plan file and
 	// not yet sent (see plancmd.go). The plan itself is never held here:
 	// it lives in .janetcode/plan.md and is read back from there.

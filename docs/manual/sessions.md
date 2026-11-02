@@ -262,6 +262,30 @@ resumes its normal schedule. A job with no journal history starts a fresh
 baseline and does not catch up. `cron history` (optionally with `id`) shows
 the recent entries.
 
+## Subagent attempts: crash recovery and rewind
+
+Every subagent run is an *attempt*, recorded in `<session>.attempts.log`
+like a write-ahead log: an **intent** line is written before the child
+starts (id `a1`, `a2`, ..., its task id, description, whether it edits, its
+checkout) and a **completion** line after it ends (`ok`, `failed`,
+`cancelled`, `timeout`). The file keeps the newest settled attempts and
+every open one.
+
+If the parent is killed mid-run, the next time the session opens the
+attempts with an intent and no completion are **orphaned**: they are closed
+as such, shown in the resume notice and, with `--recover` or `/recover`,
+given to the model with the instruction not to repeat them. They are never
+rerun, because the child may already have written files. The notice names
+how many recorded file changes each left and any checkout that may still
+hold unmerged work.
+
+File changes made by a child (a fork's edits, or a merge-back from an
+editing subagent) are filed under its attempt id in the undo ledger.
+`/undo agent` lists attempts; `/undo agent <a3|task-2>` unwinds exactly
+that attempt's changes, newest first, leaving your own and other children's
+edits alone. A change whose lines were edited since is reported and skipped
+(the same refusal as `/undo <n>`); the rest still go.
+
 ## Fork lineage in the listing
 
 Because `/fork` records which session a copy came from, every listing of

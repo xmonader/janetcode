@@ -46,6 +46,17 @@ func (a *Agent) Interrupted() *session.Interrupted {
 // InterruptedNotice is the one line a front-end shows on opening a
 // session that died mid-turn, or "" when it did not.
 func (a *Agent) InterruptedNotice(how string) string {
+	n := a.interruptedNotice(how)
+	if o := a.OrphanNotice(); o != "" {
+		if n != "" {
+			n += "\n"
+		}
+		n += o
+	}
+	return n
+}
+
+func (a *Agent) interruptedNotice(how string) string {
 	it := a.Interrupted()
 	if it == nil {
 		return ""
@@ -74,6 +85,10 @@ func (a *Agent) ContinueInterrupted(ctx context.Context, emit func(Event)) error
 	it := a.Interrupted()
 	if it == nil {
 		return ErrNothingToContinue
+	}
+	if o := a.OrphanNotice(); o != "" {
+		a.AddHarnessContext(o)
+		a.orphans = nil
 	}
 	a.resume = &resumeState{turn: it.Turn, calls: it.Calls}
 	return a.RunBlocks(ctx, nil, emit)
