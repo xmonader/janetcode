@@ -8,3 +8,5 @@ evals/last-results.json
 .claude/worktrees/
 ui-shots/
 dist/
+evals/effbench/
+evals/effbench-selftest/
