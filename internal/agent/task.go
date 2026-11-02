@@ -81,6 +81,11 @@ type subagent struct {
 	report string
 	// cancel stops this child's Run. Nil until the run has a context.
 	cancel context.CancelFunc
+	// queued are messages waiting to run as this child's later turns
+	// (send_subagent_message, delivery queue); sent counts every message
+	// ever sent to it, for the quota.
+	queued []string
+	sent   int
 }
 
 // ChildInfo is a live snapshot of one subagent for status lines, /agents
@@ -541,6 +546,12 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if kid != nil && !running {
 			kid.done = false
 			kid.last = "starting"
+			// Messages queued for it while it was busy run first, as
+			// part of this turn.
+			if len(kid.queued) > 0 {
+				in.Prompt = strings.Join(kid.queued, "\n\n") + "\n\n" + in.Prompt
+				kid.queued = nil
+			}
 		}
 		t.mu.Unlock()
 		if kid == nil {
@@ -666,20 +677,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// and the child is watched with /agents. The session context is
 		// cancelled from Close, so quitting the TUI stops it. Cancel(id)
 		// stops just this child.
-		runCtx := t.bindChildCtx(t.sessionCtx(), kid, minutes)
-		t.running.Add(1)
-		desc := in.Description
-		go func() {
-			defer t.running.Done()
-			defer t.releaseChild(kid)
-			err := child.Run(runCtx, in.Prompt, emit)
-			t.Parent.subagentStopHook(childID, kind, child)
-			t.mu.Lock()
-			kid.done = true
-			kid.report = forkReport(childID, desc, time.Since(start), child, err)
-			t.bill(kid, child)
-			t.mu.Unlock()
-		}()
+		t.runBackground(kid, childID, kind, in.Description, in.Prompt, minutes, "fork", start, emit)
 		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s, cancel with task cancel=%s", in.Description, childID, childID, childID), nil
 	}
 	runCtx := t.bindChildCtx(ctx, kid, minutes)
@@ -825,13 +823,52 @@ func usageSince(before, now llm.Usage) llm.Usage {
 	}
 }
 
+// runBackground runs prompt on kid in a goroutine that outlives the
+// calling tool call, then any messages queued for it (send_subagent_message
+// with delivery queue) one turn at a time, and files the report for the
+// parent. label is "fork" or "subagent" for the report's first line.
+func (t *Task) runBackground(kid *subagent, childID, kind, desc, prompt string, minutes int, label string, start time.Time, emit func(Event)) {
+	child := kid.agent
+	runCtx := t.bindChildCtx(t.sessionCtx(), kid, minutes)
+	t.running.Add(1)
+	go func() {
+		defer t.running.Done()
+		defer t.releaseChild(kid)
+		var err error
+		for {
+			err = child.Run(runCtx, prompt, emit)
+			t.Parent.subagentStopHook(childID, kind, child)
+			t.mu.Lock()
+			next := ""
+			if err == nil && runCtx.Err() == nil && len(kid.queued) > 0 {
+				next, kid.queued = kid.queued[0], kid.queued[1:]
+				kid.last = "starting a queued message"
+			}
+			if next == "" {
+				kid.done = true
+				kid.report = bgReport(label, childID, desc, time.Since(start), child, err)
+				t.bill(kid, child)
+				t.mu.Unlock()
+				return
+			}
+			t.bill(kid, child)
+			t.mu.Unlock()
+			prompt = next
+		}
+	}()
+}
+
 // forkReport is what the parent is told when a background fork ends. A
 // fork edits the parent's own workspace and its work used to reach the
 // parent only if someone ran /agents: a recorded session spawned two
 // forks, replied, and the session log ended — the files they wrote
 // appear nowhere in the transcript.
 func forkReport(id, desc string, took time.Duration, child *Agent, err error) string {
-	head := fmt.Sprintf("fork %q id=%s finished after %s", desc, id, took.Round(time.Second))
+	return bgReport("fork", id, desc, took, child, err)
+}
+
+func bgReport(label, id, desc string, took time.Duration, child *Agent, err error) string {
+	head := fmt.Sprintf("%s %q id=%s finished after %s", label, desc, id, took.Round(time.Second))
 	switch {
 	case errors.Is(err, context.Canceled):
 		return head + " (cancelled)"

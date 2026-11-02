@@ -463,6 +463,7 @@ func (b *agentBuilder) stepCore() error {
 			tool.WebSearch{Config: d.cfg.Search},
 			b.expand,
 			b.task,
+			&agent.SendSubagentMessage{Task: b.task},
 		),
 	}, agent.Settings{
 		Model:         d.cfg.Model,

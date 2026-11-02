@@ -1749,6 +1749,25 @@ A running child can be steered without waiting for it to finish:
 `/agents steer task-2 also check the tests`. That is the existing Steer
 path (ctrl+s in the parent turn) pointed at the child.
 
+The model has a tool for the same, `send_subagent_message`, which names
+the subagent by id (`task-2`) or by its description and takes a `delivery`:
+
+| delivery | what happens to a running subagent |
+|---|---|
+| `steer` (default) | it reads the text before its next model call |
+| `interject` | the same, but ahead of any steering already waiting |
+| `queue` | it runs the text as a later turn once the current one ends (`task continue` runs it too) |
+
+A subagent that has finished is woken instead, whatever the delivery: it
+runs the text as its next turn in the background and its answer comes back
+as a background update, like a fork's (an editing subagent is resumed with
+`task continue`, since its worktree and patch belong to that call). The
+text reaches the child marked as the parent's message with an id. Limits:
+16 KB a message, 8 waiting per subagent, 32 in all per subagent; past them
+the call fails and nothing is sent. Only the main session has the tool, so
+messaging is one level deep: neither a subagent nor a fork can message
+another.
+
 `/agents new <brief>` starts a built-in `general` subagent immediately
 (read-only, like `task` without `edit:true`) and opens the overlay so you
 can watch it; `/agents fork <brief>` starts a `task` fork that inherits
