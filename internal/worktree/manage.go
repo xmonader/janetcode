@@ -106,7 +106,7 @@ func Remove(ctx context.Context, repo, name, keepPath string, force bool) (Info,
 	if hit == nil {
 		return Info{}, fmt.Errorf("worktree: no managed worktree %q · /worktree list shows them", name)
 	}
-	if keepPath != "" && resolve(keepPath) == resolve(hit.Path) {
+	if keepPath != "" && within(resolve(keepPath), resolve(hit.Path)) {
 		return *hit, fmt.Errorf("worktree: %s is where this session is working; leave it first", hit.Branch)
 	}
 	if hit.Dirty && !force {
@@ -208,4 +208,11 @@ func Format(infos []Info, cwd string) string {
 		fmt.Fprintf(&sb, "%s %-24s %s · %s\n", mark, in.Branch, strings.Join(notes, ", "), in.Path)
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// within reports whether path is dir or somewhere under it, so a session
+// working in a subdirectory of a worktree keeps it too.
+func within(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
