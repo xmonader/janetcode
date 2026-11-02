@@ -312,3 +312,19 @@ func (s *server) plan(arg string) {
 		s.startTurn(res.Handover)
 	}
 }
+
+// recap shows the "where was I" summary as a sheet. Like /btw it is for
+// the reader only: nothing reaches the conversation.
+func (s *server) recap() {
+	ag := s.opts.Agent
+	go func() {
+		ctx, cancel := context.WithTimeout(s.life, 45*time.Second)
+		defer cancel()
+		a, err := ag.Recap(ctx)
+		if err != nil {
+			s.errf("recap: %v", err)
+			return
+		}
+		s.sheet("recap", a)
+	}()
+}

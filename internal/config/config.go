@@ -311,6 +311,9 @@ type Config struct {
 	// Followup enables a cheap next-prompt suggestion as ghost text
 	// after a turn; tab accepts it. Nil means off.
 	Followup *bool `json:"followup,omitempty"`
+	// RecapIdleMinutes writes a /recap on its own when the terminal
+	// session sees a keypress after this many idle minutes. 0 is off.
+	RecapIdleMinutes int `json:"recap_idle_minutes,omitempty"`
 	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
 	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
 	ComputerUse *bool `json:"computer_use,omitempty"`

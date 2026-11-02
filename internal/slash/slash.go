@@ -32,6 +32,7 @@ var Commands = withIdle([]Command{
 	{Name: "/fork", Args: "[stay] [title]", Help: "copy this conversation into a new session; stay keeps this one live"},
 	{Name: "/add-dir", Args: "<path>", Help: "grant file tools another local directory for this session"},
 	{Name: "/btw", Args: "<question>", Help: "ask a side question that is not stored as a user turn"},
+	{Name: "/recap", Args: "", Help: "a short \"where was I\" summary of the session so far; shown to you only, never added to the conversation (recap_idle_minutes writes one on its own when you return from a break)"},
 	{Name: "/copy", Args: "", Help: "copy the last assistant reply to the clipboard"},
 	{Name: "/config", Args: "[key=value]", Help: "set a catalogued config key, or list settable keys"},
 	{Name: "/doctor", Args: "", Help: "run a setup checkup; reports facts, changes nothing"},

@@ -26,7 +26,7 @@ var webCommands = []string{
 	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
-	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
+	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/plugin", "/cua", "/trust", "/egress",
 }
@@ -257,6 +257,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/btw": func(s *server, arg string) (bool, error) {
 		s.btw(arg)
+		return false, nil
+	},
+	"/recap": func(s *server, arg string) (bool, error) {
+		s.recap()
 		return false, nil
 	},
 	"/copy": func(s *server, arg string) (bool, error) {

@@ -530,6 +530,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /features [name [on|off]]  (the model slots, the cascade, the forced advisor, the stale-check nudge and the decision consumers)
 /jev [on|off|model|provider|triage|intake|route|outcome [on|off]]  (the optional decision service)
 /compact-fast (also /compress-fast: prune old results and thinking, no summary call)
+/recap  (a "where was I" summary shown to you only, never added to the conversation)
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
 /cua [on|off|doctor]  (start Cua Driver as an MCP desktop server)
@@ -2692,6 +2693,14 @@ on. It runs on its own, in the background, when a `/goal` finishes;
 
 `read_file` extracts text from PDF (pdftotext, else a crude stream) and
 PPTX, and describes images instead of refusing them as binary.
+
+`/recap` writes two to four sentences on where the session stands: what you
+were doing, what is done, the next step. It is a side call on the cheap
+model slot when one is set, over the recent turns only, with no tools. The
+text goes to the scrollback (a sheet in the web UI) and is never added to
+the conversation, so it costs the model no context. `"recap_idle_minutes": 30`
+writes one on its own on the first keypress after 30 idle minutes (terminal
+only; 0, the default, is off).
 
 A follow-up suggestion is off by default. `/followup on` (or
 `"followup": true` in the config) asks a cheap side query after a turn —

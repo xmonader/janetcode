@@ -234,6 +234,9 @@ var dispatch = map[string]cmdHandler{
 		m.addDirCommand(cmdArg(text, fields))
 		return nil, false
 	},
+	"/recap": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		return m.recapCommand(false), true
+	},
 	"/btw": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.btwCommand(cmdArg(text, fields)), true
 	},

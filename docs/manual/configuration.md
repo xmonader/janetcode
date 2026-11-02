@@ -525,6 +525,11 @@ turn. They are off by default. A cheap side query (no system prompt, no
 tools) proposes 2–12 words; Tab accepts them in the terminal. `/followup
 on|off` toggles the running session; `/config followup=true` saves it.
 
+`"recap_idle_minutes": N` writes a `/recap` into the terminal transcript on
+the first keypress after N minutes without one, when the conversation has
+grown since the last recap. 0 (the default) is off. `/config
+recap_idle_minutes=30` saves it.
+
 `"hints": false` turns off the one-time notes about features a session
 could have used. They are on by default, and there are nine of them: the
 verification gate after the third changing turn or the second time you run
