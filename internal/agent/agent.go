@@ -1112,6 +1112,17 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		}
 	}
 	results, images, runErr := a.executeAll(ctx, uses, emit)
+	a.dedupReads(a.Messages, uses, results)
+	// Stand-ins past the fourth are dropped from the history below, after
+	// the step's notes are attached; extra is what those notes add.
+	var folded map[string]bool
+	var foldNote, lastOrig string
+	if !a.Off["readdedup"] {
+		folded, foldNote = foldStandIns(uses, results, standInsKept)
+		if len(results) > 0 {
+			lastOrig = results[len(results)-1].Text
+		}
+	}
 	a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
 	if note, _ := a.collectDiagnostics(0); note != "" && len(results) > 0 {
 		results[len(results)-1].Text += "\n\n" + note
@@ -1140,6 +1151,12 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	}
 	if a.EffortControlOn() {
 		a.noteEffort(stepEffortSignal(uses, results, a.effort.edited))
+	}
+	if len(folded) > 0 {
+		extra := strings.TrimPrefix(results[len(results)-1].Text, lastOrig)
+		results = withoutDropped(results, folded, foldNote, extra)
+		a.dropCalls(folded)
+		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%d repeated call(s) of this step were left out of the history", len(folded))})
 	}
 	tr := llm.ToolResultMessage(results...)
 	tr.Blocks = append(tr.Blocks, images...)
