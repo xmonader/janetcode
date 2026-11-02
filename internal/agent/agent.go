@@ -674,6 +674,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		repeatNote, err := a.recordReply(resp, emit)
 		if err != nil {
+			a.closeOnLimit(ctx, err, emit)
 			return err
 		}
 		a.noteCut(resp)
@@ -696,9 +697,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			continue
 		}
 		if done, err := a.runToolStep(ctx, resp, repeatNote, emit); done || err != nil {
+			a.closeOnLimit(ctx, err, emit)
 			return err
 		}
 	}
+	a.closeOnLimit(ctx, ErrMaxIterations, emit)
 	return ErrMaxIterations
 }
 

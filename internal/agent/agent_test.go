@@ -348,7 +348,7 @@ func TestMaxIterations(t *testing.T) {
 	if !errors.Is(err, ErrMaxIterations) {
 		t.Fatalf("err = %v", err)
 	}
-	if last := a.Messages[len(a.Messages)-1]; last.Role != llm.RoleUser || last.Blocks[0].Type != llm.BlockToolResult {
+	if last := beforeClosing(a.Messages); last.Role != llm.RoleUser || last.Blocks[0].Type != llm.BlockToolResult {
 		t.Fatalf("history should end with tool results, got %+v", last)
 	}
 }

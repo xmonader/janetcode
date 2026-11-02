@@ -58,7 +58,7 @@ func TestBudgetStopsWithinATurn(t *testing.T) {
 	// The third call's tool was answered, not run, and the history still
 	// pairs every tool_use with a result — otherwise the next request
 	// would be refused by the provider.
-	last := a.Messages[len(a.Messages)-1]
+	last := beforeClosing(a.Messages)
 	if last.Role != llm.RoleUser {
 		t.Fatalf("history ends with %s, want the tool results", last.Role)
 	}

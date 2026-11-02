@@ -22,10 +22,10 @@ func TestToolLimitStopsBeforeTheCallThatPassesIt(t *testing.T) {
 	if !errors.Is(err, ErrToolLimit) {
 		t.Fatalf("err = %v", err)
 	}
-	if calls, _ := a.Stats().ToolCalls(); calls != 1 || len(f.requests) != 2 {
+	if calls, _ := a.Stats().ToolCalls(); calls != 1 || len(f.requests) != 3 { // the third is the closing reply
 		t.Fatalf("tool calls = %d, model calls = %d", calls, len(f.requests))
 	}
-	last := a.Messages[len(a.Messages)-1]
+	last := beforeClosing(a.Messages)
 	if last.Role != llm.RoleUser || len(last.Blocks) == 0 || last.Blocks[0].ToolUseID != "r2" {
 		t.Fatalf("last message = %+v", last)
 	}
