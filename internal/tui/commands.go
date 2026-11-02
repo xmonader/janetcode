@@ -326,6 +326,14 @@ var dispatch = map[string]cmdHandler{
 		return nil, false
 	},
 	"/usage": (*model).cmdUsage, "/cost": (*model).cmdUsage,
+	"/context-window": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		if m.opts.Agent == nil {
+			m.transcript.errorf("no agent")
+			return nil, false
+		}
+		m.showResult(m.opts.Agent.ContextWindowCommand(cmdArg(text, fields)))
+		return nil, false
+	},
 	"/effort": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.effortCommand(cmdArg(text, fields))
 		return nil, false

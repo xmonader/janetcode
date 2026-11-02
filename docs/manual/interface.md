@@ -80,7 +80,7 @@ ctrl+x ctrl+e    write the prompt in $VISUAL / $EDITOR
 `ctrl+r` searches the prompt history backwards the way a shell does. The
 history is the one up and down step through: every prompt typed in this
 directory, in this session and the earlier ones. Each character you type
-narrows the search and the newest match is put in the composer as you
+narrows the search (a substring, or else the letters in order: `ftlb` finds "fix the login bug") and the newest match is put in the composer as you
 go; `ctrl+r` again steps to an older match, skipping ones that read the
 same. The status line shows `(reverse-i-search)`query'`, and says
 `failing` when nothing matches. `enter` keeps the match in the composer —
@@ -536,6 +536,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
 /cua [on|off|doctor]  (start Cua Driver as an MCP desktop server)
+/context-window [size|default]  (this session's context window: 200k, 1m; compaction runs at three quarters of it)
 /effort [tier|up|down]  (how hard the model thinks: low, medium, high, xhigh, max)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /perf      (where the wall clock went: the model, the tools, waiting on you, the harness itself)
@@ -608,6 +609,16 @@ models take a reasoning tier today: with another provider the setting is
 remembered, `/effort` says it is not being sent, and nothing else changes.
 A session above the default shows its tier next to the mode on the status
 line, so `max` is never a surprise at the end of the month.
+
+`/context-window 1m` chooses the context window for this session only
+(`200k`, `1.5m` or a plain token count; `default` goes back to the
+model's own; alone it reports it). Automatic compaction then runs at
+three quarters of the chosen window instead of the model table's
+(without the 200k cap the table's window gets), and the context meter in
+the status line and the web composer counts against it. It survives
+`/model` switches, is never written to the config file, and is not
+checked against the provider: a window larger than the model accepts
+only fails at the provider. `compact_at` in the config still wins.
 
 Safety rules that apply in every mode, including `--yolo`: commands that
 would destroy the machine (deleting `/` or the home directory, formatting,

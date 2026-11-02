@@ -28,7 +28,7 @@ var webCommands = []string{
 	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
-	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
+	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/context-window", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress",
 }
@@ -193,6 +193,12 @@ var webDispatch = map[string]webHandler{
 	},
 	"/usage": func(s *server, arg string) (bool, error) {
 		s.card("usage", s.usageCard())
+		return false, nil
+	},
+	"/context-window": func(s *server, arg string) (bool, error) {
+		if s.opts.Agent != nil {
+			s.showResult(s.opts.Agent.ContextWindowCommand(arg))
+		}
 		return false, nil
 	},
 	"/effort": func(s *server, arg string) (bool, error) {

@@ -29,6 +29,9 @@ type contextManager struct {
 	// CompactThreshold) instead of DefaultCompactAt. Read through
 	// Settings, written through UpdateSettings.
 	ContextWindow int
+	// WindowOverride is the per-session window chosen with /context-window
+	// (see Settings.WindowOverride); zero means ContextWindow.
+	WindowOverride int
 
 	// summaryFailedAt starts the summaryCooldown after a failed summary.
 	summaryFailedAt time.Time

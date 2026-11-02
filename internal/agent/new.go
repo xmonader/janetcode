@@ -51,6 +51,6 @@ func New(deps Deps, s Settings) (*Agent, error) {
 		ProofNotes:    s.ProofNotes,
 	}
 	// Promoted fields (see contextManager) cannot be set in the literal.
-	a.ContextWindow, a.CompactAt = s.ContextWindow, s.CompactAt
+	a.ContextWindow, a.WindowOverride, a.CompactAt = s.ContextWindow, s.WindowOverride, s.CompactAt
 	return a, nil
 }
