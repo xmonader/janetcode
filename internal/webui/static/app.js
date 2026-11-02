@@ -2120,8 +2120,13 @@
     const row = ev.target.closest("[data-key]");
     if (!row) return;
     hideModeMenu();
+    // The rows pick one mode; the server commands toggle. So switch off
+    // every other mode that is on, and send the chosen one only when it
+    // is not on already, or picking the current mode would turn it off.
     const item = MODE_ITEMS.find((it) => it.key === row.dataset.key);
-    const cmds = item.cmd ? [item.cmd] : activeModeKeys().map((k) => MODE_ITEMS.find((it) => it.key === k).cmd);
+    const active = activeModeKeys();
+    const cmds = active.filter((k) => k !== item.key).map((k) => MODE_ITEMS.find((it) => it.key === k).cmd);
+    if (item.cmd && !active.includes(item.key)) cmds.push(item.cmd);
     for (const c of cmds) await post("/api/command", { text: c });
   });
   document.addEventListener("click", (ev) => {
