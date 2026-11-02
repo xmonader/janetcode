@@ -1219,6 +1219,21 @@ without a `/` is matched against the file name too. `/rules` lists what
 is defined, what brings each in, and which have been sent this session;
 `janetcode --inspect rules` prints the same outside the UI.
 
+#### Cursor rules
+
+A project's Cursor rules in `.cursor/rules/` (`.mdc` or `.md`, nested
+folders included, up to 128 files) are read as well; the frontmatter is
+Cursor's own. A rule with `alwaysApply: true` joins the project
+instructions beside `AGENTS.md`, from the repository root down to the
+working directory, and is read at every trust level as `AGENTS.md` is. A
+rule with `globs:` (a comma-separated string or a list) is a path-scoped
+rule named `cursor:<file>`: it is sent once per session after a tool call
+touches a matching path, and it follows the instruction trust level
+(`/trust instructions`) like the rest of the path-scoped rules. A rule that
+has only a `description` is Cursor's "agent requested" kind and nothing
+brings it in here, so it is skipped. Only the `.cursor/rules` at the
+project root is searched for glob rules, not those in subdirectories.
+
 ## Themes
 
 The `"theme"` key selects the palette: `auto` (detect the terminal

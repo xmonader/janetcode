@@ -171,3 +171,28 @@ func TestOnlyAWholeLineIsAnImport(t *testing.T) {
 		t.Fatalf("prose or a fenced example was read as an import: %q", text)
 	}
 }
+
+func TestInstructionsIncludeCursorAlwaysApplyRules(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		".cursor/rules/style.mdc":  "---\nalwaysApply: true\n---\nUse tabs.",
+		".cursor/rules/scoped.mdc": "---\nglobs: '*.go'\n---\nGo only.",
+		"AGENTS.md":                "agents text",
+	} {
+		p := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := Instructions(dir)
+	if len(got) != 2 || got[0].Text != "agents text" {
+		t.Fatalf("instructions %+v", got)
+	}
+	c := got[1]
+	if !strings.Contains(c.Name, ".cursor/rules") || !strings.Contains(c.Text, "Use tabs.") || strings.Contains(c.Text, "Go only.") {
+		t.Fatalf("cursor entry %+v", c)
+	}
+}

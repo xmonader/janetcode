@@ -36,7 +36,7 @@ type Rule struct {
 	Paths []string
 	Body  string
 	Path  string
-	// Source is "project", "global" or "claude".
+	// Source is "project", "global", "claude" or "cursor".
 	Source string
 }
 
@@ -95,6 +95,11 @@ func Load(cwd, configDir string) []Rule {
 			}
 			byName[r.Name] = r
 		}
+	}
+	// Cursor's glob rules come last under their own names, from the
+	// project directory only.
+	for _, r := range cursorLoad(cwd) {
+		byName[r.Name] = r
 	}
 	out := make([]Rule, 0, len(byName))
 	for _, r := range byName {
