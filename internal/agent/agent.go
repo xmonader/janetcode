@@ -712,6 +712,7 @@ type turnGates struct {
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
 	specReviewed              bool
+	edgeNoted                 bool
 	ledger                    ledgerState
 	difffuzz                  difffuzzGateState
 	// conflicted: the turn ended on a confirmed CONFLICT, past the gates
@@ -1065,6 +1066,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	if !g.conflicted && a.specReview(outcome, &g.specReviewed, emit) {
+		return false
+	}
+	if !g.conflicted && a.edgeRulesGate(outcome, &g.edgeNoted, emit) {
 		return false
 	}
 	if g.specReviewed {

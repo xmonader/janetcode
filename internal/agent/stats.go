@@ -471,7 +471,7 @@ var switches = map[string]bool{
 	"evidence": true,
 	"taint":    true, "honeytoken": true, "depgate": true,
 	"probes":    true,
-	"plancarry": true, "readdedup": true,
+	"plancarry": true, "readdedup": true, "edgerules": true,
 
 	"probememory": true, "readblame": true,
 	"numclaim":  true,
