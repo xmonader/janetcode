@@ -107,7 +107,7 @@ func paramClause(seg string) (name, pattern string, ok bool) {
 // fileTools take a path argument that is cleaned before it is matched, so
 // a rule can be written the way the path is written in the repository.
 var fileTools = map[string]bool{
-	"read_file": true, "write_file": true, "edit_file": true, "notebook_edit": true, "list_dir": true,
+	"read_file": true, "write_file": true, "edit_file": true, "notebook_edit": true, "ast_edit": true, "list_dir": true,
 	"glob": true, "grep": true,
 }
 

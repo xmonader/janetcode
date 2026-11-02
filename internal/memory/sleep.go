@@ -123,7 +123,7 @@ func splitByConcern(existing []Entry, touched []string) (about, other []Entry) {
 		have[strings.TrimSpace(t)] = true
 	}
 	for _, e := range existing {
-		if e.Closed() {
+		if e.Inactive() {
 			continue
 		}
 		hit := false

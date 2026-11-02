@@ -13,16 +13,29 @@ import (
 // remember new knowledge, or forget an entry.
 type Tool struct {
 	Store *Store
+	// NoArchive withdraws archive and restore (JANETCODE_OFF=memarchive),
+	// leaving forget the only way to drop an entry.
+	NoArchive bool
 }
 
 func (*Tool) Name() string { return "memory" }
-func (*Tool) Description() string {
-	return "Long-term memory across sessions. action \"recall\" returns the entries relevant to query (or every entry when query is empty). action \"remember\" saves knowledge worth keeping for future sessions: a user preference or correction (type feedback), a fact about the user (user), a decision and its reason (decision), a project fact that is not obvious from the code (project), or a pointer (reference); entries are kept for this project; a rule for every project is the user's to make with /remember -g, so suggest that when they state one. Give the same name to update an entry. action \"forget\" removes one by name. Do not record task progress or anything already in the index."
+func (t *Tool) Description() string {
+	d := "Long-term memory across sessions. action \"recall\" returns the entries relevant to query (or every entry when query is empty). action \"remember\" saves knowledge worth keeping for future sessions: a user preference or correction (type feedback), a fact about the user (user), a decision and its reason (decision), a project fact that is not obvious from the code (project), or a pointer (reference); entries are kept for this project; a rule for every project is the user's to make with /remember -g, so suggest that when they state one. Give the same name to update an entry. action \"forget\" removes one by name. Do not record task progress or anything already in the index."
+	if !t.NoArchive {
+		d += " \"archive\" keeps an entry but hides it from recall (\"restore\" undoes it); prefer it to forget for what may only be stale."
+	}
+	return d
 }
 func (*Tool) Mutating() bool { return false }
-func (*Tool) Schema() json.RawMessage {
+func (t *Tool) Schema() json.RawMessage {
+	actions, extra := `"recall","remember","forget"`, ""
+	if !t.NoArchive {
+		actions += `,"archive","restore"`
+		extra = `
+"include_archived":{"type":"boolean"},`
+	}
 	return json.RawMessage(`{"type":"object","properties":{
-"action":{"type":"string","enum":["recall","remember","forget"]},
+"action":{"type":"string","enum":[` + actions + `]},` + extra + `
 "query":{"type":"string","description":"recall: words to match against names, descriptions and bodies"},
 "name":{"type":"string","description":"remember/forget: short kebab-case slug; reuse an existing name to update it"},
 "description":{"type":"string","description":"remember: one line shown in the index"},
@@ -35,6 +48,7 @@ func (*Tool) Schema() json.RawMessage {
 func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Action, Query, Name, Description, Body, Type, Scope string
+		IncludeArchived                                     bool `json:"include_archived"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
@@ -46,9 +60,16 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	case "recall":
 		var hits []Entry
 		if strings.TrimSpace(in.Query) == "" {
-			hits = t.Store.Entries()
+			for _, e := range t.Store.Entries() {
+				if !e.Archived || (in.IncludeArchived && !t.NoArchive) {
+					hits = append(hits, e)
+				}
+			}
 		} else {
 			hits = t.Store.SearchCtx(ctx, in.Query, 8)
+			if in.IncludeArchived && !t.NoArchive {
+				hits = append(hits, archivedMatches(t.Store, in.Query, hits)...)
+			}
 		}
 		if len(hits) == 0 {
 			return "Nothing remembered matches that.", nil
@@ -56,7 +77,11 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		t.Store.Touch(hits...)
 		var sb strings.Builder
 		for _, e := range hits {
-			sb.WriteString(Render(e) + "\n")
+			r := Render(e)
+			if e.Archived {
+				r = strings.Replace(r, "<memory ", "<memory archived=\"true\" ", 1)
+			}
+			sb.WriteString(r + "\n")
 		}
 		return strings.TrimRight(sb.String(), "\n"), nil
 	case "remember":
@@ -75,6 +100,22 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			out += "\nKept for this project only: memory for every project is written by the user with /remember -g. If this is meant for all projects, tell the user that."
 		}
 		return out, nil
+	case "archive", "restore":
+		if t.NoArchive {
+			break
+		}
+		if in.Action == "archive" {
+			e, err := t.Store.Archive(in.Name, true)
+			if err != nil {
+				return "", err
+			}
+			return "Archived " + e.Name + ": " + e.Description + ". It is kept but out of the index and recall; memory restore brings it back, forget deletes it.", nil
+		}
+		e, err := t.Store.Restore(in.Name)
+		if err != nil {
+			return "", err
+		}
+		return "Restored " + e.Name + ": " + e.Description, nil
 	case "forget":
 		e, err := t.Store.RemoveModel(in.Name)
 		if err != nil {
@@ -82,5 +123,31 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		return "Forgot " + e.Name + ": " + e.Description, nil
 	}
-	return "", fmt.Errorf("unknown action %q (want recall, remember or forget)", in.Action)
+	return "", fmt.Errorf("unknown action %q (want recall, remember or forget%s)", in.Action, map[bool]string{false: ", archive or restore", true: ""}[t.NoArchive])
+}
+
+// archivedMatches finds archived entries sharing a word with query that
+// the ranked search (which skips them) did not return.
+func archivedMatches(s *Store, query string, have []Entry) []Entry {
+	seen := map[string]bool{}
+	for _, e := range have {
+		seen[e.Name] = true
+	}
+	want := map[string]bool{}
+	for _, w := range Words(query) {
+		want[w] = true
+	}
+	var out []Entry
+	for _, e := range s.Entries() {
+		if !e.Archived || seen[e.Name] {
+			continue
+		}
+		for _, w := range Words(e.Name + " " + e.Description + " " + e.Body) {
+			if want[w] {
+				out = append(out, e)
+				break
+			}
+		}
+	}
+	return out
 }

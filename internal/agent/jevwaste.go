@@ -36,7 +36,7 @@ const (
 // mutatingTools are the calls that change the tree, and so are the only ones
 // that can be the last progress a run made.
 var mutatingTools = map[string]bool{
-	"edit_file": true, "write_file": true, "apply_patch": true,
+	"edit_file": true, "ast_edit": true, "write_file": true, "apply_patch": true,
 	"create_file": true, "multi_edit": true, "insert_lines": true,
 	"replace_lines": true,
 }

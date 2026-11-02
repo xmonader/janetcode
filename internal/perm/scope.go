@@ -101,7 +101,7 @@ func isScope(name, tool string) bool {
 // readTools read the path they are given; writeTools write it.
 var (
 	readTools  = map[string]bool{"read_file": true, "list_dir": true, "glob": true, "grep": true, "read_many": true}
-	writeTools = map[string]bool{"write_file": true, "edit_file": true, "notebook_edit": true}
+	writeTools = map[string]bool{"write_file": true, "edit_file": true, "notebook_edit": true, "ast_edit": true}
 )
 
 // scopeMatch matches one typed clause against a call.

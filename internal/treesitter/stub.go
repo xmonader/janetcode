@@ -20,3 +20,20 @@ func Supported(string) bool { return false }
 // Spans returns the top-level node spans of a file. Without the build
 // tag there is no grammar, so the caller falls back to line ranges.
 func Spans(string, []byte) ([][2]int, bool) { return nil, false }
+
+// Def is one named definition: the node that declares Name, as a byte
+// range of the source (see Definitions).
+type Def struct {
+	Name       string
+	Kind       string
+	Start, End int
+	Line       int
+}
+
+// Definitions lists the named definitions of a file by syntax node. Without
+// the build tag there is no grammar, so there are none.
+func Definitions(string, []byte) ([]Def, bool) { return nil, false }
+
+// SyntaxErrors counts the ERROR and missing nodes of a parse. Without the
+// build tag it cannot.
+func SyntaxErrors(string, []byte) (int, bool) { return 0, false }

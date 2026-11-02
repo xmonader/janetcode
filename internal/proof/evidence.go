@@ -427,7 +427,7 @@ func bashExit(e session.Event) int {
 var notFoundRe = regexp.MustCompile(`(?im)(command not found|: not found)\s*$`)
 
 // editToolNames are the file tools (internal/agent's editTool).
-var editToolNames = map[string]bool{"write_file": true, "edit_file": true, "notebook_edit": true}
+var editToolNames = map[string]bool{"write_file": true, "edit_file": true, "notebook_edit": true, "ast_edit": true}
 
 // foldCommands keeps the latest run in turn of each verification command:
 // the model's bash checks (shell.IsCheck) and every command a turn-end

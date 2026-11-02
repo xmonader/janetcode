@@ -24,7 +24,7 @@ func (s *Store) About(paths []string) []Entry {
 	}
 	var out []Entry
 	for _, e := range s.Entries() {
-		if e.Closed() {
+		if e.Inactive() {
 			continue
 		}
 		for _, c := range e.Concerns {
@@ -41,7 +41,7 @@ func (s *Store) About(paths []string) []Entry {
 func (s *Store) Current() []Entry {
 	var out []Entry
 	for _, e := range s.Entries() {
-		if !e.Closed() {
+		if !e.Inactive() {
 			out = append(out, e)
 		}
 	}

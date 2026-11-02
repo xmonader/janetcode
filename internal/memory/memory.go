@@ -106,11 +106,25 @@ type Entry struct {
 	// is held for the user's confirmation even when Confirm is off (see
 	// needsConfirm and package taint).
 	Tainted bool
+	// Archived marks an entry the model (or user) put away: kept on disk,
+	// out of the index, recall and listing unless asked for, and brought
+	// back by restore. Unlike Closed it says nothing about the entry being
+	// untrue. On disk it is `archived: true`; files without the key are
+	// active, so older stores read unchanged.
+	//
+	// Ported from hero_agent (commit 66526d6aa: archiving a memory used to
+	// delete it, so the model's "this is stale" was irreversible). Forget
+	// still hard-deletes. Off: JANETCODE_OFF=memarchive.
+	Archived bool
 }
 
 // Closed reports whether a correction has retired the entry: it stopped
 // being true at ValidUntil and SupersededBy carries the correction.
 func (e Entry) Closed() bool { return !e.ValidUntil.IsZero() }
+
+// Inactive reports whether the entry is out of the index and recall: it was
+// retired by a correction or archived.
+func (e Entry) Inactive() bool { return e.Closed() || e.Archived }
 
 // Key returns the project identity: the marker file's content, else the
 // git origin URL, else a hash of the path. The result is safe as a
@@ -293,6 +307,7 @@ func readEntry(p, scope string) (Entry, bool) {
 	}
 	e.ValidUntil, _ = time.Parse(time.RFC3339, meta["valid_until"])
 	e.SupersededBy = meta["superseded_by"]
+	e.Archived = meta["archived"] == "true"
 	if scope == "global" {
 		e.Ecosystems = ecosystemsOf(e, meta["ecosystem"])
 	}
@@ -331,6 +346,9 @@ func (s *Store) write(e Entry) error {
 	}
 	if e.SupersededBy != "" {
 		meta["superseded_by"] = e.SupersededBy
+	}
+	if e.Archived {
+		meta["archived"] = "true"
 	}
 	// An entry is what the user told the agent about themselves and their
 	// work, so it is private like the session log it was learned from.
@@ -412,7 +430,7 @@ func (s *Store) put(e Entry, hold bool) (Entry, Status, error) {
 	}
 	now := time.Now()
 	for _, old := range existing {
-		if old.Closed() {
+		if old.Inactive() {
 			continue // a retired entry is history; merging into it would reopen it
 		}
 		if old.Scope == e.Scope && (old.Name == e.Name || similar(old.Description, e.Description)) {
@@ -500,6 +518,36 @@ func (s *Store) Close(name, by string, now time.Time) (Entry, error) {
 		return e, s.write(e)
 	}
 	return Entry{}, fmt.Errorf("no memory entry named %q", name)
+}
+
+// Archive puts an entry away: it stays on disk but leaves the index and
+// recall until Restore. byModel refuses an entry the user saved with
+// /remember, as RemoveModel does. Archiving an archived entry is a no-op.
+func (s *Store) Archive(ref string, byModel bool) (Entry, error) {
+	return s.setArchived(ref, true, byModel)
+}
+
+// Restore brings an archived entry back into the index and recall.
+func (s *Store) Restore(ref string) (Entry, error) { return s.setArchived(ref, false, false) }
+
+func (s *Store) setArchived(ref string, archived, byModel bool) (Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	name := Slug(ref)
+	for _, e := range s.read() {
+		if e.Name != name {
+			continue
+		}
+		if e.Archived == archived {
+			return e, nil
+		}
+		if archived && byModel && e.Source == "user" {
+			return e, fmt.Errorf("%s was %w with /remember, so only they can put it away: if it no longer holds, say so and suggest /forget %s", e.Name, ErrUserEntry, e.Name)
+		}
+		e.Archived = archived
+		return e, s.write(e)
+	}
+	return Entry{}, fmt.Errorf("no memory entry named %q", ref)
 }
 
 // trim keeps a scope under MaxEntries by dropping the least used, oldest
@@ -638,8 +686,8 @@ func (s *Store) IndexWithin(budget int) string {
 	sb.WriteString("\n# Memory\nWhat you learned in earlier sessions, as name (type): description. Feedback and user entries say how the user wants you to work: follow them. Relevant entries are attached to a request automatically; for any other, call memory {\"action\":\"recall\"} before relying on it. When the user tells you something worth keeping (a preference, a correction, a decision, a fact about the project), save it with memory {\"action\":\"remember\"}.\n")
 	visible := entries[:0:0]
 	for _, e := range entries {
-		// A closed entry is history: findable, never advertised.
-		if e.Closed() {
+		// A closed or archived entry is history: findable, never advertised.
+		if e.Inactive() {
 			continue
 		}
 		// An automatic global entry nobody tagged may be one project's
@@ -703,7 +751,7 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	var hits []scored
 	for _, e := range s.Entries() {
 		hide, strong := s.hidden(e)
-		if hide || e.Closed() {
+		if hide || e.Inactive() {
 			continue
 		}
 		need := min

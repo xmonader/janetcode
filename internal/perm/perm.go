@@ -590,7 +590,7 @@ func Subject(tool string, input json.RawMessage) string {
 	// offers and the rules people write are docs/* — so a directory rule
 	// saved from a prompt never matched the very call it was saved for,
 	// and a saved file rule could not be shared with a Unix machine.
-	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir":
+	case "read_file", "write_file", "edit_file", "notebook_edit", "ast_edit", "list_dir":
 		return filepath.ToSlash(filepath.Clean(str("path")))
 	case "glob", "grep":
 		if p := str("path"); p != "" {
@@ -674,7 +674,7 @@ func ladder(tool, subject string) ([]Rule, int) {
 		return bashLadder(tool, subject)
 	case "fetch_url":
 		return urlLadder(tool, subject)
-	case "read_file", "write_file", "edit_file", "notebook_edit", "list_dir", "glob", "grep":
+	case "read_file", "write_file", "edit_file", "notebook_edit", "ast_edit", "list_dir", "glob", "grep":
 		return pathLadder(tool, subject)
 	}
 	return []Rule{{Tool: tool}}, 0

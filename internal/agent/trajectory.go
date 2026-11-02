@@ -173,7 +173,7 @@ func (a *Agent) Trajectory() map[string]float64 {
 		switch t.Name {
 		case "read_file":
 			f["reads"] += float64(t.Calls)
-		case "write_file", "edit_file", "notebook_edit":
+		case "write_file", "edit_file", "notebook_edit", "ast_edit":
 			f["edits"] += float64(t.Calls - t.Errors)
 		}
 	}
