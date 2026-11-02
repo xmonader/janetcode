@@ -135,6 +135,9 @@ type Client struct {
 	// onToolsChanged runs after the server said its tool list changed
 	// and the new list has been loaded (Options.OnToolsChanged).
 	onToolsChanged func(*Client)
+	// onElicit answers elicitation/create; nil means the capability is
+	// not advertised.
+	onElicit func(ctx context.Context, req ElicitRequest) ElicitResponse
 
 	root  string // reported to roots/list
 	debug io.Writer
@@ -208,6 +211,11 @@ type Options struct {
 	// OnToolsChanged runs, on its own goroutine, after the server sent
 	// notifications/tools/list_changed and Tools has been reloaded.
 	OnToolsChanged func(*Client)
+	// OnElicit, when set, answers a server's elicitation/create (form
+	// mode) and makes the client advertise the elicitation capability.
+	// It runs on its own goroutine and blocks for as long as the user
+	// takes, bounded by ctx (ElicitTimeout).
+	OnElicit func(ctx context.Context, req ElicitRequest) ElicitResponse
 }
 
 // Start launches or connects to the server, completes the handshake and
@@ -221,6 +229,7 @@ func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*C
 		done:    make(chan struct{}),
 
 		onToolsChanged: opts.OnToolsChanged,
+		onElicit:       opts.OnElicit,
 	}
 	var err error
 	switch {
@@ -256,9 +265,13 @@ func (c *Client) handshake(ctx context.Context, version string) error {
 	if version == "" {
 		version = "dev"
 	}
+	caps := map[string]any{"roots": map[string]any{"listChanged": false}}
+	if c.onElicit != nil {
+		caps["elicitation"] = map[string]any{"form": map[string]any{}}
+	}
 	params := map[string]any{
 		"protocolVersion": ProtocolVersion,
-		"capabilities":    map[string]any{"roots": map[string]any{"listChanged": false}},
+		"capabilities":    caps,
 		"clientInfo":      map[string]any{"name": "janetcode", "version": version},
 	}
 	res, err := c.call(ctx, "initialize", params)
@@ -788,6 +801,8 @@ func (c *Client) handleRequest(req rpcMessage) {
 	switch req.Method {
 	case "ping":
 		reply.Result = json.RawMessage(`{}`)
+	case "elicitation/create":
+		reply.Result, reply.Error = c.handleElicit(req.Params)
 	case "roots/list":
 		roots := []map[string]string{}
 		if c.root != "" {

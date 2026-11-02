@@ -243,6 +243,7 @@ func (r *root) acpMode() error {
 			return acp.Wrap(b.agent), s, nil
 		},
 	})
+	r.acpAsker = srv // MCP elicitation reaches the editor
 	fmt.Fprintf(os.Stderr, "janetcode %s serving ACP on stdio (%s/%s in %s)\n", version, cfg.Provider, cfg.Model, cwd)
 	return srv.Serve(ctx)
 }

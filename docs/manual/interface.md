@@ -3873,6 +3873,31 @@ model is told that the call may or may not have taken effect and that it
 was not repeated: a lost reply says nothing about whether the server
 created the issue or sent the message.
 
+#### MCP elicitation: a server asking you for input
+
+A server can stop a tool call to ask you for structured input
+(`elicitation/create`, form mode). janetcode advertises the capability and
+shows the form through the same question UI the `ask` tool uses: the
+terminal overlay, the web question card, or, under `--acp`, permission
+prompts in the editor. Each field of the server's schema is one question:
+
+- enums and `oneOf` lists are choices; booleans are Yes/No; strings,
+  numbers and integers are typed with **Other** (a default is offered as
+  a choice, and an optional field has **(leave empty)**);
+- arrays of enums are typed as a comma-separated list of the labels;
+- every value is checked against the schema (type, min/max, length,
+  `email`, `uri`, `date`, `date-time`, choices) and a rejected field is
+  asked again with the reason, twice at most, then the request is
+  cancelled;
+- **Decline request** answers `decline` (you refuse), **Cancel request**
+  or dismissing the card answers `cancel`; a form is accepted only when
+  every field passes. Nothing answered within five minutes cancels it.
+
+Forms are limited to 32 flat fields and 64 KiB, as the spec intends. URL
+mode is not offered. Under ACP the editor can only choose, so text fields
+are limited to their default or left empty; with no front-end asking
+(`-p` runs) the request is declined.
+
 ### Custom commands
 
 Drop a prompt template at `.janetcode/commands/<name>.md` in the project (or

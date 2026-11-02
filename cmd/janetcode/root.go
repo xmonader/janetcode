@@ -67,6 +67,7 @@ type root struct {
 	pool     *providerPool
 	typed    *weburl.Set
 	servers  mcptool.Manager
+	acpAsker agent.Asker // set in ACP mode: elicitation goes to the editor
 	subjects *inspect.Registry
 	catalog  *feature.Catalog
 	usage    *feature.Usage
@@ -181,7 +182,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		ag.SetDryRun(true)
 	}
 
-	r.servers = mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
+	r.servers = mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version, OnElicit: mcptool.ElicitViaAsker(func() agent.Asker { return r.elicitAsker(ag) })}, Registry: ag.Tools}
 	if pol := cfg.Managed; pol != nil {
 		r.servers.Allowed = func(name string) error {
 			if !pol.MCPAllowed(name) {

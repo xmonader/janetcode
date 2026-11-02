@@ -90,3 +90,16 @@ func (a *acpMCP) start(ag *agent.Agent, root string, client map[string]mcp.Serve
 	case <-a.ctx.Done():
 	}
 }
+
+// elicitAsker is who answers an MCP server's elicitation/create: the ACP
+// server when running as one (the editor shows the prompt), else the
+// session's own Asker (the TUI or web question UI). Nil declines.
+func (r *root) elicitAsker(ag *agent.Agent) agent.Asker {
+	if s := r.acpAsker; s != nil {
+		return s
+	}
+	if ag.Asker == nil {
+		return nil
+	}
+	return ag.Asker
+}
