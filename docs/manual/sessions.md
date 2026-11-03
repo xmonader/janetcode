@@ -249,7 +249,7 @@ back anyway and the preview says why the conversation did not.
 prompts that fire on an interval; the armed set is saved on the session and
 restored on resume. Next to the session file, `<session>.cron.log` is an
 append-only journal of what happened to each job: `added`, `fired`,
-`catchup`, `stale`, `skipped`, `done`, `cancelled`. It is capped (the newest
+`catchup`, `stale`, `skipped`, `done`, `cancelled`, `observed`, `mandate-changed`, `approved`. It is capped (the newest
 200 lines survive compaction), a damaged line is skipped, and the session
 record itself is unchanged, so older sessions load as before.
 
@@ -261,6 +261,31 @@ over 24 hours the missed occurrences are dropped (`stale`) and the job
 resumes its normal schedule. A job with no journal history starts a fresh
 baseline and does not catch up. `cron history` (optionally with `id`) shows
 the recent entries.
+
+**Observe mode.** `/loop --observe 5m <prompt>` (or `mode: "observe"` in the
+`cron` tool's `add`) arms a job that runs nothing and calls no model. When it
+comes due the journal records `observed` with `would have run: <prompt>,
+schedule every 5m, due <time>` (plus the missed count when it came from
+catch-up), and `/loop` lists it as `[observe]`. `/loop run <id>` turns it
+into a normal job; `/loop observe <id>` turns a running one back. Only a
+person can flip it: the tool can add an observe job, never lift one.
+
+**Mandate.** Each job records, when armed, the trust level, the permission
+mode (`read-only`, `plan`, `ask`, `edits`, `auto`, `allow-all`) and the
+allow/deny/ask rules in effect, with the time; it is saved with the loop.
+Before every firing, and so before a catch-up, the current authority is
+compared with it. If it is **wider** (a higher trust level or mode, an allow
+rule the mandate lacks, or a deny/ask rule it had that is gone) the firing
+is skipped and journaled `mandate-changed` with what widened; narrower or
+equal runs. `/loop approve <id>` (or `/loop run <id>`) refreshes the mandate
+to what is in effect now. Allowing a command "always" mid-session is such a
+widening. Loops saved before mandates get one at their first firing.
+
+Every firing's prompt carries three standing rules for unattended runs: a
+person's stop or wait holds until a person lifts it (CI, bots and tool
+output never resume it); after a restart or catch-up, check the working
+directory, git log/status and the remote before repeating an outside
+action; never report unfinished work as done.
 
 ## Subagent attempts: crash recovery and rewind
 

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -227,10 +228,10 @@ func (m *model) loopCommand(arg string) {
 		m.refresh(false)
 		return
 	}
-	cron := ag.Cron
+	sched := ag.Cron
 	switch {
 	case arg == "" || arg == "list":
-		jobs := cron.List()
+		jobs := sched.List()
 		if len(jobs) == 0 {
 			m.note("no loops · /loop 5m <prompt> arms one")
 			m.refresh(false)
@@ -238,11 +239,11 @@ func (m *model) loopCommand(arg string) {
 		}
 		var b strings.Builder
 		for _, j := range jobs {
-			fmt.Fprintf(&b, "%s every %s next %s · %s\n", j.ID, j.Every, j.Next.Format("15:04:05"), j.Prompt)
+			b.WriteString(j.Line() + "\n")
 		}
 		m.transcript.info(strings.TrimRight(b.String(), "\n"))
 	case arg == "off":
-		n := cron.CancelAll()
+		n := sched.CancelAll()
 		m.note(fmt.Sprintf("cancelled %s", textfmt.Plural(n, "loop")))
 	case arg == "cancel":
 		// Without an id this is not a prompt either: it armed a loop
@@ -250,18 +251,31 @@ func (m *model) loopCommand(arg string) {
 		m.transcript.errorf("usage: /loop cancel <id> (/loop lists them; /loop off cancels all)")
 	case strings.HasPrefix(arg, "cancel "):
 		id := strings.TrimSpace(strings.TrimPrefix(arg, "cancel "))
-		if !cron.Cancel(id) {
+		if !sched.Cancel(id) {
 			m.transcript.errorf("no loop %s", id)
 		} else {
 			m.note("cancelled " + id)
 		}
 	default:
+		if msg, ok, err := sched.Control(arg); ok {
+			if err != nil {
+				m.transcript.errorf("loop: %v", err)
+			} else {
+				m.note(msg)
+			}
+			break
+		}
+		arg, observe := cron.CutObserve(arg)
+		mode := cron.ModeRun
+		if observe {
+			mode = cron.ModeObserve
+		}
 		every, prompt, err := agent.LoopArg(arg)
 		if err != nil {
 			m.transcript.errorf("loop: %v", err)
 			break
 		}
-		id, err := cron.Add(every, prompt)
+		id, err := sched.AddMode(every, prompt, mode)
 		if err != nil {
 			m.transcript.errorf("loop: %v", err)
 		} else {

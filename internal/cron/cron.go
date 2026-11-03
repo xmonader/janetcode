@@ -62,12 +62,21 @@ type Cron struct {
 
 	// journal records every occurrence (see journal.go); nil is fine.
 	journal *Journal
+	// posture reports the authority a run has now (mandate.go); nil
+	// records and checks no mandate.
+	posture func() Posture
+	// onNotice shows a person a line about a job (mandate-changed skip).
+	onNotice func(string)
 }
 
 type cronJob struct {
-	ID     string
-	Every  time.Duration
-	Prompt string
+	ID      string
+	Every   time.Duration
+	Prompt  string
+	Mode    string
+	Mandate *session.LoopMandate
+	// warned: the mandate-changed notice was shown; cleared on re-approval.
+	warned bool
 	Next   time.Time
 	seq    int
 	timer  *time.Timer
@@ -75,10 +84,21 @@ type cronJob struct {
 
 // Info is the public snapshot of one job.
 type Info struct {
-	ID     string
-	Every  time.Duration
-	Prompt string
-	Next   time.Time
+	ID      string
+	Every   time.Duration
+	Prompt  string
+	Mode    string // "" runs; ModeObserve only journals
+	Mandate *session.LoopMandate
+	Next    time.Time
+}
+
+// Line is the one-line listing of a job, shared by the front ends.
+func (j Info) Line() string {
+	tag := ""
+	if j.Mode == ModeObserve {
+		tag = " [observe]"
+	}
+	return fmt.Sprintf("%s%s every %s next %s · %s", j.ID, tag, j.Every, j.Next.Format("15:04:05"), j.Prompt)
 }
 
 // New returns an empty scheduler.
@@ -147,6 +167,16 @@ func checkEvery(every time.Duration) error {
 
 // Add arms a job that fires after every, then again on that interval.
 func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
+	return c.AddMode(every, prompt, ModeRun)
+}
+
+// AddMode is Add with a mode (ModeRun or ModeObserve). The job's mandate is
+// frozen from the posture in effect now.
+func (c *Cron) AddMode(every time.Duration, prompt, mode string) (string, error) {
+	if mode != ModeRun && mode != ModeObserve {
+		return "", fmt.Errorf("mode must be run or observe")
+	}
+	cur := c.currentPosture()
 	if c == nil {
 		return "", fmt.Errorf("no scheduler in this session")
 	}
@@ -172,7 +202,15 @@ func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 	c.nextID++
 	id := fmt.Sprintf("loop-%d", c.nextID)
 	c.armLocked(id, every, prompt)
-	c.journal.Append(Occurrence{Job: id, Kind: KindAdded, Detail: every.String()})
+	c.jobs[id].Mode = mode
+	detail := every.String()
+	if mode == ModeObserve {
+		detail += " observe"
+	}
+	if cur != nil {
+		c.jobs[id].Mandate = freeze(*cur, time.Now())
+	}
+	c.journal.Append(Occurrence{Job: id, Kind: KindAdded, Detail: detail})
 	snap, cb, ver := c.changeLocked()
 	c.mu.Unlock()
 	c.notify(snap, cb, ver)
@@ -225,7 +263,7 @@ func (c *Cron) listLocked() []Info {
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].seq < ordered[j].seq })
 	out := make([]Info, 0, len(ordered))
 	for _, e := range ordered {
-		out = append(out, Info{ID: e.ID, Every: e.Every, Prompt: e.Prompt, Next: e.Next})
+		out = append(out, Info{ID: e.ID, Every: e.Every, Prompt: e.Prompt, Mode: e.Mode, Mandate: e.Mandate, Next: e.Next})
 	}
 	return out
 }
@@ -333,6 +371,8 @@ func (c *Cron) restoreLocked(specs []session.LoopSpec) error {
 			continue
 		}
 		c.armLocked(id, every, prompt)
+		c.jobs[id].Mode = spec.Mode
+		c.jobs[id].Mandate = spec.Mandate
 		c.catchUpLocked(id, every)
 	}
 	c.version++
@@ -405,7 +445,7 @@ func (c *Cron) notify(snap []session.LoopSpec, cb func([]session.LoopSpec), ver 
 func specsOf(jobs []Info) []session.LoopSpec {
 	out := make([]session.LoopSpec, 0, len(jobs))
 	for _, j := range jobs {
-		out = append(out, session.LoopSpec{ID: j.ID, Every: j.Every.String(), Prompt: j.Prompt})
+		out = append(out, session.LoopSpec{ID: j.ID, Every: j.Every.String(), Prompt: j.Prompt, Mode: j.Mode, Mandate: j.Mandate})
 	}
 	return out
 }
@@ -441,7 +481,14 @@ func (c *Cron) tick(id string, e *cronJob) { c.fire(id, e, KindFired, 0) }
 // fire is tick with the journal kind: KindCatchup carries the coalesced
 // count of missed occurrences. The next regular firing is a full interval
 // after this one.
+//
+// An observe job journals what it would have run and runs nothing. A run
+// is checked against the job's frozen mandate first: a posture wider than
+// the mandate (Posture.Widened) is skipped and journaled mandate-changed
+// until a person re-approves. A job with no mandate yet (saved before
+// mandates) is frozen at its first firing.
 func (c *Cron) fire(id string, e *cronJob, kind string, missed int) {
+	cur := c.currentPosture()
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -451,12 +498,48 @@ func (c *Cron) fire(id string, e *cronJob, kind string, missed int) {
 		c.mu.Unlock()
 		return
 	}
+	now := time.Now()
 	prompt := e.Prompt
-	e.Next = time.Now().Add(e.Every)
+	e.Next = now.Add(e.Every)
 	e.timer = time.AfterFunc(e.Every, func() { c.tick(id, e) })
 	onFire := c.OnFire
-	c.journal.Append(Occurrence{Job: id, Kind: kind, Missed: missed})
+	var snap []session.LoopSpec
+	var cb func([]session.LoopSpec)
+	var ver int
+	var notice string
+	onNotice := c.onNotice
+	switch {
+	case e.Mode == ModeObserve:
+		why := fmt.Sprintf("would have run: %s, schedule every %s, due %s", summarize(prompt, 80), e.Every, now.Format("15:04:05"))
+		if kind == KindCatchup {
+			why += fmt.Sprintf(", catch-up of %d missed", missed)
+		}
+		c.journal.Append(Occurrence{Job: id, Kind: KindObserved, Missed: missed, Detail: why})
+		onFire = nil
+	case cur != nil && e.Mandate != nil:
+		if wider := cur.Widened(*e.Mandate); len(wider) > 0 {
+			c.journal.Append(Occurrence{Job: id, Kind: KindMandateChanged, Missed: missed,
+				Detail: "skipped, wider than approved " + e.Mandate.At.Format("01-02 15:04") + ": " + strings.Join(wider, "; ") + " (/loop approve " + id + ")"})
+			onFire = nil
+			if !e.warned {
+				e.warned = true
+				notice = fmt.Sprintf("loop %s skipped: permissions widened since it was approved (%s); /loop approve %s to keep it running", id, strings.Join(wider, "; "), id)
+			}
+			break
+		}
+		c.journal.Append(Occurrence{Job: id, Kind: kind, Missed: missed})
+	default:
+		if cur != nil {
+			e.Mandate = freeze(*cur, now)
+			snap, cb, ver = c.changeLocked()
+		}
+		c.journal.Append(Occurrence{Job: id, Kind: kind, Missed: missed})
+	}
 	c.mu.Unlock()
+	c.notify(snap, cb, ver)
+	if notice != "" && onNotice != nil {
+		onNotice(notice)
+	}
 	if onFire != nil {
 		onFire(id, prompt)
 	}
@@ -485,7 +568,7 @@ type Tool struct {
 
 func (*Tool) Name() string { return "cron" }
 func (*Tool) Description() string {
-	return "Schedule a prompt to run on an interval for this session. Jobs are saved on the session and restored on resume; they stop when cancelled or when this process exits. action=add needs every (30s, 5m, 1h) and prompt; action=list; action=cancel needs id; action=history shows recent firings (id filters)."
+	return "Schedule a prompt to run on an interval for this session. Jobs are saved on the session and restored on resume; they stop when cancelled or when this process exits. action=add needs every (30s, 5m, 1h) and prompt (mode=observe journals each due time and runs nothing; only the user can switch a job back to run or re-approve its mandate); action=list; action=cancel needs id; action=history shows recent firings (id filters)."
 }
 func (*Tool) Mutating() bool { return false }
 func (*Tool) Schema() json.RawMessage {
@@ -493,6 +576,7 @@ func (*Tool) Schema() json.RawMessage {
 "action":{"type":"string","description":"add, list, cancel or history"},
 "every":{"type":"string","description":"Interval for add: 30s, 5m, 1h"},
 "prompt":{"type":"string","description":"The prompt to send when the loop fires"},
+"mode":{"type":"string","description":"For add: observe to only journal what would run"},
 "id":{"type":"string","description":"Job id for cancel or history"}},
 "required":["action"],"additionalProperties":false}`)
 }
@@ -506,6 +590,7 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		Every  string `json:"every"`
 		Prompt string `json:"prompt"`
 		ID     string `json:"id"`
+		Mode   string `json:"mode"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
@@ -520,9 +605,16 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			return "", err
 		}
 		prompt := strings.TrimSpace(in.Prompt)
-		id, err := t.Cron.Add(d, prompt)
+		mode := strings.ToLower(strings.TrimSpace(in.Mode))
+		if mode == "run" {
+			mode = ModeRun
+		}
+		id, err := t.Cron.AddMode(d, prompt, mode)
 		if err != nil {
 			return "", err
+		}
+		if mode == ModeObserve {
+			return fmt.Sprintf("scheduled %s every %s in observe mode (nothing will run): %s", id, d, prompt), nil
 		}
 		return fmt.Sprintf("scheduled %s every %s: %s", id, d, prompt), nil
 	case "list":
@@ -532,7 +624,11 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		var b strings.Builder
 		for _, j := range jobs {
-			fmt.Fprintf(&b, "%s every %s next %s: %s\n", j.ID, j.Every, j.Next.Format(time.Kitchen), j.Prompt)
+			tag := ""
+			if j.Mode == ModeObserve {
+				tag = " [observe]"
+			}
+			fmt.Fprintf(&b, "%s%s every %s next %s: %s\n", j.ID, tag, j.Every, j.Next.Format(time.Kitchen), j.Prompt)
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 	case "cancel":

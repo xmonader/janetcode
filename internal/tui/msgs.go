@@ -36,6 +36,8 @@ type subagentDoneMsg struct {
 	err  error
 }
 
+type cronNoticeMsg string
+
 type cronFireMsg struct {
 	id, prompt string
 }

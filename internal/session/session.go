@@ -75,6 +75,23 @@ type LoopSpec struct {
 	ID     string `json:"id"`
 	Every  string `json:"every"`
 	Prompt string `json:"prompt"`
+	// Mode is "" (run) or "observe": an observe job journals what it
+	// would have run and runs nothing.
+	Mode string `json:"mode,omitempty"`
+	// Mandate is the posture the job was approved under; see cron.Posture.
+	Mandate *LoopMandate `json:"mandate,omitempty"`
+}
+
+// LoopMandate is what a person approved when a loop was armed: trust
+// level, permission mode and the permission rules in effect, frozen with
+// the time. It changes only by an explicit re-approval.
+type LoopMandate struct {
+	Trust string    `json:"trust"`
+	Mode  string    `json:"mode"`
+	Allow []string  `json:"allow,omitempty"`
+	Deny  []string  `json:"deny,omitempty"`
+	Ask   []string  `json:"ask,omitempty"`
+	At    time.Time `json:"at"`
 }
 
 type line struct {

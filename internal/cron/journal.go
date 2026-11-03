@@ -21,6 +21,10 @@ const (
 	KindSkipped   = "skipped"   // front end could not run it (turn busy); see Cron.Note
 	KindDone      = "done"      // front end finished the turn; see Cron.Note
 	KindCancelled = "cancelled" // job removed
+
+	KindObserved       = "observed"        // observe job came due: nothing ran, Detail says what would have
+	KindMandateChanged = "mandate-changed" // current authority is wider than the job's mandate: skipped
+	KindApproved       = "approved"        // a person changed the job's mode or refreshed its mandate
 )
 
 const (
@@ -156,7 +160,7 @@ func (j *Journal) LastRun(job string) (time.Time, bool) {
 			continue
 		}
 		switch e.Kind {
-		case KindAdded, KindFired, KindCatchup, KindStale:
+		case KindAdded, KindFired, KindCatchup, KindStale, KindObserved, KindMandateChanged:
 			return e.Time, true
 		case KindCancelled:
 			return time.Time{}, false

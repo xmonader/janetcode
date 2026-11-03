@@ -21,6 +21,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/inspect"
@@ -472,6 +473,7 @@ func newServer(life context.Context, opts Options) *server {
 		opts.Agent.Approver = s
 		opts.Agent.Asker = s
 		if opts.Agent.Cron != nil {
+			opts.Agent.Cron.SetOnNotice(s.notice)
 			opts.Agent.Cron.OnFire = func(id, prompt string) {
 				s.cronFire(id, prompt)
 			}
@@ -489,7 +491,7 @@ func (s *server) cronFire(id, prompt string) {
 		return
 	}
 	s.notice("loop " + id)
-	s.startHarnessTurn(prompt)
+	s.startHarnessTurn(prompt + cron.Rules)
 }
 
 func (s *server) handler() http.Handler {

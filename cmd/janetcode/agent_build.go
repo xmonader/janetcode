@@ -544,6 +544,7 @@ func (b *agentBuilder) stepCore() error {
 	}
 	ag.Sandbox = b.sb
 	ag.Cron = b.cron
+	b.cron.SetPosture(func() cron.Posture { return cronPosture(ag, d.gate, d.cwd) })
 	ag.Jobs = d.jobs
 	ag.Fallbacks = d.cfg.FallbackModels
 	ag.Route = d.models
@@ -877,4 +878,33 @@ func (b *agentBuilder) emptyProbe() *tool.EmptyProbe {
 		b.probe = &tool.EmptyProbe{}
 	}
 	return b.probe
+}
+
+// cronPosture is the authority a loop firing would run under right now,
+// what a loop's mandate is frozen from and checked against.
+func cronPosture(ag *agent.Agent, gate *trust.Gate, cwd string) cron.Posture {
+	st := ag.Settings()
+	mode := "ask"
+	switch {
+	case st.AutoApprove:
+		mode = "allow-all"
+	case st.AutoMode:
+		mode = "auto"
+	case st.AutoEdits:
+		mode = "edits"
+	case st.PlanMode:
+		mode = "plan"
+	case st.ReadOnly:
+		mode = "read-only"
+	}
+	names := func(rs []perm.Rule) []string {
+		out := make([]string, 0, len(rs))
+		for _, r := range rs {
+			out = append(out, r.String())
+		}
+		return out
+	}
+	rules := ag.RulesSnapshot()
+	return cron.Posture{Trust: gate.State(cwd).Level.String(), Mode: mode,
+		Allow: names(rules.Allow), Deny: names(rules.Deny), Ask: names(rules.Ask)}
 }

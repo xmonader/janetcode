@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/present"
@@ -270,6 +271,11 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		return nil, true
 
+	case cronNoticeMsg:
+		m.note(string(msg))
+		m.refresh(false)
+		return nil, true
+
 	case cronFireMsg:
 		if m.turn.running {
 			m.note("loop " + msg.id + " skipped · a turn is running")
@@ -277,7 +283,7 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		m.note("loop " + msg.id)
-		return m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt), true
+		return m.submitAs(msg.prompt+cron.Rules, "loop "+msg.id+" · "+msg.prompt), true
 
 	case mcpPromptMsg:
 		return m.finishMCPPrompt(msg), true

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -144,38 +145,51 @@ func (s *server) loop(arg string) {
 		s.errf("no scheduler in this session")
 		return
 	}
-	cron := ag.Cron
+	sched := ag.Cron
 	switch {
 	case arg == "" || arg == "list":
-		jobs := cron.List()
+		jobs := sched.List()
 		if len(jobs) == 0 {
 			s.notice("no loops · /loop 5m <prompt> arms one for this session")
 			return
 		}
 		var b strings.Builder
 		for _, j := range jobs {
-			fmt.Fprintf(&b, "%s every %s next %s · %s\n", j.ID, j.Every, j.Next.Format("15:04:05"), j.Prompt)
+			b.WriteString(j.Line() + "\n")
 		}
 		s.sheet("loop", strings.TrimRight(b.String(), "\n"))
 	case arg == "off":
-		n := cron.CancelAll()
+		n := sched.CancelAll()
 		s.notice(fmt.Sprintf("cancelled %d loops", n))
 	case arg == "cancel":
 		s.errf("usage: /loop cancel <id> (/loop lists them; /loop off cancels all)")
 	case strings.HasPrefix(arg, "cancel "):
 		id := strings.TrimSpace(strings.TrimPrefix(arg, "cancel "))
-		if !cron.Cancel(id) {
+		if !sched.Cancel(id) {
 			s.errf("no loop %s", id)
 			return
 		}
 		s.notice("cancelled " + id)
 	default:
+		if msg, ok, err := sched.Control(arg); ok {
+			if err != nil {
+				s.errf("loop: %v", err)
+			} else {
+				s.notice(msg)
+			}
+			break
+		}
+		arg, observe := cron.CutObserve(arg)
+		mode := cron.ModeRun
+		if observe {
+			mode = cron.ModeObserve
+		}
 		every, prompt, err := agent.LoopArg(arg)
 		if err != nil {
 			s.errf("loop: %v", err)
 			return
 		}
-		id, err := cron.Add(every, prompt)
+		id, err := sched.AddMode(every, prompt, mode)
 		if err != nil {
 			s.errf("loop: %v", err)
 			return

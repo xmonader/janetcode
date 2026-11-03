@@ -528,7 +528,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /commit [-m message]  (draft a message into the input box; sending /commit -m commits it)
 /pr [create <title>]  (draft a pull request; sending /pr create pushes and opens it)
 /pr-comments [n]   /issue <n>  (fetch a pull request's reviews or an issue with gh and share it)
-/loop [duration] [prompt|off]  (repeat a prompt this session; restored on resume)
+/loop [--observe] [duration] [prompt|off|run id|approve id]  (repeat a prompt this session; restored on resume)
 /agents [id|new <brief>|fork <brief>]  (overlay of subagents; new starts a general one, fork inherits this conversation)
 /add-dir <path>  (grant file tools another local directory)
 /btw <question>  (side question; not stored as a user turn)

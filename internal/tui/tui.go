@@ -346,6 +346,7 @@ func (m *model) Init() tea.Cmd {
 		// SetOnFire, not a field write: a resumed session arms its loops
 		// before Init runs, so a one-second loop can be reading OnFire
 		// from its timer goroutine while this assigns it.
+		ag.Cron.SetOnNotice(func(text string) { send(cronNoticeMsg(text)) })
 		ag.Cron.SetOnFire(func(id, prompt string) {
 			send(cronFireMsg{id: id, prompt: prompt})
 		})
