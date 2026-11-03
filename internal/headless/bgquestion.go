@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -24,6 +25,9 @@ type BgAsker struct {
 
 	mu sync.Mutex
 	n  int
+	// waiters counts the Ask calls polling for an answer; asking an open
+	// question again must not add one.
+	waiters atomic.Int32
 }
 
 // Ask waits for janetcode --answer to answer the question, or for ctx.
@@ -47,9 +51,36 @@ func (b *BgAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer,
 			q.Deadline = x.Deadline
 		}
 	}
-	if err := a.Update(func(st *session.BgStatus) { st.State, st.Question = session.BgWaiting, q }); err != nil {
+	// A question with no recommendation is deferred by the ask tool (see
+	// DeferAsks): the run goes on, so it is not waiting.
+	hold, reused := false, false
+	pend := session.BgPending{Text: qs[0].Prompt, About: "question", Ref: q.ID, Asked: q.Asked}
+	for _, x := range qs {
+		hold = hold || x.Recommended != ""
+	}
+	for _, o := range qs[0].Options {
+		pend.Choices = append(pend.Choices, o.Label)
+	}
+	if err := a.Update(func(st *session.BgStatus) {
+		if old := st.Question; old != nil && st.Pending != nil && st.Pending.Text == pend.Text && !old.Proceeded {
+			// The same question again: reuse the open one.
+			q, pend.Ref, reused = old, old.ID, true
+		}
+		st.Question = q
+		if hold {
+			st.State = session.BgWaiting
+		}
+		st.SetPending(pend)
+	}); err != nil {
 		return nil, fmt.Errorf("the question could not be recorded for an answer: %w", err)
 	}
+	if reused {
+		// The open question already has a waiter, which delivers the
+		// answer; this call has nothing left to wait for.
+		return []agent.Answer{{Label: "skipped"}}, nil
+	}
+	b.waiters.Add(1)
+	defer b.waiters.Add(-1)
 	answer := "janetcode --answer " + a.SessionID
 	fmt.Fprintf(a.Log, "[question] waiting: %s — answer with: %s <option number or label>\n", qs[0].Prompt, answer)
 	a.notify(ctx, "question: "+qs[0].Prompt, answer+" <choice>")
@@ -60,10 +91,15 @@ func (b *BgAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer,
 	}
 	t := time.NewTicker(poll)
 	defer t.Stop()
-	clear := func() {
+	// Only an answer clears the pending question: a cancelled ask (the run
+	// ending) leaves it for the person to find.
+	clear := func(reply bool) {
 		_ = a.Update(func(st *session.BgStatus) {
 			if st.Question != nil && st.Question.ID == q.ID {
 				st.Question = nil
+				if reply {
+					st.ClearPending(q.ID)
+				}
 				if st.State == session.BgWaiting && st.Ask == nil {
 					st.State = session.BgRunning
 				}
@@ -72,14 +108,14 @@ func (b *BgAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer,
 	}
 	for {
 		if raw, ok := session.TakeBgReply(a.SessionPath, q.ID); ok {
-			clear()
+			clear(true)
 			ans := ParseBgAnswers(qs, raw)
 			fmt.Fprintf(a.Log, "[question] answered: %s\n", strings.ReplaceAll(agent.FormatAnswers(qs, ans), "\n", " · "))
 			return ans, nil
 		}
 		select {
 		case <-ctx.Done():
-			clear()
+			clear(false)
 			return nil, ctx.Err()
 		case <-t.C:
 		}
@@ -133,7 +169,12 @@ func ParseBgAnswers(qs []agent.Question, raw []string) []agent.Answer {
 	return out
 }
 
+// DeferAsks is agent.AskDeferrer: in a background run a question with no
+// recommendation is recorded and the run goes on instead of waiting.
+func (b *BgAsker) DeferAsks() bool { return true }
+
 var (
+	_ agent.AskDeferrer        = (*BgAsker)(nil)
 	_ agent.Asker              = (*BgAsker)(nil)
 	_ agent.AskTimeoutNotifier = (*BgAsker)(nil)
 )

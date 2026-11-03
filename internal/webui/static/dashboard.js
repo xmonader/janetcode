@@ -11,7 +11,7 @@
   const body = $("dash-body");
   const note = $("dash-note");
   const GROUPS = [
-    ["awaiting", "Awaiting you", "Waiting on an answer or a decision"],
+    ["awaiting", "Needs you", "Waiting on an answer or a decision"],
     ["working", "Working", "A turn or background run is going"],
     ["idle", "Idle", "At rest, newest first"],
   ];
@@ -43,10 +43,15 @@
 
   function card(r) {
     const kind = r.kind === "live" ? "this window" : r.kind === "bg" ? "background" : "stored";
-    const peek = r.waiting
+    const peek = pend
+      ? `<p class="dash-wait" data-testid="dash-pending">${esc(pend.text)}${pend.done ? " (the run finished; open it to continue)" : ""}</p>${pend.choices && pend.choices.length ? `<p class="dash-choices">${pend.choices.map((c) => `<code>${esc(c)}</code>`).join(" ")}</p>` : ""}`
+      : r.waiting
       ? `<p class="dash-wait">${esc(r.waiting)}</p>`
       : (r.last ? `<p class="dash-peek" title="Last message">${esc(r.last)}</p>` : `<p class="dash-peek dash-none">No reply yet</p>`);
-    const replyOpen = replying === r.id;
+    const pend = r.pending;
+    // A run's pending question has its reply box open already; the choices
+    // fill it in. A finished run's question can only be read.
+    const replyOpen = replying === r.id || (pend && !pend.done && r.canReply);
     const actions = [];
     if (r.canReply) actions.push(`<button type="button" data-act="reply" data-id="${esc(r.id)}">Reply</button>`);
     if (r.canStop) actions.push(`<button type="button" data-act="stop" data-id="${esc(r.id)}" class="danger">Stop</button>`);
@@ -57,7 +62,7 @@
       ${peek}
       <div class="dash-meta">${esc(ago(r.updated))}</div>
       <div class="dash-actions">${actions.join("")}</div>
-      ${replyOpen ? `<form class="dash-reply" data-id="${esc(r.id)}"><input type="text" aria-label="Reply to ${esc(r.title)}" placeholder="${r.waiting ? "Your answer" : "Message"}" value="${esc(draft)}"><button type="submit">Send</button></form>` : ""}
+      ${replyOpen ? `<form class="dash-reply" data-testid="dash-pending-reply" data-auto="${replying === r.id ? "" : "1"}" data-id="${esc(r.id)}"><input type="text" aria-label="Reply to ${esc(r.title)}" placeholder="${r.waiting ? "Your answer" : "Message"}" value="${esc(draft)}"><button type="submit">Send</button></form>` : ""}
     </li>`;
   }
 
@@ -66,13 +71,14 @@
     $("dash-dispatch-form").hidden = !data.dispatch;
     body.innerHTML = GROUPS.map(([key, label, hint]) => {
       const rows = g[key] || [];
-      return `<section class="dash-col" aria-label="${label}" data-group="${key}">
+      // A quiet inbox takes no room.
+      return `<section class="dash-col" aria-label="${label}" data-group="${key}"${key === "awaiting" && !rows.length ? " hidden" : ""}>
         <h3>${label} <span class="dash-count">${rows.length}</span></h3>
         <p class="dash-hint">${hint}</p>
         <ul>${rows.length ? rows.map(card).join("") : `<li class="dash-empty">Nothing here</li>`}</ul>
       </section>`;
     }).join("");
-    const inp = body.querySelector(".dash-reply input");
+    const inp = body.querySelector(".dash-reply:not([data-auto='1']) input");
     if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }
 

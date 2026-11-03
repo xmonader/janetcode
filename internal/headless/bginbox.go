@@ -77,7 +77,12 @@ func (a *InboxApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 		Preview: textfmt.Clip(call.Preview, 4000),
 		Asked:   time.Now(),
 	}
-	if err := a.Update(func(st *session.BgStatus) { st.State, st.Ask = session.BgWaiting, ask }); err != nil {
+	if err := a.Update(func(st *session.BgStatus) {
+		st.State, st.Ask = session.BgWaiting, ask
+		// The call that needs a decision is also the run's pending
+		// question, so it is what the dashboard shows first.
+		st.SetPending(session.BgPending{Text: "May it run " + ask.Tool + " " + ask.Summary + "?", Choices: session.BgDecisions, About: call.Name, Ref: ask.ID, Asked: ask.Asked})
+	}); err != nil {
 		// Nobody could ever answer a request that was not recorded.
 		fmt.Fprintf(a.Log, "[permission] %s denied: could not record the request: %v\n", call.Name, err)
 		return agent.Deny, "the request could not be recorded for an answer", nil
@@ -94,7 +99,7 @@ func (a *InboxApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 	defer t.Stop()
 	for {
 		if d, ok := session.TakeBgAnswer(a.SessionPath, ask.ID); ok {
-			_ = a.Update(func(st *session.BgStatus) { st.State, st.Ask = session.BgRunning, nil })
+			_ = a.Update(func(st *session.BgStatus) { st.State, st.Ask = session.BgRunning, nil; st.ClearPending(ask.ID) })
 			fmt.Fprintf(a.Log, "[permission] %s: %s\n", call.Name, d)
 			switch d {
 			case "allow":

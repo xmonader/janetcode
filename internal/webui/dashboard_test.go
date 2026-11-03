@@ -180,3 +180,23 @@ func TestDashboardReplyToWaitingPermission(t *testing.T) {
 		t.Fatalf("answer = %q %v", d, ok)
 	}
 }
+
+// A run holding a pending question sorts into "awaiting" with it, finished
+// or not; a finished one cannot be replied to.
+func TestDashboardPendingQuestionNeedsYou(t *testing.T) {
+	s, _, _, _, a, b := sessionEnv(t)
+	now := time.Now()
+	_ = session.WriteBgStatus(a.Path(), session.BgStatus{State: session.BgDone, Started: now, Ended: now,
+		Pending: &session.BgPending{Text: "Drop the table?", About: "question", Asked: now}})
+	_ = session.WriteBgStatus(b.Path(), session.BgStatus{State: session.BgRunning, PID: os.Getpid(), Started: now,
+		Pending: &session.BgPending{Text: "May it run bash go test?", Choices: session.BgDecisions, About: "bash", Asked: now}})
+	g := dashGroups(t, s)
+	name, row := groupOf(g, a.Meta.ID)
+	if name != groupAwaiting || row.Pending == nil || !row.Pending.Done || row.Replies {
+		t.Fatalf("finished: %s %+v", name, row)
+	}
+	name, row = groupOf(g, b.Meta.ID)
+	if name != groupAwaiting || row.Pending == nil || row.Pending.Done || len(row.Pending.Choices) != 3 || !row.Stops {
+		t.Fatalf("running: %s %+v", name, row)
+	}
+}

@@ -41,18 +41,21 @@ const maxAttemptLines = 500
 
 // Attempt is one subagent run as the store folds its records.
 type Attempt struct {
-	ID       string    `json:"id"`
-	Child    string    `json:"child"`
-	Desc     string    `json:"desc,omitempty"`
-	Kind     string    `json:"kind,omitempty"`
-	Edit     bool      `json:"edit,omitempty"`
-	Fork     bool      `json:"fork,omitempty"`
-	Worktree string    `json:"worktree,omitempty"`
-	Turn     int       `json:"turn,omitempty"`
-	Started  time.Time `json:"started"`
-	Ended    time.Time `json:"ended,omitempty"`
-	Outcome  string    `json:"outcome,omitempty"` // "" while open
-	Detail   string    `json:"detail,omitempty"`
+	ID       string `json:"id"`
+	Child    string `json:"child"`
+	Desc     string `json:"desc,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	Edit     bool   `json:"edit,omitempty"`
+	Fork     bool   `json:"fork,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
+	// Mode is the permission mode it started under (PermMode), checked
+	// against the current one when recovery finds it open.
+	Mode    string    `json:"mode,omitempty"`
+	Turn    int       `json:"turn,omitempty"`
+	Started time.Time `json:"started"`
+	Ended   time.Time `json:"ended,omitempty"`
+	Outcome string    `json:"outcome,omitempty"` // "" while open
+	Detail  string    `json:"detail,omitempty"`
 }
 
 // Open reports an attempt with an intent and no completion.
@@ -326,7 +329,48 @@ func (a *Agent) attemptChanges(id string) int {
 }
 
 // OrphanNotice describes the attempts ReconcileAttempts found, or "".
-func (a *Agent) OrphanNotice() string { return OrphanNotice(a.orphans, a.attemptChanges) }
+func (a *Agent) OrphanNotice() string {
+	n := OrphanNotice(a.orphans, a.attemptChanges)
+	cur := a.PermMode()
+	for _, o := range a.orphans {
+		// Recovery never reruns an attempt, so a wider mode now does not
+		// widen what it was allowed; the notice says so rather than leave
+		// the model to assume the new mode applies to its leftovers.
+		if o.Mode != "" && ModeRank(cur) > ModeRank(o.Mode) {
+			n += fmt.Sprintf("\n- %s started under the narrower %s mode (now %s): redo its work only as the %s mode allows", o.ID, o.Mode, cur, o.Mode)
+		}
+	}
+	return n
+}
+
+// permModes are the permission modes from narrowest to widest.
+var permModes = []string{"readonly", "default", "auto-edits", "auto", "yolo"}
+
+// PermMode names the permission mode the agent runs under.
+func (a *Agent) PermMode() string {
+	switch {
+	case a.ReadOnly:
+		return "readonly"
+	case a.AutoApprove:
+		return "yolo"
+	case a.AutoMode:
+		return "auto"
+	case a.AutoEdits:
+		return "auto-edits"
+	}
+	return "default"
+}
+
+// ModeRank orders permission modes by how much runs without asking:
+// "wider" means a higher rank. An unknown name ranks as default.
+func ModeRank(mode string) int {
+	for i, m := range permModes {
+		if m == mode {
+			return i
+		}
+	}
+	return 1
+}
 
 // AttemptsReport lists the session's subagent attempts for the user.
 func (a *Agent) AttemptsReport() string {

@@ -231,3 +231,33 @@ func TestAskCancelledBeforeDeadline(t *testing.T) {
 		t.Fatal("a cancelled turn still answered")
 	}
 }
+
+type deferHeld struct{ *heldAsker }
+
+func (deferHeld) DeferAsks() bool { return true }
+
+// A background run's question without a recommendation is recorded and the
+// tool returns at once; the answer arrives later as a message.
+func TestAskDeferredDoesNotBlockTheRun(t *testing.T) {
+	ag := &Agent{}
+	h := newHeldAsker()
+	ag.Asker = deferHeld{h}
+	ag.Unattended = true
+	out, err := (&AskTool{Parent: ag}).Run(context.Background(), json.RawMessage(`{"questions":[{"prompt":"Delete it?","options":[{"label":"Yes"},{"label":"No"}]}]}`))
+	if err != nil || !strings.Contains(out, "recorded for the user") {
+		t.Fatalf("out = %q, %v", out, err)
+	}
+	h.answer <- []Answer{{Label: "No"}}
+	if got := waitSteer(t, ag); !strings.Contains(got, "A: No") || strings.Contains(got, "went on") {
+		t.Fatalf("answer message = %q", got)
+	}
+}
+
+func TestPermModeRank(t *testing.T) {
+	if (&Agent{AutoApprove: true}).PermMode() != "yolo" || (&Agent{}).PermMode() != "default" {
+		t.Fatal("mode names")
+	}
+	if !(ModeRank("readonly") < ModeRank("default") && ModeRank("default") < ModeRank("auto-edits") && ModeRank("auto") < ModeRank("yolo")) {
+		t.Fatal("rank order")
+	}
+}

@@ -291,8 +291,11 @@ func (r *root) headlessMode() error {
 		fmt.Fprintln(os.Stderr, line)
 	}
 	defer r.syncSession()
-	finish := startBgRun(ag, sess, cwd)
-	err := headless.Run(ctx, headless.Options{
+	finish, err := startBgRun(ag, sess, cwd, r.gate, o.recoverTurn)
+	if err != nil {
+		return err
+	}
+	err = headless.Run(ctx, headless.Options{
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemoryHeadless(),

@@ -3959,8 +3959,10 @@ are limited to their default or left empty; with no front-end asking
 ### The agent dashboard (web)
 
 `Dashboard` in the web sidebar opens an overlay that groups this
-directory's sessions by what they need from you: **Awaiting you** (an
-open permission prompt or question), **Working** (a turn or background
+directory's sessions by what they need from you: **Needs you** (an
+open permission prompt or question, and any background run that holds a
+pending question, even one that has finished; the section is hidden while
+nothing needs you), **Working** (a turn or background
 run in flight) and **Idle**, with the last assistant message as a peek
 (refreshed every three seconds while it is open). Each card offers:
 
