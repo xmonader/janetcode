@@ -71,3 +71,29 @@ func TestBgStatusWithoutPIDUsesThePIDSidecar(t *testing.T) {
 		t.Errorf("a child that died before writing its status = %+v, want failed", got)
 	}
 }
+
+// One pending question: the same text keeps its time, another replaces it,
+// and only an answer from the question it came from clears it.
+func TestBgPendingQuestion(t *testing.T) {
+	var st BgStatus
+	t0 := time.Now().Add(-time.Hour)
+	st.SetPending(BgPending{Text: "Which db?", Ref: "q1", Asked: t0})
+	st.SetPending(BgPending{Text: "Which db?", Ref: "q1", Asked: time.Now()})
+	if !st.Pending.Asked.Equal(t0) {
+		t.Fatalf("asking again moved the time: %v", st.Pending.Asked)
+	}
+	st.SetPending(BgPending{Text: "Which port?", Ref: "q2"})
+	st.ClearPending("q1")
+	if st.Pending == nil || st.Pending.Text != "Which port?" {
+		t.Fatalf("an old answer cleared the new question: %+v", st.Pending)
+	}
+	st.ClearPending("q2")
+	if st.Pending != nil {
+		t.Fatal("not cleared")
+	}
+	st.SetPending(BgPending{Text: "x"})
+	st.State, st.Ended = BgDone, time.Now()
+	if !strings.Contains(st.Line(time.Now()), "finished with a question waiting") {
+		t.Fatalf("line = %q", st.Line(time.Now()))
+	}
+}

@@ -655,7 +655,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	start := time.Now()
 	// The intent is on disk before the child starts: if this process dies
 	// mid-run, resume finds the attempt open (see ReconcileAttempts).
-	attempt := Attempt{Child: childID, Desc: in.Description, Kind: kind, Edit: wt != nil, Fork: kid.fork, Turn: t.Parent.turnN}
+	attempt := Attempt{Child: childID, Desc: in.Description, Kind: kind, Edit: wt != nil, Fork: kid.fork, Turn: t.Parent.turnN, Mode: t.Parent.PermMode()}
 	if wt != nil {
 		attempt.Worktree = wt.Dir
 	}

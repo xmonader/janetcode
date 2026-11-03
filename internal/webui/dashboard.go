@@ -41,6 +41,17 @@ type dashRow struct {
 	Current bool   `json:"current"`
 	Replies bool   `json:"canReply"`
 	Stops   bool   `json:"canStop"`
+	// Pending is the question a background run keeps for you (it sorts the
+	// row into "Needs you"), even when the run has finished.
+	Pending *dashPending `json:"pending,omitempty"`
+}
+
+type dashPending struct {
+	Text    string   `json:"text"`
+	Choices []string `json:"choices,omitempty"`
+	About   string   `json:"about,omitempty"`
+	Asked   string   `json:"asked"`
+	Done    bool     `json:"done,omitempty"` // the run ended: nothing to reply to
 }
 
 // dashboardRows classifies infos. live is the id of this process's
@@ -80,6 +91,17 @@ func (s *server) dashboardRows(dir string, infos []session.Info, live string, ru
 						if st.Question != nil {
 							r.Group, r.Replies, r.Waiting = groupAwaiting, true, bgWaitingFor(st)
 						}
+					}
+					if p := st.Pending; p != nil {
+						// Whatever its state, a run holding a question is
+						// one that needs you; a finished one can only be
+						// opened to continue.
+						done := st.State != session.BgRunning && st.State != session.BgWaiting
+						r.Group = groupAwaiting
+						if r.Waiting == "" {
+							r.Waiting = textfmt.Clip(p.Text, 160)
+						}
+						r.Pending = &dashPending{Text: textfmt.Clip(p.Text, 400), Choices: p.Choices, About: p.About, Asked: p.Asked.Format(time.RFC3339), Done: done}
 					}
 				}
 			}

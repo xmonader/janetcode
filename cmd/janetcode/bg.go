@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // stringList is a repeatable flag value.
@@ -79,7 +81,13 @@ func startBackground(sess *session.Session, prompt string, extra []string, perms
 	// starts, so it cannot land on top of what the child has already
 	// said (a request it is waiting on, above all).
 	started := time.Now()
-	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, Started: started})
+	// The mandate the run started under rides along: the child rewrites
+	// the status, and a recovery compares against it.
+	var mandate *session.Mandate
+	if prev, ok, _ := session.ReadBgStatus(sess.Path()); ok {
+		mandate = prev.Mandate
+	}
+	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, Started: started, Mandate: mandate})
 	if err := cmd.Start(); err != nil {
 		log.Close()
 		_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgFailed, Started: started, Ended: time.Now(), Detail: err.Error()})
@@ -190,14 +198,32 @@ func bgRunArgs(o *options) []string {
 // startBgRun, in a process --bg started, records the run as running and
 // installs the approver that waits for janetcode --answer. The returned
 // func records how it ended. Outside --bg both do nothing.
-func startBgRun(ag *agent.Agent, sess *session.Session, cwd string) func(error) {
+//
+// The run's mandate (trust level and permission mode) is recorded at its
+// first start. A recovery (recovering) under a wider one is refused: see
+// widerMandate.
+func startBgRun(ag *agent.Agent, sess *session.Session, cwd string, gate *trust.Gate, recovering bool) (func(error), error) {
 	if os.Getenv(headless.BgEnv) != "1" || sess == nil {
-		return func(error) {}
+		return func(error) {}, nil
 	}
 	path := sess.Path()
 	st := &session.BgStatus{State: session.BgRunning, PID: os.Getpid(), Started: time.Now()}
-	if prev, ok, _ := session.ReadBgStatus(path); ok && !prev.Started.IsZero() {
-		st.Started = prev.Started
+	now := currentMandate(ag, gate, cwd)
+	st.Mandate = &now
+	if prev, ok, _ := session.ReadBgStatus(path); ok {
+		if !prev.Started.IsZero() {
+			st.Started = prev.Started
+		}
+		if recovering && prev.Mandate != nil {
+			if why := widerMandate(*prev.Mandate, now); why != "" {
+				st.State, st.Ended, st.Mandate = session.BgFailed, time.Now(), prev.Mandate
+				st.Pending, st.PID = prev.Pending, 0
+				st.Detail = "not resumed: " + why + "; reopen it with janetcode --resume " + sess.Meta.ID + " to continue under the current settings"
+				_ = session.WriteBgStatus(path, *st)
+				_ = sess.ClearPID()
+				return func(error) {}, errors.New(st.Detail)
+			}
+		}
 	}
 	if err := session.WriteBgStatus(path, *st); err != nil {
 		fmt.Fprintf(os.Stderr, "[warn] background status: %v\n", err)
@@ -219,8 +245,13 @@ func startBgRun(ag *agent.Agent, sess *session.Session, cwd string) func(error) 
 	ag.Unattended = true
 	return func(err error) {
 		werr := inbox.Update(func(st *session.BgStatus) {
+			// The pending question stays: a person can still find it, and
+			// the status line says the run finished with it waiting.
 			st.State, st.Ask, st.Question, st.Ended = session.BgDone, nil, nil, time.Now()
 			st.Detail = firstLine(lastAnswer(ag.Messages))
+			if st.Pending != nil && err == nil {
+				st.Detail = "finished with a question waiting: " + firstLine(st.Pending.Text)
+			}
 			if err != nil {
 				st.State, st.Detail = session.BgFailed, firstLine(err.Error())
 			}
@@ -229,7 +260,7 @@ func startBgRun(ag *agent.Agent, sess *session.Session, cwd string) func(error) 
 			fmt.Fprintf(os.Stderr, "[warn] background status: %v\n", werr)
 		}
 		_ = sess.ClearPID()
-	}
+	}, nil
 }
 
 // lastAnswer is the text of the last assistant message.

@@ -159,6 +159,11 @@ func (t *AskTool) Run(ctx context.Context, input json.RawMessage) (string, error
 		err       error
 	)
 	switch {
+	case !canProceed && wait != AskWaitForever && isDeferrer(t.Parent.Asker):
+		// Unattended, and nothing to go on with: keep the question for a
+		// person and let the run do the rest of its work.
+		t.Parent.askDeferred(ctx, t.Parent.Asker, qs)
+		return deferredAsk, nil
 	case wait == AskWaitForever || !canProceed:
 		// Without a recommendation there is nothing to go on with, so
 		// the question waits as it always has: answering for the user
@@ -227,3 +232,8 @@ func FormatAnswers(qs []Question, ans []Answer) string {
 }
 
 var _ tool.Tool = (*AskTool)(nil)
+
+func isDeferrer(a Asker) bool {
+	d, ok := a.(AskDeferrer)
+	return ok && d.DeferAsks()
+}

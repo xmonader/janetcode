@@ -127,3 +127,38 @@ func TestParseBgAnswers(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+// A question with no recommendation does not put the run in the waiting
+// state, sets the pending question, asking it again reuses it, and only
+// the answer clears it.
+func TestBgAskerPendingQuestion(t *testing.T) {
+	b, path := bgAsker(t)
+	qs := []agent.Question{{Prompt: "Delete it?", Options: []agent.AskOption{{Label: "Yes"}, {Label: "No"}}}}
+	go func() { _, _ = b.Ask(context.Background(), qs) }()
+	q := openQuestion(t, path)
+	st, _, _ := session.ReadBgStatus(path)
+	if st.State != session.BgRunning || st.Pending == nil || st.Pending.Text != "Delete it?" || len(st.Pending.Choices) != 2 {
+		t.Fatalf("status = %+v pending %+v", st, st.Pending)
+	}
+	asked := st.Pending.Asked
+	// The repeat returns at once (no waiter of its own) and delivers nothing.
+	again, err := b.Ask(context.Background(), qs)
+	if err != nil || len(again) != 1 || again[0].Label != "skipped" || b.waiters.Load() != 1 {
+		t.Fatalf("repeat = %v %v, waiters %d", again, err, b.waiters.Load())
+	}
+	st, _, _ = session.ReadBgStatus(path)
+	if st.Question.ID != q.ID || !st.Pending.Asked.Equal(asked) {
+		t.Fatalf("the same question was not reused: %+v", st.Question)
+	}
+	if err := session.WriteBgReply(path, session.BgReply{ID: q.ID, Answers: []string{"2"}}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if st, _, _ = session.ReadBgStatus(path); st.Pending == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("the answer did not clear the pending question")
+}

@@ -103,8 +103,23 @@ janetcode --answer <id> 1                     # an option's number, its label, o
 janetcode --answer <id> "8080; alpha"         # several questions: one answer each, separated by ;
 ```
 
-A question without a recommendation is never answered for you: it waits
-for `--answer` however long that takes.
+A question without a recommendation is never answered for you. In a
+background run it does not hold the run either: the question is recorded,
+the model is told so and carries on with work that does not depend on it,
+and your answer (`--answer`, or the dashboard's reply) reaches it as a
+message. The run keeps at most one such `pending_question` in its status
+(the same question again reuses it, a different one replaces it, an answer
+clears it), a permission request it cannot get is recorded the same way,
+and a run that ends with one still open is listed as "finished with a
+question waiting". The web dashboard shows those runs first, under
+**Needs you**.
+
+A background run that died and is picked up again with `--bg --resume <id>`
+(no prompt, that is `--recover`) is refused, with a status saying why, if
+the permission mode or the project trust level is wider than the run
+started under; reopen the session with `--resume` to continue it under the
+current settings. A subagent attempt left open by a restart is never rerun,
+and the notice says when it started under a narrower mode.
 
 The same waiting applies everywhere a turn may have nobody watching it:
 a goal round or a `/loop` firing in the terminal or the browser waits

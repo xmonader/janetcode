@@ -143,6 +143,18 @@ func (a *Agent) deliverLateAnswer(qs []Question, ans []Answer, after time.Durati
 		return
 	}
 	var b strings.Builder
+	if after < 0 {
+		// A deferred question (askDeferred): nothing was assumed, so there is
+		// no choice to compare with.
+		b.WriteString("The user answered the question you asked earlier:\n")
+		b.WriteString(FormatAnswers(qs, ans))
+		b.WriteString("\nAct on it now.")
+		a.Steer(b.String())
+		if emit := a.emitter(); emit != nil {
+			emit(Event{Kind: EvNotice, Text: "answer sent to the model: " + strings.ReplaceAll(FormatAnswers(qs, ans), "\n", " · ")})
+		}
+		return
+	}
 	fmt.Fprintf(&b, "Late answer to the question you asked (after %s you went on with your recommended choice):\n", after.Round(time.Second))
 	b.WriteString(FormatAnswers(qs, ans))
 	same := true
@@ -203,4 +215,28 @@ func (a *Agent) askBounded(ctx context.Context, asker Asker, qs []Question, wait
 		}
 	}()
 	return rec, true, nil
+}
+
+// AskDeferrer is an Asker of a run nobody watches that keeps a question
+// for a person without holding the turn: when the model gave no
+// recommendation to go on with, the ask tool records the question and
+// returns at once (askDeferred) instead of waiting for it.
+type AskDeferrer interface {
+	DeferAsks() bool
+}
+
+// deferredAsk is what the model reads when its question was recorded
+// rather than answered.
+const deferredAsk = "Your question was recorded for the user (it will be delivered when they answer); continue with work that doesn't depend on it, and don't repeat it."
+
+// askDeferred hands the question to the asker on a context of its own and
+// returns without waiting. The asker keeps it open, and the answer, when
+// it comes, reaches the model as a message like a late answer.
+func (a *Agent) askDeferred(ctx context.Context, asker Asker, qs []Question) {
+	askCtx := context.WithoutCancel(ctx)
+	go func() {
+		if ans, err := asker.Ask(askCtx, qs); err == nil {
+			a.deliverLateAnswer(qs, ans, -1)
+		}
+	}()
 }

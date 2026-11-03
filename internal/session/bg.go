@@ -42,6 +42,55 @@ type BgStatus struct {
 	// waits on it, or — Proceeded — went on with the recommendation and
 	// still takes a late answer.
 	Question *BgQuestion `json:"question,omitempty"`
+	// Pending is the one question the run keeps for a person (see
+	// BgPending); unlike Ask and Question it outlives the run.
+	Pending *BgPending `json:"pending_question,omitempty"`
+	// Mandate is the trust level and permission mode the run started
+	// under, for the check when it is recovered (see Mandate).
+	Mandate *Mandate `json:"mandate,omitempty"`
+}
+
+// Mandate is the authority a run was started under, as names: the trust
+// level of its project ("untrusted", "undecided", "instructions", "full")
+// and its permission mode ("readonly", "default", "auto-edits", "auto",
+// "yolo").
+type Mandate struct {
+	Trust string `json:"trust"`
+	Mode  string `json:"mode"`
+}
+
+// BgPending is the question a run needs a person for, whichever way it
+// asked: the model's ask tool, or a call it could not get approved. There
+// is at most one. Asking it again changes nothing; a different one replaces
+// it; ordinary progress never clears it, only an answer (ClearPending) or
+// the run withdrawing it.
+type BgPending struct {
+	Text    string    `json:"text"`
+	Choices []string  `json:"choices,omitempty"`
+	Asked   time.Time `json:"asked"`
+	About   string    `json:"about"`         // "question", or the tool of a call awaiting approval
+	Ref     string    `json:"ref,omitempty"` // the id of the Question or Ask it came from
+}
+
+// SetPending records p as the pending question: the same text keeps its
+// original Asked time, a different one replaces the old.
+func (st *BgStatus) SetPending(p BgPending) {
+	if old := st.Pending; old != nil && old.Text == p.Text {
+		p.Asked = old.Asked
+	}
+	if p.Asked.IsZero() {
+		p.Asked = time.Now()
+	}
+	st.Pending = &p
+}
+
+// ClearPending drops the pending question when it came from ref (an empty
+// ref clears whatever is pending): an answer to an earlier, replaced
+// question must not clear the current one.
+func (st *BgStatus) ClearPending(ref string) {
+	if st.Pending != nil && (ref == "" || st.Pending.Ref == ref) {
+		st.Pending = nil
+	}
 }
 
 // BgQuestion is a question from the ask tool in a background run. It is
@@ -206,11 +255,17 @@ func (st BgStatus) Line(now time.Time) string {
 		}
 		return "waiting for an answer"
 	case BgRunning:
+		if q := st.Question; q != nil && len(q.Items) > 0 && q.Items[0].Recommended == "" {
+			return "running for " + since(now, st.Started) + " · question waiting for you: " + q.Items[0].Prompt
+		}
 		if q := st.Question; q != nil && q.Proceeded && len(q.Items) > 0 {
 			return "running for " + since(now, st.Started) + " · went on with " + q.Items[0].Recommended + " for: " + q.Items[0].Prompt + " (a late answer is still taken)"
 		}
 		return "running for " + since(now, st.Started)
 	case BgDone:
+		if st.Pending != nil {
+			return "finished with a question waiting " + since(now, st.Ended) + " ago: " + st.Pending.Text
+		}
 		if st.Detail != "" {
 			return "done " + since(now, st.Ended) + " ago: " + st.Detail
 		}
