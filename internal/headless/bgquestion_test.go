@@ -162,3 +162,38 @@ func TestBgAskerPendingQuestion(t *testing.T) {
 	}
 	t.Fatal("the answer did not clear the pending question")
 }
+
+// A mixed batch (one question with a recommendation, one without) is not
+// recommended() for the ask tool, so the run goes on and is not waiting.
+func TestBgAskerMixedRecommendationsDoNotHold(t *testing.T) {
+	b, path := bgAsker(t)
+	opts := []agent.AskOption{{Label: "a"}, {Label: "b"}}
+	qs := []agent.Question{{Prompt: "one?", Options: opts, Recommended: "a"}, {Prompt: "two?", Options: opts}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _, _ = b.Ask(ctx, qs) }()
+	openQuestion(t, path)
+	if st, _, _ := session.ReadBgStatus(path); st.State != session.BgRunning {
+		t.Fatalf("state = %q, want running", st.State)
+	}
+}
+
+// A waiter whose question was replaced by another stops polling.
+func TestBgAskerReplacedQuestionStopsWaiting(t *testing.T) {
+	b, path := bgAsker(t)
+	qs := []agent.Question{{Prompt: "first?", Options: []agent.AskOption{{Label: "a"}, {Label: "b"}}}}
+	done := make(chan error, 1)
+	go func() { _, err := b.Ask(context.Background(), qs); done <- err }()
+	q := openQuestion(t, path)
+	if err := b.Inbox.Update(func(st *session.BgStatus) { st.Question = &session.BgQuestion{ID: "other"} }); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != errBgQuestionReplaced {
+			t.Fatalf("err = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("the waiter for %s kept polling", q.ID)
+	}
+}

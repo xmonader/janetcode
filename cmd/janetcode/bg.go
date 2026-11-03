@@ -83,11 +83,8 @@ func startBackground(sess *session.Session, prompt string, extra []string, perms
 	started := time.Now()
 	// The mandate the run started under rides along: the child rewrites
 	// the status, and a recovery compares against it.
-	var mandate *session.Mandate
-	if prev, ok, _ := session.ReadBgStatus(sess.Path()); ok {
-		mandate = prev.Mandate
-	}
-	_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgRunning, Started: started, Mandate: mandate})
+	prev, _, _ := session.ReadBgStatus(sess.Path())
+	_ = session.WriteBgStatus(sess.Path(), launchStatus(prev, started))
 	if err := cmd.Start(); err != nil {
 		log.Close()
 		_ = session.WriteBgStatus(sess.Path(), session.BgStatus{State: session.BgFailed, Started: started, Ended: time.Now(), Detail: err.Error()})
@@ -98,6 +95,14 @@ func startBackground(sess *session.Session, prompt string, extra []string, perms
 	_ = cmd.Process.Release()
 	_ = log.Close()
 	return pid, nil
+}
+
+// launchStatus is the status written as a run is launched. The mandate
+// the run started under rides along (the child rewrites the status, and a
+// recovery compares against it), and so does the pending question, so a
+// refused resume (see startBgRun) still shows it.
+func launchStatus(prev session.BgStatus, started time.Time) session.BgStatus {
+	return session.BgStatus{State: session.BgRunning, Started: started, Mandate: prev.Mandate, Pending: prev.Pending}
 }
 
 func backgroundChildArgs(id, prompt string, extra, perms []string) []string {

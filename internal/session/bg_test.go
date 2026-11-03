@@ -97,3 +97,36 @@ func TestBgPendingQuestion(t *testing.T) {
 		t.Fatalf("line = %q", st.Line(time.Now()))
 	}
 }
+
+// An approval request takes the pending slot from an open question and
+// gives it back when it clears.
+func TestClearPendingRestoresOpenQuestion(t *testing.T) {
+	st := &BgStatus{Question: &BgQuestion{ID: "q1", Asked: time.Now(), Items: []BgQuestionItem{{Prompt: "Port?", Options: []string{"1", "2"}}}}}
+	st.SetPending(BgPending{Text: "Port?", Ref: "q1"})
+	st.SetPending(BgPending{Text: "May it run bash?", Ref: "a1"})
+	st.ClearPending("a1")
+	if st.Pending == nil || st.Pending.Ref != "q1" || st.Pending.Text != "Port?" || len(st.Pending.Choices) != 2 {
+		t.Fatalf("pending = %+v", st.Pending)
+	}
+	st.Question = nil
+	st.ClearPending("q1")
+	if st.Pending != nil {
+		t.Fatalf("pending = %+v", st.Pending)
+	}
+}
+
+func TestAckBgPending(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	p := &BgPending{Text: "x?", Ref: "q1"}
+	_ = WriteBgStatus(path, BgStatus{State: BgRunning, Pending: p})
+	if AckBgPending(path) {
+		t.Fatal("a running run's question was cleared")
+	}
+	_ = WriteBgStatus(path, BgStatus{State: BgDone, Pending: p})
+	if !AckBgPending(path) {
+		t.Fatal("not cleared")
+	}
+	if st, _, _ := ReadBgStatus(path); st.Pending != nil {
+		t.Fatalf("pending = %+v", st.Pending)
+	}
+}

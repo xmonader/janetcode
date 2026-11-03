@@ -221,3 +221,11 @@ func TestBgRunWaitsForAnswer(t *testing.T) {
 		t.Errorf("--sessions does not say how the run ended:\n%s", got)
 	}
 }
+
+func TestLaunchStatusCarriesPendingAndMandate(t *testing.T) {
+	prev := session.BgStatus{State: session.BgDone, Pending: &session.BgPending{Text: "q?"}, Mandate: &session.Mandate{Trust: "full"}}
+	got := launchStatus(prev, time.Now())
+	if got.State != session.BgRunning || got.Pending == nil || got.Pending.Text != "q?" || got.Mandate == nil {
+		t.Fatalf("status = %+v", got)
+	}
+}

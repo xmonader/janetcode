@@ -205,8 +205,11 @@ func hasFlag(argv []string, flags ...string) bool {
 	return false
 }
 
-// stripSearchFilters removes the file filters of a grep or rg argv and
-// reports whether there were any.
+// stripSearchFilters removes the INCLUSION filters of a grep or rg argv
+// (--include, rg -g/--glob/--iglob without a leading "!", -t/--type) and
+// reports whether there were any. Exclusions (--exclude*, rg -g '!...',
+// -T/--type-not) stay, so text from files the search deliberately skips
+// (.env, say) never shows up in the examples.
 func stripSearchFilters(argv []string) ([]string, bool) {
 	rg := argv[0] == "rg"
 	out := make([]string, 0, len(argv))
@@ -217,23 +220,28 @@ func stripSearchFilters(argv []string) ([]string, bool) {
 			out = append(out, argv[i:]...)
 			break
 		}
-		name, _, hasEq := strings.Cut(a, "=")
+		name, val, hasEq := strings.Cut(a, "=")
+		value := val
+		if !hasEq && i+1 < len(argv) {
+			value = argv[i+1]
+		}
+		globFlag := rg && (name == "--glob" || name == "--iglob" || a == "-g")
 		switch {
 		case i == 0:
 			out = append(out, a)
-		case !rg && argv[0] != "git" && (name == "--include" || name == "--exclude" || name == "--exclude-dir" || name == "--exclude-from"):
+		case globFlag && strings.HasPrefix(value, "!"):
+			// An exclusion: kept, with its value word.
+			out = append(out, a)
+			if !hasEq && i+1 < len(argv) {
+				i++
+				out = append(out, argv[i])
+			}
+		case !rg && argv[0] != "git" && name == "--include",
+			globFlag, rg && (name == "--type" || a == "-t"):
 			removed = true
 			if !hasEq {
 				i++
 			}
-		case rg && (name == "--glob" || name == "--iglob" || name == "--type" || name == "--type-not"):
-			removed = true
-			if !hasEq {
-				i++
-			}
-		case rg && (a == "-g" || a == "-t" || a == "-T"):
-			removed = true
-			i++
 		default:
 			out = append(out, a)
 		}
@@ -241,12 +249,39 @@ func stripSearchFilters(argv []string) ([]string, bool) {
 	return out, removed
 }
 
+// unsafeProbeFlag reports whether argv carries an option that runs a
+// program or reads inputs beyond the search itself, which a probe must not
+// repeat: rg --pre/--pre-glob/-z/--search-zip, git grep -O/--open-files-in-pager.
+func unsafeProbeFlag(argv []string) bool {
+	for _, a := range argv[1:] {
+		if a == "--" {
+			return false
+		}
+		name, _, _ := strings.Cut(a, "=")
+		switch name {
+		case "--pre", "--pre-glob", "--search-zip", "--open-files-in-pager":
+			return true
+		}
+		if len(a) > 1 && a[0] == '-' && a[1] != '-' {
+			if argv[0] == "git" && strings.Contains(a, "O") {
+				return true
+			}
+			if argv[0] == "rg" && strings.Contains(a, "z") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // searchProbes lists the variants to try, in order, for an empty search:
 // ignoring case, as a literal string (when the pattern has regex
 // metacharacters), without file filters. Pure: argv in, argvs out. nil
 // when the argv is not one it can vary with confidence.
 func searchProbes(argv []string) []searchProbe {
-	if len(argv) < 2 {
+	// Only exactly "git grep ..." (not "git -c x=y grep"), and no option
+	// that runs a program.
+	if len(argv) < 2 || (argv[0] == "git" && (len(argv) < 3 || argv[1] != "grep")) || unsafeProbeFlag(argv) {
 		return nil
 	}
 	pat, start := searchPattern(argv)

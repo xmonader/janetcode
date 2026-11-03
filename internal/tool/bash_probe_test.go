@@ -62,7 +62,7 @@ func TestSearchProbes(t *testing.T) {
 		t.Errorf("grep: %q", got)
 	}
 	got = names("rg", "-i", "-t", "go", "foo", "-g", "!x")
-	if !reflect.DeepEqual(got, []string{"rg -i foo"}) {
+	if !reflect.DeepEqual(got, []string{"rg -i foo -g !x"}) {
 		t.Errorf("rg: %q", got)
 	}
 	got = names("git", "grep", "-e", "a(b")
@@ -121,5 +121,46 @@ func TestBashEmptyGrepProbes(t *testing.T) {
 	run(spent, `grep -n zzz a.txt`)
 	if out = run(spent, `grep -n hello a.txt`); strings.Contains(out, "probe") {
 		t.Fatalf("budget not shared: %q", out)
+	}
+}
+
+func TestSearchProbesHardening(t *testing.T) {
+	for _, c := range [][]string{
+		{"rg", "--pre", "cmd", "foo"}, {"rg", "--pre=cmd", "foo"}, {"rg", "--pre-glob", "*.x", "foo"},
+		{"rg", "-z", "foo"}, {"rg", "-iz", "foo"}, {"rg", "--search-zip", "foo"},
+		{"git", "grep", "-O", "less", "foo"}, {"git", "grep", "--open-files-in-pager=x", "foo"},
+		{"git", "-c", "core.pager=x", "grep", "foo"},
+	} {
+		if p := searchProbes(c); p != nil {
+			t.Errorf("%q: want no probes, got %v", c, p)
+		}
+	}
+	// -z is a different option to grep: still probed.
+	if searchProbes([]string{"grep", "-z", "foo", "f"}) == nil {
+		t.Error("grep -z should still probe")
+	}
+}
+
+func TestStripSearchFiltersKeepsExclusions(t *testing.T) {
+	cases := []struct {
+		in   []string
+		want string
+		any  bool
+	}{
+		{[]string{"rg", "foo", "-g", "!.env", "-g", "*.go", "-t", "go", "-T", "js"}, "rg foo -g !.env -T js", true},
+		{[]string{"rg", "--glob=!.env", "--glob=*.go", "foo"}, "rg --glob=!.env foo", true},
+		{[]string{"rg", "foo", "-g", "!.env"}, "rg foo -g !.env", false},
+		{[]string{"grep", "-r", "foo", "--include=*.go", "--exclude=.env", "--exclude-dir", "secrets", "."}, "grep -r foo --exclude=.env --exclude-dir secrets .", true},
+		{[]string{"grep", "-r", "foo", "--exclude=.env", "."}, "grep -r foo --exclude=.env .", false},
+	}
+	for _, c := range cases {
+		got, any := stripSearchFilters(c.in)
+		if strings.Join(got, " ") != c.want || any != c.any {
+			t.Errorf("%q: got %q %v, want %q %v", c.in, got, any, c.want, c.any)
+		}
+	}
+	// With nothing to drop, there is no "without filters" probe.
+	for _, p := range searchProbes([]string{"rg", "-i", "foo", "-g", "!.env"}) {
+		t.Errorf("unexpected probe %q", p.argv)
 	}
 }

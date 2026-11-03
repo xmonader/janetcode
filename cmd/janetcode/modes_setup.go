@@ -232,6 +232,10 @@ func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.
 		if err := sess.Acquire(); err != nil {
 			return nil, nil, leaseRefusal(err)
 		}
+		if !o.bg && os.Getenv(headless.BgEnv) != "1" {
+			// Opened by a person: a finished run's pending question is theirs now.
+			session.AckBgPending(sess.Path())
+		}
 		return sess, history, nil
 	}
 	sess, err := session.New(sessDir, cwd, cfg.Provider, cfg.Model)

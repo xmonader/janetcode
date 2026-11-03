@@ -90,6 +90,11 @@ func (st *BgStatus) SetPending(p BgPending) {
 func (st *BgStatus) ClearPending(ref string) {
 	if st.Pending != nil && (ref == "" || st.Pending.Ref == ref) {
 		st.Pending = nil
+		// One rule for both kinds: an approval request takes the slot
+		// from a question that is still open, and gives it back here.
+		if q := st.Question; q != nil && len(q.Items) > 0 {
+			st.Pending = &BgPending{Text: q.Items[0].Prompt, Choices: q.Items[0].Options, About: "question", Ref: q.ID, Asked: q.Asked}
+		}
 	}
 }
 
@@ -332,4 +337,17 @@ func StopBg(sessionPath string) error {
 		return errors.New("the run did not say which process it is")
 	}
 	return stopProcess(st.PID)
+}
+
+// AckBgPending clears the pending question of a background run that has
+// ended, once somebody has opened the session outside --bg: they are now
+// at it, so "needs you" no longer applies. A run still going is left
+// alone. It reports whether it cleared anything.
+func AckBgPending(sessionPath string) bool {
+	st, ok, err := ReadBgStatus(sessionPath)
+	if err != nil || !ok || st.Pending == nil || st.State == BgRunning || st.State == BgWaiting {
+		return false
+	}
+	st.Pending, st.Question = nil, nil
+	return WriteBgStatus(sessionPath, st) == nil
 }

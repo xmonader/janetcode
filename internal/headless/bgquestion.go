@@ -2,6 +2,7 @@ package headless
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -53,10 +54,12 @@ func (b *BgAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer,
 	}
 	// A question with no recommendation is deferred by the ask tool (see
 	// DeferAsks): the run goes on, so it is not waiting.
-	hold, reused := false, false
+	// Held only when the turn waits: the ask tool proceeds on its own
+	// when every question has a recommendation (agent.recommended).
+	hold, reused := true, false
 	pend := session.BgPending{Text: qs[0].Prompt, About: "question", Ref: q.ID, Asked: q.Asked}
 	for _, x := range qs {
-		hold = hold || x.Recommended != ""
+		hold = hold && x.Recommended != ""
 	}
 	for _, o := range qs[0].Options {
 		pend.Choices = append(pend.Choices, o.Label)
@@ -113,6 +116,11 @@ func (b *BgAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer,
 			fmt.Fprintf(a.Log, "[question] answered: %s\n", strings.ReplaceAll(agent.FormatAnswers(qs, ans), "\n", " · "))
 			return ans, nil
 		}
+		if bgQuestionReplaced(a.SessionPath, q.ID) {
+			// A different question took this one's place: nobody will
+			// answer this id, so stop polling for it.
+			return nil, errBgQuestionReplaced
+		}
 		select {
 		case <-ctx.Done():
 			clear(false)
@@ -120,6 +128,15 @@ func (b *BgAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer,
 		case <-t.C:
 		}
 	}
+}
+
+var errBgQuestionReplaced = errors.New("the question was replaced by another")
+
+// bgQuestionReplaced reports whether the sidecar's open question is no
+// longer id: it was replaced (or withdrawn) by another.
+func bgQuestionReplaced(sessionPath, id string) bool {
+	st, ok, err := session.ReadBgStatus(sessionPath)
+	return err == nil && ok && (st.Question == nil || st.Question.ID != id)
 }
 
 // AskTimedOut is agent.AskTimeoutNotifier: the run went on with the
