@@ -43,12 +43,12 @@
 
   function card(r) {
     const kind = r.kind === "live" ? "this window" : r.kind === "bg" ? "background" : "stored";
+    const pend = r.pending;
     const peek = pend
       ? `<p class="dash-wait" data-testid="dash-pending">${esc(pend.text)}${pend.done ? " (the run finished; open it to continue)" : ""}</p>${pend.choices && pend.choices.length ? `<p class="dash-choices">${pend.choices.map((c) => `<code>${esc(c)}</code>`).join(" ")}</p>` : ""}`
       : r.waiting
       ? `<p class="dash-wait">${esc(r.waiting)}</p>`
       : (r.last ? `<p class="dash-peek" title="Last message">${esc(r.last)}</p>` : `<p class="dash-peek dash-none">No reply yet</p>`);
-    const pend = r.pending;
     // A run's pending question has its reply box open already; the choices
     // fill it in. A finished run's question can only be read.
     const replyOpen = replying === r.id || (pend && !pend.done && r.canReply);
