@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -197,6 +198,9 @@ func globToRegexp(pattern string) (*regexp.Regexp, error) {
 type Grep struct {
 	Root string
 	WS   *Workspace
+	// Probe, when set, lets an empty search try nearby variants and say
+	// what would have matched. Nil is off (JANETCODE_OFF=emptyprobe).
+	Probe *EmptyProbe
 }
 
 func (Grep) Name() string { return "grep" }
@@ -339,10 +343,14 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		fmt.Fprintf(&long, "(%d more lines longer than %d MiB were searched only in part)\n", longLines-maxLongNotes, maxScanLine>>20)
 	}
 	if count == 0 {
-		if long.Len() > 0 {
-			return "No matches.\n" + long.String(), nil
+		msg := "No matches."
+		if hint := t.probeEmpty(ctx, in.Pattern, in.CaseInsensitive, re, fileRe, target, st.IsDir()); hint != "" {
+			msg += " " + hint
 		}
-		return "No matches.", nil
+		if long.Len() > 0 {
+			return msg + "\n" + long.String(), nil
+		}
+		return msg, nil
 	}
 	if err == errLimit {
 		fmt.Fprintf(&sb, "(stopped at %d matches; narrow the pattern)\n", maxGrepResults)
@@ -378,4 +386,132 @@ func readLineCapped(r *bufio.Reader, max int, line []byte) (_ []byte, clipped bo
 		}
 		return bytes.TrimSuffix(line, []byte("\r")), clipped, e
 	}
+}
+
+// EmptyProbe bounds the probe passes an empty search may run: Max passes
+// over the life of the tool (the session), each stopping after
+// maxProbeMatches matching lines. Share one pointer between the tool's
+// copies; the zero Max means defaultProbeMax.
+type EmptyProbe struct {
+	Max  int
+	used atomic.Int32
+}
+
+const (
+	defaultProbeMax = 20
+	maxProbeMatches = 200
+	maxProbeShown   = 3
+	maxProbeLine    = 120
+)
+
+func (p *EmptyProbe) take() bool {
+	max := p.Max
+	if max <= 0 {
+		max = defaultProbeMax
+	}
+	return p.used.Add(1) <= int32(max)
+}
+
+// probeEmpty runs the cheap variants of an empty search in order and
+// reports the first that finds lines: the same pattern ignoring case, the
+// pattern as a literal string, the search without its glob. It is
+// evidence for the model; the search's own result is never replaced.
+func (t Grep) probeEmpty(ctx context.Context, pattern string, ci bool, re, fileRe *regexp.Regexp, target string, isDir bool) string {
+	if t.Probe == nil {
+		return ""
+	}
+	type variant struct {
+		what string
+		re   *regexp.Regexp
+		file *regexp.Regexp
+	}
+	var vs []variant
+	if !ci {
+		if r, err := regexp.Compile("(?i)" + pattern); err == nil {
+			vs = append(vs, variant{"Case-insensitive, the same pattern", r, fileRe})
+		}
+	}
+	if regexp.QuoteMeta(pattern) != pattern {
+		lit := regexp.QuoteMeta(pattern)
+		if ci {
+			lit = "(?i)" + lit
+		}
+		if r, err := regexp.Compile(lit); err == nil {
+			vs = append(vs, variant{"As a literal string, the pattern", r, fileRe})
+		}
+	}
+	if fileRe != nil && isDir {
+		vs = append(vs, variant{"Without the glob, the same pattern", re, nil})
+	}
+	for _, v := range vs {
+		if !t.Probe.take() {
+			return ""
+		}
+		n, ex := t.probeScan(ctx, v.re, v.file, target, isDir)
+		if n == 0 {
+			continue
+		}
+		cnt := fmt.Sprintf("%d", n)
+		if n >= maxProbeMatches {
+			cnt = fmt.Sprintf("%d+", maxProbeMatches)
+		}
+		return fmt.Sprintf("%s matches %s lines, e.g.:\n  %s", v.what, cnt, strings.Join(ex, "\n  "))
+	}
+	return ""
+}
+
+// probeScan counts lines matching re (stopping at maxProbeMatches) and
+// keeps the first few as path:line: text examples. Read-only, skips
+// binary files, searches a line only up to maxGrepLine bytes.
+func (t Grep) probeScan(ctx context.Context, re, fileRe *regexp.Regexp, target string, isDir bool) (int, []string) {
+	n := 0
+	var ex []string
+	br := bufio.NewReaderSize(nil, 64<<10)
+	var buf []byte
+	scan := func(display, full string) error {
+		f, err := openOf(ctx, t.WS, full)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+		head := make([]byte, 8000)
+		k, err := io.ReadFull(f, head)
+		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+			return nil
+		}
+		if isBinary(head[:k]) {
+			return nil
+		}
+		br.Reset(io.MultiReader(bytes.NewReader(head[:k]), f))
+		for ln := 1; ; ln++ {
+			raw, clipped, rerr := readLineCapped(br, maxGrepLine*4, buf)
+			buf = raw
+			if rerr != nil && len(raw) == 0 && !clipped {
+				return nil
+			}
+			if re.Match(raw) {
+				n++
+				if len(ex) < maxProbeShown {
+					ex = append(ex, fmt.Sprintf("%s:%d: %s", display, ln, textfmt.ClipBytes(strings.TrimSpace(string(raw)), maxProbeLine)))
+				}
+				if n >= maxProbeMatches {
+					return errLimit
+				}
+			}
+			if rerr != nil {
+				return nil
+			}
+		}
+	}
+	if !isDir {
+		scan(filepath.Base(target), target)
+	} else {
+		walkOn(t.WS, ctx, t.Root, target, func(rel string, d fs.DirEntry) error {
+			if d.IsDir() || (fileRe != nil && !fileRe.MatchString(rel)) {
+				return nil
+			}
+			return scan(rel, filepath.Join(target, rel))
+		})
+	}
+	return n, ex
 }

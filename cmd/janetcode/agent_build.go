@@ -677,7 +677,7 @@ func (b *agentBuilder) stepSearchTools() error {
 	for _, t := range []tool.Tool{
 		tool.ListDir{Root: d.cwd, WS: b.ws},
 		tool.Glob{Root: d.cwd, WS: b.ws},
-		tool.Grep{Root: d.cwd, WS: b.ws},
+		b.grepTool(d.cwd),
 		repomap.Tool{Cache: b.repo},
 	} {
 		if d.cfg.LeanTools() {
@@ -855,4 +855,14 @@ func withConflictRule(system string) string {
 		return system[:i] + agent.ConflictPrompt + "\n" + system[i:]
 	}
 	return system + "\n" + agent.ConflictPrompt
+}
+
+// grepTool is grep with its empty-result probes, which share one budget
+// for the session; JANETCODE_OFF=emptyprobe leaves them out.
+func (b *agentBuilder) grepTool(cwd string) tool.Grep {
+	g := tool.Grep{Root: cwd, WS: b.ws}
+	if !b.off["emptyprobe"] {
+		g.Probe = &tool.EmptyProbe{}
+	}
+	return g
 }

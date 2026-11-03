@@ -161,3 +161,48 @@ func TestGrep(t *testing.T) {
 		t.Fatalf("single file: %q", out)
 	}
 }
+
+func TestGrepEmptyProbes(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.go"), []byte("func Foo(x int {}\nHello World\nsum a+b\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "b.txt"), []byte("needle here\n"), 0o644)
+	run := func(g Grep, in string) string {
+		out, err := g.Run(context.Background(), raw(in))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	on := Grep{Root: root, Probe: &EmptyProbe{}}
+	if out := run(on, `{"pattern":"hello world"}`); !strings.Contains(out, "Case-insensitive") || !strings.Contains(out, "a.go:2: Hello World") {
+		t.Fatalf("case probe: %q", out)
+	}
+	if out := run(on, `{"pattern":"a+b"}`); !strings.Contains(out, "literal string") || !strings.Contains(out, "a.go:3:") {
+		t.Fatalf("literal probe: %q", out)
+	}
+	if out := run(on, `{"pattern":"needle","glob":"*.go"}`); !strings.Contains(out, "Without the glob") || !strings.Contains(out, "b.txt:1: needle here") {
+		t.Fatalf("glob probe: %q", out)
+	}
+	if out := run(on, `{"pattern":"absent"}`); out != "No matches." {
+		t.Fatalf("nothing to find: %q", out)
+	}
+	if out := run(Grep{Root: root}, `{"pattern":"hello world"}`); out != "No matches." {
+		t.Fatalf("off: %q", out)
+	}
+	// A hit is never replaced by a probe.
+	if out := run(on, `{"pattern":"Hello"}`); strings.Contains(out, "Case-insensitive") {
+		t.Fatalf("probed a non-empty search: %q", out)
+	}
+}
+
+func TestEmptyProbeBudget(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("Hello\n"), 0o644)
+	g := Grep{Root: root, Probe: &EmptyProbe{Max: 2}}
+	for i, want := range []bool{true, true, false} {
+		out, _ := g.Run(context.Background(), raw(`{"pattern":"hello"}`))
+		if got := strings.Contains(out, "Case-insensitive"); got != want {
+			t.Fatalf("search %d: probed=%v, out %q", i, got, out)
+		}
+	}
+}

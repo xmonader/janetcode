@@ -688,6 +688,14 @@ the session since; at most four ranges and 480 bytes a read. It changes
 what the model reads, so it is opt-in; `JANETCODE_OFF=readblame` turns it
 off.
 
+When `grep` finds nothing it tries, in order, the same pattern ignoring
+case, the pattern as a literal string (when it has regex metacharacters),
+and the search without its glob, and stops at the first that finds
+lines. The result stays "No matches." and adds what would have matched:
+the count (capped at 200+) and up to three example lines. Probes are
+read-only, each stops at 200 matching lines, and a session runs at most
+20 of them. `JANETCODE_OFF=emptyprobe` turns it off.
+
 `numeric_claims_nudge` (default off) sends a turn back once when its
 answer states a number that no measurement in the session backs. The
 check itself is always on and only reports (see "Numbers in the answer"
