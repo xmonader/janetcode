@@ -38,6 +38,9 @@ type Bash struct {
 	// NoIdleBound disables the idle bound on inline interpreter checks
 	// (JANETCODE_OFF=idlebound); see shell_idle.go.
 	NoIdleBound bool
+	// Probe, when set, lets a plain grep or rg that finds nothing carry
+	// the empty-search probes (see bash_probe.go); nil is off.
+	Probe *EmptyProbe
 }
 
 func (Bash) Name() string { return "bash" }
@@ -298,6 +301,13 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			return "", fmt.Errorf("bash: %w", err)
 		}
 	}
+	var probe string
+	if t.Probe != nil && strings.TrimSpace(result) == "" && in.Stdin == nil && !leftBehind && ctx.Err() == nil &&
+		(t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
+		if argv, piped, ok := searchArgv(in.Command); ok && (exit == 1 || piped && exit == 0) {
+			probe = t.probeSearch(ctx, root, argv)
+		}
+	}
 	if result == "" {
 		result = "(no output)"
 	}
@@ -318,7 +328,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if in.Stdin == nil && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		t.Cache.put(cacheKey, result)
 	}
-	return result, nil
+	return result + probe, nil
 }
 
 func isClosed(c <-chan struct{}) bool {

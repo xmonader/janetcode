@@ -688,7 +688,10 @@ the session since; at most four ranges and 480 bytes a read. It changes
 what the model reads, so it is opt-in; `JANETCODE_OFF=readblame` turns it
 off.
 
-When `grep` finds nothing it tries, in order, the same pattern ignoring
+When `grep` finds nothing (or a `grep`, `egrep`, `fgrep`, `rg` or `git grep`
+run through `bash` does: a single plain command, optionally piped once into
+`head` or `tail`, with no other shell syntax, and not sandboxed or remote;
+the note follows the command's output as `[empty search probe] ...`) it tries, in order, the same pattern ignoring
 case, the pattern as a literal string (when it has regex metacharacters),
 and the search without its glob, and stops at the first that finds
 lines. The result stays "No matches." and adds what would have matched:

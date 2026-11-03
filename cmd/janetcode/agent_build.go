@@ -313,6 +313,8 @@ type agentBuilder struct {
 	// a session could in principle disagree with itself about what is
 	// switched off.
 	off map[string]bool
+	// probe is the empty-search budget grep and bash share (emptyProbe).
+	probe *tool.EmptyProbe
 
 	// Produced by the steps, in the order they run.
 	cd      *agent.CD
@@ -458,7 +460,7 @@ func (b *agentBuilder) stepCore() error {
 			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
 			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"]},
 			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"]},
-			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"]},
+			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe()},
 			tool.JobTool{Jobs: d.jobs},
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},
 			tool.FetchURL{Typed: d.typed},
@@ -861,8 +863,18 @@ func withConflictRule(system string) string {
 // for the session; JANETCODE_OFF=emptyprobe leaves them out.
 func (b *agentBuilder) grepTool(cwd string) tool.Grep {
 	g := tool.Grep{Root: cwd, WS: b.ws}
-	if !b.off["emptyprobe"] {
-		g.Probe = &tool.EmptyProbe{}
-	}
+	g.Probe = b.emptyProbe()
 	return g
+}
+
+// emptyProbe is the one empty-search budget the grep tool and a grep or rg
+// run through bash share; nil when JANETCODE_OFF=emptyprobe.
+func (b *agentBuilder) emptyProbe() *tool.EmptyProbe {
+	if b.off["emptyprobe"] {
+		return nil
+	}
+	if b.probe == nil {
+		b.probe = &tool.EmptyProbe{}
+	}
+	return b.probe
 }
