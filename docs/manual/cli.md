@@ -278,6 +278,7 @@ which its 3h44m fits.
 | 56 | the run reached `--max-wall-time` |
 | 57 | the run reached `--max-tool-calls` |
 | 58 | the run ended on a confirmed `CONFLICT:` (`conflict_exit`): the task and a test contradict each other. Not an error: `is_error` is false and the result object's `conflict` holds the cited test, the task's words, the reason and what the harness checked |
+| 59 | the model could not be reached: connection refused, DNS failure, a timeout before any reply, a dead stream, or 5xx/429 that outlasted the retries. The same test `eval` uses to count a run as INFRA. A rejected key is still 41, an interrupt 130, a wall-time stop 56 |
 | 130 | interrupted, as a shell reports a SIGINT |
 
 The code is also in the `exit_code` field of the result object, so a

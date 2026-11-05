@@ -17,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // A headless run is something a script reads. Printing the answer as prose
@@ -67,6 +68,7 @@ const (
 	ExitWallTime  = 56  // the run reached --max-wall-time
 	ExitToolLimit = 57  // the run reached --max-tool-calls
 	ExitConflict  = 58  // the run ended on a confirmed CONFLICT: the task and a test disagree
+	ExitModelDown = 59  // the model could not be reached: network, DNS, timeouts, persistent 5xx/429
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
 
@@ -182,6 +184,10 @@ var exitRules = []struct {
 	{"config", func(err error) bool {
 		return errors.Is(err, ErrConfig) || errors.Is(err, config.ErrBadConfig)
 	}, ExitConfig},
+	// Last: every row above names a more specific cause (a rejected key is
+	// auth, not an outage). It is the classifier eval uses for its INFRA
+	// outcome, so the two never disagree about what "unreachable" means.
+	{"model unreachable", llm.Infrastructure, ExitModelDown},
 }
 
 // ExitCode classifies an error into one of the codes above. It is the
@@ -311,6 +317,10 @@ type streamEvent struct {
 	// carries the reason.
 	Attempts int   `json:"attempts,omitempty"`
 	WaitMS   int64 `json:"wait_ms,omitempty"`
+	// OK and Report close a subagent: a tool_result of the task tool carries
+	// whether it finished and its report (or error) clipped.
+	OK     *bool  `json:"ok,omitempty"`
+	Report string `json:"report,omitempty"`
 }
 
 func (r *recorder) emit(e streamEvent) {
@@ -363,7 +373,15 @@ func (r *recorder) event(e agent.Event) (sep string) {
 			r.started[id] = true
 			r.emit(streamEvent{Type: "tool_start", Name: name, ID: id, Intent: e.Call.Intent, Input: json.RawMessage(e.Call.Input)})
 		}
-		r.emit(streamEvent{Type: "tool_result", Name: name, ID: id, Output: e.Output, IsError: e.IsError, DurationMS: e.Duration.Milliseconds()})
+		ev := streamEvent{Type: "tool_result", Name: name, ID: id, Output: e.Output, IsError: e.IsError, DurationMS: e.Duration.Milliseconds()}
+		if name == "task" && !e.Denied {
+			ok := !e.IsError
+			ev.OK, ev.Report = &ok, textfmt.Clip(e.Output, 160)
+			if e.IsError && !strings.Contains(e.Output, "context canceled") && r.format == FormatText && r.errOut != nil {
+				fmt.Fprintf(r.errOut, "✗ subagent %s failed: %s\n", subagentID(e.Output, id), textfmt.FirstLine(e.Output, 160))
+			}
+		}
+		r.emit(ev)
 	case agent.EvRetry:
 		r.retries++
 		if e.Retry != nil {
@@ -601,4 +619,16 @@ func FinishEarly(w io.Writer, format Format, err error) {
 		enc.SetIndent("", "  ")
 	}
 	_ = enc.Encode(res)
+}
+
+// subagentID is the id a failed task call's text names ("id=...") or the
+// call's own id.
+func subagentID(out, fallback string) string {
+	if i := strings.Index(out, "id="); i >= 0 {
+		f := strings.Fields(out[i+3:])
+		if len(f) > 0 {
+			return strings.Trim(f[0], `.,;:"]`)
+		}
+	}
+	return fallback
 }

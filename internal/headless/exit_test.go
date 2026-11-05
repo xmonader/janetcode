@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 
@@ -19,16 +20,17 @@ import (
 // without anything failing.
 func TestExitRulesAllReachable(t *testing.T) {
 	samples := map[string]error{
-		"cancelled":  context.Canceled,
-		"budget":     fmt.Errorf("%w: spent it", ErrBudget),
-		"tool limit": fmt.Errorf("%w: 3 made", ErrToolLimit),
-		"wall time":  fmt.Errorf("%w (1m0s)", ErrWallTime),
-		"turn limit": fmt.Errorf("turn: %w", agent.ErrMaxIterations),
-		"bad input":  fmt.Errorf("%w: two prompts", ErrBadInput),
-		"auth":       fmt.Errorf("x: %w", llm.ErrNoAPIKey),
-		"config":     fmt.Errorf("%w: bad json", ErrConfig),
-		"schema":     fmt.Errorf("run: %w", ErrNoStructuredOutput),
-		"conflict":   fmt.Errorf("%w: test_public.py::test_total", ErrConflict),
+		"cancelled":         context.Canceled,
+		"budget":            fmt.Errorf("%w: spent it", ErrBudget),
+		"tool limit":        fmt.Errorf("%w: 3 made", ErrToolLimit),
+		"wall time":         fmt.Errorf("%w (1m0s)", ErrWallTime),
+		"turn limit":        fmt.Errorf("turn: %w", agent.ErrMaxIterations),
+		"bad input":         fmt.Errorf("%w: two prompts", ErrBadInput),
+		"auth":              fmt.Errorf("x: %w", llm.ErrNoAPIKey),
+		"config":            fmt.Errorf("%w: bad json", ErrConfig),
+		"schema":            fmt.Errorf("run: %w", ErrNoStructuredOutput),
+		"conflict":          fmt.Errorf("%w: test_public.py::test_total", ErrConflict),
+		"model unreachable": fmt.Errorf("Post \"http://x/v1\": %w", &net.OpError{Op: "dial", Err: errors.New("connection refused")}),
 	}
 	if len(samples) != len(exitRules) {
 		t.Fatalf("exitRules has %d rows, the test knows %d: add a sample for the new row", len(exitRules), len(samples))
@@ -69,9 +71,9 @@ func TestExitCodeTypedProviderErrors(t *testing.T) {
 		{fmt.Errorf("turn: %w", &openai.APIError{Status: 403, Message: "forbidden"}), ExitAuth, true},
 		{fmt.Errorf("turn: %w", &anthropic.APIError{Status: 401, Message: "invalid x-api-key"}), ExitAuth, true},
 		{&anthropic.APIError{Status: 403, Message: "forbidden"}, ExitAuth, true},
-		// Not the key: a rate limit and a server fault are ordinary failures.
-		{&openai.APIError{Status: 429, Message: "slow down"}, ExitOther, false},
-		{&anthropic.APIError{Status: 500, Message: "boom"}, ExitOther, false},
+		// Not the key: a rate limit and a server fault that outlasted the retries mean the model is down.
+		{&openai.APIError{Status: 429, Message: "slow down"}, ExitModelDown, false},
+		{&anthropic.APIError{Status: 500, Message: "boom"}, ExitModelDown, false},
 		{nil, ExitOK, false},
 	}
 	for _, c := range cases {
@@ -165,5 +167,23 @@ func TestExplainFailureWordsProviderErrors(t *testing.T) {
 		if x := explainFailure(own, Options{}); x != own {
 			t.Errorf("%v was rewritten to %v", own, x)
 		}
+	}
+}
+
+// An unreachable provider exits 59, but a rejected key stays 41 and an
+// interrupt stays 130 even when the transport error is in the chain.
+func TestExitModelDown(t *testing.T) {
+	down := &net.OpError{Op: "dial", Err: errors.New("connection refused")}
+	if got := ExitCode(fmt.Errorf("run: %w", down)); got != ExitModelDown {
+		t.Errorf("unreachable = %d, want %d", got, ExitModelDown)
+	}
+	if got := ExitCode(fmt.Errorf("run: %w", errors.Join(context.Canceled, down))); got != ExitCancelled {
+		t.Errorf("cancelled = %d, want %d", got, ExitCancelled)
+	}
+	if got := ExitCode(fmt.Errorf("%w: %w", ErrWallTime, down)); got != ExitWallTime {
+		t.Errorf("wall time = %d, want %d", got, ExitWallTime)
+	}
+	if got := ExitCode(errors.New("boom")); got != ExitOther {
+		t.Errorf("plain error = %d, want %d", got, ExitOther)
 	}
 }

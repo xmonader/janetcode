@@ -69,6 +69,29 @@ func TestBwrapGitConfigAndHooksReadOnly(t *testing.T) {
 	}
 }
 
+// writeProbe is a command whose target path is built at run time, so only
+// the kernel can refuse it: no analysis of the command text sees a path.
+func writeProbe(dir string) string {
+	return `d=` + dir + `; f=$d/probe_$$.txt; echo x > "$f"`
+}
+
+// controlWriteOutside proves a probe is meaningful: with no sandbox at all,
+// the same write into dir succeeds. A refusal under a sandbox then means
+// the sandbox refused it, not that the directory was unwritable anyway.
+func controlWriteOutside(t *testing.T, dir string) {
+	t.Helper()
+	if out, err := exec.Command("sh", "-c", writeProbe(dir)).CombinedOutput(); err != nil {
+		t.Skipf("control: the unsandboxed probe cannot write to %s: %v\n%s", dir, err, out)
+	}
+	matches, _ := filepath.Glob(filepath.Join(dir, "probe_*.txt"))
+	if len(matches) == 0 {
+		t.Fatalf("control: the unsandboxed probe left no file in %s", dir)
+	}
+	for _, m := range matches {
+		os.Remove(m)
+	}
+}
+
 func TestBwrapConfinesWrites(t *testing.T) {
 	sb := bwrapSandbox(t, "workspace")
 	root, out := t.TempDir(), outsideDir(t)
@@ -76,10 +99,11 @@ func TestBwrapConfinesWrites(t *testing.T) {
 	if o, err := runIn(t, sb, root, "echo in > inside.txt && cat inside.txt"); err != nil || strings.TrimSpace(o) != "in" {
 		t.Fatalf("write in root: %q %v", o, err)
 	}
-	if o, err := runIn(t, sb, root, "echo x > "+filepath.Join(out, "f")); err == nil {
+	controlWriteOutside(t, out)
+	if o, err := runIn(t, sb, root, writeProbe(out)); err == nil {
 		t.Fatalf("write outside the roots succeeded: %q", o)
 	}
-	if _, err := os.Stat(filepath.Join(out, "f")); err == nil {
+	if m, _ := filepath.Glob(filepath.Join(out, "probe_*.txt")); len(m) > 0 {
 		t.Fatal("file appeared outside the roots")
 	}
 	// The command analysis would refuse a named write into .janetcode, so

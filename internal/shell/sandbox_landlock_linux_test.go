@@ -39,8 +39,9 @@ func TestLandlockConfinesWrites(t *testing.T) {
 		t.Fatalf("inside = %q, %v", b, err)
 	}
 
-	blocked := filepath.Join(outside, "out.txt")
-	cmd, err = s.landlock(context.Background(), p, root, nil, "echo bad > "+blocked)
+	// Control: the same runtime-built probe succeeds with no sandbox.
+	controlWriteOutside(t, outside)
+	cmd, err = s.landlock(context.Background(), p, root, nil, writeProbe(outside))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,8 +49,8 @@ func TestLandlockConfinesWrites(t *testing.T) {
 	if err == nil {
 		t.Fatalf("a write outside the write roots succeeded:\n%s", out)
 	}
-	if _, err := os.Stat(blocked); err == nil {
-		t.Fatalf("%s was created despite Landlock", blocked)
+	if m, _ := filepath.Glob(filepath.Join(outside, "probe_*.txt")); len(m) > 0 {
+		t.Fatalf("%v was created despite Landlock", m)
 	}
 }
 
