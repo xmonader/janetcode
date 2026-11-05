@@ -41,11 +41,14 @@ type Bash struct {
 	// Probe, when set, lets a plain grep or rg that finds nothing carry
 	// the empty-search probes (see bash_probe.go); nil is off.
 	Probe *EmptyProbe
+	// Nudge, when set, appends a once-per-session hint to a plain grep,
+	// find or cat result naming the dedicated tool; nil is off.
+	Nudge *Nudge
 }
 
 func (Bash) Name() string { return "bash" }
 func (Bash) Description() string {
-	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). A command that asks questions: pass the answers in stdin, or set interactive: true and answer each prompt with the job tool's stdin action. Do not use for reading or editing files; use the dedicated tools."
+	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). A command that asks questions: pass the answers in stdin, or set interactive: true and answer each prompt with the job tool's stdin action. Not for reading, searching or editing files: use read_file, grep, glob, edit_file."
 }
 func (Bash) Mutating() bool { return true }
 func (Bash) Schema() json.RawMessage {
@@ -328,7 +331,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if in.Stdin == nil && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		t.Cache.put(cacheKey, result)
 	}
-	return result + probe, nil
+	return result + probe + t.Nudge.Hint(in.Command), nil
 }
 
 func isClosed(c <-chan struct{}) bool {

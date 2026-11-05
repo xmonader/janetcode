@@ -31,7 +31,7 @@ type Glob struct {
 
 func (Glob) Name() string { return "glob" }
 func (Glob) Description() string {
-	return "Find files by glob pattern, e.g. \"**/*.go\" or \"src/**/test_*.py\". Supports **, *, ?, and {a,b}. Skips .git, node_modules and build dirs. Returns paths relative to the search directory, newest first."
+	return "Find files by glob (not find in bash), e.g. \"**/*.go\" or \"src/**/test_*.py\". Supports **, *, ?, and {a,b}. Skips .git, node_modules and build dirs. Returns paths relative to the search directory, newest first."
 }
 func (Glob) Mutating() bool { return false }
 func (Glob) Schema() json.RawMessage {
@@ -205,7 +205,7 @@ type Grep struct {
 
 func (Grep) Name() string { return "grep" }
 func (Grep) Description() string {
-	return "Search file contents with a Go/RE2 regular expression. Returns path:line:text. Optionally restrict to files matching a glob. Skips binary files and .git/node_modules."
+	return "Search file contents with a Go/RE2 regex (not grep or rg in bash). Returns path:line:text, bounded; skips binary, .git, node_modules, .gitignored. Optionally restrict to files matching a glob."
 }
 func (Grep) Mutating() bool { return false }
 func (Grep) Schema() json.RawMessage {

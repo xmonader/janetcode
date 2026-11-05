@@ -127,7 +127,9 @@ const (
 	// 14,941 on 2026-10-08, when write_file and edit_file took then_run:
 	// 221 bytes a request (mostly cached) against a whole round trip
 	// saved on every edit that is followed by its test run.
-	toolSchemaCeiling = 15130
+	// 15,176 on 2026-11-05: bash, grep and glob descriptions each name the
+	// better tool (46 bytes), since live runs never called grep.
+	toolSchemaCeiling = 15176
 )
 
 // TestFirstRequestSystemPromptCeiling: an empty directory is the floor of

@@ -72,7 +72,7 @@ type Tool struct {
 
 func (Tool) Name() string { return "repo_map" }
 func (Tool) Description() string {
-	return "Rank the repository's files for a query (which files and symbols matter for a change), or show the blast radius of a symbol or file: what defines it and every file that uses it. Use it before multi-file changes and refactors instead of grepping around."
+	return "Rank the repository's files for a query (which files and symbols matter for a change), or show the blast radius of a symbol or file: what defines it and every file that uses it. One call to orient before multi-file changes; replaces many grep/cat calls."
 }
 func (Tool) Mutating() bool { return false }
 func (Tool) Schema() json.RawMessage {

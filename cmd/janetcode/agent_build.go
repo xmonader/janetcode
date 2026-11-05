@@ -460,7 +460,7 @@ func (b *agentBuilder) stepCore() error {
 			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
 			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"]},
 			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"]},
-			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe()},
+			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe(), Nudge: b.toolNudge()},
 			tool.JobTool{Jobs: d.jobs},
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},
 			tool.FetchURL{Typed: d.typed},
@@ -907,4 +907,13 @@ func cronPosture(ag *agent.Agent, gate *trust.Gate, cwd string) cron.Posture {
 	rules := ag.RulesSnapshot()
 	return cron.Posture{Trust: gate.State(cwd).Level.String(), Mode: mode,
 		Allow: names(rules.Allow), Deny: names(rules.Deny), Ask: names(rules.Ask)}
+}
+
+// toolNudge is the once-per-session hint a plain grep, find or cat through
+// bash carries; nil when JANETCODE_OFF=toolnudge.
+func (b *agentBuilder) toolNudge() *tool.Nudge {
+	if b.off["toolnudge"] {
+		return nil
+	}
+	return &tool.Nudge{Loaded: func(name string) bool { return b.ag.Tools.Loaded(name) }}
 }

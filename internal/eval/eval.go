@@ -25,6 +25,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/worktree"
 )
 
@@ -249,6 +250,10 @@ type Result struct {
 	// the history was summarised, what the summariser calls cost (a subset
 	// of Usage), and how many archived outputs the model fetched back.
 	Compaction Compaction `json:"compaction"`
+	// Nudges is how many bash results carried a hint toward a dedicated
+	// tool (JANETCODE_OFF=toolnudge turns it off), so an A/B of tool
+	// adoption can see the lever fire.
+	Nudges int `json:"tool_nudges,omitempty"`
 	// Steps is the per-prompt accounting of a session task, in order.
 	Steps []Step `json:"steps,omitempty"`
 	// Facts is the fact-survival probe of the run, when the runner asked
@@ -375,6 +380,18 @@ func FoldSteps(events []session.Event) []Step {
 		}
 	}
 	return steps
+}
+
+// FoldNudges counts the tool results that carry a bash hint toward a
+// dedicated tool.
+func FoldNudges(events []session.Event) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == session.TypeToolResult && strings.Contains(e.Output, tool.NudgeMarker) {
+			n++
+		}
+	}
+	return n
 }
 
 // FoldCompaction reads the compaction metrics from a run's event log.
@@ -767,6 +784,7 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 		if len(res.Events) > 0 {
 			res.Features = agent.FoldTrajectory(res.Events)
 			res.Compaction = FoldCompaction(res.Events)
+			res.Nudges = FoldNudges(res.Events)
 			if t.Session() {
 				res.Steps = FoldSteps(res.Events)
 			}
