@@ -562,7 +562,7 @@
     const chip = document.getElementById("mode-chip");
     if (!chip) return;
     const m = mode || "ask";
-    const names = { ask: "Ask first", AUTO: "Auto", EDITS: "Auto-edit", PLAN: "Plan", "READ-ONLY": "Read-only", YOLO: "Allow all" };
+    const names = { ask: "Ask first", AUTO: "Auto", EDITS: "Auto-edit", PLAN: "Plan", "READ-ONLY": "Read-only", YOLO: "Allow all", AWAY: "Away" };
     chip.textContent = (names[m] || m) + (dry ? " · dry run" : "");
     chip.title = "Permission mode: " + (names[m] || m) + (dry ? " (dry run: nothing reaches the disk until /dryrun apply)" : "") + " — click to switch";
     chip.dataset.mode = m;

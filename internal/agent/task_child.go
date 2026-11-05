@@ -51,6 +51,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	p.shareTaint(child)
 	child.Impact = p.Impact
 	child.userYolo = p.yoloChosen
+	child.away.Store(p.awayRef())
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
 	// applied. A profile can ask for the other arrangement: the
@@ -199,6 +200,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	p.shareTaint(child)
 	child.Impact = p.Impact
 	child.userYolo = p.yoloChosen
+	child.away.Store(p.awayRef())
 	child.Files = p.Files
 	withholdFromChild(child.Tools, profile)
 	return child, nil
@@ -288,6 +290,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	p.shareTaint(child)
 	child.Impact = p.Impact
 	child.userYolo = p.yoloChosen
+	child.away.Store(p.awayRef())
 	child.Files = p.Files
 	withholdFromChild(child.Tools, nil)
 	if !ps.AutoApprove && p.Approver != nil {

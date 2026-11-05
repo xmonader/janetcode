@@ -79,6 +79,11 @@ type Task struct {
 	Repo  string `json:"repo,omitempty"`
 	Base  string `json:"base,omitempty"`
 	Patch string `json:"patch,omitempty"`
+	// AllowRefs lets the run create git refs outside janetcode's own
+	// namespaces — a task that asks the model to commit on an unborn
+	// branch makes a branch. Without it a new branch, tag or stash
+	// marks the run POLLUTED (see pollution.go).
+	AllowRefs bool `json:"allow_refs,omitempty"`
 	// dir is the directory the task was loaded from, set by Load, so Repo
 	// and Patch resolve relative to the task rather than the process's
 	// cwd. Zero value for a task built in memory (e.g. by a test).
@@ -269,6 +274,10 @@ type Result struct {
 	// neither the numerator nor the denominator of a pass rate; Reason
 	// says what happened.
 	Infra bool `json:"infra,omitempty"`
+	// Polluted lists what the run left in the work directory that
+	// janetcode itself made — a .janetcode/ path or a git ref the task did
+	// not ask for (pollution.go). A polluted run is a failure.
+	Polluted []string `json:"polluted,omitempty"`
 	// Mismatches counts the run's model calls whose response named another
 	// vendor than the requested model's (internal/provenance), and
 	// Mismatch is the first verdict. A run with any measured another
@@ -295,6 +304,8 @@ func (r Result) Outcome() string {
 		return "MISMATCH"
 	case r.Infra:
 		return "INFRA"
+	case len(r.Polluted) > 0:
+		return "POLLUTED"
 	case r.Passed:
 		return "PASS"
 	}
@@ -679,6 +690,7 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 		res.Reason = "setup: " + err.Error()
 		return res
 	}
+	before := snapshotState(ctx, dir)
 	hiddenGate, hiddenCleanup, err := prepareHidden(t)
 	if err != nil {
 		res.Reason = "held-out tests: " + err.Error()
@@ -795,11 +807,20 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 	}
 	var cerr error
 	res.CheckOut, cerr = runCheck(ctx, t, dir, outPath, hiddenGate)
+	res.Polluted = pollution(ctx, dir, before, t.AllowRefs)
 	if cerr != nil {
 		res.Reason = "check failed: " + cerr.Error()
 		if res.CheckOut != "" {
 			res.Reason += ": " + res.CheckOut
 		}
+		if len(res.Polluted) > 0 {
+			res.Reason = strings.Join(res.Polluted, "; ") + " · " + res.Reason
+		}
+		r.probe(ctx, ag, &res)
+		return res
+	}
+	if len(res.Polluted) > 0 {
+		res.Reason = strings.Join(res.Polluted, "; ")
 		r.probe(ctx, ag, &res)
 		return res
 	}

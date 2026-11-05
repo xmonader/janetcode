@@ -100,6 +100,8 @@ func sessionMode(ag *agent.Agent) string {
 		return "ask"
 	}
 	switch modes := ag.Settings(); {
+	case ag.Away():
+		return "AWAY"
 	case modes.PlanMode:
 		return "PLAN"
 	case modes.ReadOnly:

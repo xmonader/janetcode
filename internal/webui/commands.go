@@ -26,7 +26,7 @@ import (
 // webArgs only narrows the argument shape where the web version accepts
 // less than the terminal's.
 var webCommands = []string{
-	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
+	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/afk", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/context-window", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
@@ -108,6 +108,7 @@ var webDispatch = map[string]webHandler{
 	},
 	"/clear": (*server).cmdClear, "/new": (*server).cmdClear,
 	"/yolo":    (*server).cmdYolo,
+	"/afk":     (*server).cmdAfk,
 	"/routing": (*server).cmdRouting,
 	"/auto":    (*server).cmdAuto,
 	"/sandbox": func(s *server, arg string) (bool, error) {
@@ -453,6 +454,27 @@ func (s *server) cmdYolo(arg string) (bool, error) {
 		}
 	})
 	s.noteOnOff("auto-approve", on, "every tool runs without asking")
+	return false, nil
+}
+
+// cmdAfk is the web twin of the terminal's /afk (agent.SetAway).
+func (s *server) cmdAfk(arg string) (bool, error) {
+	ag := s.opts.Agent
+	on := !ag.Away()
+	switch strings.ToLower(strings.TrimSpace(arg)) {
+	case "on":
+		on = true
+	case "off":
+		on = false
+	}
+	notes, err := ag.SetAway(on)
+	if err != nil {
+		return false, err
+	}
+	s.noteOnOff("away", on, "tools run without asking and the model's questions get an assumption; /afk again to return")
+	if txt := agent.FormatAwayNotes(notes); txt != "" {
+		s.notice(txt)
+	}
 	return false, nil
 }
 

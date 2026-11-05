@@ -144,6 +144,10 @@ func (t *AskTool) Run(ctx context.Context, input json.RawMessage) (string, error
 		}
 		qs = append(qs, Question{Prompt: prompt, Options: opts, Recommended: rec})
 	}
+	if t.Parent != nil && t.Parent.Away() {
+		t.Parent.recordAway(qs)
+		return awayAnswer, nil
+	}
 	_, canProceed := recommended(qs)
 	if t.Parent == nil || t.Parent.Asker == nil {
 		if canProceed {

@@ -13,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/claudeimport"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/i18n"
 	"github.com/xmonader/janetcode/internal/keymap"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/managed"
@@ -88,6 +89,7 @@ var dispatch = map[string]cmdHandler{
 	"/quit": (*model).cmdQuit, "/exit": (*model).cmdQuit, "/q": (*model).cmdQuit,
 	"/clear": (*model).cmdClear, "/new": (*model).cmdClear,
 	"/yolo":    (*model).cmdYolo,
+	"/afk":     (*model).cmdAfk,
 	"/routing": (*model).cmdRouting,
 	"/auto":    (*model).cmdAuto,
 	"/import-claude": func(m *model, text string, fields []string) (tea.Cmd, bool) {
@@ -551,6 +553,47 @@ func (m *model) cmdYolo(text string, fields []string) (tea.Cmd, bool) {
 	})
 	m.noteMode()
 	return nil, false
+}
+
+// cmdAfk toggles away mode (agent.SetAway): approvals as under Allow all,
+// the model's questions answered with "the user is away", and the list of
+// those questions when it ends.
+func (m *model) cmdAfk(text string, fields []string) (tea.Cmd, bool) {
+	ag := m.opts.Agent
+	on := !ag.Away()
+	if len(fields) > 1 {
+		switch strings.ToLower(fields[1]) {
+		case "on":
+			on = true
+		case "off":
+			on = false
+		}
+	}
+	notes, err := ag.SetAway(on)
+	if err != nil {
+		m.transcript.errorf("%v", err)
+		return nil, false
+	}
+	if on {
+		m.note(i18n.T("away · tools run without asking, questions get an assumption · /afk again to return"))
+		return nil, false
+	}
+	m.noteMode()
+	if s := agent.FormatAwayNotes(notes); s != "" {
+		m.transcript.info(s)
+	}
+	return nil, false
+}
+
+// showAwayNotes lists the questions answered while away; a keypress or a
+// prompt is the user coming back.
+func (m *model) showAwayNotes() {
+	if m.opts.Agent == nil || m.opts.Agent.AwayPending() == 0 {
+		return
+	}
+	if s := agent.FormatAwayNotes(m.opts.Agent.TakeAwayNotes()); s != "" {
+		m.transcript.info(s)
+	}
 }
 
 // /routing vetoes the step router for the rest of the session: while it
