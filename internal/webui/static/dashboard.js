@@ -66,8 +66,21 @@
     </li>`;
   }
 
+  // Armed cron loops: the buttons run the same /loop observe|run|approve
+  // the slash command does. Approve shows only for a loop whose last
+  // occurrence was mandate-changed (it is skipped until a person approves).
+  function loopRow(l) {
+    const id = esc(l.id);
+    const acts = [`<button type="button" data-loop="${l.observe ? "run" : "observe"}" data-id="${id}" data-testid="loop-mode" title="${l.observe ? "Run it for real again" : "Only journal each due time; nothing runs"}">${l.observe ? "Run" : "Observe"}</button>`];
+    if (l.changed) acts.push(`<button type="button" data-loop="approve" data-id="${id}" data-testid="loop-approve" title="Your authority changed since this loop was armed: approve it to run again">Approve</button>`);
+    return `<li class="dash-loop" data-id="${id}"><span class="dash-loop-id">${id}</span><span class="dash-kind">${l.observe ? "observe" : "runs"} every ${esc(l.every)}</span>${l.changed ? `<span class="dash-kind warn">mandate changed</span>` : ""}<span class="dash-loop-prompt">${esc(l.prompt)}</span><span class="dash-loop-acts">${acts.join("")}</span></li>`;
+  }
+
   function paint(data) {
     const g = data.groups || {};
+    const loops = data.loops || [];
+    $("dash-loops").hidden = !loops.length;
+    $("dash-loops").innerHTML = loops.length ? `<h3>Loops <span class="dash-count">${loops.length}</span></h3><ul>${loops.map(loopRow).join("")}</ul>` : "";
     $("dash-dispatch-form").hidden = !data.dispatch;
     body.innerHTML = GROUPS.map(([key, label, hint]) => {
       const rows = g[key] || [];
@@ -113,6 +126,13 @@
     $("dash-btn") && $("dash-btn").setAttribute("aria-expanded", "false");
   }
 
+  $("dash-loops").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button[data-loop]");
+    if (!b) return;
+    const r = await post("/api/command", { text: "/loop " + b.dataset.loop + " " + b.dataset.id });
+    note.textContent = r.ok ? "Sent." : r.error;
+    load();
+  });
   body.addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-act]");
     if (!b) return;

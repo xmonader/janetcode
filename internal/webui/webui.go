@@ -369,6 +369,7 @@ type helloPayload struct {
 	Title    string `json:"title"`
 	Version  string `json:"version"`
 	Yolo     bool   `json:"yolo"`
+	Away     bool   `json:"away"`
 	Auto     bool   `json:"auto"`
 	Edits    bool   `json:"edits"`
 	Plan     bool   `json:"plan"`
@@ -386,6 +387,7 @@ type statusPayload struct {
 	CtxPct   int    `json:"ctx_pct"`
 	Queued   int    `json:"queued"`
 	Yolo     bool   `json:"yolo"`
+	Away     bool   `json:"away"`
 	Auto     bool   `json:"auto"`
 	Edits    bool   `json:"edits"`
 	Plan     bool   `json:"plan"`
@@ -566,6 +568,7 @@ func (s *server) hello() helloPayload {
 		modes := s.opts.Agent.Settings()
 		h.Model = modes.Model
 		h.Yolo = modes.AutoApprove
+		h.Away = s.opts.Agent.Away()
 		h.Auto = modes.AutoMode
 		h.Edits = modes.AutoEdits
 		h.Plan = modes.PlanMode
@@ -1113,6 +1116,7 @@ func (s *server) statusOf(f sessionState) statusPayload {
 	if s.opts.Agent != nil {
 		modes := s.opts.Agent.Settings()
 		st.Yolo = modes.AutoApprove
+		st.Away = s.opts.Agent.Away()
 		st.Auto = modes.AutoMode
 		st.Edits = modes.AutoEdits
 		st.Plan = modes.PlanMode

@@ -11,9 +11,43 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
+
+// The loops the dashboard lists carry what its buttons need: the mode, and
+// whether the last occurrence is a mandate change (the Approve button).
+func TestDashboardLoops(t *testing.T) {
+	s, _, _, _, _, _ := sessionEnv(t)
+	if got := s.dashLoops(); len(got) != 0 {
+		t.Fatalf("no scheduler: %+v", got)
+	}
+	c := cron.New()
+	c.SetJournal(cron.OpenJournal(""))
+	c.SetPosture(func() cron.Posture { return cron.Posture{Trust: "full", Mode: "ask"} })
+	s.opts.Agent.Cron = c
+	id, err := c.AddMode(time.Hour, "check ci", cron.ModeRun)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := s.dashLoops(); len(l) != 1 || l[0].ID != id || l[0].Observe || l[0].Changed {
+		t.Fatalf("armed loop: %+v", l)
+	}
+	if _, ok, err := c.Control("observe " + id); !ok || err != nil {
+		t.Fatalf("observe: %v %v", ok, err)
+	}
+	c.Note(id, cron.KindMandateChanged, "wider authority")
+	if l := s.dashLoops(); !l[0].Observe || !l[0].Changed || l[0].Last != cron.KindMandateChanged {
+		t.Fatalf("observed, mandate changed: %+v", l)
+	}
+	if _, ok, err := c.Control("approve " + id); !ok || err != nil {
+		t.Fatalf("approve: %v %v", ok, err)
+	}
+	if l := s.dashLoops(); l[0].Changed {
+		t.Fatalf("approved loop still asks: %+v", l)
+	}
+}
 
 func dashPost(t *testing.T, s *server, op string, body any) (int, string) {
 	t.Helper()
