@@ -293,6 +293,7 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 	return permPayload{
 		Warnings:  warnings,
 		Source:    c.Source,
+		Explain:   c.Explain(),
 		ID:        c.ID,
 		Name:      c.Name,
 		Summary:   present.ToolSummary(c.Name, string(c.Input), 80, s.cwd()),

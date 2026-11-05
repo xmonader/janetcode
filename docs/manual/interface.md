@@ -806,6 +806,23 @@ are told when that happens, before the change is made, and `/undo` then
 leaves that file as it is and says why rather than writing an empty
 "before" over it. Inside git the snapshot still covers it.
 
+### Why it asked, and how to stop it
+
+Every prompt carries one dim line, in the terminal, the web card, the ACP
+permission request and the headless stdin prompt: `Asked because …; to
+stop: …`. `/permissions why` repeats it in full for the last call that
+asked. The layers, and what each does:
+
+| Layer | Asks when | How to stop it |
+|---|---|---|
+| Permission mode | Ask: edits and commands. Edits: commands and other tools. Auto: calls auto-approve does not cover | Always allow (`r`) saves a rule; switch to Edits (`/edits`), Auto (`/auto`) or Allow all (`/yolo`). Under a managed policy that allows only its own rules, Always allow covers one call |
+| Tool guard | A command reaches outside the workspace, is destructive, or could not be graded | Allow all (`/yolo`) waives it when you are there; allow rules and other modes do not |
+| Protected path | A write to a shell profile, git hook, credential or janetcode setting | Allow all waives it; the other modes and allow rules do not. `protected_paths` in the config only adds paths |
+| Egress policy | A host is set to ask (`egress.default` or no `egress.allow` match) | Add the host to `egress.allow`, or set `egress.default` to `allow`. No mode skips it |
+| Taint | The session read untrusted content and the call is a network command, CI or credential change | No mode or rule skips it. It ends with `/clear` or a new session; a yes to a network command covers that host for the session |
+| Hook | A `pre_tool` hook answered ask, or a repository hook rewrote the input | Edit the hook (`hooks` in the config, `.janetcode/hooks.json`). No mode skips it |
+| Ask rule | The call matches an ask rule | Remove or narrow it under `"permissions"` in the config or `.janetcode/permissions.json`; a managed policy's rule cannot be removed |
+
 ### Permission rules
 
 `/permissions` (in the terminal or the browser) starts with a plain

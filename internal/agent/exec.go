@@ -324,7 +324,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// describeCall writes call.Warning from the tool's own Warner, so
 		// this goes on afterwards or it would be overwritten.
 		mustAsk = true
-		call.Source = "hook"
+		call.Source, call.Why, call.Stop = "hook", "a pre_tool hook asked, or a repository hook rewrote this call's input", stopHook
 		call.Warning = strings.TrimPrefix(call.Warning+"; a hook from this repository rewrote this call's input", "; ")
 	}
 	// A write to a protected path always asks, under /edits, /auto and an
@@ -342,7 +342,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		return nil, refusal, nil
 	case why != "":
 		mustAsk, egressAsk = true, true
-		setAskSource(call, "egress")
+		setAsk(call, "egress", "egress policy: "+why, stopEgress)
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 	}
 	// A tainted turn asks about the calls an injection is after — the
@@ -353,13 +353,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	taintAsk := taintWhy != ""
 	if taintAsk {
 		mustAsk = true
-		setAskSource(call, "taint")
+		setAsk(call, "taint", "this session read untrusted content (taint), and "+taintWhy, stopTaint)
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+taintWhy, "; ")
 	}
 	if tool.MutatingCall(t, u.Input) && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" && !yolo {
 			mustAsk = true
-			setAskSource(call, "protected")
+			setAsk(call, "protected", "a "+why, stopProtected)
 			if !strings.Contains(call.Warning, why) {
 				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 			}
@@ -406,8 +406,8 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	sensitive := verdict == perm.Ask && !rule.IsZero()
 	if sensitive {
 		mustAsk = true
-		setAskSource(call, "rule")
 		why := "asks because of rule " + rule.String() + a.outranked(u, subject)
+		setAsk(call, "rule", "your ask rule "+rule.String(), stopRule)
 		call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 	}
 	switch {
@@ -504,7 +504,7 @@ func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, cal
 	if g, ok := t.(tool.Guard); ok && tool.MutatingCall(t, u.Input) {
 		if ask, why := g.Guard(u.Input); ask {
 			mustAsk = true
-			setAskSource(call, "tool")
+			setAsk(call, "tool", toolGuardWhy(why), stopTool)
 			if why != "" && !strings.Contains(call.Warning, why) {
 				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
 			}
@@ -567,6 +567,9 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	suggested := perm.Suggest(u.Name, subject)
 	shape := suggested.String()
 	call.Rule = shape
+	a.modeAsk(call)
+	c := *call
+	a.lastAsk.Store(&c)
 	call.Learned = a.learnedNote(shape, mustAsk, call.Warning)
 	// The ladder the user may move along before saving: each rung with
 	// the ledger's note about that exact rule, so the "approved N×" note
@@ -1114,11 +1117,4 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		}
 	}
 	return out, isErr, false
-}
-
-// setAskSource records what made a call ask; the first cause stands.
-func setAskSource(call *ToolCall, src string) {
-	if call.Source == "" {
-		call.Source = src
-	}
 }

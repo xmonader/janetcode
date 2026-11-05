@@ -44,7 +44,7 @@ var webArgs = map[string]string{
 	"/jobs":          "[kill n | stdin n <text>]",
 	"/memory":        "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
 	"/remember":      "[-g] <fact>",
-	"/permissions":   "[check <command>]",
+	"/permissions":   "[check <command>|why]",
 	"/resume":        "[<n|id> [fork]]",
 	"/eval":          "keep [name] [--check cmd]",
 	"/import-claude": "[mcp|permissions|skills|agents ...] | apply <id>",
@@ -338,6 +338,10 @@ var webDispatch = map[string]webHandler{
 	"/permissions": func(s *server, arg string) (bool, error) {
 		// check <command> answers what the rules would decide, as in the
 		// terminal; anything else shows the summary.
+		if strings.TrimSpace(arg) == "why" {
+			s.notice(s.opts.Agent.WhyLastAsk())
+			return false, nil
+		}
 		if f := strings.Fields(arg); len(f) >= 2 && f[0] == "check" {
 			s.notice(s.opts.Agent.PermissionCheck(f[1:]))
 			return false, nil

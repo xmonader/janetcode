@@ -48,3 +48,26 @@ func TestStreamRecordsWhoServedIt(t *testing.T) {
 		t.Fatalf("served = %+v", resp.Served)
 	}
 }
+
+// The broker's own total_cost is the actual cost: it wins over an
+// estimate and survives a usage chunk that arrives after it.
+func TestStreamTakesBrokerReportedCost(t *testing.T) {
+	for name, chunks := range map[string][]string{
+		"cost last": {
+			`{"id":"gen-1","model":"m","choices":[{"index":0,"delta":{"content":"hi"}}],"usage":{"prompt_tokens":10,"completion_tokens":2}}`,
+			`{"id":"gen-1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"x_aibroker":{"cost":{"input_cost":0.001,"output_cost":0.0005,"total_cost":0.0015}}}`,
+		},
+		"usage last": {
+			`{"id":"gen-1","model":"m","choices":[{"index":0,"delta":{"content":"hi"}}],"x_aibroker":{"cost":{"total_cost":0.0015}}}`,
+			`{"id":"gen-1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2}}`,
+		},
+	} {
+		resp, err := readStream(strings.NewReader(sse(chunks...)), nil, func(llm.Event) {})
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		if resp.Usage.CostUSD != 0.0015 || resp.Usage.CostSource(nil) != "reported" {
+			t.Fatalf("%s: usage = %+v", name, resp.Usage)
+		}
+	}
+}

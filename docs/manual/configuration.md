@@ -1323,5 +1323,17 @@ provider's model listing carried when the model was picked with `/model`
 and refreshed after a day. The table is the one `ccusage` prices against.
 A figure from any of these is an API-equivalent estimate at list price and
 is labelled so; only a cost the provider itself reported with the response
-(OpenRouter does) is shown as reported. `janetcode --doctor` says which
+(OpenRouter's `usage.cost`, the ai02 broker's `x_aibroker.cost.total_cost`)
+is shown as reported, and it wins over every table.
+
+A model no table knows (a broker's own model names show "cost unknown")
+is priced with an entry in dollars per million tokens. The key is the model
+name or a prefix of it; the longest match wins:
+
+```json
+"prices": {"geomind-coding": {"input": 0.3, "output": 1.2, "cached_input": 0.03}}
+```
+
+`cached_input` is another name for `cache_read`; `cache_write` is also
+accepted. `janetcode --doctor` says which
 table is in use and how old it is.

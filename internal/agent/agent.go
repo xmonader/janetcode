@@ -58,6 +58,11 @@ type ToolCall struct {
 	// "protected" (a protected path) or "tool" (the tool's own guard).
 	// Empty when the mode alone asked. The first cause found stands.
 	Source string
+	// Why is the layer that asked, in plain words, and Stop the concrete
+	// way not to be asked next time by that layer (see askwhy.go). Both
+	// are set on every call that is put to the user, whatever asked.
+	Why  string
+	Stop string
 	// Intent is the model's own one-line reason for making this call,
 	// when the registry asks for one. Shown to the user as it runs.
 	Intent string
@@ -323,7 +328,9 @@ type Agent struct {
 	taint      *taint.Tracker
 	taintMu    sync.Mutex
 	taintHosts map[string]bool
-	canaryHit  atomic.Pointer[string]
+	// lastAsk is the call most recently put to the user, for /permissions why.
+	lastAsk   atomic.Pointer[ToolCall]
+	canaryHit atomic.Pointer[string]
 	// DepRegistry, when set, replaces the public registries the
 	// dependency check asks (depgate.go); tests use a fake.
 	DepRegistry depcheck.Registry

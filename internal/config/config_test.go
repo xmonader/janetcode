@@ -190,6 +190,25 @@ func TestPriceFor(t *testing.T) {
 	}
 }
 
+// A broker model no table knows is priced by the config, with the cached
+// rate under either name, and the config beats a built-in table.
+func TestPricesConfigOverridesAndCachedInputAlias(t *testing.T) {
+	var c Config
+	if err := json.Unmarshal([]byte(`{"prices":{"geomind-coding":{"input":0.3,"output":1.2,"cached_input":0.03},"gpt":{"input":9,"cache_read":0.9}}}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	if p := c.PriceFor("geomind-coding"); p == nil || p.Input != 0.3 || p.Output != 1.2 || p.CacheRead != 0.03 {
+		t.Fatalf("geomind-coding = %+v", p)
+	}
+	if p := c.PriceFor("gpt-5"); p == nil || p.Input != 9 || p.CacheRead != 0.9 {
+		t.Fatalf("cache_read = %+v", p)
+	}
+	u := llm.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000}
+	if usd, ok := u.Cost(c.PriceFor("geomind-coding")); !ok || usd < 1.499 || usd > 1.501 {
+		t.Fatalf("cost = %v %v", usd, ok)
+	}
+}
+
 func TestProvidersMapMultipleKeysAndPresets(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
 	os.WriteFile(p, []byte(`{"providers":{

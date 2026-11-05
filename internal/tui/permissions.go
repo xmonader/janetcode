@@ -23,6 +23,10 @@ import (
 func (m *model) permissionsCommand(args []string) {
 	o := m.opts.Perms
 	ag := m.opts.Agent
+	if len(args) == 1 && args[0] == "why" {
+		m.transcript.info(ag.WhyLastAsk())
+		return
+	}
 	if len(args) >= 2 && args[0] == "check" {
 		m.transcript.info(ag.PermissionCheck(args[1:]))
 		return
@@ -434,6 +438,15 @@ func (m *model) permissionNotice() string {
 		line += m.styles.err.Bold(true).Render(" · ⚠ " + sanitize(c.Warning))
 	}
 	return fitLine("  "+line, room)
+}
+
+// permissionWhy is the dim row "Asked because …; to stop: …": which layer
+// asked and how to stop it asking. One line, like permissionImpact.
+func (m *model) permissionWhy() string {
+	if m.pending == nil || m.pending.call.Why == "" {
+		return ""
+	}
+	return fitLine("  "+m.styles.dim.Render(sanitize(m.pending.call.Explain())), m.width-4)
 }
 
 // permissionImpact is the extra dim row shown under the notice while a

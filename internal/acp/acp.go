@@ -495,6 +495,9 @@ func (a *approver) ApproveWithReason(ctx context.Context, call agent.ToolCall) (
 	if call.Warning != "" {
 		tc.Title += " — " + call.Warning
 	}
+	if call.Why != "" {
+		tc.Content = append(tc.Content, toolCallContent{Type: "content", Content: &contentBlock{Type: "text", Text: call.Explain()}})
+	}
 	if call.Preview != "" {
 		tc.Content = append(tc.Content, toolCallContent{Type: "content", Content: &contentBlock{Type: "text", Text: call.Preview}})
 	}

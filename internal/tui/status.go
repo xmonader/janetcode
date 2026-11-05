@@ -552,6 +552,9 @@ func (m *model) footerView() string {
 	if imp := m.permissionImpact(); imp != "" {
 		parts = append(parts, imp)
 	}
+	if w := m.permissionWhy(); w != "" {
+		parts = append(parts, w)
+	}
 	// The command menu and the @path menu are the same menu: same rows,
 	// same highlight, same footer line, same height whatever is in them.
 	if m.mode() == modePrompt {
