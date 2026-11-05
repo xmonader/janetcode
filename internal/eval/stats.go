@@ -96,8 +96,11 @@ type Summary struct {
 	// runs that never reached the model or ended outside it, and runs a
 	// model of another vendor answered. ExcludedCost is what they cost.
 	Infra, Mismatched int
-	ExcludedCost      float64
-	PassRate          float64
+	// Polluted counts scored runs that failed because they left
+	// janetcode state in the repository; they stay in Total.
+	Polluted     int
+	ExcludedCost float64
+	PassRate     float64
 	// Lo and Hi bound the pass rate (Wilson 95% interval over all runs).
 	Lo, Hi        float64
 	CostUSD       float64
@@ -174,6 +177,9 @@ func Summarize(all []Result) Summary {
 			s.Infra++
 			s.ExcludedCost += r.CostUSD
 		default:
+			if len(r.Polluted) > 0 {
+				s.Polluted++
+			}
 			rs = append(rs, r)
 		}
 	}
@@ -879,7 +885,7 @@ func summaryLine(s Summary) string {
 // answered. Empty when every run was scored.
 func excludedLine(s Summary) string {
 	if s.Infra == 0 && s.Mismatched == 0 {
-		return ""
+		return pollutedLine(s)
 	}
 	var parts []string
 	if s.Mismatched > 0 {
@@ -889,5 +895,14 @@ func excludedLine(s Summary) string {
 		parts = append(parts, fmt.Sprintf("%d lost to the provider or the network before the model could fail them", s.Infra))
 	}
 	return fmt.Sprintf("\n!! not scored: %s — left out of the pass rate, the CI and the per-task comparison (%s spent on them)",
-		strings.Join(parts, " · "), llm.FormatUSDPrecise(s.ExcludedCost))
+		strings.Join(parts, " · "), llm.FormatUSDPrecise(s.ExcludedCost)) + pollutedLine(s)
+}
+
+// pollutedLine is the line for runs that failed by leaving janetcode's own
+// state in the repository; they are counted as failures, not dropped.
+func pollutedLine(s Summary) string {
+	if s.Polluted == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n!! polluted: %d run(s) left janetcode state in the repository (a .janetcode/ path or a git ref) — counted as failures", s.Polluted)
 }

@@ -423,11 +423,12 @@ a tool-id shape only one vendor mints (`toolu_…` is Anthropic's; `tool_`
 and 24 characters is Kimi's, which is how the broker's swap gave itself
 away while echoing the requested name everywhere else).
 
-In an eval, each run gets one of four outcomes:
+In an eval, each run gets one of five outcomes:
 
 | outcome | meaning | counted |
 |---|---|---|
 | `PASS` / `FAIL` | the requested model answered; the check passed or not | yes |
+| `POLLUTED` | the check may have passed, but janetcode itself left state in the work directory: a `.janetcode/` path the task's starting tree did not hold (a fixture's own `.janetcode/verify.json` is fine), one staged or committed, or in a git repository a new branch, tag, stash or other ref outside `refs/janetcode/` and `refs/notes/janetcode` (a task that asks for a commit sets `"allow_refs": true`). The reason names the path or ref | yes, as a failure; reported on its own `!! polluted` line |
 | `INFRA` | the run ended outside the model — a 429 or 5xx after the retries, an exhausted balance, a rejected key, the network, a stream that stayed dead — or timed out without a single answer, or was cancelled before it started (a `--max-cost` stop) | no |
 | `MISMATCH` | at least one call was answered by another vendor's model | no |
 

@@ -32,6 +32,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		m.autoRecap(time.Now())
+		m.showAwayNotes()
 		// A word that spells a key name is text, not that key. It is
 		// delivered one character at a time, which is what was typed, so
 		// neither this model nor the textarea can mistake it. Not at a

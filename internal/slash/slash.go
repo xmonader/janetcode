@@ -89,6 +89,7 @@ var Commands = withIdle([]Command{
 	{Name: "/remember", Args: "<fact>", Help: "add a fact to the project memory"},
 	{Name: "/forget", Args: "<n>", Help: "remove memory entry n"},
 	{Name: "/yolo", Args: "", Help: "toggle Allow all tools (yolo): every tool runs without asking"},
+	{Name: "/afk", Args: "[on|off]", Help: "away mode: tools run as under Allow all and the model's questions get \"the user is away\" back; they are listed when you return, and off restores the previous mode"},
 	{Name: "/auto", Args: "", Help: "toggle auto mode: in-workspace edits and known-safe reads run, other commands ask"},
 	{Name: "/edits", Args: "", Help: "toggle auto-accept edits: file changes go through, commands still ask"},
 	{Name: "/sandbox", Args: "[on|off|workspace|read-only|strict|backend|image]", Help: "run local bash under a sandbox profile (docker, seatbelt or Landlock); off by default"},

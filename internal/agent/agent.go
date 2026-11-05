@@ -264,6 +264,8 @@ type Agent struct {
 	// editing subagent auto-approves its own calls without the user having
 	// chosen anything, so it asks its parent instead (exec.go).
 	userYolo func() bool
+	// away is /afk's state (away.go); a subagent shares its parent's.
+	away atomic.Pointer[awayState]
 	// AutoEdits skips the Approver for file edits only: write_file and
 	// edit_file go through, commands still ask. The natural mode for a
 	// refactor, where every edit would be approved anyway.

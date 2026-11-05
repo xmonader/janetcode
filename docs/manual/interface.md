@@ -650,6 +650,20 @@ headless `-p --yolo` run -- keeps the guard: it refuses the call and tells
 the model why, so the next attempt changes the command rather than the
 machine.
 
+**Away mode** (`/afk`, in the terminal and the web composer; `/afk on` and
+`/afk off` say which way) is for stepping away from a long run. The status
+line shows `AWAY`. While it is on, approvals that would ask are answered
+exactly as if you had chosen Allow all -- it is the same switch, so deny
+rules, hard denials and everything Allow all still prompts for (egress and
+taint gates, an "ask" hook, your own ask rules) behave as they do there.
+When the model asks you a question it gets back at once "The user is away.
+State the assumption you are making, then continue; they will review it
+when they return.", and the question is kept. `/afk` again (or, in the
+terminal, any keypress) shows "While you were away: N questions answered
+with assumptions" with the questions and the option the model recommended;
+`/afk` off puts the permission mode back exactly as it was. A managed
+policy that disables Allow all disables `/afk` too.
+
 Whatever a tool reads, credentials are taken out of its result before
 anything sees it: a shell's whole environment, a `.env`, a 401 body
 quoting the header it rejected. Vendor key shapes, a bare `sk-` key, a

@@ -163,6 +163,8 @@ func (m *model) statusMode() string {
 		return "ask"
 	}
 	switch modes := ag.Settings(); {
+	case ag.Away():
+		return "AWAY"
 	case modes.PlanMode:
 		return "PLAN"
 	case modes.ReadOnly:
@@ -184,6 +186,8 @@ func (m *model) statusModeHint() string {
 		return i18n.T("reads only · writes a plan · /plan approve runs it")
 	case "READ-ONLY":
 		return i18n.T("inspect only")
+	case "AWAY":
+		return i18n.T("away · tools run without asking, questions get an assumption")
 	case "YOLO":
 		return i18n.T("tools run without asking")
 	case "AUTO":
