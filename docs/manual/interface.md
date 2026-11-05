@@ -653,14 +653,18 @@ machine.
 **Away mode** (`/afk`, in the terminal and the web composer; `/afk on` and
 `/afk off` say which way) is for stepping away from a long run. The status
 line shows `AWAY`. While it is on, approvals that would ask are answered
-exactly as if you had chosen Allow all -- it is the same switch, so deny
-rules, hard denials and everything Allow all still prompts for (egress and
-taint gates, an "ask" hook, your own ask rules) behave as they do there.
-When the model asks you a question it gets back at once "The user is away.
+as under Allow all, with one difference: nobody is there to read a
+warning, so the local guards Allow all waives (a command reaching outside
+the workspace, a destructive one-liner, a protected path) stay, and any
+call that would still ask -- a guard, egress and taint gates, an "ask"
+hook, your own ask rules -- is refused with "the user is away" rather than
+waiting, and listed for your return. Deny rules and hard denials hold as
+always. When the model asks you a question it gets back at once "The user is away.
 State the assumption you are making, then continue; they will review it
 when they return.", and the question is kept. `/afk` again (or, in the
 terminal, any keypress) shows "While you were away: N questions answered
-with assumptions" with the questions and the option the model recommended;
+with assumptions" with the questions and the option the model recommended,
+and the calls refused because they need your approval;
 `/afk` off puts the permission mode back exactly as it was. A managed
 policy that disables Allow all disables `/afk` too.
 

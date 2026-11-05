@@ -356,6 +356,12 @@ func childRules(rs perm.Rules) perm.Rules {
 // (no approver: -p, an eval) keeps the local guards, because with nobody
 // to ask they refuse a call reaching outside the workspace.
 func (a *Agent) yoloChosen() bool {
+	// Away (/afk) runs under Allow all with nobody watching, so it never
+	// counts as the user's choice: the guards stay, and what they would
+	// ask is refused for the return (see awayRefusal).
+	if a.Away() {
+		return false
+	}
 	if a.userYolo != nil {
 		return a.userYolo()
 	}

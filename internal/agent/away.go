@@ -9,10 +9,12 @@ import (
 )
 
 // Away mode (/afk): the user stepped away. Approvals that would ask are
-// answered as if they had chosen Allow all — it is the same
-// Settings.AutoApprove, so deny rules, hard denials, egress and taint
-// prompts behave exactly as under Allow all — and a question the model
-// asks comes straight back with awayAnswer instead of waiting for nobody.
+// answered as under Allow all (the same Settings.AutoApprove), except
+// that nobody is there to see a warning: the local guards are not waived
+// (yoloChosen), and any call that would still ask — a guard, a protected
+// path, egress, taint, a hook's or a rule's ask — is refused and kept for
+// the return (awayRefusal). A question the model asks comes straight back
+// with awayAnswer instead of waiting for nobody.
 // The questions are kept for the return.
 
 // awayAnswer is what the ask tool returns while the user is away.
@@ -25,6 +27,9 @@ type AwayNote struct {
 	// Assumed is the option the model recommended, when it gave one; the
 	// assumption it states in prose is in the transcript.
 	Assumed string
+	// Refused is set for a call that would have asked: away, it was
+	// refused instead, and Question describes the call.
+	Refused bool
 }
 
 type awayState struct {
@@ -121,21 +126,60 @@ func (a *Agent) recordAway(qs []Question) {
 	}
 }
 
-// FormatAwayNotes is the list shown on return; empty for no notes.
-func FormatAwayNotes(notes []AwayNote) string {
-	if len(notes) == 0 {
+// awayRefusal refuses, while away, a call that would put itself to the
+// user (a guard, a protected path, egress, taint, a hook's or a rule's
+// ask) and keeps it for the return. Empty when not away.
+func (a *Agent) awayRefusal(name, subject, warning string) string {
+	if !a.Away() {
 		return ""
 	}
-	var sb strings.Builder
-	noun := "questions"
-	if len(notes) == 1 {
-		noun = "question"
+	what := name
+	if subject != "" {
+		what += " " + subject
 	}
-	fmt.Fprintf(&sb, "While you were away: %d %s answered with assumptions", len(notes), noun)
+	if warning != "" {
+		what += " (" + warning + ")"
+	}
+	s := a.awayRef()
+	s.mu.Lock()
+	s.notes = append(s.notes, AwayNote{Question: what, Refused: true})
+	s.mu.Unlock()
+	return "Permission denied: the user is away and this call needs their approval. Continue with work that does not need it; they will see it when they return."
+}
+
+// FormatAwayNotes is the list shown on return; empty for no notes.
+func FormatAwayNotes(notes []AwayNote) string {
+	var asked, refused []AwayNote
 	for _, n := range notes {
-		sb.WriteString("\n  - " + n.Question)
-		if n.Assumed != "" {
-			sb.WriteString(" (recommended: " + n.Assumed + ")")
+		if n.Refused {
+			refused = append(refused, n)
+		} else {
+			asked = append(asked, n)
+		}
+	}
+	plural := func(n int, one, many string) string {
+		if n == 1 {
+			return one
+		}
+		return many
+	}
+	var sb strings.Builder
+	if len(asked) > 0 {
+		fmt.Fprintf(&sb, "While you were away: %d %s answered with assumptions", len(asked), plural(len(asked), "question", "questions"))
+		for _, n := range asked {
+			sb.WriteString("\n  - " + n.Question)
+			if n.Assumed != "" {
+				sb.WriteString(" (recommended: " + n.Assumed + ")")
+			}
+		}
+	}
+	if len(refused) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		fmt.Fprintf(&sb, "While you were away: %d %s refused because %s your approval", len(refused), plural(len(refused), "call", "calls"), plural(len(refused), "it needs", "they need"))
+		for _, n := range refused {
+			sb.WriteString("\n  - " + n.Question)
 		}
 	}
 	return sb.String()

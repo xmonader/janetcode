@@ -101,3 +101,32 @@ func resultText(a *Agent) string {
 	}
 	return ""
 }
+
+// Away is Allow all with nobody watching: a guarded call is not waived
+// and not put to the user, it is refused and listed for the return.
+func TestAwayRefusesAGuardedCallAndListsIt(t *testing.T) {
+	var ran []string
+	asked := 0
+	f := &fake{responses: []*llm.Response{toolCall("c1", "run", `{"what":"outside"}`), text("done")}}
+	a, _ := newAgent(t, f, ApproverFunc(func(context.Context, ToolCall) (Decision, error) {
+		asked++
+		return Allow, nil
+	}))
+	a.Tools = tool.NewRegistry(guardedTool{ran: &ran})
+	if _, err := a.SetAway(true); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if asked != 0 || len(ran) != 0 {
+		t.Fatalf("asked %d times, ran %v", asked, ran)
+	}
+	if got := resultText(a); !strings.Contains(got, "the user is away") {
+		t.Fatalf("result = %q", got)
+	}
+	notes, _ := a.SetAway(false)
+	if got := FormatAwayNotes(notes); !strings.Contains(got, "1 call refused") || !strings.Contains(got, "run") {
+		t.Fatalf("list = %q", got)
+	}
+}

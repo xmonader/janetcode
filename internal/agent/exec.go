@@ -436,6 +436,10 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		basis = "no approver"
 		return nil, "Permission denied: no approver configured for mutating tools.", nil
 	}
+	if r := a.awayRefusal(u.Name, subject, call.Warning); r != "" {
+		basis = "away"
+		return nil, r, nil
+	}
 	a.notifyHook("permission_prompt", "janetcode needs your permission to use "+u.Name)
 	d, reason, suggested, askErr := a.ask(ctx, u, call, subject, mustAsk)
 	if askErr != nil {
