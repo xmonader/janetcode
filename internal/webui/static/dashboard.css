@@ -42,3 +42,13 @@
 .dash-empty { color: var(--mute); font-size: 12.5px; padding: 8px 2px; }
 @media (max-width: 760px) { #dash-body { grid-template-columns: 1fr; } .dash-top, #dash-dispatch-form { padding-left: 16px; padding-right: 16px; } }
 #q-detail { white-space: pre-line; }
+.dash-loops { padding: 12px 20px 0; }
+.dash-loops[hidden] { display: none; }
+.dash-loops h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.dash-loops ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-loop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.dash-loop-prompt { flex: 1; min-width: 120px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-loop-acts { display: flex; gap: 6px; }
+.dash-loop-acts button { padding: 3px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.dash-loop-acts button:hover { border-color: var(--accent-soft-border); color: var(--accent); background: var(--accent-soft); }
+.dash-kind.warn { color: var(--bad); }

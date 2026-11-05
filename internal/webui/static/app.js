@@ -1733,6 +1733,7 @@
       }
       document.getElementById("cost-line").textContent = ws.cost ? "Spend " + ws.cost : "";
       document.getElementById("mode-yolo").classList.toggle("on", !!ws.yolo);
+      document.getElementById("mode-away").classList.toggle("on", !!ws.away);
       document.getElementById("mode-auto").classList.toggle("on", !!ws.auto);
       document.getElementById("mode-edits").classList.toggle("on", !!ws.edits);
       document.getElementById("mode-plan").classList.toggle("on", !!ws.plan);
@@ -2099,19 +2100,22 @@
     { key: "PLAN",      label: "Plan first",      what: "read-only until the plan is approved", cmd: "/plan" },
     { key: "READ-ONLY", label: "Read-only",       what: "inspect, change nothing",            cmd: "/readonly" },
     { key: "YOLO",      label: "Allow all tools", what: "every tool runs without asking",     cmd: "/yolo" },
+    { key: "AWAY",      label: "Away",            what: "tools run, questions get an assumption; turning it off lists what happened", cmd: "/afk" },
   ];
   const modeMenuEl = document.getElementById("mode-menu");
   const modeChip = document.getElementById("mode-chip");
   function hideModeMenu() { modeMenuEl.hidden = true; }
   function activeModeKeys() {
     const ws = lastWorkspace || {};
+    // Away rides on top of the auto-approve switch: it is the one mode shown.
+    if (ws.away) return ["AWAY"];
     return [ws.yolo && "YOLO", ws.auto && "AUTO", ws.edits && "EDITS", ws.plan && "PLAN", ws.readonly && "READ-ONLY"].filter(Boolean);
   }
   function paintModeMenu() {
     const on = activeModeKeys();
     modeMenuEl.innerHTML = MODE_ITEMS.map((it) => {
       const isOn = it.key === "ask" ? !on.length : on.includes(it.key);
-      return `<div class="${isOn ? "on" : ""}" data-key="${it.key}"><span class="mk">✓</span><span class="name">${it.label}</span><span>${it.what}</span></div>`;
+      return `<div class="${isOn ? "on" : ""}" data-key="${it.key}" data-testid="mode-opt-${it.key.toLowerCase()}"><span class="mk">✓</span><span class="name">${it.label}</span><span>${it.what}</span></div>`;
     }).join("");
   }
   modeChip.addEventListener("click", () => {
@@ -2131,6 +2135,9 @@
     // is not on already, or picking the current mode would turn it off.
     const item = MODE_ITEMS.find((it) => it.key === row.dataset.key);
     const active = activeModeKeys();
+    // Leaving Away is /afk alone, which puts the earlier settings back;
+    // picking Away from another mode is /afk alone too.
+    if (active.includes("AWAY") || item.key === "AWAY") { await post("/api/command", { text: "/afk" }); return; }
     const cmds = active.filter((k) => k !== item.key).map((k) => MODE_ITEMS.find((it) => it.key === k).cmd);
     if (item.cmd && !active.includes(item.key)) cmds.push(item.cmd);
     for (const c of cmds) await post("/api/command", { text: c });

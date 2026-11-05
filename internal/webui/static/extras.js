@@ -26,6 +26,7 @@
     const d = document.createElement("dialog");
     const tid = "xd-title-" + ++dlgSeq;
     d.className = "xdlg " + cls;
+    d.dataset.testid = "dialog-" + cls;
     d.setAttribute("aria-labelledby", tid);
     d.innerHTML = `<div class="xd-card"><header><strong id="${tid}">${esc(title)}</strong>` +
       `<button type="button" class="icon-btn xd-close" aria-label="Close" title="Close (Esc)">${ico("x")}</button></header>` +

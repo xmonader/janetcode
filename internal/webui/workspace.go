@@ -33,6 +33,7 @@ type workspace struct {
 	CtxPct    int         `json:"ctx_pct"`
 	CtxLabel  string      `json:"ctx_label"`
 	Yolo      bool        `json:"yolo"`
+	Away      bool        `json:"away"`
 	Auto      bool        `json:"auto"`
 	Edits     bool        `json:"edits"`
 	Plan      bool        `json:"plan"`
@@ -191,6 +192,7 @@ func (s *server) workspace() workspace {
 	ws.CanUndo = len(ag.Checkpoints()) > 0
 	modes := ag.Settings()
 	ws.Yolo = modes.AutoApprove
+	ws.Away = ag.Away()
 	ws.Auto = modes.AutoMode
 	ws.Edits = modes.AutoEdits
 	ws.Plan = modes.PlanMode

@@ -4,7 +4,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build install test race lint check clean dist run eval eval-baseline eval-train cross harness-bench harness-bench-large \
-	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-visual ui-shot vscode-test action-test
+	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-smoke ui-visual ui-shot vscode-test action-test
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -157,6 +157,23 @@ ui-turn: build
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9226 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
 	node internal/webui/uitest/turn.mjs http://127.0.0.1:$(UI_TURN_PORT)/?token=$(UI_TOKEN) 9226 $(UI_TURN_MODEL_PORT) $$tmp/work; \
+	rc=$$?; [ $$rc = 0 ] || tail -40 $$tmp/server.log; pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
+
+# Console-error smoke test: every view of the web UI is opened in headless
+# Chrome against a real --web and a fake model; any console error,
+# exception, unhandled rejection or failed same-origin request fails it, as
+# does a view missing its key element (smoke.mjs).
+UI_SMOKE_PORT ?= 18997
+UI_SMOKE_MODEL_PORT ?= 18998
+ui-smoke: build
+	@tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; mkdir -p $$tmp/janetcode $$tmp/work; \
+	printf '%s' '{"provider":"smoke","model":"smoke/smoke-model","providers":{"smoke":{"type":"openai","base_url":"http://127.0.0.1:$(UI_SMOKE_MODEL_PORT)/v1","api_key":"sk-test","models":["smoke-model"]}}}' > $$tmp/janetcode/config.json; \
+	(cd $$tmp/work && env -i HOME=$$tmp PATH=$$PATH XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp XDG_STATE_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) $(CURDIR)/bin/janetcode --web --web-addr 127.0.0.1:$(UI_SMOKE_PORT) </dev/null >$$tmp/server.log 2>&1) & \
+	srv=$$!; \
+	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_SMOKE_PORT)/ && break; sleep 0.5; done; \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9227 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	chr=$$!; \
+	node internal/webui/uitest/smoke.mjs http://127.0.0.1:$(UI_SMOKE_PORT)/?token=$(UI_TOKEN) 9227 $(UI_SMOKE_MODEL_PORT) $$tmp/janetcode/sessions; \
 	rc=$$?; [ $$rc = 0 ] || tail -40 $$tmp/server.log; pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; rm -rf $$tmp 2>/dev/null; exit $$rc
 
 # Visual regression gate: boots the webui like ui-test, shoots every state

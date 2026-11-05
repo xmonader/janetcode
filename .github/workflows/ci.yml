@@ -103,3 +103,5 @@ jobs:
         run: make ui-firstrun
       - name: browser (real turns against a scripted model)
         run: make ui-turn
+      - name: browser (console-error smoke over every view)
+        run: make ui-smoke

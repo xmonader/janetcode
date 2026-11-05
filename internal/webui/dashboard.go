@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/cron"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -164,7 +165,37 @@ func (s *server) dashboardAPI(w http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		groups[row.Group] = append(groups[row.Group], row)
 	}
-	writeJSON(w, map[string]any{"groups": groups, "dispatch": s.opts.Dispatch != nil})
+	writeJSON(w, map[string]any{"groups": groups, "dispatch": s.opts.Dispatch != nil, "loops": s.dashLoops()})
+}
+
+// dashLoop is one armed cron loop as the dashboard lists it. Changed is
+// set when the loop's last occurrence is mandate-changed: it is skipped
+// until a person approves it (/loop approve).
+type dashLoop struct {
+	ID      string `json:"id"`
+	Every   string `json:"every"`
+	Prompt  string `json:"prompt"`
+	Observe bool   `json:"observe"`
+	Next    string `json:"next"`
+	Changed bool   `json:"changed"`
+	Last    string `json:"last,omitempty"` // kind of the last occurrence
+}
+
+func (s *server) dashLoops() []dashLoop {
+	out := []dashLoop{}
+	ag := s.opts.Agent
+	if ag == nil || ag.Cron == nil {
+		return out
+	}
+	for _, j := range ag.Cron.List() {
+		l := dashLoop{ID: j.ID, Every: j.Every.String(), Prompt: textfmt.Clip(j.Prompt, 120), Observe: j.Mode == cron.ModeObserve, Next: j.Next.Format(time.RFC3339)}
+		if occ := ag.Cron.Journal().Recent(1, j.ID); len(occ) > 0 {
+			l.Last = occ[0].Kind
+			l.Changed = occ[0].Kind == cron.KindMandateChanged
+		}
+		out = append(out, l)
+	}
+	return out
 }
 
 // dashBody is every field the /api/dashboard/* actions read.

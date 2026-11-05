@@ -94,7 +94,7 @@
     </button>
     <div id="current-session" class="current-session" hidden></div>
     <input id="session-filter" class="session-filter" type="search" placeholder="Search conversations" aria-label="Filter past conversations">
-    <ul id="sessions"></ul>
+    <ul id="sessions" data-testid="sessions-list"></ul>
     <div class="nav-foot">
       <button type="button" id="nav-toggle" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar"><svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg></button>
       <span class="spacer"></span>
@@ -136,7 +136,7 @@
             <button type="button" class="chip" data-q="Refactor the ugliest function you can find">Refactor something ugly</button>
           </div>
         </div>
-        <div id="log" role="log" aria-label="Conversation" aria-live="off"></div>
+        <div id="log" data-testid="chat-log" role="log" aria-label="Conversation" aria-live="off"></div>
       </div>
       <div id="trajectory" class="trajectory" hidden>
         <div class="traj-bar">
@@ -221,7 +221,7 @@
         <div id="ac" class="ac" hidden></div>
         <div id="mode-menu" class="slash mode-menu" hidden></div>
         <div id="chips" class="chips-row" hidden></div>
-        <textarea id="input" rows="1" placeholder="What should we do next?" aria-label="Message"></textarea>
+        <textarea id="input" data-testid="composer" rows="1" placeholder="What should we do next?" aria-label="Message"></textarea>
         <div class="composer-bar">
           <div class="cb-tools">
             <button type="button" id="attach-btn" class="cmd-btn" title="Attach a file" aria-label="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-paperclip"/></svg></button>
@@ -304,6 +304,7 @@
           <button type="button" data-cmd="/edits" id="mode-edits">Allow edits</button>
           <button type="button" data-cmd="/auto" id="mode-auto">Auto</button>
           <button type="button" data-cmd="/yolo" id="mode-yolo">Allow all tools</button>
+          <button type="button" data-cmd="/afk" id="mode-away" data-testid="away-toggle" title="Away: tools run without asking and the model's questions get an assumption; turning it off lists what happened meanwhile">Away</button>
           <button type="button" data-cmd="/plan" id="mode-plan">Plan first</button>
           <button type="button" data-cmd="/readonly" id="mode-ro">Read only</button>
           <button type="button" data-cmd="/dryrun" id="mode-dry" title="Edits go to a preview and commands that change things are recorded, not run; /dryrun show reviews it, /dryrun apply writes it">Dry run</button>
@@ -326,7 +327,7 @@
     </div>
   </div>
 
-  <div id="settings" class="help" hidden>
+  <div id="settings" data-testid="settings" class="help" hidden>
     <div class="help-card settings-card">
       <header>
         <strong>Settings</strong>
@@ -360,7 +361,7 @@
     </div>
   </div>
 
-  <div id="help" class="help" hidden>
+  <div id="help" data-testid="help" class="help" hidden>
     <div class="help-card">
       <header>
         <strong>janetcode</strong>
@@ -433,7 +434,7 @@
     </form>
   </div>
 
-  <div id="palette" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+  <div id="palette" data-testid="palette" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
     <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off" aria-label="Search commands">
     <div id="palette-list"></div>
   </div>
@@ -441,7 +442,7 @@
        a finished turn. The conversation itself streams token by token and
        is not live, or it would be read out a word at a time. -->
   <div id="sr-announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-<section id="dashboard" class="dash" role="region" aria-label="Agent dashboard" hidden>
+<section id="dashboard" data-testid="dashboard" class="dash" role="region" aria-label="Agent dashboard" hidden>
   <div class="dash-top">
     <h2>Agent dashboard</h2>
     <span id="dash-note" role="status" aria-live="polite"></span>
@@ -452,6 +453,7 @@
     <input id="dash-prompt" type="text" autocomplete="off" aria-label="Dispatch a new prompt as a background run" placeholder="Dispatch a prompt: starts a background run in this directory">
     <button type="submit">Dispatch</button>
   </form>
+  <section id="dash-loops" class="dash-loops" data-testid="dash-loops" aria-label="Loops" hidden></section>
   <div id="dash-body"></div>
 </section>
 <script src="/static/vendor/xterm.min.js"></script>
