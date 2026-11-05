@@ -409,10 +409,12 @@ type permPayload struct {
 	// Warnings is Warning split into its separate causes, plus the ones
 	// the page's server adds (a path outside the workspace); Source is
 	// what made the call ask (see agent.ToolCall.Source).
-	Warnings   []string `json:"warnings,omitempty"`
-	Source     string   `json:"source,omitempty"`
-	Rule       string   `json:"rule,omitempty"`
-	Expandable bool     `json:"expandable,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
+	Source   string   `json:"source,omitempty"`
+	// Explain is "Asked because …; to stop: …" (agent.ToolCall.Explain).
+	Explain    string `json:"explain,omitempty"`
+	Rule       string `json:"rule,omitempty"`
+	Expandable bool   `json:"expandable,omitempty"`
 	// Rungs is the ladder of rules the "remember this rule" button may
 	// save, narrowest first, and RuleIndex the one it starts on — the
 	// same choice the terminal offers with its arrow keys (see

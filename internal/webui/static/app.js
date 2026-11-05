@@ -622,7 +622,13 @@
         askLine.append(w);
       }
     }
-    if (p.source) {
+    if (p.explain) {
+      // One dim line: which layer asked and how to stop it asking.
+      const why = document.createElement("span");
+      why.className = "ask-source";
+      why.textContent = " " + p.explain;
+      askLine.append(why);
+    } else if (p.source) {
       const src = document.createElement("span");
       src.className = "ask-source";
       src.dataset.source = p.source;

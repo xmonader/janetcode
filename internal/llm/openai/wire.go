@@ -113,6 +113,11 @@ type wireChunk struct {
 	XAIBroker *struct {
 		Provider      string `json:"provider"`
 		ProviderModel string `json:"provider_model"`
+		// Cost is what the broker charged; total_cost is the actual
+		// price of the response and wins over any estimate.
+		Cost struct {
+			TotalCost looseFloat `json:"total_cost"`
+		} `json:"cost"`
 	} `json:"x_aibroker"`
 	Choices []struct {
 		Delta struct {

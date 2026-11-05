@@ -250,7 +250,9 @@ type streamState struct {
 	nextSlot int
 	finish   string
 	usage    llm.Usage
-	model    string
+	// brokerCost is x_aibroker.cost.total_cost, once seen.
+	brokerCost float64
+	model      string
 	// served is what the chunks said about who served the call; its
 	// ToolIDs is the format of the first id the server minted (an id
 	// janetcode had to invent for a call that came without one says
@@ -284,6 +286,15 @@ func (s *streamState) add(ch wireChunk) {
 	}
 	if ch.Usage != nil {
 		s.usage = usageOf(ch.Usage)
+	}
+	// A broker that prices the response says so in x_aibroker.cost; its
+	// total wins over any estimate, and survives a usage chunk that
+	// arrives after it.
+	if ch.XAIBroker != nil && ch.XAIBroker.Cost.TotalCost > 0 {
+		s.brokerCost = float64(ch.XAIBroker.Cost.TotalCost)
+	}
+	if s.brokerCost > 0 {
+		s.usage.CostUSD = s.brokerCost
 	}
 	for _, c := range ch.Choices {
 		if c.FinishReason != nil && *c.FinishReason != "" {

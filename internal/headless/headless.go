@@ -617,6 +617,9 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 		if call.Warning != "" {
 			fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
 		}
+		if e := call.Explain(); e != "" {
+			fmt.Fprintf(a.out, "%s\n", safe(e))
+		}
 		rule := ""
 		if call.Rule != "" {
 			rule = fmt.Sprintf(" / [r]ule %s saved for good", call.Rule)
@@ -668,6 +671,9 @@ func (a *stdinApprover) askSpoken(call agent.ToolCall) {
 	fmt.Fprintln(a.out, i18n.Tf("Waiting for permission: %s.", safe(what)))
 	if call.Warning != "" {
 		fmt.Fprintln(a.out, "WARNING: "+safe(call.Warning))
+	}
+	if e := call.Explain(); e != "" {
+		fmt.Fprintln(a.out, safe(e))
 	}
 	if call.Preview != "" {
 		fmt.Fprintln(a.out, readable(safe(strings.TrimRight(call.Preview, "\n"))))

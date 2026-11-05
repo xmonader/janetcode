@@ -212,6 +212,26 @@ type Price struct {
 	CacheWrite float64 `json:"cache_write"`
 }
 
+// UnmarshalJSON reads a price, accepting "cached_input" as another name for
+// "cache_read": the cached-input rate a provider's price page calls it.
+func (p *Price) UnmarshalJSON(b []byte) error {
+	var w struct {
+		Input       float64  `json:"input"`
+		Output      float64  `json:"output"`
+		CacheRead   float64  `json:"cache_read"`
+		CachedInput *float64 `json:"cached_input"`
+		CacheWrite  float64  `json:"cache_write"`
+	}
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	*p = Price{Input: w.Input, Output: w.Output, CacheRead: w.CacheRead, CacheWrite: w.CacheWrite}
+	if w.CachedInput != nil && w.CacheRead == 0 {
+		p.CacheRead = *w.CachedInput
+	}
+	return nil
+}
+
 // Cost returns the provider-reported cost when there is one, otherwise an
 // estimate from the price table; ok is false when neither is available.
 func (u Usage) Cost(p *Price) (usd float64, ok bool) {

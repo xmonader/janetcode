@@ -52,7 +52,7 @@ var Commands = withIdle([]Command{
 	{Name: "/egress", Args: "", Help: "what the last turn sent off this machine: hosts, bytes, files and tool output in the model requests, memory and skills attached, values redacted; and the egress policy"},
 	{Name: "/trust", Args: "[full | instructions | untrusted] [session]", Help: "how far this project's own skills, agents, commands, rules, hooks, MCP servers, verify commands, allow rules and recipes are let in; session holds the level only until exit"},
 	{Name: "/hooks", Args: "[trust]", Help: "hooks in effect; trust enables the project's .janetcode/hooks.json"},
-	{Name: "/permissions", Args: "[allow|deny|ask <rule>|check <command>|trust]", Help: "permission rules; add one (ask: always asks, in every mode), check which rule decides a call, or trust the project's .janetcode/permissions.json"},
+	{Name: "/permissions", Args: "[allow|deny|ask <rule>|check <command>|why|trust]", Help: "permission rules; add one (ask: always asks, in every mode), check which rule decides a call, or trust the project's .janetcode/permissions.json"},
 	{Name: "/verify", Args: "[set <cmd>|add <cmd>|mutate <test cmd>|clear|trust]", Help: "run the project's checks now; set replaces .janetcode/verify.json's commands with one, add appends one; mutate requires tests to catch mutations of changed lines"},
 	{Name: "/lsp", Args: "", Help: "language servers and the diagnostics they reported"},
 	{Name: "/jobs", Args: "[id|kill <n>|stdin <n> <text>]", Help: "live overlay of background jobs; enter tails the log, k kills, stdin writes a line to a running job"},
