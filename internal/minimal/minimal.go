@@ -97,19 +97,33 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 // tools plus search, the repository map and expand_output. off["extratools"]
 // strips it to the four core tools, so the cost of a wide tool surface can
 // be measured rather than assumed.
+// The empty-search probe and the bash hint are wired as a session wires
+// them (agent_build.go): without them an A/B of emptyprobe or toolnudge
+// compared two identical arms.
 func tools(root string, repo *repomap.Cache, expand *agent.ExpandOutput, off map[string]bool) *tool.Registry {
+	var probe *tool.EmptyProbe
+	if !off["emptyprobe"] {
+		probe = &tool.EmptyProbe{}
+	}
+	var reg *tool.Registry
+	var nudge *tool.Nudge
+	if !off["toolnudge"] {
+		nudge = &tool.Nudge{Loaded: func(name string) bool { return reg.Loaded(name) }}
+	}
 	core := []tool.Tool{
 		tool.ReadFile{Root: root},
 		tool.WriteFile{Root: root},
 		tool.EditFile{Root: root, NoLines: off["lineedit"]},
-		tool.Bash{Root: root, Cache: &tool.ShellCache{}},
+		tool.Bash{Root: root, Cache: &tool.ShellCache{}, Probe: probe, Nudge: nudge},
 	}
 	if off["extratools"] {
-		return tool.NewRegistry(core...)
+		reg = tool.NewRegistry(core...)
+		return reg
 	}
-	return tool.NewRegistry(append(core,
-		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
+	reg = tool.NewRegistry(append(core,
+		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root, Probe: probe},
 		repomap.Tool{Cache: repo},
 		expand,
 	)...)
+	return reg
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 func build(t *testing.T, csv string) *agent.Agent {
@@ -81,5 +82,20 @@ func TestParseSwitchesRejectsUnknown(t *testing.T) {
 	}
 	if !off["script"] || off["nope"] {
 		t.Fatalf("off = %v, want the valid names only", off)
+	}
+}
+
+// TestToolsWireProbeAndNudge guards the eval agent against the gap that
+// made two A/B arms identical: bash and grep built without the probe and
+// the hint a session gives them.
+func TestToolsWireProbeAndNudge(t *testing.T) {
+	for _, off := range []map[string]bool{{}, {"emptyprobe": true, "toolnudge": true}} {
+		reg := tools(".", nil, nil, off)
+		b, _ := reg.Get("bash")
+		g, _ := reg.Get("grep")
+		want := len(off) == 0
+		if (b.(tool.Bash).Nudge != nil) != want || (b.(tool.Bash).Probe != nil) != want || (g.(tool.Grep).Probe != nil) != want {
+			t.Errorf("off=%v: bash nudge/probe or grep probe wiring wrong", off)
+		}
 	}
 }
