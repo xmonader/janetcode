@@ -22,6 +22,16 @@ func TestNudgeOncePerTool(t *testing.T) {
 			t.Errorf("%q hinted", c)
 		}
 	}
+	for _, c := range []string{"cd /w && cat a.go", "cat a.go b.go 2>/dev/null", "cat x.json; echo ---", "cd /w && rg -n foo"} {
+		if (&Nudge{}).Hint(c) == "" {
+			t.Errorf("%q not hinted", c)
+		}
+	}
+	for _, c := range []string{"cat > a.go <<'EOF'\nx\nEOF", "python3 c.py && cat out.csv | wc -l", "cd /w && go test ./..."} {
+		if (&Nudge{}).Hint(c) != "" {
+			t.Errorf("%q hinted", c)
+		}
+	}
 	var off *Nudge
 	if off.Hint("grep x y") != "" {
 		t.Error("nil nudge hinted")

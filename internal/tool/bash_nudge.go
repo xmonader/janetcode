@@ -52,12 +52,42 @@ func (n *Nudge) Hint(command string) string {
 }
 
 // nudgeFor names the dedicated tool for a plain search or read command.
+// Models chain their reads: "cd dir && cat a.go", "cat a b 2>/dev/null",
+// "cat x; echo ---". Each &&/; step is judged on its own, with a leading
+// cd skipped and stderr redirects dropped, so those forms hint too. A
+// live A/B on kimi-for-coding fired no hint at all before this.
 func nudgeFor(command string) (name, what string) {
+	for _, step := range nudgeSteps(command) {
+		if name, what = nudgeStep(step); name != "" {
+			return name, what
+		}
+	}
+	return "", ""
+}
+
+// nudgeSteps splits command at && and ; and drops stderr redirects. A
+// heredoc or a multi-line script is left whole, so it never matches.
+func nudgeSteps(command string) []string {
+	if strings.ContainsAny(command, "\n`") || strings.Contains(command, "<<") {
+		return []string{command}
+	}
+	for _, r := range []string{"2>/dev/null", "2>&1"} {
+		command = strings.ReplaceAll(command, r, "")
+	}
+	var steps []string
+	for _, a := range strings.Split(command, "&&") {
+		steps = append(steps, strings.Split(a, ";")...)
+	}
+	return steps
+}
+
+func nudgeStep(command string) (name, what string) {
+	command = strings.TrimSpace(command)
 	if _, _, ok := searchArgv(command); ok {
 		return "grep", "same path:line:text, .gitignore respected, bounded output"
 	}
 	f := strings.Fields(command)
-	if len(f) < 2 || strings.ContainsAny(command, "|;&><`$") {
+	if len(f) < 2 || strings.ContainsAny(command, "|&><`$") {
 		return "", ""
 	}
 	switch f[0] {
