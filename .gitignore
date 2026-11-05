@@ -10,3 +10,5 @@ ui-shots/
 dist/
 evals/effbench/
 evals/effbench-selftest/
+/reports/
+/research_notes/
