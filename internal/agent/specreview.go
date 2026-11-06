@@ -9,7 +9,7 @@ package agent
 // calls and passed both. JANETCODE_OFF=specreview turns it off.
 
 // specReviewNote is what the model is told when the review sends it back.
-const specReviewNote = "[harness] Before you finish: read the task description once more, requirement by requirement (every parameter, boundary, ordering, error case and concurrency rule it states), and compare each with your code by reading it. Do not write or run new checks. Fix any requirement the code does not meet and run the project's tests once; if everything holds, say so in one line and stop."
+const specReviewNote = "[harness] Before you finish: read the task description once more, requirement by requirement (every parameter, boundary, ordering, error case and concurrency rule it states), and compare each with your code by reading it. Do not write or run new checks. Fix any requirement the code does not meet and run the tests of the package you changed once; if everything holds, say so in one line and stop."
 
 // maxReviewSteps is how many tool steps the review gets before the model
 // is told to wrap up. On effbench r11 the review found real bugs in its

@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -17,6 +18,12 @@ import (
 // same path goes through, for a task that does ask for tests.
 // JANETCODE_OFF=testguard turns it off.
 
+// asksForTestsRe matches a request that asks for tests to be written or
+// changed. Such a request is not guarded at all: every realrepo task says
+// "add tests", and the refusal only cost each run a model round before
+// the same call went through.
+var asksForTestsRe = regexp.MustCompile(`(?i)\b(add|adding|write|writing|extend|update|include)\b[^.\n]{0,40}\b(tests?|test cases?|regression)\b|\bregression tests?\b`)
+
 // testGuardNote is the refusal; the path is filled in.
 const testGuardNote = "%s is a test file. This run leaves the repository's tests unchanged and keeps checks of its own in an inline command (python - <<'EOF' ... EOF, node -e, go run): run your check that way instead. If the task itself asks you to add or change this test file, make the same call again and it will go through."
 
@@ -28,7 +35,7 @@ func (a *Agent) testFileDenial(u llm.Block) string {
 	var in struct {
 		Path string `json:"path"`
 	}
-	if json.Unmarshal(u.Input, &in) != nil || !isTestFile(in.Path) {
+	if json.Unmarshal(u.Input, &in) != nil || !isTestFile(in.Path) || asksForTestsRe.MatchString(a.integ.userText) {
 		return ""
 	}
 	p := filepath.Clean(in.Path)

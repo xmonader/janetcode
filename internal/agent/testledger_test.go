@@ -184,3 +184,24 @@ func TestProofFoldsLedgerAndConflict(t *testing.T) {
 		t.Fatal("folded another turn's record")
 	}
 }
+
+// An edit that only adds test cases needs no replay; one that changes an
+// original line does. A Go replay runs only the edited packages.
+func TestLedgerReplaysOnlyWhatItMust(t *testing.T) {
+	orig := map[string][]byte{"pkg/a_test.go": []byte("func TestA() {\n\tcheck(1)\n}\n")}
+	added := []ledgerFile{{rel: "pkg/a_test.go", after: []byte("func TestA() {\n\tcheck(1)\n\tcheck(2)\n}\n\nfunc TestB() {}\n")}}
+	changed := []ledgerFile{{rel: "pkg/a_test.go", after: []byte("func TestA() {\n\tcheck(9)\n}\n")}}
+	if !insertOnly(added, orig) {
+		t.Error("added cases were judged a change")
+	}
+	if insertOnly(changed, orig) {
+		t.Error("a changed assertion was judged an addition")
+	}
+	orig["b_test.go"] = nil
+	if got := goTestPackages(orig); strings.Join(got, " ") != "./. ./pkg" {
+		t.Errorf("packages = %v", got)
+	}
+	if goTestPackages(map[string][]byte{"test_a.py": nil}) != nil {
+		t.Error("a Python test got Go packages")
+	}
+}

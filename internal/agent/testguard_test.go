@@ -44,3 +44,21 @@ func TestTestGuardRefusesTheFirstTestWrite(t *testing.T) {
 		t.Fatal("a Go test edit was not refused")
 	}
 }
+
+// A request that asks for tests is not guarded: the refusal would only
+// cost a model round before the same write went through.
+func TestTestGuardStandsAsideWhenTheTaskAsksForTests(t *testing.T) {
+	edit := llm.Block{Name: "edit_file", Input: []byte(`{"path":"pkg/a_test.go"}`)}
+	for _, req := range []string{"Fix it and add tests.", "Add a regression test.", "fix the bug, adding test cases for both paths"} {
+		a := &Agent{TestGuard: true}
+		a.integ.userText = req
+		if r := a.testFileDenial(edit); r != "" {
+			t.Errorf("%q: refused", req)
+		}
+	}
+	a := &Agent{TestGuard: true}
+	a.integ.userText = "Fix the bug. Do not modify invoice_test.go."
+	if a.testFileDenial(edit) == "" {
+		t.Error("a request that asks for no tests was not guarded")
+	}
+}

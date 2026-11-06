@@ -115,7 +115,15 @@ func (a *Agent) keepLedger(ctx context.Context, root string, files []ledgerFile)
 		}
 	}
 	replayOut := ""
-	if len(originals) > 0 {
+	switch {
+	case len(originals) == 0:
+	case insertOnly(files, originals):
+		// Every original line is still there, in order: the turn's own
+		// green test run already ran the original tests. A replay
+		// would only repeat it in a copy of the tree, which on a real
+		// repository cost a run 80 s (realrepo caddy-strip-prefix).
+		led.ReplaySkipped = "the edited tests only gained lines, so the turn's own test run covered the originals"
+	default:
 		led.Replay, led.ReplayFailed, led.ReplaySkipped, replayOut = a.replayOriginals(ctx, root, originals)
 	}
 	tests, spec := ledgerTexts(root, originals, files, a.integ.userText)
@@ -123,6 +131,29 @@ func (a *Agent) keepLedger(ctx context.Context, root string, files []ledgerFile)
 		led.LiteralFlags = append(led.LiteralFlags, s.String())
 	}
 	return led, replayOut
+}
+
+// insertOnly reports whether every edited test file kept each of its
+// original lines, in order, and only gained new ones.
+func insertOnly(files []ledgerFile, originals map[string][]byte) bool {
+	for _, f := range files {
+		before, ok := originals[f.rel]
+		if !ok {
+			continue
+		}
+		after := strings.Split(string(f.after), "\n")
+		i := 0
+		for _, l := range strings.Split(string(before), "\n") {
+			for i < len(after) && after[i] != l {
+				i++
+			}
+			if i == len(after) {
+				return false
+			}
+			i++
+		}
+	}
+	return true
 }
 
 // turnFiles are the files this turn changed, from the provenance record:
@@ -170,6 +201,11 @@ func (a *Agent) turnFiles(root string) []ledgerFile {
 // passed: the one whose green the turn is relying on.
 func (a *Agent) replayOriginals(ctx context.Context, root string, originals map[string][]byte) (command string, failed bool, skipped, out string) {
 	commands, timeout := a.replayCommands(root)
+	if pkgs := goTestPackages(originals); len(pkgs) > 0 && len(commands) == 1 && strings.HasPrefix(commands[0], "go test") {
+		// Only the packages whose tests were edited: the turn's last run
+		// may be `go test -race ./...` over a whole repository.
+		commands = []string{"go test " + strings.Join(pkgs, " ")}
+	}
 	if len(commands) == 0 {
 		return "", false, "no test command passed in this turn to replay", ""
 	}
@@ -202,6 +238,25 @@ func (a *Agent) replayOriginals(ctx context.Context, root string, originals map[
 		return command, false, "", ""
 	}
 	return command, true, "", strings.ReplaceAll(res.Output, copyRoot, root)
+}
+
+// goTestPackages are the package directories of the edited test files,
+// as go test arguments, when every one is a Go test file; nil otherwise.
+func goTestPackages(originals map[string][]byte) []string {
+	seen := map[string]bool{}
+	var pkgs []string
+	for rel := range originals {
+		if !strings.HasSuffix(rel, "_test.go") {
+			return nil
+		}
+		d := "./" + filepath.ToSlash(filepath.Dir(rel))
+		if !seen[d] {
+			seen[d] = true
+			pkgs = append(pkgs, d)
+		}
+	}
+	sort.Strings(pkgs)
+	return pkgs
 }
 
 // replayCommands are the commands the replay runs, and their timeout in

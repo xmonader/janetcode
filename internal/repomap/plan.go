@@ -98,6 +98,11 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 				abs := p
 				if !filepath.IsAbs(abs) {
 					abs = filepath.Join(ix.Root, p)
+				} else if r, err := filepath.Rel(ix.Root, abs); err != nil || strings.HasPrefix(r, "..") {
+					// Outside the repository: a scratch file in /tmp or a
+					// URL path such as `/foo%2f`, not a name the plan
+					// gets wrong about this code.
+					continue
 				}
 				if _, err := os.Stat(abs); err == nil {
 					continue
