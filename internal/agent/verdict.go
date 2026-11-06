@@ -91,6 +91,9 @@ type TurnOutcome struct {
 	// against a tree the turn has since changed. Ran and Passed are
 	// per-turn totals and cannot say this.
 	EditedAfterCheck bool `json:"edited_after_check,omitempty"`
+	// LastPassed is true when the check that ran last came back green,
+	// whatever an earlier, different check left red.
+	LastPassed bool `json:"last_passed,omitempty"`
 	// Why is the one-line reason for the verdict.
 	Why string `json:"why"`
 	// Gaming is report-only: signs the edits may have faked a green.
@@ -664,6 +667,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		}
 	}
 	order = slices.DeleteFunc(order, func(cmd string) bool { return retired[cmd] })
+	o.LastPassed = len(order) > 0 && !latest[order[len(order)-1]].isErr
 	ranTests, foundNothing, ranTheCode, selfAsserted := false, false, false, false
 	for _, cmd := range order {
 		run := latest[cmd]
@@ -848,15 +852,16 @@ func (a *Agent) Outcome() TurnOutcome {
 	return FoldOutcomeIn(a.Log.Events(), a.turnN, a.displayRoot())
 }
 
-// VerifiedBy is the check that passed after the turn's last edit so far,
-// or "" when the turn has edited nothing, changed files after its last
-// check, or has a check whose latest run failed. A green check counts
-// even when the verdict cannot see tests in its output: hugo's check.sh
-// prints "OK" for its go test step, and the held-command note never
-// fired on the run it was written for.
+// VerifiedBy is the check that ran last, when it passed after the turn's
+// last edit, or "" when the turn has edited nothing, changed files after
+// its last check, or saw that check fail. A green check counts even when
+// the verdict cannot see tests in its output (hugo's check.sh prints
+// "OK" for its go test step), and an earlier scratch check left red does
+// not hold it back (joinpath: a throwaway test that never compiled kept
+// the note conditional through four green runs after it).
 func (a *Agent) VerifiedBy() string {
 	o := a.Outcome()
-	if o.Edited == 0 || o.EditedAfterCheck || o.Passed == 0 || o.Failed > 0 || len(o.Checks) == 0 {
+	if o.Edited == 0 || o.EditedAfterCheck || !o.LastPassed || len(o.Checks) == 0 {
 		return ""
 	}
 	return o.Checks[len(o.Checks)-1]
