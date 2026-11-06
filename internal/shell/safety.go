@@ -110,7 +110,7 @@ var mutators = map[string]bool{
 // keeps them too.
 func mutatorTargets(toks []string) []string {
 	words := argWords(toks)[1:]
-	if toks[0] != "sed" || slices.ContainsFunc(words, sedScriptWrites.MatchString) {
+	all := func() []string {
 		var out []string
 		for _, w := range words {
 			if !strings.HasPrefix(w, "-") {
@@ -125,8 +125,11 @@ func mutatorTargets(toks []string) []string {
 		}
 		return out
 	}
-	inPlace, script := false, false
-	var operands []string
+	if toks[0] != "sed" {
+		return all()
+	}
+	inPlace := false
+	var scripts, operands []string
 	for i := 0; i < len(words); i++ {
 		w := words[i]
 		switch {
@@ -137,11 +140,13 @@ func mutatorTargets(toks []string) []string {
 			if strings.HasPrefix(w, "--in-place") {
 				inPlace = true
 			}
-			if w == "--expression" || w == "--file" {
-				script = true
+			if (w == "--expression" || w == "--file") && i+1 < len(words) {
 				i++
-			} else if strings.HasPrefix(w, "--expression=") || strings.HasPrefix(w, "--file=") {
-				script = true
+				scripts = append(scripts, words[i])
+			} else if v, ok := strings.CutPrefix(w, "--expression="); ok {
+				scripts = append(scripts, v)
+			} else if strings.HasPrefix(w, "--file=") {
+				scripts = append(scripts, "")
 			}
 		case strings.HasPrefix(w, "-") && len(w) > 1:
 			for j := 1; j < len(w); j++ {
@@ -152,10 +157,15 @@ func mutatorTargets(toks []string) []string {
 					break
 				}
 				if c == 'e' || c == 'f' {
-					script = true
-					if j == len(w)-1 {
+					v := w[j+1:]
+					if v == "" && i+1 < len(words) {
 						i++
+						v = words[i]
 					}
+					if c == 'f' {
+						v = "" // a script file: its contents are not judged
+					}
+					scripts = append(scripts, v)
 					break
 				}
 			}
@@ -163,11 +173,14 @@ func mutatorTargets(toks []string) []string {
 			operands = append(operands, w)
 		}
 	}
+	if len(scripts) == 0 && len(operands) > 0 {
+		scripts, operands = operands[:1], operands[1:]
+	}
+	if slices.ContainsFunc(scripts, sedScriptWrites) {
+		return all()
+	}
 	if !inPlace {
 		return nil
-	}
-	if !script && len(operands) > 0 {
-		operands = operands[1:] // the first operand is the script
 	}
 	return operands
 }
@@ -175,9 +188,19 @@ func mutatorTargets(toks []string) []string {
 // sedWriteFile captures the path a sed w or W command writes.
 var sedWriteFile = regexp.MustCompile(`[wW]\s+(\S+)`)
 
-// sedScriptWrites matches a sed script word that uses a command which
-// writes a file or runs one (w, W, e, or the s///w and s///e flags).
-var sedScriptWrites = regexp.MustCompile(`(^|[;{}/\s\d$])[wWe](\s|$)|/[gpiImM0-9]*[we]`)
+// sedScriptWrites reports whether a sed script can write a file or run
+// a command itself: the w, W and e commands, the s///w and s///e flags,
+// and, since its flags cannot be read reliably, any s command with a
+// delimiter other than /.
+func sedScriptWrites(script string) bool {
+	return sedWriteCmd.MatchString(script) || sedSubstWrites.MatchString(script) || sedOddSubst.MatchString(script)
+}
+
+var (
+	sedWriteCmd    = regexp.MustCompile(`(^|[;{}/\s\d$])[wWe](\s|$)`)
+	sedSubstWrites = regexp.MustCompile(`(^|[;{}\s\d$/])s/(?:[^/\\]|\\.)*/(?:[^/\\]|\\.)*/[gpiImM0-9]*[we]`)
+	sedOddSubst    = regexp.MustCompile(`(^|[;{}\s\d$])s[^/\w\s\\]`)
+)
 
 // outputFlags are the flags whose argument is a path the command writes,
 // per command. Only flags that certainly take a path are listed: curl's

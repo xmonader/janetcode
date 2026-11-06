@@ -434,7 +434,14 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	}
 	if a.Approver == nil {
 		basis = "no approver"
-		return nil, "Permission denied: no approver configured for mutating tools.", nil
+		// Say what made it need approval: a headless run refused
+		// `sed -n ... $(go env GOMODCACHE)/...` as a "mutating tool",
+		// and the model could not tell the read apart from a write.
+		msg := "Permission denied: no approver configured for mutating tools."
+		if call.Warning != "" {
+			msg += " It needed approval because: " + call.Warning + ". Stay inside the workspace, or use read_file for a read."
+		}
+		return nil, msg, nil
 	}
 	if r := a.awayRefusal(u.Name, subject, call.Warning); r != "" {
 		basis = "away"

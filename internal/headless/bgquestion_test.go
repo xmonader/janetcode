@@ -170,8 +170,11 @@ func TestBgAskerMixedRecommendationsDoNotHold(t *testing.T) {
 	opts := []agent.AskOption{{Label: "a"}, {Label: "b"}}
 	qs := []agent.Question{{Prompt: "one?", Options: opts, Recommended: "a"}, {Prompt: "two?", Options: opts}}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _, _ = b.Ask(ctx, qs) }()
+	done := make(chan struct{})
+	// The waiter writes the status file as it unwinds; it must be gone
+	// before TempDir's cleanup removes the directory under it.
+	defer func() { cancel(); <-done }()
+	go func() { defer close(done); _, _ = b.Ask(ctx, qs) }()
 	openQuestion(t, path)
 	if st, _, _ := session.ReadBgStatus(path); st.State != session.BgRunning {
 		t.Fatalf("state = %q, want running", st.State)

@@ -296,6 +296,9 @@ func TestSedReadIsNotAWrite(t *testing.T) {
 		`sed -n '/^type Config struct/,/^}/p' relabel.go`,
 		`sed -n '1,5p' /home/someone/go/pkg/mod/x/y.go`,
 		`sed -ne '/^func/p' a.go`,
+		// "/encode.go" is a file, not an s///e flag.
+		`sed -n 200,260p $(go env GOMODCACHE)/gopkg.in/yaml.v3@v3.0.1/encode.go`,
+		`sed -e 's/a/b/g' /elsewhere/web.go`,
 	} {
 		if r, why := Classify(c, root); r != RiskOrdinary {
 			t.Errorf("%q = %v (%s)", c, r, why)
@@ -306,6 +309,7 @@ func TestSedReadIsNotAWrite(t *testing.T) {
 		`sed -ni 's/a/b/p' /etc/hosts`,
 		`sed -n '/x/w /etc/out' a.go`,
 		`sed 's/x/y/w /etc/out' a.go`,
+		`sed -n 's|x|y|w /etc/out' a.go`,
 	} {
 		if r, _ := Classify(c, root); r == RiskOrdinary {
 			t.Errorf("%q judged ordinary", c)
