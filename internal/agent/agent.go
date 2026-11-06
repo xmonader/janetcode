@@ -261,7 +261,7 @@ type Agent struct {
 	// llm.EffortTiers; empty lets the provider choose. It rides on each
 	// llm.Request, so /effort changes what the very next call asks for.
 	Effort string
-	// MaxIterations caps model calls per user turn. Zero means 50.
+	// MaxIterations caps model calls per user turn. Zero means 100 (config.DefaultMaxIter).
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.
 	AutoApprove bool
@@ -772,7 +772,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	}
 	maxIter := a.Settings().MaxIterations
 	if maxIter <= 0 {
-		maxIter = 50
+		maxIter = 100
 	}
 	// Fired before Prepare so the classification runs beside the turn's
 	// preparation rather than after it, and collected at the end of the

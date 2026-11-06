@@ -10,7 +10,7 @@ test file, written after the agent finishes and run narrowly
 
     ./fetch.sh                  # blobless clones into repos/ (gitignored)
     python3 -I gen.py --validate  # regenerate the JSONs and prove every task
-    bin/janetcode --model <m> --eval evals/realrepo --eval-runs 2 --eval-jobs 3
+    bin/janetcode --model <m> --eval evals/realrepo --eval-sandbox strict --eval-runs 2 --eval-jobs 3
 
 Notes:
 
@@ -22,8 +22,10 @@ Notes:
 - Validation (`gen.py --validate`): at `base` with the fix's test files laid
   over, the check FAILS; with the fix's non-test changes applied as well it
   PASSES. All ten tasks satisfy both.
-- Contamination: the clones keep upstream history, and the eval agent has
-  network access. In the first run three agents fetched the upstream fix
+- Contamination: the clones keep upstream history, and an unsandboxed eval
+  agent has network access; run with `--eval-sandbox strict` (no network,
+  `.git` read-only, go build and module caches kept writable) to close both.
+  Unsandboxed: In the first run three agents fetched the upstream fix
   (`curl raw.githubusercontent.com`, the GitHub commit-search API) and one ran
   `git show` on a later commit. Treat a pass as upper bound.
 - The prompts name the package, so localisation is easy; the scale smoke test

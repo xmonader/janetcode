@@ -282,7 +282,36 @@ output would reach the model. Nothing in a recorded session has done so,
 and `TestHeldOutTestsNeverReachTheWorkspace` is what would catch the
 accidental case.
 
-### An eval run is not sandboxed
+### Sandboxing an eval run
+
+`--eval-sandbox <profile>` runs the eval agent's bash under a sandbox
+profile (`workspace`, `read-only` or `strict`; see the sandbox chapter),
+using the backend the machine supports (bwrap, Landlock, docker or
+seatbelt, picked as for a session; `JANETCODE_SANDBOX_BACKEND` forces one).
+The run refuses to start when there is none, rather than running
+unconfined. It is off by default so results recorded before it existed
+stay comparable; recorded runs state nothing about it, so label sandboxed
+runs (`--eval-label`).
+
+`strict` is the profile for anything that runs a model on a real
+repository: writes only in the task's work directory and the temp dir,
+`.git/**` off limits (the agent cannot rewrite history to find or fake a
+fix), and no network. The network cut matters: an unsandboxed agent
+that cannot solve a task has been seen fetching the upstream fix from
+raw.githubusercontent.com or the GitHub search API, which makes the pass
+meaningless. It also protects the machine: one run executed
+`go clean -cache` on the real build cache.
+
+When the profile confines writes, `go env GOCACHE` and `go env GOMODCACHE`
+(if `go` is on PATH) are added as writable directories automatically, so go
+builds and tests keep a warm cache. The module cache needs write access even
+when every module is already downloaded, because go takes lock files in it;
+with no network nothing new can be fetched, so a module that is not already
+downloaded fails the build.
+The file tools and the grading check are not sandboxed; the check runs in
+the harness, outside the agent's bash.
+
+### An eval run is not sandboxed (without --eval-sandbox)
 
 Worth knowing before writing any task whose checks mention something
 outside the repository. The eval runner sets `AutoApprove`, and
@@ -548,7 +577,8 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-off <behaviour>` | turn one harness behaviour off for the run: an ablation |
 | `--eval-route <model>` | set `route_cheap` for the run (experimental step routing) and record the variant, like `--eval-off` |
 | `--eval-timeout <seconds>` | replace every task's own timeout, so a benchmark gives each harness the same wall budget |
-| `--eval-max-turns <n>` | cap the model calls one task may spend (`--max-turns` is the same cap for a real run) |
+| `--eval-max-turns <n>` | cap the model calls one task may spend (default 100, the config's `max_iterations`; `--max-turns` is the same cap for a real run) |
+| `--eval-sandbox <profile>` | run the eval agent's bash under a sandbox profile (`workspace`, `read-only`, `strict`); see Sandboxing an eval run. Off by default |
 | `--eval-no-tool-limit` | ignore each task's `max_tool_calls`, for comparing against harnesses that enforce no tool budget |
 | `--eval-strict-provenance` | fail the whole eval when any run was answered by another vendor's model than the one requested, instead of leaving those runs out (see [Which model answered](#which-model-answered-and-runs-that-never-reached-it)) |
 | `--eval-gate` | run tasks under a verification gate (the work directory's `.janetcode/verify.json`, else the checks for its project type) and wire the configured decision provider, so failure triage can be measured. Off by default: a gate changes tool counts, pass rates and cost, so results recorded without it are not comparable with results recorded under it |

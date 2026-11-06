@@ -1,6 +1,7 @@
 package minimal
 
 import (
+	"os"
 	"slices"
 	"testing"
 
@@ -90,12 +91,77 @@ func TestParseSwitchesRejectsUnknown(t *testing.T) {
 // the hint a session gives them.
 func TestToolsWireProbeAndNudge(t *testing.T) {
 	for _, off := range []map[string]bool{{}, {"emptyprobe": true, "toolnudge": true}} {
-		reg := tools(".", nil, nil, off)
+		reg := tools(".", nil, nil, off, nil, nil)
 		b, _ := reg.Get("bash")
 		g, _ := reg.Get("grep")
 		want := len(off) == 0
 		if (b.(tool.Bash).Nudge != nil) != want || (b.(tool.Bash).Probe != nil) != want || (g.(tool.Grep).Probe != nil) != want {
 			t.Errorf("off=%v: bash nudge/probe or grep probe wiring wrong", off)
 		}
+	}
+}
+
+// TestSandboxOffByDefault pins that an eval agent's bash is unsandboxed
+// unless WithSandbox asks, so every result recorded before --eval-sandbox
+// stays comparable.
+func TestSandboxOffByDefault(t *testing.T) {
+	ag := build(t, "")
+	b, _ := ag.Tools.Get("bash")
+	if bt := b.(tool.Bash); bt.Sandbox != nil || bt.WS != nil {
+		t.Fatalf("bash is sandboxed by default: %+v", bt)
+	}
+}
+
+func TestWithSandboxUnknownProfile(t *testing.T) {
+	cfg := &config.Config{Model: "claude-sonnet-4-5"}
+	if _, err := New(t.TempDir(), cfg, nil, nil, prompt.Override{}, t.TempDir(), nil, WithSandbox("nope")); err == nil {
+		t.Fatal("unknown profile accepted")
+	}
+}
+
+// TestSandboxStrict wires the strict profile and, where the machine has a
+// backend, runs real commands: the work dir is writable, the network is
+// not, and the go build and module caches are granted extra dirs.
+func TestSandboxStrict(t *testing.T) {
+	root := t.TempDir()
+	sb, ws, err := Sandbox(root, "strict")
+	if err != nil {
+		t.Skipf("no sandbox backend here: %v", err)
+	}
+	if !sb.Enabled() || sb.ProfileName() != "strict" {
+		t.Fatalf("sandbox = on:%v profile:%s", sb.Enabled(), sb.ProfileName())
+	}
+	for _, dir := range goDirs() {
+		if !slices.Contains(ws.ExtraDirs(), dir) {
+			t.Fatalf("%s missing from extra dirs %v", dir, ws.ExtraDirs())
+		}
+	}
+	run := func(cmd string) error {
+		c, err := sb.CommandIn(t.Context(), root, ws.ExtraDirs(), cmd)
+		if err != nil {
+			return err
+		}
+		return c.Run()
+	}
+	if err := run("echo ok > inside.txt"); err != nil {
+		t.Fatalf("write in the work dir: %v", err)
+	}
+	if _, err := os.Stat(root + "/inside.txt"); err != nil {
+		t.Fatalf("the write did not land: %v", err)
+	}
+	// No network under strict: the sandbox has no route out, so even a
+	// connection to the loopback interface of the host is refused.
+	if err := run("exec 3<>/dev/tcp/1.1.1.1/53"); err == nil {
+		t.Fatal("strict let a command open a connection")
+	}
+}
+
+func TestSandboxReadOnlyAddsNoGoCache(t *testing.T) {
+	_, ws, err := Sandbox(t.TempDir(), "read-only")
+	if err != nil {
+		t.Skipf("no sandbox backend here: %v", err)
+	}
+	if len(ws.ExtraDirs()) != 0 {
+		t.Fatalf("read-only has nothing writable but got extra dirs %v", ws.ExtraDirs())
 	}
 }

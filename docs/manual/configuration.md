@@ -15,7 +15,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "max_tokens": 32768,
   "effort": "high",
   "auto_approve": false,
-  "max_iterations": 50,
+  "max_iterations": 100,
   "compact_at": 80000,
   "memory": true,
   "hints": true,
@@ -31,6 +31,12 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   }
 }
 ```
+
+`max_iterations` caps the model calls one turn may make; the default is 100
+(it was 50, which cut off real work on large repositories: a turn that hits
+the cap in a headless or eval run is a failure, `ExitTurnLimit`, not a pause).
+It is a backstop, not the runaway guard: the loop detector and the cost and
+tool-call budgets stop a model that is going in circles long before the cap.
 
 `web_search` scrapes DuckDuckGo's HTML endpoint by default, which needs no
 key but can rate-limit heavy use. A search API is steadier:

@@ -338,7 +338,7 @@
   "max_tokens": 16000,
   "effort": "high",
   "auto_approve": false,
-  "max_iterations": 50,
+  "max_iterations": 100,
   "compact_at": 80000,
   "memory": true,
   "hints": true,
@@ -362,7 +362,7 @@
         <tr><td><code>max_tokens</code></td><td>integer</td><td>maximum output tokens per model response</td></tr>
         <tr><td><code>effort</code></td><td><code>low|medium|high|xhigh|max</code></td><td>reasoning effort (Anthropic only); adaptive thinking is on by default for Claude 4.6+ and off for Haiku</td></tr>
         <tr><td><code>auto_approve</code></td><td>boolean</td><td>persisted equivalent of <code>--yolo</code></td></tr>
-        <tr><td><code>max_iterations</code></td><td>integer, default 50</td><td>model-call cap per turn</td></tr>
+        <tr><td><code>max_iterations</code></td><td>integer, default 100</td><td>model-call cap per turn</td></tr>
         <tr><td><code>compact_at</code></td><td>integer tokens, default 80000</td><td>history size that triggers compaction</td></tr>
         <tr><td><code>memory</code></td><td>boolean, default true</td><td>automatic fact extraction after a turn; the <code>memory</code> tool and <code>/remember</code> still work when off</td></tr>
         <tr><td><code>hints</code></td><td>boolean, default true</td><td>one-time feature hints (see <a href="features.html#hints">hints</a>)</td></tr>

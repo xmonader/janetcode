@@ -20,6 +20,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--max-tool-calls <n>` | with `-p`: stop before the tool call that would take the run past `n`, and exit 57. A batch of parallel calls that would cross the line is answered unrun as a whole; subagents' own calls are not counted |
 | `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it |
 | `--max-turns <n>` | cap the model calls one turn may make; the eval runner's `--eval-max-turns` with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget |
+| `--eval-sandbox <profile>` | with `--eval`: run the eval agent's bash under a sandbox profile (`workspace`, `read-only`, `strict`); off by default. See [Sandboxing an eval run](evals.md#sandboxing-an-eval-run) |
 | `--compact-at <tokens>` | compact the history at this size instead of the configured one; `--eval-compact-at` with the everyday spelling |
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |

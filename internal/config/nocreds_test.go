@@ -127,3 +127,12 @@ func TestLocalBaseURLAloneIsASetup(t *testing.T) {
 		t.Fatalf("remote URL without a key: err = %v, want ErrNoCredentials", err)
 	}
 }
+
+// A turn gets 100 model calls by default (it was 50, which cut off real
+// work on large repositories); the loop detector and budgets are the
+// runaway guards.
+func TestDefaultMaxIterIs100(t *testing.T) {
+	if DefaultMaxIter != 100 {
+		t.Fatalf("DefaultMaxIter = %d, want 100", DefaultMaxIter)
+	}
+}

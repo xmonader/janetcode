@@ -55,6 +55,9 @@ type evalOptions struct {
 	// the eval agent (--eval-gate). Off by default so a run without it is
 	// byte-identical to every run recorded before it existed.
 	gate bool
+	// sandbox is the profile the eval agent's bash runs under
+	// (--eval-sandbox); empty means unsandboxed.
+	sandbox string
 	// prompt records a replaced or extended system prompt, so an A/B of
 	// the prompt itself can be told apart in the results file.
 	prompt prompt.Override
@@ -120,6 +123,15 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	if o.maxTurns > 0 {
 		maxIter = o.maxTurns
 	}
+	if o.sandbox != "" {
+		// Fail once, before any task starts, on a bad profile name or a
+		// machine with no backend, instead of once per run.
+		sb, _, err := minimal.Sandbox(".", o.sandbox)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "eval bash sandboxed: profile %s, backend %s\n", o.sandbox, sb.Backend())
+	}
 	compactAt := cfg.CompactAt
 	if o.compactAt > 0 {
 		compactAt = o.compactAt
@@ -144,7 +156,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		// The eval agent carries the tools a real session does, minus the
 		// ones that need a terminal or the network. A benchmark run
 		// against a smaller agent measures something nobody uses.
-		ag, err := minimal.New(root, cfg, llm.ForTaskOr(prov), off, o.prompt, filepath.Join(archiveDir, filepath.Base(root)), treesitter.Parser())
+		ag, err := minimal.New(root, cfg, llm.ForTaskOr(prov), off, o.prompt, filepath.Join(archiveDir, filepath.Base(root)), treesitter.Parser(), minimal.WithSandbox(o.sandbox))
 		if err != nil {
 			return nil, err
 		}
