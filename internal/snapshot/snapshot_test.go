@@ -401,3 +401,30 @@ func TestTakeTreeDoesNotDependOnTheIndex(t *testing.T) {
 		t.Fatal("expected the user's staged state to be left alone")
 	}
 }
+
+// TestTakeSeesAnAssumeUnchangedEdit: a copied index would carry the
+// assume-unchanged bit, and add -A would skip the edited file.
+func TestTakeSeesAnAssumeUnchangedEdit(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	cmd := exec.Command("git", "update-index", "--assume-unchanged", "a.txt")
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	write(t, filepath.Join(root, "a.txt"), "edited\n")
+	r, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := r.Take(ctx, "au")
+	if err != nil {
+		t.Fatal(err)
+	}
+	show := exec.Command("git", "show", s.Commit+":a.txt")
+	show.Dir = root
+	out, err := show.Output()
+	if err != nil || string(out) != "edited\n" {
+		t.Fatalf("snapshot a.txt = %q, %v", out, err)
+	}
+}

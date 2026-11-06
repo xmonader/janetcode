@@ -520,6 +520,18 @@ func (r *Repo) seedFromIndex(ctx context.Context, dst string) bool {
 		os.Remove(dst)
 		return false
 	}
+	// An assume-unchanged (lowercase tag) or skip-worktree (S) entry
+	// would carry over, and add -A never looks at its file: an edit to it
+	// would be missing from the snapshot. Decline when any entry has one.
+	out, err := r.run(ctx, dst, "ls-files", "-v")
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" && (line[0] == 'S' || (line[0] >= 'a' && line[0] <= 'z')) {
+			return false
+		}
+	}
 	return true
 }
 
