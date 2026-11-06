@@ -65,6 +65,7 @@ var commandWhen = map[string]string{
 	"/remember":        "a fact you are tired of repeating: it comes back in every future session here",
 	"/forget":          "a remembered fact has gone stale or was wrong",
 	"/yolo":            "a long batch of work you have already decided to trust",
+	"/afk":             "you are stepping away and want the work to keep going: tools run without asking and questions get an assumption",
 	"/auto":            "you trust in-workspace edits and read-only commands but still want to see the rest",
 	"/routing":         "a route fires you do not trust, or a turn must stay on one model to the end",
 	"/edits":           "you trust the file changes but still want to see every command before it runs",
