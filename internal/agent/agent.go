@@ -767,6 +767,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.conflict = nil
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
+	a.coach.noTestHint = a.Off["testhint"]
 	if a.Tools == nil {
 		a.Tools = tool.NewRegistry()
 	}

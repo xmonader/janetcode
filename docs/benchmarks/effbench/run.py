@@ -266,7 +266,9 @@ def main():
         elif spec.startswith("janetcode:"):
             name, _, rest = spec[len("janetcode:"):].partition("=")
             binary, plus, envspec = rest.partition("+")
-            env = dict(p.split("=", 1) for p in envspec.split(",") if p) if plus else {}
+            # A setting starts at a comma before NAME=, so a value may be a
+            # list: JANETCODE_OFF=specreview,edgerules.
+            env = dict(p.split("=", 1) for p in re.split(r",(?=[A-Za-z_][A-Za-z0-9_.]*=)", envspec) if p) if plus else {}
             arms.append(JanetcodeArm(camp, cfg, model, a.timeout, key, binary=binary or JANETCODE,
                                      name=name, env_extra=env))
         elif spec == "pi":

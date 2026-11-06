@@ -25,6 +25,9 @@ type EditFile struct {
 	Cache   *IOCache
 	// ThenRun advertises then_run (see ThenRunKey).
 	ThenRun bool
+	// NoEcho leaves the changed region out of the result: the summary
+	// line only, as pi's edit returns (JANETCODE_OFF=editecho).
+	NoEcho bool
 }
 
 func (EditFile) Name() string { return "edit_file" }
@@ -609,7 +612,7 @@ func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if note := pl.shape.Note(); note != "" {
 		out += "\n[" + note + "]"
 	}
-	if first, last, ok := changed(pl.before, pl.after); ok {
+	if first, last, ok := changed(pl.before, pl.after); ok && !t.NoEcho {
 		if w := window(pl.after, first, last); w != "" {
 			out += "\n\n" + w
 		}

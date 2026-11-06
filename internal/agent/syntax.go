@@ -92,7 +92,7 @@ func coveringTest(abs string) string {
 }
 
 // editFeedback builds the note appended to a successful write or edit.
-func editFeedback(ctx context.Context, abs string) string {
+func editFeedback(ctx context.Context, abs string, testHint bool) string {
 	if abs == "" {
 		return ""
 	}
@@ -100,7 +100,7 @@ func editFeedback(ctx context.Context, abs string) string {
 	if s := syntaxFeedback(ctx, abs); s != "" {
 		notes = append(notes, s)
 	}
-	if t := coveringTest(abs); t != "" {
+	if t := coveringTest(abs); testHint && t != "" {
 		rel := t
 		if r, err := filepath.Rel(filepath.Dir(abs), t); err == nil {
 			rel = r // next to the edited file: "calc_test.go", "tests/test_x.py"

@@ -718,3 +718,22 @@ func TestListDirCapIsBoundedAndOrdered(t *testing.T) {
 		t.Errorf("two listings of an unchanged directory differ")
 	}
 }
+
+// NoEcho returns the summary line alone; by default the changed region
+// follows it.
+func TestEditFileNoEcho(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "f.go")
+	for _, noEcho := range []bool{false, true} {
+		if err := os.WriteFile(path, []byte("package x\n\nfunc A() {}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := EditFile{Root: root, NoEcho: noEcho}.Run(context.Background(), raw(`{"path":"f.go","old_string":"func A","new_string":"func Alpha"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if echoed := strings.Contains(out, "func Alpha"); echoed == noEcho {
+			t.Fatalf("NoEcho=%v: %q", noEcho, out)
+		}
+	}
+}

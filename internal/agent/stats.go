@@ -472,7 +472,7 @@ var switches = map[string]bool{
 	"taint":    true, "honeytoken": true, "depgate": true,
 	"probes":    true,
 	"plancarry": true, "readdedup": true, "edgerules": true, "compactskip": true, "steplimit": true,
-	"idlebound": true, "hold": true, "failexcerpt": true, "astedit": true, "emptyprobe": true, "toolnudge": true, "memarchive": true,
+	"idlebound": true, "hold": true, "editecho": true, "testhint": true, "failexcerpt": true, "astedit": true, "emptyprobe": true, "toolnudge": true, "memarchive": true,
 
 	"probememory": true, "readblame": true,
 	"numclaim":  true,

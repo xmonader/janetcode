@@ -28,6 +28,8 @@ type coach struct {
 	read  map[string]bool
 	// noSyntax skips the post-edit syntax check (ablation).
 	noSyntax bool
+	// noTestHint leaves out the covering test's name (JANETCODE_OFF=testhint).
+	noTestHint bool
 }
 
 // absPath asks a Toucher for the file it changed.
@@ -120,5 +122,5 @@ func (c *coach) feedback(ctx context.Context, t tool.Tool, input json.RawMessage
 	if c.noSyntax {
 		return ""
 	}
-	return editFeedback(ctx, absPath(t, input))
+	return editFeedback(ctx, absPath(t, input), !c.noTestHint)
 }
