@@ -1,0 +1,13 @@
+{
+  "name": "rr-hugo-joinpath-empty",
+  "prompt": "Hugo's `urls.JoinPath` template function panics (slice bounds out of range) when it is given nothing to join: an empty slice, e.g. `{{ urls.JoinPath (slice) }}`, `{{ urls.JoinPath (slice) (slice) }}` (several empty slices), or any call whose arguments flatten to zero elements. A template should never crash the build for this. It should return an empty string, and mixing empty slices with real elements should still join the real elements (`urls.JoinPath (slice) \"a\" (slice)` is `a`; `(slice) (slice \"a\" \"b\") \"c\"` is `a/b/c`). Fix it and add tests.",
+  "repo": "repos/hugo",
+  "base": "f63482bfbfe6aab81aaa198d9a006c7047f08d89",
+  "check": "set -e\ngit show ce5d232b870fbd26f1a6c135ba259773c2ac6303:tpl/urls/urls_test.go > tpl/urls/urls_test.go\ngo test ./tpl/urls/ -run '^(TestJoinPath)$' -count=1",
+  "timeout": 900,
+  "max_tool_calls": 80,
+  "tags": [
+    "realrepo",
+    "hugo"
+  ]
+}

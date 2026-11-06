@@ -1,0 +1,13 @@
+{
+  "name": "rr-prom-regex-adjacent-literal",
+  "prompt": "Label regex matching in model/labels gives a wrong answer for some patterns. The FastRegexMatcher is meant to be an optimised drop-in for the plain RE2 (regexp) matcher, but with a pattern like `.*\\|(foo)\\|.*` (a capturing group written directly between literals and wildcards) it reports a match for values that RE2 rejects, for example it says \"x-ab-y\" style inputs match `.*-(ab)-.*` when they should not, and the same for `|foo|` against the first pattern. Without the capturing group the optimised path is fine.\n\nFind why the optimised matcher disagrees with RE2 for these patterns and fix it, keeping the optimisation for patterns where it is actually correct (for instance `.*\\|foo\\|.*` must still use it). Do not weaken or delete the existing tests; add test cases for the new patterns.",
+  "repo": "repos/prometheus",
+  "base": "d15adb9ad7e5d9fbde3a9a8f30200593a5a14d86",
+  "check": "set -e\ngit show 73039e31f5c0c7c5b95c8470037244e50bc7f155:model/labels/regexp_test.go > model/labels/regexp_test.go\ngo test ./model/labels/ -run '^(TestFastRegexMatcher_MatchString|TestIsSimpleConcatenationPattern)$' -count=1",
+  "timeout": 900,
+  "max_tool_calls": 80,
+  "tags": [
+    "realrepo",
+    "prometheus"
+  ]
+}

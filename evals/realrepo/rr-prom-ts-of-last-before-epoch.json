@@ -1,0 +1,13 @@
+{
+  "name": "rr-prom-ts-of-last-before-epoch",
+  "prompt": "PromQL `ts_of_last_over_time(metric[1s])` returns the wrong result for samples with timestamps before the Unix epoch (negative timestamps). For a float sample at t=-1000ms and an instant query at t=-1000ms, `ts_of_last_over_time(float_metric[1s])` should return -1 (seconds), and the same for a native-histogram series, but the result is wrong (the series with a negative timestamp is effectively treated as if it had no sample, or reports 0). Timestamps >= 0 work fine. Find the cause in the promql package and fix it, for both float and histogram samples. Add a regression test.",
+  "repo": "repos/prometheus",
+  "base": "a0e6979d8d906f7cf3da331f7e962177e07a40e4",
+  "check": "set -e\ngit show e36d3b0ef2a29a448a02a9edeb4e8e7de91d53a2:promql/functions_test.go > promql/functions_test.go\ngo test ./promql/ -run '^(TestTsOfLastOverTimeBeforeEpoch)$' -count=1",
+  "timeout": 900,
+  "max_tool_calls": 80,
+  "tags": [
+    "realrepo",
+    "prometheus"
+  ]
+}
