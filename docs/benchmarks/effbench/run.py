@@ -89,6 +89,56 @@ def branch_args(run):
     return ["--ab-replay", str(sessions[0]), "--ab-replay-calls", str(k)]
 
 
+# Hiding: an agent in an unsandboxed workspace can read the whole disk, and on this box that holds the
+# graded tests and full upstream clones with the fixes (evals/), and every other arm's workspace. With
+# HIDE set, each arm's process runs under the same bwrap: those paths are empty tmpfs, the workspace
+# root shows only that arm's own workspace, and nothing else changes (network, HOME, caches).
+# Grading runs outside it. --no-hide turns it off.
+HIDE = []
+
+
+def hide_prefix(ws):
+    if not HIDE or not shutil.which("bwrap"):
+        return []
+    cmd = ["bwrap", "--dev-bind", "/", "/", "--die-with-parent"]
+    for p in HIDE:
+        cmd += ["--tmpfs", str(p)]
+    cmd += ["--tmpfs", str(eb.WS_ROOT), "--bind", str(ws), str(ws)]
+    return cmd + ["--chdir", str(ws)]
+
+
+def strace_prefix(run):
+    if not os.environ.get("EFFBENCH_STRACE"):
+        return []
+    return ["strace", "-f", "--seccomp-bpf", "-e", "trace=connect", "-o", str(run / "connect.strace")]
+
+
+class QwenArm(eb.QwenCodeArm):
+    """effbench's qwencode arm, its command run under hide_prefix."""
+
+    def prepare(self, home, ws, run):
+        cmd, env = super().prepare(home, ws, run)
+        return hide_prefix(ws) + cmd, env
+
+
+class PiStraceArm(eb.PiArm):
+    """effbench's pi arm, plus what effbench only does for the competitor arms: the connect() audit
+    (EFFBENCH_STRACE) and hide_prefix, so all three arms are held to the same checks."""
+
+    def run(self, task, ws, run, prompt):
+        base = getattr(self, "_base", None) or self.cmd0
+        self._base = base
+        self.cmd0 = strace_prefix(run) + hide_prefix(ws) + base
+        try:
+            info = super().run(task, ws, run, prompt)
+        finally:
+            self.cmd0 = base
+        outside = eb.CompetitorArm.connects_outside_proxy(self, run)
+        if outside is not None:
+            info["connects_outside_proxy"] = outside
+        return info
+
+
 class JanetcodeArm(eb.CompetitorArm):
     """janetcode headless (`-p --output-format json --yolo`), in a throwaway HOME holding one
     config: the model's context window. The provider is the arm's metering proxy through
@@ -120,7 +170,7 @@ class JanetcodeArm(eb.CompetitorArm):
         env = eb.competitor_env(home, None, OPENAI_BASE_URL=self.base_url, **self.env_extra)
         env["OPENAI_API_KEY"] = self.key
         prompt = (run / "prompt.txt").read_text()
-        return [self.bin, "-p", prompt, "--yolo", "--output-format", "json",
+        return hide_prefix(ws) + [self.bin, "-p", prompt, "--yolo", "--output-format", "json",
                 "--provider", "openai", "--model", self.model] + branch_args(run), env
 
     def collect(self, home, run):
@@ -153,7 +203,10 @@ def main():
     ap.add_argument("--campaign", required=True)
     ap.add_argument("--subset", choices=sorted(eb.SUBSETS), default="default")
     ap.add_argument("--tasks", nargs="*")
-    ap.add_argument("--model", default="mimo", help="effbench longtasks config: mimo | deepseek | qwen | ...")
+    ap.add_argument("--model", default="mimo", help="a config of ./configs (kimi-for-coding) or effbench's "
+                    "longtasks configs: mimo | deepseek | qwen | ...")
+    ap.add_argument("--no-hide", action="store_true", help="do not hide evals/, the tasks dir and other arms' "
+                    "workspaces from the agents (see hide_prefix)")
     ap.add_argument("--arms", default="janetcode,pi",
                     help="janetcode, pi, qwencode, hermes, openclaw; janetcode:<name>=<binary>[+K=V,...] for a variant")
     ap.add_argument("--seeds", type=int, default=2)
@@ -182,7 +235,13 @@ def main():
         eb.TASKS_ROOT = a.tasks_root.resolve()
     tasks = a.tasks or (sorted(p.parent.name for p in eb.TASKS_ROOT.glob("*/seed")) if a.tasks_root
                         else eb.SUBSETS[a.subset])
-    cfg = eb.LONGTASKS / "configs" / f"{a.model}.toml"
+    cfg = HERE / "configs" / f"{a.model}.toml"
+    if not cfg.exists():
+        cfg = eb.LONGTASKS / "configs" / f"{a.model}.toml"
+    global HIDE
+    if not a.no_hide:
+        HIDE = [HERE.parents[2] / "evals"] + ([eb.TASKS_ROOT] if a.tasks_root else [])
+        eb.WS_ROOT.mkdir(parents=True, exist_ok=True)
     model = eb.served_model(cfg)
     eb.PROVIDER = eb.BACKEND_PROVIDER[eb.served_backend(cfg)]
     prov = eb.PROVIDERS[eb.PROVIDER]
@@ -211,8 +270,10 @@ def main():
             arms.append(JanetcodeArm(camp, cfg, model, a.timeout, key, binary=binary or JANETCODE,
                                      name=name, env_extra=env))
         elif spec == "pi":
-            arms.append(eb.PiArm(camp, cfg, model, a.timeout, pi_cli, key))
-        elif spec in ("qwencode", "hermes", "openclaw"):
+            arms.append(PiStraceArm(camp, cfg, model, a.timeout, pi_cli, key))
+        elif spec == "qwencode":
+            arms.append(QwenArm(camp, cfg, model, a.timeout, key))
+        elif spec in ("hermes", "openclaw"):
             arms.append(eb.ARM_CLASSES[spec](camp, cfg, model, a.timeout, key))
         else:
             raise SystemExit(f"unknown arm {spec}")

@@ -1,0 +1,8 @@
+# effbench arm config for kimi-for-coding on the ai02 broker (effbench ships none for it).
+# run.py looks here before ../longtasks/configs. Only `ctx` and the `serve` line are read.
+[[models]]
+alias = "kimi-for-coding"
+tier = "fast"
+ctx = 262144
+caps = ["text", "tools"]
+serve = [{ backend = "ai02", model = "kimi-for-coding" }]
