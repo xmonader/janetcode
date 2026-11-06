@@ -670,7 +670,7 @@ const (
 	// reasoning thrown away), where pi runs at 32,768 and hero_agent at
 	// 40,960. A reply that hits it still raises it for the turn.
 	DefaultMaxTokens = 32768
-	DefaultMaxIter   = 100
+	DefaultMaxIter   = 300
 )
 
 // Path returns the config file location, honouring XDG_CONFIG_HOME.
@@ -689,7 +689,7 @@ const Example = `{
   "max_tokens": 32768,
   "effort": "high",
   "auto_approve": false,
-  "max_iterations": 100,
+  "max_iterations": 300,
   "compact_at": 80000,
   "theme": "auto",
   "providers": {

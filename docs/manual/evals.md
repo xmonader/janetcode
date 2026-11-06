@@ -577,7 +577,7 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-off <behaviour>` | turn one harness behaviour off for the run: an ablation |
 | `--eval-route <model>` | set `route_cheap` for the run (experimental step routing) and record the variant, like `--eval-off` |
 | `--eval-timeout <seconds>` | replace every task's own timeout, so a benchmark gives each harness the same wall budget |
-| `--eval-max-turns <n>` | cap the model calls one task may spend (default 100, the config's `max_iterations`; `--max-turns` is the same cap for a real run) |
+| `--eval-max-turns <n>` | cap the model calls one task may spend (default 300, the config's `max_iterations`; `--max-turns` is the same cap for a real run) |
 | `--eval-sandbox <profile>` | run the eval agent's bash under a sandbox profile (`workspace`, `read-only`, `strict`); see Sandboxing an eval run. Off by default |
 | `--eval-no-tool-limit` | ignore each task's `max_tool_calls`, for comparing against harnesses that enforce no tool budget |
 | `--eval-strict-provenance` | fail the whole eval when any run was answered by another vendor's model than the one requested, instead of leaving those runs out (see [Which model answered](#which-model-answered-and-runs-that-never-reached-it)) |

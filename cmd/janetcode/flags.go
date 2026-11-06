@@ -310,7 +310,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.evalLabel, "eval-label", "", "name recorded in the results file for this variant")
 	fs.StringVar(&o.evalTrain, "eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
 	fs.DurationVar(&o.evalTimeout, "eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
-	fs.IntVar(&o.evalTurns, "eval-max-turns", 0, "cap model calls per task run (0: the default of 100)")
+	fs.IntVar(&o.evalTurns, "eval-max-turns", 0, "cap model calls per task run (0: the default of 300)")
 	fs.StringVar(&o.evalSandbox, "eval-sandbox", "", "run the eval agent's bash under a sandbox profile: workspace, read-only or strict (strict: writes only in the work dir and temp, .git off limits, no network). Go builds keep the go build and module caches writable. Off by default so older results stay comparable; the run fails if the machine has no backend")
 	fs.BoolVar(&o.evalGate, "eval-gate", false, "run eval tasks under a verification gate: the work directory's .janetcode/verify.json, or the checks for its project type, run after a turn that changed something, and the configured decision provider (config \"decisions\", off with --eval-off decisions) may triage a failure. Off by default: a gate changes tool counts, pass rates and cost, so every baseline in this repository was recorded without one")
 	fs.BoolVar(&o.evalNoLimit, "eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")

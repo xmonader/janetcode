@@ -128,11 +128,11 @@ func TestLocalBaseURLAloneIsASetup(t *testing.T) {
 	}
 }
 
-// A turn gets 100 model calls by default (it was 50, which cut off real
+// A turn gets 300 model calls by default (it was 50, which cut off real
 // work on large repositories); the loop detector and budgets are the
 // runaway guards.
-func TestDefaultMaxIterIs100(t *testing.T) {
-	if DefaultMaxIter != 100 {
-		t.Fatalf("DefaultMaxIter = %d, want 100", DefaultMaxIter)
+func TestDefaultMaxIterIs300(t *testing.T) {
+	if DefaultMaxIter != 300 {
+		t.Fatalf("DefaultMaxIter = %d, want 300", DefaultMaxIter)
 	}
 }

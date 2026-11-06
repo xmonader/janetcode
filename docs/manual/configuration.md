@@ -15,7 +15,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "max_tokens": 32768,
   "effort": "high",
   "auto_approve": false,
-  "max_iterations": 100,
+  "max_iterations": 300,
   "compact_at": 80000,
   "memory": true,
   "hints": true,
@@ -32,8 +32,8 @@ janetcode --init     # writes ~/.config/janetcode/config.json
 }
 ```
 
-`max_iterations` caps the model calls one turn may make; the default is 100
-(it was 50, which cut off real work on large repositories: a turn that hits
+`max_iterations` caps the model calls one turn may make; the default is 300
+(it was 50, then 100, which cut off real work on large repositories: a turn that hits
 the cap in a headless or eval run is a failure, `ExitTurnLimit`, not a pause).
 It is a backstop, not the runaway guard: the loop detector and the cost and
 tool-call budgets stop a model that is going in circles long before the cap.
