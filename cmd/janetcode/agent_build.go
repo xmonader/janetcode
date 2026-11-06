@@ -460,7 +460,7 @@ func (b *agentBuilder) stepCore() error {
 			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
 			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"]},
 			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"]},
-			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe(), Nudge: b.toolNudge()},
+			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe(), Nudge: b.toolNudge(), HoldLimit: b.holdLimit()},
 			tool.JobTool{Jobs: d.jobs},
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},
 			tool.FetchURL{Typed: d.typed},
@@ -718,6 +718,18 @@ func (b *agentBuilder) stepSearchTools() error {
 	return nil
 }
 
+// headlessHold is how long a foreground command may hold a headless turn
+// before it becomes a background job (tool.Bash.HoldLimit). Nobody can
+// press ctrl+g in an unattended run. JANETCODE_OFF=hold turns it off.
+const headlessHold = 3 * time.Minute
+
+func (b *agentBuilder) holdLimit() time.Duration {
+	if !b.d.headless || b.off["hold"] {
+		return 0
+	}
+	return headlessHold
+}
+
 // planBudgetChars is how much reasoning a headless reply may stream
 // before it acts: about 10k tokens, two to three minutes on MiMo. Past it
 // the reply is ended and the model told to act (agent/planbudget.go).
@@ -769,9 +781,14 @@ func (b *agentBuilder) stepTurnHooks() error {
 	}
 	ag.Predictor = predictor
 	// JANETCODE_OFF=repomap leaves the map out of the turn as well as the
-	// tool list; before, only the eval path honoured it.
+	// tool list; before, only the eval path honoured it. A headless run
+	// leaves it out by default: on the realrepo set (10 runs a side) the
+	// median run went from 240 s and 151k input to 161 s and 101k without
+	// it, every run still passing — the 6 KB ranking rode on every call
+	// and mostly named files the task did not touch. JANETCODE_REPOMAP=1
+	// puts it back.
 	mapPrep := repomap.TurnPrep(b.repo, 0)
-	if b.off["repomap"] {
+	if b.off["repomap"] || b.d.headless && os.Getenv("JANETCODE_REPOMAP") != "1" {
 		mapPrep = func(_ context.Context, blocks []llm.Block) ([]llm.Block, string) { return blocks, "" }
 	}
 	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem),
