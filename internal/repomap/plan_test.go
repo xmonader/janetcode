@@ -28,6 +28,11 @@ func TestCheckPlanFlagsUnknownNamesAndMissingFiles(t *testing.T) {
 	if note := c.CheckPlan(ctx, "I will check it with `/tmp/check.go` against a request for `/foo%2f`."); note != "" {
 		t.Fatalf("paths outside the repository flagged: %s", note)
 	}
+	// Go standard-library API the code does not call yet, and a
+	// template's output with slashes in it.
+	if note := c.CheckPlan(ctx, "Use `re.FindAllStringSubmatchIndex` and `ExpandString`; the page renders `[||a|a/b/c]`."); note != "" {
+		t.Fatalf("stdlib name or literal flagged: %s", note)
+	}
 	bad := "First read `store/cache.go`, then have `Handler.Flush()` call `store.Evict` and the `RetryPolicy`.\nThe `helper` in `web/app.ts` stays. Plain words like `error` and `handler` are not names."
 	note := c.CheckPlan(ctx, bad)
 	for _, want := range []string{"`store/cache.go` does not exist", "`Handler.Flush` is neither defined nor used", "`store.Evict` is neither", "`RetryPolicy` is neither"} {

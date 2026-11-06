@@ -44,6 +44,16 @@ func (ix *Index) Known(name string) bool {
 	return false
 }
 
+// hasGo reports whether the index holds Go source.
+func (ix *Index) hasGo() bool {
+	for _, f := range ix.Files {
+		if strings.HasSuffix(f.Path, ".go") {
+			return true
+		}
+	}
+	return false
+}
+
 // hasPathSuffix reports whether some indexed file is p or ends in /p.
 func (ix *Index) hasPathSuffix(p string) bool {
 	p = strings.TrimPrefix(p, "/")
@@ -116,11 +126,16 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 				seen[span] = true
 				missing = append(missing, fmt.Sprintf("`%s` does not exist", span))
 			case looksLikeSymbol(span):
-				name := span
+				name, owner := span, ""
 				if i := strings.LastIndexByte(name, '.'); i >= 0 {
-					name = name[i+1:]
+					name, owner = name[i+1:], name[:i]
 				}
 				if len(name) < 3 || ix.Known(name) {
+					continue
+				}
+				// Standard-library API, unless it is named as a member of
+				// one of the repository's own types (`Handler.Flush`).
+				if ix.hasGo() && len(ix.definers[owner]) == 0 && goStdName(name) {
 					continue
 				}
 				seen[span] = true
@@ -153,7 +168,9 @@ func splitSentences(text string) []string {
 }
 
 func looksLikePath(s string) bool {
-	if strings.ContainsAny(s, " \t{}()<>\"'") {
+	// A template's output (`[||a|a/b/c]`), a glob or an assignment
+	// carries slashes too, but no file is named like that.
+	if strings.ContainsAny(s, " \t{}()<>\"'|[]*?=,;$&!") {
 		return false
 	}
 	return strings.Contains(s, "/") || planFileExt.MatchString(s)
