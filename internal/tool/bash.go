@@ -52,6 +52,11 @@ type Bash struct {
 	// of the package it changed had passed, and sat ten minutes for a
 	// kill and no output. Zero is off.
 	HoldLimit time.Duration
+	// Verified, when set, names the check that passed after the turn's
+	// last edit ("" when none did). A held command's note then says so as
+	// a fact: told only "if a narrower test has passed, finish", the
+	// model polled hugo's whole check.sh with sleep until the timeout.
+	Verified func() string
 }
 
 func (Bash) Name() string { return "bash" }
@@ -283,7 +288,13 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		promoted = true
 		fg.hand(job.ID)
 		t.Cache.invalidate()
-		return fmt.Sprintf("Still running after %s, so it was moved to background job %d (pid %d) instead of holding the turn; nothing it has done is lost and its output goes on being collected in %s.\nOutput so far:\n%s\n\nIf a narrower test of what you changed has already passed, this whole run is not needed: finish without it. Otherwise read or wait for it with the job tool.", t.HoldLimit, job.ID, job.Pid, job.OutPath, textfmt.TruncateTo(tailString(out.String(), 1500), 1500)), nil
+		next := "If a narrower test of what you changed has already passed, this whole run is not needed: finish without it. Otherwise read or wait for it with the job tool."
+		if t.Verified != nil {
+			if c := t.Verified(); c != "" {
+				next = fmt.Sprintf("Your change is already checked: `%s` passed after your last edit. Do not wait for this run: finish now, and say in your answer that this full run was left unfinished in the background.", c)
+			}
+		}
+		return fmt.Sprintf("Still running after %s, so it was moved to background job %d (pid %d) instead of holding the turn; nothing it has done is lost and its output goes on being collected in %s.\nOutput so far:\n%s\n\n%s", t.HoldLimit, job.ID, job.Pid, job.OutPath, textfmt.TruncateTo(tailString(out.String(), 1500), 1500), next), nil
 	case <-promoteChan(fg):
 		job, perr := t.Jobs.AdoptWith(in.Command, cmd, out, wait, pipe.hand())
 		if perr != nil {

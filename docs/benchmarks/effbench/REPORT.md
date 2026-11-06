@@ -22,6 +22,48 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: realrepo and synthetic, master against a pi-shaped lean arm (2026-11-06)
+
+Model `kimi-for-coding` on ai02. Realrepo: 5 bug fixes in caddy and hugo
+(`runs/realrepo-tasks`), 3 seeds, 15-minute cap. Synthetic: the 8 default
+tasks, 2 seeds. pi and Qwen Code are from `rr-kimi-3arm` (2 seeds, same
+tasks; pi runs with `-nc -ns`, so it never sees a repository's AGENTS.md).
+
+| realrepo (`rr-kimi-lean`) | passed | wall/run | median wall | input/run | uncached/run | calls/run | output/run |
+|---|---|---|---|---|---|---|---|
+| janetcode master `8ed57614` | 15/15 | 237 s | 168 s | 140k | 11.9k | 15.3 | 4.8k |
+| lean arm | 15/15 | 310 s | 190 s | 204k | 13.6k | 20.6 | 6.1k |
+| pi | 10/10 | 214 s | 202 s | 108k | 12.0k | 14.0 | 5.3k |
+| Qwen Code | 10/10 | 353 s | 208 s | 499k | 24.1k | 17.8 | 7.6k |
+
+| synthetic (`syn-kimi-lean`) | passed | wall/run | median wall | input/run | calls/run | output/run |
+|---|---|---|---|---|---|---|
+| janetcode master | 15/16 | 363 s | 327 s | 222k | 14.8 | 13.5k |
+| lean arm | 12/16 | 314 s | 218 s | 194k | 13.8 | 12.1k |
+
+The lean arm was the hypothesis that janetcode's extra checking was what
+made it slower than pi on realrepo. In `rr-kimi-final`, janetcode made 241
+tool calls to pi's 133, with 32 test-suite runs to pi's 2. The arm runs
+`lean2-system.md`, a prompt in pi's shape. It also sets
+`JANETCODE_OFF=specreview,edgerules,plancarry,editecho,testhint,thenrun`.
+
+The hypothesis was wrong on both sets:
+
+- **Realrepo:** without the prompt's rules the model wandered more. It made
+  more calls and read more input, and one caddy run took 686 s.
+- **Synthetic:** without the spec review, a-catalog-paging validated its
+  price filters and never applied them, twice. That is the miss the review
+  was added for.
+
+Master stays the headless configuration.
+
+Against pi on realrepo, master's median is better and its uncached input
+and output match pi's. Its mean is behind pi's because of one run.
+rr-hugo-replacere s2 followed hugo's AGENTS.md ("Use `./check.sh` when
+you're done"), which runs hugo's whole suite. It polled the backgrounded
+job with `sleep` until the 900 s cap, after the package's own check had
+passed. Without that run, master averages about 185 s per run.
+
 ## Latest (campaign `jc-mimo-r13`, 2026-10-10)
 
 janetcode `5c3ed1a2` against pi on all 16 tasks × 2 seeds: janetcode

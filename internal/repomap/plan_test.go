@@ -33,6 +33,10 @@ func TestCheckPlanFlagsUnknownNamesAndMissingFiles(t *testing.T) {
 	if note := c.CheckPlan(ctx, "Use `re.FindAllStringSubmatchIndex` and `ExpandString`; the page renders `[||a|a/b/c]`."); note != "" {
 		t.Fatalf("stdlib name or literal flagged: %s", note)
 	}
+	// A Go package pattern is not a file.
+	if note := c.CheckPlan(ctx, "Then run `go test ./api/...` and `./cmd/...`."); note != "" {
+		t.Fatalf("package pattern flagged: %s", note)
+	}
 	// An owner only a script defines (web/app.ts has `render`) is not
 	// one of the Go types, so the method is still the library's.
 	if note := c.CheckPlan(ctx, "Call `render.ReplaceAllString` on the page."); note != "" {

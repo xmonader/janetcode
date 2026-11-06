@@ -840,6 +840,17 @@ func (a *Agent) Outcome() TurnOutcome {
 	return FoldOutcomeIn(a.Log.Events(), a.turnN, a.displayRoot())
 }
 
+// VerifiedBy is the check that passed after the turn's last edit so far,
+// or "" when the turn has edited nothing, changed files after its last
+// check, or saw that check fail.
+func (a *Agent) VerifiedBy() string {
+	o := a.Outcome()
+	if o.Verdict != VerdictVerified || o.EditedAfterCheck || len(o.Checks) == 0 {
+		return ""
+	}
+	return o.Checks[len(o.Checks)-1]
+}
+
 // logOutcome records the verdict so it is on the same trail as the turn
 // it judges, and can be read back afterwards.
 func (a *Agent) logOutcome(o TurnOutcome) {

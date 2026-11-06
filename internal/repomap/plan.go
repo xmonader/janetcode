@@ -185,6 +185,10 @@ func looksLikePath(s string) bool {
 	if strings.ContainsAny(s, " \t{}()<>\"'|[]*?=,;$&!") {
 		return false
 	}
+	// A Go package pattern (`./tpl/...`) names packages, not a file.
+	if strings.HasSuffix(s, "/...") {
+		return false
+	}
 	return strings.Contains(s, "/") || planFileExt.MatchString(s)
 }
 

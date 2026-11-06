@@ -879,3 +879,30 @@ func TestSupersededBySeesThroughPipes(t *testing.T) {
 		}
 	}
 }
+
+// VerifiedBy names the check that passed after the last edit, and nothing
+// once a later edit or a red check leaves the tree unchecked.
+func TestVerifiedBy(t *testing.T) {
+	edit := result(1, "edit_file", `{"path":"a.go","old_str":"x","new_str":"y"}`, "ok", false)
+	pass := result(1, "bash", `{"command":"go test ./pkg/"}`, "ok  \tm/pkg\t0.1s\n", false)
+	cases := []struct {
+		name string
+		ev   []session.Event
+		want string
+	}{
+		{"checked after the edit", []session.Event{edit, pass}, "go test ./pkg/"},
+		{"edited again after the check", []session.Event{edit, pass, result(1, "edit_file", `{"path":"a.go","old_str":"y","new_str":"z"}`, "ok", false)}, ""},
+		{"nothing edited", []session.Event{pass}, ""},
+		{"check failed", []session.Event{edit, result(1, "bash", `{"command":"go test ./pkg/"}`, "FAIL\n[exit code 1]", true)}, ""},
+	}
+	for _, c := range cases {
+		ev := append([]session.Event(nil), c.ev...)
+		for i := range ev {
+			ev[i].Seq = i + 1
+		}
+		a := &Agent{Log: &session.Memory{Ev: ev}, turnN: 1}
+		if got := a.VerifiedBy(); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}

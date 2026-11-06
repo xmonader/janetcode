@@ -303,3 +303,28 @@ func TestHoldLimitBackgroundsALongCommand(t *testing.T) {
 		t.Fatalf("a command with a timeout under the limit was backgrounded: %q", out)
 	}
 }
+
+// A held command's note says the change is checked when a check passed
+// after the last edit, and keeps the conditional wording otherwise.
+func TestHoldNoteNamesThePassingCheck(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell")
+	}
+	jobs := &Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	for _, passed := range []string{"go test ./pkg/", ""} {
+		b := Bash{Root: t.TempDir(), Jobs: jobs, Running: &Running{}, HoldLimit: 200 * time.Millisecond,
+			Verified: func() string { return passed }}
+		in, _ := json.Marshal(map[string]any{"command": "sleep 30", "timeout_ms": 600000})
+		out, err := b.Run(context.Background(), in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if named := strings.Contains(out, "`go test ./pkg/` passed after your last edit"); named != (passed != "") {
+			t.Fatalf("passed=%q: %q", passed, out)
+		}
+		if passed == "" && !strings.Contains(out, "If a narrower test") {
+			t.Fatalf("conditional note missing: %q", out)
+		}
+	}
+}
