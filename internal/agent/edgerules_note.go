@@ -151,6 +151,12 @@ func (a *Agent) edgeRulesGate(outcome TurnOutcome, noted *bool, emit func(Event)
 	if note := edgeRulesNote("the brief", spec, checks); note != "" {
 		emit(Event{Kind: EvNotice, Text: "the checks passed; naming brief edge rules no test asserts at the edge"})
 		a.appendHarnessText(note)
+		// After a spec review the note gets steps of its own: on the
+		// review's leftover count d-cronexpr was told to add three
+		// asserts and, one step later, that the review was over.
+		if a.reviewSteps >= 0 {
+			a.reviewSteps = 0
+		}
 		return true
 	}
 	return false

@@ -73,3 +73,29 @@ func TestSpecReviewWrapsUpAfterItsSteps(t *testing.T) {
 		}
 	}
 }
+
+// An edge-rules note after the review starts the step count again, so
+// the asserts it asks for are not cut off by the review's wrap-up.
+func TestEdgeRulesNoteAfterReviewGetsItsOwnSteps(t *testing.T) {
+	a := &Agent{SpecReview: true}
+	a.Messages = []llm.Message{
+		{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: logstoreBrief}}},
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: []byte(`{"path":"store.go","content":"package store"}`)}}},
+	}
+	var reviewed, noted bool
+	ok := TurnOutcome{Verdict: VerdictVerified, Edited: 1, Passed: 1}
+	if !a.specReview(ok, &reviewed, func(Event) {}) {
+		t.Fatal("not reviewed")
+	}
+	for i := 1; i < maxReviewSteps; i++ {
+		a.reviewStepNote()
+	}
+	if !a.edgeRulesGate(ok, &noted, func(Event) {}) {
+		t.Fatal("no edge-rules note")
+	}
+	for i := 1; i <= maxReviewSteps; i++ {
+		if got := a.reviewStepNote(); (got != "") != (i == maxReviewSteps) {
+			t.Fatalf("step %d after the note: %q", i, got)
+		}
+	}
+}
