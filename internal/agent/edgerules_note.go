@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -38,6 +39,25 @@ func edgeRulesNote(specName, spec string, checks []string) string {
 
 var briefFileRe = regexp.MustCompile(`(?i)(brief|task|spec|requirements|readme)[^/]*\.(md|txt|rst)$`)
 
+var attachedFileRe = regexp.MustCompile(`(?s)<file path=("(?:[^"\\]|\\.)*")>\n(.*?)</file>\n`)
+
+type attachedFile struct{ path, body string }
+
+// attachedFiles takes the files out of a repository sent whole with the
+// first message (tool.SmallRepo); any other text has none.
+func attachedFiles(text string) []attachedFile {
+	if !strings.HasPrefix(text, "<repository files=") {
+		return nil
+	}
+	var out []attachedFile
+	for _, m := range attachedFileRe.FindAllStringSubmatch(text, -1) {
+		if p, err := strconv.Unquote(m[1]); err == nil {
+			out = append(out, attachedFile{p, m[2]})
+		}
+	}
+	return out
+}
+
 // turnSpecAndChecks reads the current turn from the history: the brief
 // (the user's request, plus any brief file the turn read) and the checks
 // (every command it ran, the test files it wrote).
@@ -59,8 +79,24 @@ func turnSpecAndChecks(msgs []llm.Message) (spec string, checks []string) {
 		for _, b := range m.Blocks {
 			switch b.Type {
 			case llm.BlockText:
-				if m.Role == llm.RoleUser && !b.Synthetic {
+				if m.Role != llm.RoleUser {
+					continue
+				}
+				if !b.Synthetic {
 					sb.WriteString(b.Text + "\n\n")
+					continue
+				}
+				// A small repository attached whole: its brief and tests
+				// are read as if read_file had opened them, since the
+				// model is told not to (a-build-incremental's BRIEF.md
+				// never reached the spec, and the spec review stayed off).
+				for _, f := range attachedFiles(b.Text) {
+					switch {
+					case isTestFile(f.path):
+						checks = append(checks, f.body)
+					case briefFileRe.MatchString(f.path):
+						sb.WriteString(f.body + "\n\n")
+					}
 				}
 			case llm.BlockToolUse:
 				var in map[string]any

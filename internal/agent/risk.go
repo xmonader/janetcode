@@ -7,8 +7,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-// Adaptive mode (JANETCODE_ADAPTIVE=1, off by default and unbenchmarked
-// here): the checks that cost extra model rounds after a turn is already
+// Adaptive mode (on by default, JANETCODE_ADAPTIVE=0 turns it off): the checks that cost extra model rounds after a turn is already
 // green (the plan-carry note, the edge-rules note, the spec review, the
 // stale-check nudge) run only on turns shaped like the ones hero_agent's
 // effbench 2026-10-08 where-we-lose report found lean runs losing. Every
@@ -22,7 +21,10 @@ import (
 // Thresholds are hero_agent's turn_risk.rs: a plan is 6000 chars of
 // reasoning (~1.5k tokens), a write is cold under 1200 chars (~300
 // tokens), a core file is 4000 bytes, a long brief is over 15 rules, a
-// large change over 250 product lines. The plan-carry note under adaptive
+// large change over 250 product lines. A brief over three times as long
+// is risky behind any change: a-build-incremental's 59-rule brief behind
+// 221 lines missed "with cache=None behaviour is exactly as today", the
+// kind of rule the spec review exists for. The plan-carry note under adaptive
 // fires only when the plan named product files not yet written
 // (plannedUnwritten), as hero_agent's narrow_note does.
 
@@ -32,6 +34,7 @@ const (
 	coreWriteBytes  = 4_000
 	longBriefRules  = 15
 	largeChangeLine = 250
+	veryLongBrief   = 3 * longBriefRules
 )
 
 var sourceExts = map[string]bool{}
@@ -145,11 +148,12 @@ func (a *Agent) riskyTurn() bool {
 			}
 		}
 	}
-	if lines <= largeChangeLine {
+	if lines == 0 {
 		return false
 	}
 	spec, _ := turnSpecAndChecks(a.Messages)
-	return briefRuleCount(spec) > longBriefRules
+	rules := briefRuleCount(spec)
+	return rules > veryLongBrief || lines > largeChangeLine && rules > longBriefRules
 }
 
 // namedSourceFiles: source-file names a text mentions, once each, in order.

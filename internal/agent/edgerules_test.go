@@ -1,9 +1,14 @@
 package agent
 
 import (
-	"github.com/xmonader/janetcode/internal/llm"
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 const logstoreBrief = `# Log store
@@ -115,5 +120,39 @@ func TestTurnSpecAndChecks(t *testing.T) {
 	}
 	if len(checks) != 2 || checks[0] != "go test ./..." || checks[1] != "assert short" {
 		t.Fatalf("checks = %q", checks)
+	}
+}
+
+// A repository attached whole is read as read_file would read it: its
+// brief joins the spec (and so the risk gate's rule count) and its tests
+// are checks.
+func TestTurnSpecReadsTheAttachedRepository(t *testing.T) {
+	root := t.TempDir()
+	for p, c := range map[string]string{
+		"BRIEF.md":      logstoreBrief,
+		"store.go":      "package store\n",
+		"store_test.go": "func TestOpen(t *testing.T) { Open() }\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, p), []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	text, _ := tool.SmallRepo(context.Background(), nil, root, &tool.Seen{})
+	if text == "" {
+		t.Fatal("tree not attached")
+	}
+	msgs := []llm.Message{{Role: llm.RoleUser, Blocks: []llm.Block{
+		{Type: llm.BlockText, Text: "Read BRIEF.md and implement the full task."},
+		{Type: llm.BlockText, Text: text, Synthetic: true},
+	}}}
+	spec, checks := turnSpecAndChecks(msgs)
+	if !strings.Contains(spec, "torn tail") || strings.Contains(spec, "package store") {
+		t.Fatalf("spec = %q", spec)
+	}
+	if len(checks) != 1 || !strings.Contains(checks[0], "TestOpen") {
+		t.Fatalf("checks = %q", checks)
+	}
+	if briefRuleCount(spec) <= briefRuleCount("Read BRIEF.md and implement the full task.") {
+		t.Fatal("the attached brief adds no rules")
 	}
 }

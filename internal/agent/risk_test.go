@@ -43,6 +43,8 @@ func TestRiskyTurn(t *testing.T) {
 		{"small cold write is not core", true, []llm.Message{riskUser("build it"), riskReply(8000, "small.go", 100), riskReply(50, "core.go", 1000)}, false},
 		{"long brief, large change", true, []llm.Message{riskUser(manyRules(20)), riskReply(100, "svc.go", 600)}, true},
 		{"long brief, small change", true, []llm.Message{riskUser(manyRules(20)), riskReply(100, "svc.go", 100)}, false},
+		{"very long brief, small change", true, []llm.Message{riskUser(manyRules(50)), riskReply(100, "svc.go", 100)}, true},
+		{"very long brief, nothing written", true, []llm.Message{riskUser(manyRules(50)), riskReply(100, "", 0)}, false},
 		{"large change, short brief", true, []llm.Message{riskUser(manyRules(5)), riskReply(100, "svc.go", 600)}, false},
 	}
 	for _, c := range cases {
