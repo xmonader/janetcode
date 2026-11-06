@@ -291,6 +291,8 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		next := "If a narrower test of what you changed has already passed, this whole run is not needed: finish without it. Otherwise read or wait for it with the job tool."
 		if t.Verified != nil {
 			if c := t.Verified(); c != "" {
+				c, _, _ = strings.Cut(c, "\n") // an inline script: its first line names it
+				c = textfmt.TruncateTo(c, 120)
 				next = fmt.Sprintf("Your change is already checked: `%s` passed after your last edit. Do not wait for this run: finish now, and say in your answer that this full run was left unfinished in the background.", c)
 			}
 		}

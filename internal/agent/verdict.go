@@ -204,6 +204,14 @@ var notFoundRe = regexp.MustCompile(`(?im)^.*(command not found|: not found|No s
 
 // neverRan reports whether a bash result is a command that never started:
 // exit 127 with the shell saying so. It is not a check that came back red.
+// unfinished: the command went to a background job (asked for, or moved
+// there after holding the turn), so its result says nothing about
+// whether it passed. Counted as a green check, a backgrounded whole-suite
+// run on realrepo hugo was reported as passed while it was still running.
+func unfinished(e session.Event) bool {
+	return strings.HasPrefix(e.Output, "Started background job ") || strings.HasPrefix(e.Output, "Still running after ")
+}
+
 func neverRan(e session.Event) bool {
 	if e.IsError {
 		return false
@@ -618,7 +626,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 				cmd   string
 				isErr bool
 			}{cmd, runFailed(e)})
-			if check && !neverRan(e) {
+			if check && !neverRan(e) && !unfinished(e) {
 				if runFailed(e) && !editedYet {
 					redHere[cmd] = true
 				}
@@ -842,10 +850,13 @@ func (a *Agent) Outcome() TurnOutcome {
 
 // VerifiedBy is the check that passed after the turn's last edit so far,
 // or "" when the turn has edited nothing, changed files after its last
-// check, or saw that check fail.
+// check, or has a check whose latest run failed. A green check counts
+// even when the verdict cannot see tests in its output: hugo's check.sh
+// prints "OK" for its go test step, and the held-command note never
+// fired on the run it was written for.
 func (a *Agent) VerifiedBy() string {
 	o := a.Outcome()
-	if o.Verdict != VerdictVerified || o.EditedAfterCheck || len(o.Checks) == 0 {
+	if o.Edited == 0 || o.EditedAfterCheck || o.Passed == 0 || o.Failed > 0 || len(o.Checks) == 0 {
 		return ""
 	}
 	return o.Checks[len(o.Checks)-1]

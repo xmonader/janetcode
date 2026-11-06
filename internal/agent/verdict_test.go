@@ -893,6 +893,9 @@ func TestVerifiedBy(t *testing.T) {
 		{"checked after the edit", []session.Event{edit, pass}, "go test ./pkg/"},
 		{"edited again after the check", []session.Event{edit, pass, result(1, "edit_file", `{"path":"a.go","old_str":"y","new_str":"z"}`, "ok", false)}, ""},
 		{"nothing edited", []session.Event{pass}, ""},
+		{"a check sent to the background", []session.Event{edit, pass, result(1, "bash", `{"command":"./check.sh"}`, "Started background job 1 (pid 7): ./check.sh", false)}, "go test ./pkg/"},
+		{"a check the hold moved to the background", []session.Event{edit, result(1, "bash", `{"command":"./check.sh"}`, "Still running after 3m0s, so it was moved to background job 1", false)}, ""},
+		{"a green check that shows no tests", []session.Event{edit, result(1, "bash", `{"command":"./check.sh ./tpl/strings/..."}`, "==> Running tests...\n    OK\n", false)}, "./check.sh ./tpl/strings/..."},
 		{"check failed", []session.Event{edit, result(1, "bash", `{"command":"go test ./pkg/"}`, "FAIL\n[exit code 1]", true)}, ""},
 	}
 	for _, c := range cases {
