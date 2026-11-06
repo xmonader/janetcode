@@ -34,17 +34,30 @@ func goStdName(name string) bool {
 	return goAPINames[name]
 }
 
+// goRoot finds a toolchain whose api files to read. GOTOOLCHAIN=local:
+// in a module that asks for a newer Go, a plain `go env` tries to fetch
+// that toolchain, which a sandbox without network refuses, and the plan
+// check then knew no standard library at all (realrepo hugo). Any
+// toolchain's api lists do: the names only grow.
 func goRoot() string {
 	if r := os.Getenv("GOROOT"); r != "" {
 		return r
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "go", "env", "GOROOT").Output()
-	if err != nil {
-		return ""
+	cmd := exec.CommandContext(ctx, "go", "env", "GOROOT")
+	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local")
+	if out, err := cmd.Output(); err == nil {
+		if r := strings.TrimSpace(string(out)); r != "" {
+			return r
+		}
 	}
-	return strings.TrimSpace(string(out))
+	for _, r := range []string{"/usr/local/go", "/usr/lib/go", "/opt/homebrew/opt/go/libexec"} {
+		if _, err := os.Stat(filepath.Join(r, "api")); err == nil {
+			return r
+		}
+	}
+	return ""
 }
 
 func loadGoAPI(root string) map[string]bool {
