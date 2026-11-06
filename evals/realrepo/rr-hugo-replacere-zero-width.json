@@ -1,9 +1,9 @@
 {
   "name": "rr-hugo-replacere-zero-width",
   "prompt": "The Hugo template function `strings.ReplaceRE` misbehaves with patterns that use zero-width assertions such as `\\b` or `\\B`. Examples of what users expect (same as Go's regexp.ReplaceAllString):\n\n    {{ replaceRE `\\Bcd` \"-\" \"abcdef\" }}        -> ab-ef   (currently the match is missed)\n    {{ replaceRE `\\b` \"|\" \"foo bar\" }}          -> |foo| |bar|\n    {{ replaceRE `\\Bb` \"X\" \"foobar bar bab\" }}  -> fooXar bar baX\n    {{ replaceRE `\\Bb` \"X\" \"foobar bar bab\" 1 }} -> fooXar bar bab   (the optional limit argument)\n\nAnything with a lookaround-like assertion that depends on the text around the match gives wrong output, while ordinary patterns work. Fix replaceRE in tpl/strings, keeping the optional limit argument and `$1`-style expansion working, and add tests.",
-  "repo": "repos/hugo",
+  "repo": "repos/rr-hugo-replacere-zero-width",
   "base": "6152e22e262e01562eb0d1b7e185b7e148201fee",
-  "check": "set -e\ngit show ae07063fcc9a59c95838e83e7fdf12e326ebee7d:tpl/strings/regexp_test.go > tpl/strings/regexp_test.go\ngo test ./tpl/strings/ -run '^(TestReplaceRE)$' -count=1",
+  "check": "set -e\ncp \"$EVAL_TASK_DIR/tests/rr-hugo-replacere-zero-width/tpl/strings/regexp_test.go\" tpl/strings/regexp_test.go\ngo test ./tpl/strings/ -run '^(TestReplaceRE)$' -count=1",
   "timeout": 900,
   "max_tool_calls": 80,
   "tags": [

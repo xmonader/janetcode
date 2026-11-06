@@ -2,13 +2,13 @@
 
 Ten tasks built from merged bug-fix commits in four real Go repositories
 (prometheus, hugo, caddy, traefik; 500 to 2,600 files, 83k to 371k lines of
-Go at the base commit). Each task runs in a detached worktree of the repo at the
-fix's parent (`base`); the prompt is the bug as a user would report it, taken
+Go at the base commit). Each task runs in a detached worktree of its own small
+repo `repos/<task>` whose history ends at the fix's parent (`base`); the prompt is the bug as a user would report it, taken
 from the issue or PR text, without the fix. The grade is the fix commit's own
 test file, written after the agent finishes and run narrowly
 (`go test ./<pkg>/ -run '^(<tests>)$' -count=1`).
 
-    ./fetch.sh                  # blobless clones into repos/ (gitignored)
+    ./fetch.sh                  # shared clones + one repos/<task> per task (gitignored)
     python3 -I gen.py --validate  # regenerate the JSONs and prove every task
     bin/janetcode --model <m> --eval evals/realrepo --eval-sandbox strict --eval-runs 2 --eval-jobs 3
 
@@ -16,14 +16,21 @@ Notes:
 
 - The harness's `hidden` map takes only flat file names in an `acceptance/`
   package and copies the whole worktree per gate run, which does not fit a real
-  repository. These tasks instead put `git show <fix>:<test file> > <test file>`
-  in `check`, which runs after the agent has finished, so the model never sees
-  the grading test.
+  repository. These tasks instead keep the fix commit's test files under
+  `tests/<task>/<repo-relative path>` (committed) and the `check` does
+  `cp "$EVAL_TASK_DIR/tests/<task>/<path>" <path>`; it runs after the agent has
+  finished, so the model never sees the grading test.
+- No upstream answer in the repo: `fetch.sh` keeps one shared full clone per
+  upstream repo (`repos/<repo>`, used only by `gen.py`) and builds
+  `repos/<task>` from it with `git fetch --depth 50` of `base` (no blob filter,
+  no remote), so the fix commit and everything newer is absent
+  (`git cat-file -e <fix>` fails). `gen.py --validate` still uses the shared
+  clone for the fix's non-test changes.
 - Validation (`gen.py --validate`): at `base` with the fix's test files laid
   over, the check FAILS; with the fix's non-test changes applied as well it
   PASSES. All ten tasks satisfy both.
-- Contamination: the clones keep upstream history, and an unsandboxed eval
-  agent has network access; run with `--eval-sandbox strict` (no network,
+- Contamination: the per-task repos have no future history, but an unsandboxed
+  eval agent has network access; run with `--eval-sandbox strict` (no network,
   `.git` read-only, go build and module caches kept writable) to close both.
   Unsandboxed: In the first run three agents fetched the upstream fix
   (`curl raw.githubusercontent.com`, the GitHub commit-search API) and one ran
@@ -45,6 +52,13 @@ Notes:
 | rr-caddy-path-matcher-escaped-overmatch | caddy | 631 | 08ad0641 | `path` matcher with `%2f` over-matches longer paths |
 | rr-caddy-fmt-backquote-braces | caddy | 505 | b3e692ed | `caddy fmt` mangles braces inside backquotes |
 | rr-traefik-cors-wildcard-credentials | traefik | 2010 | f9d79007 | CORS `*` origin with credentials |
+
+## Licenses
+
+The files under `tests/` are verbatim copies of test files from upstream
+commits: prometheus (Apache-2.0), hugo (Apache-2.0), caddy (Apache-2.0),
+traefik (MIT). Copyright remains with the respective authors; they are used
+here unmodified, as grading fixtures.
 
 ## Results (kimi-for-coding via ai02, 2 runs per task, 3 jobs, 2026-11-06)
 

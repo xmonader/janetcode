@@ -1,9 +1,9 @@
 {
   "name": "rr-caddy-strip-prefix-encoded",
   "prompt": "Caddy's `rewrite` handler with `strip_path_prefix` strips the wrong thing when the request path is percent-encoded and shorter than the prefix. With `strip_path_prefix /aaaaaa` and a request for `/%61%61` (which decodes to `/aa`, a path that is NOT under the prefix `/aaaaaa`), the request is rewritten as if the prefix had matched, instead of being left untouched. A path that really does start with the prefix, whether written plainly or percent-encoded, must still be stripped. Find and fix the bug in the rewrite module and add a regression case to its tests.",
-  "repo": "repos/caddy",
+  "repo": "repos/rr-caddy-strip-prefix-encoded",
   "base": "25b3eab6dbd8d2d2670711f26b774e0fd43e1179",
-  "check": "set -e\ngit show 52dc6709fbddd753d179ee1273e3059152827355:modules/caddyhttp/rewrite/rewrite_test.go > modules/caddyhttp/rewrite/rewrite_test.go\ngo test ./modules/caddyhttp/rewrite/ -run '^(TestRewrite)$' -count=1",
+  "check": "set -e\ncp \"$EVAL_TASK_DIR/tests/rr-caddy-strip-prefix-encoded/modules/caddyhttp/rewrite/rewrite_test.go\" modules/caddyhttp/rewrite/rewrite_test.go\ngo test ./modules/caddyhttp/rewrite/ -run '^(TestRewrite)$' -count=1",
   "timeout": 900,
   "max_tool_calls": 80,
   "tags": [

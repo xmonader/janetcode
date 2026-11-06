@@ -3,11 +3,17 @@
 one: at `base` with the fix commit's test files laid over, the check must fail;
 with the fix commit's non-test changes applied as well, it must pass.
 
-The grading test files are taken from the fix commit with `git show` inside each
-task's `check` command and written only when the check runs, after the agent has
-finished, so the model never sees them. (The eval harness's `hidden` map only takes flat file names in
-an `acceptance/` package and copies the whole worktree per gate run, which does
-not fit a real repository.)
+The fix commit's graded test files are extracted from the shared full clone
+(repos/<repo>) into tests/<task>/<repo-relative path> and committed. Each task's
+`check` copies them into the work tree with `cp "$EVAL_TASK_DIR/tests/..."`
+after the agent has finished, so the model never sees them, and the per-task
+repo (repos/<task>, built by fetch.sh) holds history only up to `base`, with no
+fix commit to read. (The eval harness's `hidden` map only takes flat file names
+in an `acceptance/` package and copies the whole worktree per gate run, which
+does not fit a real repository.)
+
+The shared clones are only for this script; validation needs them for the fix's
+non-test changes.
 """
 import base64, json, os, subprocess, sys, shutil
 
@@ -80,16 +86,20 @@ def build(s):
     code = [f for f in files if not f.endswith("_test.go")]
     cmd = ["set -e"]
     for f in tests:
-        cmd.append(f"git show {fix}:{f} > {f}")
+        dst = os.path.join(HERE, "tests", s["name"], f)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        body = subprocess.run(["git", "-C", os.path.join(REPOS, s["repo"]), "show", f"{fix}:{f}"], capture_output=True, check=True).stdout
+        open(dst, "wb").write(body)
+        cmd.append(f'cp "$EVAL_TASK_DIR/tests/{s["name"]}/{f}" {f}')
     cmd.append(f"go test ./{s['pkg']}/ -run '^({s['tests']})$' -count=1")
     n_files = len(git(s["repo"], "ls-tree", "-r", "--name-only", base).split("\n")) - 1
-    task = dict(name=s["name"], prompt=s["prompt"], repo=f"repos/{s['repo']}", base=base,
+    task = dict(name=s["name"], prompt=s["prompt"], repo=f"repos/{s['name']}", base=base,
                 check="\n".join(cmd), timeout=900, max_tool_calls=80, tags=["realrepo", s["repo"]])
     meta = dict(fix=fix, tests=tests, code=code, pkg=s["pkg"], n_files=n_files)
     return task, meta
 
-def sh(cmd, cwd):
-    r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True, timeout=900)
+def sh(cmd, cwd, env=None):
+    r = subprocess.run(["bash", "-c", cmd], cwd=cwd, env=env, capture_output=True, text=True, timeout=900)
     return r.returncode, (r.stdout + r.stderr)[-600:]
 
 def validate(task, meta, s):
@@ -99,11 +109,12 @@ def validate(task, meta, s):
         git(s["repo"], "worktree", "remove", "--force", wt, check=False)
     git(s["repo"], "worktree", "add", "-q", "--detach", wt, task["base"])
     try:
-        rc1, o1 = sh(task["check"], wt)
+        env = dict(os.environ, EVAL_TASK_DIR=HERE)
+        rc1, o1 = sh(task["check"], wt, env)
         for f in meta["code"]:
             body = subprocess.run(["git", "-C", os.path.join(REPOS, s["repo"]), "show", f"{meta['fix']}:{f}"], capture_output=True).stdout
             open(os.path.join(wt, f), "wb").write(body)
-        rc2, o2 = sh(task["check"], wt)
+        rc2, o2 = sh(task["check"], wt, env)
     finally:
         git(s["repo"], "worktree", "remove", "--force", wt, check=False)
     return rc1 != 0, rc2 == 0, o1, o2

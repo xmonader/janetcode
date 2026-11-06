@@ -617,7 +617,8 @@ func restoreLocked(dir string, t Task) error {
 }
 
 // runCheck runs a task's Check in dir, with EVAL_OUTPUT naming outPath
-// and EVAL_HIDDEN_GATE the held-out gate script, so a task graded on
+// EVAL_TASK_DIR the task file's directory, and EVAL_HIDDEN_GATE the
+// held-out gate script, so a task graded on
 // held-out tests runs exactly the gate the turn ran.
 func runCheck(ctx context.Context, t Task, dir, outPath, hiddenGate string) (string, error) {
 	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -631,7 +632,13 @@ func runCheck(ctx context.Context, t Task, dir, outPath, hiddenGate string) (str
 	cmd.Dir = dir
 	// Scrubbed of the agent's credentials: a task's check is project
 	// content, run and read back with its output.
-	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir, "EVAL_HIDDEN_GATE="+hiddenGate)
+	// EVAL_TASK_DIR is where the task file lives (absolute), so a check can
+	// read fixtures kept next to the task, outside the work directory.
+	taskDir := t.dir
+	if abs, aerr := filepath.Abs(taskDir); aerr == nil {
+		taskDir = abs
+	}
+	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir, "EVAL_TASK_DIR="+taskDir, "EVAL_HIDDEN_GATE="+hiddenGate)
 	out, err := cmd.CombinedOutput()
 	// The check exited 0 and only a leaked child's hold on the pipe was
 	// cut: the check passed.

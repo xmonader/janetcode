@@ -1,9 +1,9 @@
 {
   "name": "rr-caddy-path-matcher-escaped-overmatch",
   "prompt": "Caddy's `path` request matcher over-matches when the configured path contains a percent-escape. With `path /foo%2fbar`, the request path `/foo%2fbarbaz` is matched, even though the pattern has no trailing wildcard and `/foo%2fbarbaz` is a longer path. The same happens for `/foo%2f` vs `/foo%2fx`, and `/admin%2fpanel` vs `/admin%2fpanelX`: it behaves like a prefix match. Patterns without escapes are fine, and a pattern with escapes must still match exactly the equivalent path (and wildcard forms like `%*` must keep working). This is a security-relevant routing bug (a path matcher guarding `/admin%2fpanel` also applies to unrelated longer paths). Fix MatchPath in modules/caddyhttp and add tests.",
-  "repo": "repos/caddy",
+  "repo": "repos/rr-caddy-path-matcher-escaped-overmatch",
   "base": "13a4c3f43c79ca04064457ab9cf95b376c294141",
-  "check": "set -e\ngit show 08ad064160e0d29994a55db448be21a2f9f06734:modules/caddyhttp/matchers_test.go > modules/caddyhttp/matchers_test.go\ngo test ./modules/caddyhttp/ -run '^(TestPathMatcher)$' -count=1",
+  "check": "set -e\ncp \"$EVAL_TASK_DIR/tests/rr-caddy-path-matcher-escaped-overmatch/modules/caddyhttp/matchers_test.go\" modules/caddyhttp/matchers_test.go\ngo test ./modules/caddyhttp/ -run '^(TestPathMatcher)$' -count=1",
   "timeout": 900,
   "max_tool_calls": 80,
   "tags": [

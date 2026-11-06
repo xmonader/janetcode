@@ -24,7 +24,8 @@ could not be costed.
 
 A task is a prompt, optional setup files, and a shell `check` that must
 exit 0 in the work directory (`EVAL_OUTPUT` names a file with the model's
-final text); `max_tool_calls` fails tasks that flail. `EVAL_ONLY=go,files`
+final text; `EVAL_DIR` is the work directory and `EVAL_TASK_DIR` the absolute
+directory of the task file, for fixtures kept beside it); `max_tool_calls` fails tasks that flail. `EVAL_ONLY=go,files`
 narrows by name or tag, `EVAL_JOBS=4` runs more at once, and
 `--eval-json` (written to `evals/last-results.json` by `make eval`) keeps
 the numbers for comparison. Evals use minimal agents: core tools, no hooks,

@@ -28,3 +28,21 @@ func TestRunCheckIsNotHeldOpenByALeakedChild(t *testing.T) {
 		t.Fatalf("a check that exited 0 must pass: out=%q err=%v", out, err)
 	}
 }
+
+// A check reads fixtures kept beside its task file through EVAL_TASK_DIR,
+// which is absolute even when the task was loaded by a relative path.
+func TestRunCheckSeesTheTaskDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	dir := t.TempDir()
+	task := Task{Check: `printf %s "$EVAL_TASK_DIR"`, dir: "."}
+	out, err := runCheck(context.Background(), task, dir, filepath.Join(dir, "out.txt"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := filepath.Abs(".")
+	if out != want || !filepath.IsAbs(out) {
+		t.Fatalf("EVAL_TASK_DIR = %q, want %q", out, want)
+	}
+}

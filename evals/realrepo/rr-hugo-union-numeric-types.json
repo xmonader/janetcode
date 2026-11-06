@@ -1,9 +1,9 @@
 {
   "name": "rr-hugo-union-numeric-types",
   "prompt": "Hugo's `collections.Union` returns an empty result when the two slices have different numeric element types. For example `union (slice 1) (slice 1.0)` gives `[]` instead of the unified list, and the same for `[]int{1,2}` with `[]float64{2.0, 3.0}`, which should yield `[1 2 3]` (the type of the first list wins), and `[]float64{1.0}` with `[]int{1, 2}` should give `[1 2]` as floats. `intersect` already compares numbers across numeric types, so this is inconsistent. Be careful with an empty first list of a different numeric type than the second: the result must not panic or contain elements of the wrong type. Slices of non-numeric mismatching types (e.g. strings with ints) must keep behaving as they do today. Fix it in tpl/collections and add tests.",
-  "repo": "repos/hugo",
+  "repo": "repos/rr-hugo-union-numeric-types",
   "base": "4d628bbdc3441f3c44b1f6f4e6ad04f4df4728bf",
-  "check": "set -e\ngit show ffbcdba9e9768b6a1bd0580eb56ed26c486f2cce:tpl/collections/collections_test.go > tpl/collections/collections_test.go\ngo test ./tpl/collections/ -run '^(TestUnion)$' -count=1",
+  "check": "set -e\ncp \"$EVAL_TASK_DIR/tests/rr-hugo-union-numeric-types/tpl/collections/collections_test.go\" tpl/collections/collections_test.go\ngo test ./tpl/collections/ -run '^(TestUnion)$' -count=1",
   "timeout": 900,
   "max_tool_calls": 80,
   "tags": [

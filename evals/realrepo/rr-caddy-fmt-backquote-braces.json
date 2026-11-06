@@ -1,9 +1,9 @@
 {
   "name": "rr-caddy-fmt-backquote-braces",
   "prompt": "`caddy fmt` mangles Caddyfile content that contains braces inside a backquoted string. For this input\n\n    block {respond `All braces should remain: {{now | date \"2006\"}}`}\n\nthe formatter splits the `{{ ... }}` template braces across lines and re-indents them as if they were block delimiters, changing the string's content. The braces inside the backquoted string must come out exactly as written (the whole example above should be returned unchanged, and the same is true for a double-quoted string that contains backquotes and braces). Block braces outside of strings must still be formatted as before. Fix the formatter in caddyconfig/caddyfile and add tests.",
-  "repo": "repos/caddy",
+  "repo": "repos/rr-caddy-fmt-backquote-braces",
   "base": "55c89ccf2a39dcfd7286fcaed54787821ff9a1aa",
-  "check": "set -e\ngit show b3e692ed09f8ba15b741621c4b16d8bfee38f8a1:caddyconfig/caddyfile/formatter_test.go > caddyconfig/caddyfile/formatter_test.go\ngo test ./caddyconfig/caddyfile/ -run '^(TestFormatter)$' -count=1",
+  "check": "set -e\ncp \"$EVAL_TASK_DIR/tests/rr-caddy-fmt-backquote-braces/caddyconfig/caddyfile/formatter_test.go\" caddyconfig/caddyfile/formatter_test.go\ngo test ./caddyconfig/caddyfile/ -run '^(TestFormatter)$' -count=1",
   "timeout": 900,
   "max_tool_calls": 80,
   "tags": [

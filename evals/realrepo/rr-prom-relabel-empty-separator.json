@@ -1,9 +1,9 @@
 {
   "name": "rr-prom-relabel-empty-separator",
   "prompt": "Bug report: a relabel config that sets `separator: \"\"` and/or `replacement: \"\"` explicitly does not survive a YAML or JSON round trip in model/relabel. Example:\n\n    source_labels: [namespace, k8s_app]\n    separator: \"\"\n    regex: \"\"\n    target_label: target_cluster\n    replacement: \"\"\n    action: replace\n\nUnmarshalling this and marshalling it back (YAML, and also JSON) drops the empty separator and replacement and, for YAML, the empty regex. When the result is reloaded, the defaults (\";\" separator, \"$1\" replacement, \"(.*)\" regex) silently come back, so the config means something different from what the user wrote. Explicitly empty values must be preserved by both serialisations; a config that never set them must still behave as before. Fix it.",
-  "repo": "repos/prometheus",
+  "repo": "repos/rr-prom-relabel-empty-separator",
   "base": "7d1195258cb1702d958361deab455059fdebc08e",
-  "check": "set -e\ngit show 7450865dcd1f7a521b96c5c9dad01e5eb2c66be0:model/relabel/relabel_test.go > model/relabel/relabel_test.go\ngo test ./model/relabel/ -run '^(TestConfig_UnmarshalThenMarshal|TestRegexp_JSONUnmarshalThenMarshal)$' -count=1",
+  "check": "set -e\ncp \"$EVAL_TASK_DIR/tests/rr-prom-relabel-empty-separator/model/relabel/relabel_test.go\" model/relabel/relabel_test.go\ngo test ./model/relabel/ -run '^(TestConfig_UnmarshalThenMarshal|TestRegexp_JSONUnmarshalThenMarshal)$' -count=1",
   "timeout": 900,
   "max_tool_calls": 80,
   "tags": [
