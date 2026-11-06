@@ -195,7 +195,19 @@ class JanetcodeArm(eb.CompetitorArm):
                 "own_input_tokens": (u.get("input_tokens") or 0) + (u.get("cache_read_tokens") or 0)
                 + (u.get("cache_write_tokens") or 0),
                 "own_cached_tokens": u.get("cache_read_tokens"), "own_output_tokens": u.get("output_tokens"),
-                "own_served": r.get("served")}
+                "own_served": r.get("served"), **self._infra(run)}
+
+    def _infra(self, run):
+        # strace -f --seccomp-bpf sometimes fails on a tracee's group-stop
+        # ("ptrace(PTRACE_LISTEN...): Input/output error") and exits 1, ending
+        # the agent mid-run with nothing on stdout: the tracer failed, not the
+        # agent (4 of 398 janetcode runs by 2026-11-07, none of pi's).
+        try:
+            if "strace: ptrace(" in (run / f"{self.name}.stderr.log").read_text(errors="replace"):
+                return {"infra_error": "strace"}
+        except OSError:
+            pass
+        return {}
 
 
 def main():
