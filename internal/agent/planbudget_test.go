@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -98,5 +99,24 @@ func TestPlanBudgetLeavesActingRepliesAlone(t *testing.T) {
 	w.note(llm.Event{Type: llm.EventToolUseStart, Block: &llm.Block{Name: "bash"}})
 	if w.note(llm.Event{Type: llm.EventThinkingDelta, Text: strings.Repeat("x", 100)}) {
 		t.Fatal("reasoning after a tool call started ended the call")
+	}
+}
+
+// A slow stream is cut on time as well as on length, but not before it
+// has reasoned planTimedMin characters; the cut keeps the reasoning's
+// tail as text, since thinking is not sent back on every provider.
+func TestPlanBudgetCutsOnTimeAndKeepsTheTail(t *testing.T) {
+	clock := time.Unix(0, 0)
+	w := &planWatch{budget: 1_000_000, start: clock, now: func() time.Time { return clock }}
+	clock = clock.Add(planBudgetTime + time.Second)
+	if w.note(llm.Event{Type: llm.EventThinkingDelta, Text: strings.Repeat("a", 100)}) {
+		t.Fatal("cut on time with almost nothing streamed")
+	}
+	if !w.note(llm.Event{Type: llm.EventThinkingDelta, Text: strings.Repeat("b", planTimedMin)}) {
+		t.Fatal("not cut after planBudgetTime and planTimedMin characters")
+	}
+	got := w.cutReply("m").Message.Text()
+	if !strings.HasSuffix(got, "bbbb") || strings.Contains(got, "a") && len(got) > planKeepChars+100 {
+		t.Fatalf("kept text = %.80q…", got)
 	}
 }

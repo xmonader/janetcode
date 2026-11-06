@@ -908,7 +908,9 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 	}
 	// A model that keeps writing the same message has stopped reading
 	// its own results; the ladder is the same as for a repeated call.
-	if a.Off["loops"] {
+	// A reply the plan budget cut carries its reasoning's tail as text
+	// (planbudget.go): the harness's doing, not the model repeating itself.
+	if a.Off["loops"] || a.planCutNow {
 		return "", nil
 	}
 	a.loopMu.Lock()
