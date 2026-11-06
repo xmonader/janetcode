@@ -299,7 +299,7 @@ type Agent struct {
 	// SpecReview, when set, sends a turn that changed files and passed its
 	// checks back once to hold the change against the task (specreview.go).
 	SpecReview bool
-	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go). Off by default.
+	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go).
 	Adaptive bool
 	// TestGuard, when set, refuses the first write to each test file
 	// (testguard.go).

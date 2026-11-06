@@ -524,7 +524,11 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
-	ag.Adaptive = os.Getenv("JANETCODE_ADAPTIVE") == "1"
+	// The post-green checks (spec review, edge rules, the stale-check
+	// correction, plan carry) run only on risky turns: on realrepo bug
+	// fixes they fired on 7 of 10 correct fixes, a round each.
+	// JANETCODE_ADAPTIVE=0 runs them on every turn.
+	ag.Adaptive = os.Getenv("JANETCODE_ADAPTIVE") != "0"
 	// Signed evidence beside each proof note: the local key is created on
 	// the first commit that gets one, not here.
 	if dir, err := proof.DefaultKeyDir(); err == nil {
