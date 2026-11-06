@@ -162,6 +162,7 @@ func insertOnly(files []ledgerFile, originals map[string][]byte) bool {
 func (a *Agent) turnFiles(root string) []ledgerFile {
 	byPath := map[string]*ledgerFile{}
 	var order []string
+	bashOrig := a.bashOrigins()
 	for _, c := range a.Changes() {
 		if c.Turn != a.turnN || c.Undone {
 			continue
@@ -173,7 +174,12 @@ func (a *Agent) turnFiles(root string) []ledgerFile {
 		if r, err := filepath.Rel(root, c.Path); err == nil && filepath.IsAbs(c.Path) && !strings.HasPrefix(r, "..") {
 			rel = r
 		}
-		byPath[c.Path] = &ledgerFile{rel: filepath.ToSlash(rel), before: c.Before, existed: c.Existed}
+		f := &ledgerFile{rel: filepath.ToSlash(rel), before: c.Before, existed: c.Existed}
+		if o, ok := bashOrig[c.Path]; ok {
+			// A bash call changed it before the file tool's first change.
+			f.before, f.existed = o.before, o.existed
+		}
+		byPath[c.Path] = f
 		order = append(order, c.Path)
 	}
 	var out []ledgerFile

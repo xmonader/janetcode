@@ -110,3 +110,48 @@ func TestUnattendedRefusalIsNotTheUsers(t *testing.T) {
 	}
 	t.Fatal("no permission record")
 }
+
+// A test file a heredoc created and edit_file then fixed was, to the
+// ledger, an original test the turn modified, with the heredoc's draft as
+// the original: replaying it failed and sent a correct fix back for four
+// minutes (realrepo hugo-joinpath). The bash audit now keeps what such a
+// file was before the turn, so it counts as added, and a clean file a bash
+// call changed keeps its committed content as the original.
+func TestLedgerSeesThroughBashWrites(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c1", "bash", `{"command":"printf 'draft\n' > new_test.go; printf 'bash\n' > a_test.go"}`),
+		toolCall("c2", "write_file", `{"path":"new_test.go","content":"fixed\n"}`),
+		toolCall("c3", "write_file", `{"path":"a_test.go","content":"tool\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	os.WriteFile(filepath.Join(root, "a_test.go"), []byte("orig\n"), 0o644)
+	gitInit(t, root)
+	repo, err := snapshot.Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.OpenSession(sess, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run(context.Background(), "change things", nil); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]ledgerFile{}
+	for _, lf := range a.turnFiles(root) {
+		got[lf.rel] = lf
+	}
+	if n := got["new_test.go"]; n.existed || len(n.before) != 0 {
+		t.Errorf("new_test.go: existed=%v before=%q, want a file the turn added", n.existed, n.before)
+	}
+	if o := got["a_test.go"]; !o.existed || string(o.before) != "orig\n" {
+		t.Errorf("a_test.go: existed=%v before=%q, want the committed original", o.existed, o.before)
+	}
+}

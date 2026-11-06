@@ -98,15 +98,23 @@ func (a *Agent) bashAuditAfter(ctx context.Context, u llm.Block, before bashAudi
 	for _, p := range paths {
 		after := fileDigest(p)
 		prev, ok := before[p]
-		if !ok {
+		var orig *bashOrigin
+		switch {
+		case !ok:
 			// Clean before the call: its content was the index's.
 			data, inIndex, err := repo.IndexContent(ctx, p)
 			if err != nil {
 				continue
 			}
 			prev = contentDigest(data, inIndex)
+			orig = &bashOrigin{existed: inIndex, before: data}
+		case prev == "absent":
+			orig = &bashOrigin{}
 		}
 		if prev != after {
+			if orig != nil {
+				a.noteBashOrigin(p, *orig)
+			}
 			a.logEvent(session.Event{Type: session.TypeFileChange, CallID: u.ID, Name: p, Arguments: prev + "->" + after})
 		}
 	}

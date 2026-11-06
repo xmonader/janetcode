@@ -67,6 +67,14 @@ type turnState struct {
 	steer   []string // notes for the running turn (see Steer)
 	harness []string // harness text for the running turn (path rules)
 
+	// bashOrig is each file a bash call of this turn created or changed
+	// while it was clean, as it was before: the file tools record their
+	// own changes, a shell command records none, and without this a test
+	// file a heredoc wrote and edit_file then touched looked to the ledger
+	// as if the heredoc's draft were the original (realrepo hugo-joinpath).
+	bashMu   sync.Mutex
+	bashOrig map[string]bashOrigin
+
 	// emitNow is the current turn's event sink. A tool that dispatches
 	// further tool calls of its own — a script does — needs it to show
 	// them as they happen, and it is not on the Tool interface.
@@ -82,6 +90,41 @@ func (s *turnState) begin() {
 	s.mutated, s.mutations = false, 0
 	s.proofCommits = nil
 	s.steeredThisTurn = false
+	s.bashMu.Lock()
+	s.bashOrig = nil
+	s.bashMu.Unlock()
+}
+
+// bashOrigin is a file as it was before the turn's first bash call that
+// changed it.
+type bashOrigin struct {
+	existed bool
+	before  []byte
+}
+
+// noteBashOrigin keeps path's state before a bash call changed it, unless
+// an earlier call of the turn already did.
+func (s *turnState) noteBashOrigin(path string, o bashOrigin) {
+	s.bashMu.Lock()
+	defer s.bashMu.Unlock()
+	if _, ok := s.bashOrig[path]; ok {
+		return
+	}
+	if s.bashOrig == nil {
+		s.bashOrig = map[string]bashOrigin{}
+	}
+	s.bashOrig[path] = o
+}
+
+// bashOrigins is a copy of what noteBashOrigin kept this turn.
+func (s *turnState) bashOrigins() map[string]bashOrigin {
+	s.bashMu.Lock()
+	defer s.bashMu.Unlock()
+	out := make(map[string]bashOrigin, len(s.bashOrig))
+	for k, v := range s.bashOrig {
+		out[k] = v
+	}
+	return out
 }
 
 // queueSteer adds a note for the running turn, from any goroutine.
