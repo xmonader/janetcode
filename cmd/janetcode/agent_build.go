@@ -768,8 +768,14 @@ func (b *agentBuilder) stepTurnHooks() error {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
 	ag.Predictor = predictor
+	// JANETCODE_OFF=repomap leaves the map out of the turn as well as the
+	// tool list; before, only the eval path honoured it.
+	mapPrep := repomap.TurnPrep(b.repo, 0)
+	if b.off["repomap"] {
+		mapPrep = func(_ context.Context, blocks []llm.Block) ([]llm.Block, string) { return blocks, "" }
+	}
 	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem),
-		firstTurnRepo(ag, b.cd, b.ws, b.seen, b.off["inline"], repomap.TurnPrep(b.repo, 0)))
+		firstTurnRepo(ag, b.cd, b.ws, b.seen, b.off["inline"], mapPrep))
 	wirePreresolve(b)
 	return nil
 }
