@@ -54,6 +54,18 @@ func (ix *Index) hasGo() bool {
 	return false
 }
 
+// definedInGo reports whether a Go file defines name. Only Go code can
+// own a Go selector: hugo's minified livereload.js defines `re`, and
+// `re.ExpandString` was reported missing because of it.
+func (ix *Index) definedInGo(name string) bool {
+	for _, i := range ix.definers[name] {
+		if strings.HasSuffix(ix.Files[i].Path, ".go") {
+			return true
+		}
+	}
+	return false
+}
+
 // hasPathSuffix reports whether some indexed file is p or ends in /p.
 func (ix *Index) hasPathSuffix(p string) bool {
 	p = strings.TrimPrefix(p, "/")
@@ -134,8 +146,8 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 					continue
 				}
 				// Standard-library API, unless it is named as a member of
-				// one of the repository's own types (`Handler.Flush`).
-				if ix.hasGo() && len(ix.definers[owner]) == 0 && goStdName(name) {
+				// one of the repository's own Go types (`Handler.Flush`).
+				if ix.hasGo() && !ix.definedInGo(owner) && goStdName(name) {
 					continue
 				}
 				seen[span] = true

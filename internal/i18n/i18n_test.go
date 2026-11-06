@@ -57,6 +57,11 @@ func TestCatalogueAndTreeAgree(t *testing.T) {
 			switch d.Name() {
 			case ".git", "node_modules", "vendor", ".claude":
 				return filepath.SkipDir
+			case "repos":
+				// evals/realrepo/repos: other projects cloned for evals.
+				if filepath.Base(filepath.Dir(p)) == "realrepo" {
+					return filepath.SkipDir
+				}
 			}
 			return nil
 		}

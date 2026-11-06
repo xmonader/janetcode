@@ -33,6 +33,11 @@ func TestCheckPlanFlagsUnknownNamesAndMissingFiles(t *testing.T) {
 	if note := c.CheckPlan(ctx, "Use `re.FindAllStringSubmatchIndex` and `ExpandString`; the page renders `[||a|a/b/c]`."); note != "" {
 		t.Fatalf("stdlib name or literal flagged: %s", note)
 	}
+	// An owner only a script defines (web/app.ts has `render`) is not
+	// one of the Go types, so the method is still the library's.
+	if note := c.CheckPlan(ctx, "Call `render.ReplaceAllString` on the page."); note != "" {
+		t.Fatalf("stdlib method on a script-defined owner flagged: %s", note)
+	}
 	bad := "First read `store/cache.go`, then have `Handler.Flush()` call `store.Evict` and the `RetryPolicy`.\nThe `helper` in `web/app.ts` stays. Plain words like `error` and `handler` are not names."
 	note := c.CheckPlan(ctx, bad)
 	for _, want := range []string{"`store/cache.go` does not exist", "`Handler.Flush` is neither defined nor used", "`store.Evict` is neither", "`RetryPolicy` is neither"} {
