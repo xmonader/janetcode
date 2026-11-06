@@ -97,6 +97,14 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 				}
 			}
 			am.Content = text.String()
+			if text.Len() == 0 && len(am.ToolCalls) == 0 {
+				// A reply that was only reasoning (thinking blocks are not
+				// sent back) or nothing at all. Kimi and other servers
+				// refuse an assistant message with empty content and no
+				// tool calls ("must not be empty"), which ended a run
+				// after a plan-budget cut.
+				am.Content = emptyAssistant
+			}
 			w.Messages = append(w.Messages, am)
 		default:
 			return wireRequest{}, fmt.Errorf("openai: unsupported role %q", m.Role)
@@ -115,6 +123,9 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 	}
 	return w, nil
 }
+
+// emptyAssistant stands in for an assistant turn with nothing to send.
+const emptyAssistant = "(no reply)"
 
 // shardsPromptCache is true for endpoints that route to a prompt-cache
 // shard by hashing the prefix together with prompt_cache_key. Sending the

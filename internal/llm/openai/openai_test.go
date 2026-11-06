@@ -1402,3 +1402,20 @@ func TestDialectLearnsTheOutputLimit(t *testing.T) {
 		t.Fatalf("err=%v asked=%v", err, asked)
 	}
 }
+
+// A reply that was only reasoning goes back with placeholder content:
+// thinking is not sent, and Kimi refused the empty assistant message that
+// was left, ending a run after the plan budget cut a reply.
+func TestThinkingOnlyReplyIsNotEmpty(t *testing.T) {
+	w, err := buildRequest(llm.Request{Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "fix it"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockThinking, Text: "long plan"}}},
+		llm.TextMessage(llm.RoleUser, "[harness] act now"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Messages[1].Content; got != emptyAssistant {
+		t.Fatalf("assistant content = %#v, want %q", got, emptyAssistant)
+	}
+}
