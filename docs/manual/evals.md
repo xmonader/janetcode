@@ -174,7 +174,7 @@ you do not intend to push, or hand a task to someone who has no access to
 
 ## The task sets, and which one an ablation can use
 
-`evals/` holds eleven sets, and they are not interchangeable:
+`evals/` holds twelve sets, and they are not interchangeable:
 
 | set | where | what it is for |
 |---|---|---|
@@ -185,6 +185,7 @@ you do not intend to push, or hand a task to someone who has no access to
 | 41–43 | `evals/session/` | multi-prompt sessions, for what survives across turns |
 | 51–60 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on. 60 asks for three parallel editing subagents whose changes overlap in one file, the case `subagent_merge` is for |
 | 61 | `evals/explore/` | one change to find in a repository too big to read |
+| rr-* | `evals/realrepo/` | ten merged bug fixes in real, large Go repositories (prometheus, hugo, caddy, traefik; 500 to 2,600 files): the task runs in a worktree of the repo at the fix's parent, the prompt is the reported bug, and the grade is the fix commit's own test, written by the check after the run. `fetch.sh` clones the repos, `gen.py --validate` proves each task fails at base and passes with the fix; see its README |
 | 71–73 | `evals/gated/` | long tasks that ship a strict `.janetcode/verify.json` (build + vet + gofmt + tests), so `--eval-gate` has a gate that can actually fail |
 | 81–86 | `evals/hard/` | six gap tasks ported from the mixai research repository: small Python programs whose stated behaviour a cheap model gets subtly wrong (occurs check, vector-clock concurrency, integer cent splitting, a regex engine that may not import `re`, deterministic topological order, a PN-counter merge). Each ships its `pytest` specification as a `locked` file, so an edit to the test is restored before grading, and a `.janetcode/verify.json` that runs the same tests inside the run, so `--eval-gate` has a gate that fails exactly when the task is unsolved. This is the set an escalation or advisor arm is measured on, because the easy sets are passed by every model |
 | 91–98 | `evals/hidden/` | the held-out-acceptance set: small-to-mid Go repositories whose prompt states the whole specification, whose visible tests cover the happy path only, and whose grading tests are **held out** — they are never written into the work directory and are laid over a scratch copy by the gate alone (see `internal/eval/hidden.go`). This is the only set whose gate the model cannot run for itself, and so the only one on which a gate failure, a repair round, triage or a cascade escalation can be measured at all. 91–95 carry held-out tests and a reference solution proving them satisfiable; 97 and 98 are controls whose gate fails for a reason outside the repository (a credential the harness does not hold, a service that is not listening), so a triage skip or veto is scoreable in both directions. A control's failure text must not tell the model how to fake the environment: the first version of 97 asked for a binary named `svc-lint` and a run built one and installed it in `~/bin`; the first version of 98 named a port in the ephemeral range and a run bound it. Both now fail in ways an unprivileged process cannot arrange |
