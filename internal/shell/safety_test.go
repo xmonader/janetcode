@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -283,6 +284,35 @@ func TestWriteTargetsCatchesSedInPlace(t *testing.T) {
 		if !found {
 			t.Errorf("%q: targets = %v, missing the locked file %v", cmd, got, target)
 		}
+	}
+}
+
+// TestSedReadIsNotAWrite: a sed without -i writes nothing, and its
+// script is not a path. A range address starting with / was judged as a
+// file outside the workspace, so headless runs refused plain reads.
+func TestSedReadIsNotAWrite(t *testing.T) {
+	root := t.TempDir()
+	for _, c := range []string{
+		`sed -n '/^type Config struct/,/^}/p' relabel.go`,
+		`sed -n '1,5p' /home/someone/go/pkg/mod/x/y.go`,
+		`sed -ne '/^func/p' a.go`,
+	} {
+		if r, why := Classify(c, root); r != RiskOrdinary {
+			t.Errorf("%q = %v (%s)", c, r, why)
+		}
+	}
+	for _, c := range []string{
+		`sed -i 's/a/b/' /etc/hosts`,
+		`sed -ni 's/a/b/p' /etc/hosts`,
+		`sed -n '/x/w /etc/out' a.go`,
+		`sed 's/x/y/w /etc/out' a.go`,
+	} {
+		if r, _ := Classify(c, root); r == RiskOrdinary {
+			t.Errorf("%q judged ordinary", c)
+		}
+	}
+	if got := WriteTargets(`sed -i -e 's/a/b/' -e 's/c/d/' f.go`, root); !slices.Contains(got, filepath.Join(root, "f.go")) || len(got) != 1 {
+		t.Errorf("targets = %v", got)
 	}
 }
 

@@ -100,6 +100,85 @@ var mutators = map[string]bool{
 	"sed": true, "perl": true, "unlink": true,
 }
 
+// mutatorTargets is the words of a mutator command that name what it
+// writes. For most that is every non-flag argument. sed writes only in
+// place (-i, --in-place, a cluster like -ni), and then only to its files,
+// not to its script: `sed -n '/^type X/,/^}/p' f` had its address judged
+// as a path outside the workspace, and a plain read was refused in
+// headless runs. A script that can write or run something itself (w, W,
+// e) keeps every word as a target. perl's script can do anything, so it
+// keeps them too.
+func mutatorTargets(toks []string) []string {
+	words := argWords(toks)[1:]
+	if toks[0] != "sed" || slices.ContainsFunc(words, sedScriptWrites.MatchString) {
+		var out []string
+		for _, w := range words {
+			if !strings.HasPrefix(w, "-") {
+				out = append(out, w)
+			}
+			if toks[0] == "sed" {
+				// The file a w command writes sits inside the script word.
+				for _, m := range sedWriteFile.FindAllStringSubmatch(w, -1) {
+					out = append(out, m[1])
+				}
+			}
+		}
+		return out
+	}
+	inPlace, script := false, false
+	var operands []string
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		switch {
+		case w == "--":
+			operands = append(operands, words[i+1:]...)
+			i = len(words)
+		case strings.HasPrefix(w, "--"):
+			if strings.HasPrefix(w, "--in-place") {
+				inPlace = true
+			}
+			if w == "--expression" || w == "--file" {
+				script = true
+				i++
+			} else if strings.HasPrefix(w, "--expression=") || strings.HasPrefix(w, "--file=") {
+				script = true
+			}
+		case strings.HasPrefix(w, "-") && len(w) > 1:
+			for j := 1; j < len(w); j++ {
+				c := w[j]
+				if c == 'i' {
+					// -i takes an attached suffix and nothing after it.
+					inPlace = true
+					break
+				}
+				if c == 'e' || c == 'f' {
+					script = true
+					if j == len(w)-1 {
+						i++
+					}
+					break
+				}
+			}
+		default:
+			operands = append(operands, w)
+		}
+	}
+	if !inPlace {
+		return nil
+	}
+	if !script && len(operands) > 0 {
+		operands = operands[1:] // the first operand is the script
+	}
+	return operands
+}
+
+// sedWriteFile captures the path a sed w or W command writes.
+var sedWriteFile = regexp.MustCompile(`[wW]\s+(\S+)`)
+
+// sedScriptWrites matches a sed script word that uses a command which
+// writes a file or runs one (w, W, e, or the s///w and s///e flags).
+var sedScriptWrites = regexp.MustCompile(`(^|[;{}/\s\d$])[wWe](\s|$)|/[gpiImM0-9]*[we]`)
+
 // outputFlags are the flags whose argument is a path the command writes,
 // per command. Only flags that certainly take a path are listed: curl's
 // -O takes none and wget's -O does, so guessing from the letter would
@@ -539,10 +618,7 @@ func classifyPaths(toks []string, seg, root string, cwd string, cwdKnown bool, d
 		}
 	}
 	if mutators[toks[0]] {
-		for _, tk := range argWords(toks)[1:] {
-			if strings.HasPrefix(tk, "-") {
-				continue
-			}
+		for _, tk := range mutatorTargets(toks) {
 			if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
 				// The directory is unknown after a cd the classifier
 				// could not resolve; a relative word resolves
@@ -1342,10 +1418,7 @@ func collectWriteTargets(seg string, toks []string, root string, cwd string, cwd
 		}
 	}
 	if mutators[toks[0]] {
-		for _, tk := range argWords(toks)[1:] {
-			if strings.HasPrefix(tk, "-") {
-				continue
-			}
+		for _, tk := range mutatorTargets(toks) {
 			if abs, ok := resolvePathArg(tk, cwd); ok {
 				add(abs)
 			}
