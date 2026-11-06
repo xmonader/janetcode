@@ -102,12 +102,14 @@ func (r *Repo) Take(ctx context.Context, label string) (Snap, error) {
 	if err != nil {
 		return Snap{}, err
 	}
-	if head != "" {
-		if _, err := r.run(ctx, idx, "read-tree", head); err != nil {
+	if !r.seedFromIndex(ctx, idx) {
+		if head != "" {
+			if _, err := r.run(ctx, idx, "read-tree", head); err != nil {
+				return Snap{}, err
+			}
+		} else if _, err := r.run(ctx, idx, "read-tree", "--empty"); err != nil {
 			return Snap{}, err
 		}
-	} else if _, err := r.run(ctx, idx, "read-tree", "--empty"); err != nil {
-		return Snap{}, err
 	}
 	if _, err := r.run(ctx, idx, "add", "-A", "--", "."); err != nil {
 		return Snap{}, err
@@ -489,6 +491,36 @@ func (r *Repo) head(ctx context.Context) (string, error) {
 func (r *Repo) tempIndex() (string, func(), error) {
 	p := filepath.Join(r.gitDir, "janetcode-index-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
 	return p, func() { os.Remove(p) }, nil
+}
+
+// seedFromIndex starts the temporary index at dst from a copy of the
+// repository's own index and reports whether it did. `add -A` makes an
+// index match the work tree whatever it started as, so the snapshot's
+// tree is the same either way; what differs is the cost. A fresh
+// `read-tree HEAD` index has no stat cache, so `add -A` re-reads and
+// re-hashes every file in the tree (10 s on kubernetes' 31k files, once
+// per session start and once per turn that mutates), where the copied
+// index lets git skip every file whose stat data is unchanged. It
+// declines, and the caller falls back to read-tree, for a shadow
+// repository (no index of its own), a missing or unreadable index, and a
+// sparse checkout, whose skip-worktree entries `add -A` would keep as
+// they are rather than reconcile.
+func (r *Repo) seedFromIndex(ctx context.Context, dst string) bool {
+	if r.env != nil {
+		return false
+	}
+	if out, err := r.run(ctx, "", "config", "--get", "core.sparseCheckout"); err == nil && strings.TrimSpace(out) != "false" && strings.TrimSpace(out) != "" {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(r.gitDir, "index"))
+	if err != nil || len(data) == 0 {
+		return false
+	}
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
+		os.Remove(dst)
+		return false
+	}
+	return true
 }
 
 // run executes git in the work tree; when index is set the command works

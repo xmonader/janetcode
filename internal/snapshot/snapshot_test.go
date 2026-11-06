@@ -338,3 +338,66 @@ func TestExportWritesTheSnapshotTreeElsewhere(t *testing.T) {
 		t.Fatal("a snapshot without a commit exported")
 	}
 }
+
+// Take starts from a copy of the repository's index (so git keeps its
+// stat cache and does not re-hash an unchanged tree), and that must not
+// change what a snapshot holds: the tree is the work tree whatever the
+// index looked like, including staged changes the work tree has since
+// undone and entries removed from the index only.
+func TestTakeTreeDoesNotDependOnTheIndex(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write(t, filepath.Join(root, "a.txt"), "staged\n")
+	write(t, filepath.Join(root, "new.txt"), "new\n")
+	git("add", "a.txt", "new.txt")
+	write(t, filepath.Join(root, "a.txt"), "a1\n") // staged edit undone in the work tree
+	os.Remove(filepath.Join(root, "new.txt"))      // staged addition deleted again
+	git("rm", "-q", "--cached", "c.txt")           // gone from the index, still on disk
+	write(t, filepath.Join(root, "sub/u.txt"), "u\n")
+	r, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.seedFromIndex(ctx, filepath.Join(t.TempDir(), "idx")) {
+		t.Fatal("a plain repository's index was not used")
+	}
+	s, err := r.Take(ctx, "mixed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := git("rev-parse", s.Commit+"^{tree}")
+	// The reference: the pre-index-seeding recipe, run by hand.
+	ref := filepath.Join(t.TempDir(), "refidx")
+	run := func(args ...string) string {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+ref)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("read-tree", "HEAD")
+	run("add", "-A", "--", ".")
+	if want := run("write-tree"); got != want {
+		t.Fatalf("snapshot tree %s, want %s (read-tree HEAD + add -A)", got, want)
+	}
+	files := strings.Fields(git("ls-tree", "-r", "--name-only", s.Commit))
+	if !slices.Equal(files, []string{".gitignore", "a.txt", "c.txt", "sub/u.txt"}) {
+		t.Fatalf("snapshot files = %v", files)
+	}
+	if status(t, root) == "" {
+		t.Fatal("expected the user's staged state to be left alone")
+	}
+}
