@@ -857,3 +857,25 @@ func TestAnEarlierCommandNotFoundIsNotAFailingCheck(t *testing.T) {
 		t.Fatalf("a command that never ran counted as a red check now green: %+v", got)
 	}
 }
+
+// A red run is retired by a later green run of the same check however its
+// output was piped, and only by one that covered what the red one ran:
+// the whole target, or the same selection.
+func TestSupersededBySeesThroughPipes(t *testing.T) {
+	cases := []struct {
+		red, green string
+		want       bool
+	}{
+		{"go test ./pkg/ 2>&1 | head -40", "go test ./pkg/ 2>&1 | tail -3", true},
+		{"go test ./pkg/ -run TestFormatter 2>&1 | sed -n 1,80p", "go test ./pkg/ 2>&1 | tail -3", true},
+		{"go test ./pkg/ -run TestA", "go test ./pkg/ -run TestA -v", true},
+		{"go test ./pkg/ -run TestA", "go test ./pkg/ -run TestB", false},
+		{"go test ./pkg/", "go test ./other/", false},
+		{"go build ./...", "go test ./...", false},
+	}
+	for _, c := range cases {
+		if got := supersededBy(c.red, c.green, nil); got != c.want {
+			t.Errorf("supersededBy(%q, %q) = %v, want %v", c.red, c.green, got, c.want)
+		}
+	}
+}
