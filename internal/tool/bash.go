@@ -44,6 +44,14 @@ type Bash struct {
 	// Nudge, when set, appends a once-per-session hint to a plain grep,
 	// find or cat result naming the dedicated tool; nil is off.
 	Nudge *Nudge
+	// HoldLimit, when positive and Jobs is set, is how long a foreground
+	// command may hold the turn before it becomes a background job, as
+	// ctrl+g does by hand. A run with nobody at the terminal has no
+	// ctrl+g: on realrepo hugo the model ran the project's whole check
+	// script with a 600 s timeout, twice in twenty runs, after the tests
+	// of the package it changed had passed, and sat ten minutes for a
+	// kill and no output. Zero is off.
+	HoldLimit time.Duration
 }
 
 func (Bash) Name() string { return "bash" }
@@ -224,6 +232,12 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	fg := t.Running.add(in.Command, cmd, out)
 	defer t.Running.remove(fg)
+	var hold <-chan time.Time
+	if t.HoldLimit > 0 && t.Jobs != nil && timeout > t.HoldLimit && !inline {
+		holdT := time.NewTimer(t.HoldLimit)
+		defer holdT.Stop()
+		hold = holdT.C
+	}
 
 	select {
 	case err = <-wait:
@@ -252,6 +266,24 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		fg.hand(job.ID)
 		t.Cache.invalidate()
 		return fmt.Sprintf("The command is waiting for input. It asked:\n%s\n\nIt keeps running as background job %d (pid %d), so nothing it has done is lost. Answer with the job tool: action stdin, id %d, and the text to type (an empty text presses Enter); the result shows what it prints next. If it should not be answered, kill the job and rerun the command with its answers in stdin.", textfmt.TruncateTo(promptTail(asked), 2000), job.ID, job.Pid, job.ID), nil
+	case <-hold:
+		job, perr := t.Jobs.AdoptWith(in.Command, cmd, out, wait, pipe.hand())
+		if perr != nil {
+			fg.hand(0)
+			pipe.unhand()
+			pipe.eof()
+			select {
+			case err = <-wait:
+			case <-ctx.Done():
+				killCmd()
+				err = <-wait
+			}
+			break
+		}
+		promoted = true
+		fg.hand(job.ID)
+		t.Cache.invalidate()
+		return fmt.Sprintf("Still running after %s, so it was moved to background job %d (pid %d) instead of holding the turn; nothing it has done is lost and its output goes on being collected in %s.\nOutput so far:\n%s\n\nIf a narrower test of what you changed has already passed, this whole run is not needed: finish without it. Otherwise read or wait for it with the job tool.", t.HoldLimit, job.ID, job.Pid, job.OutPath, textfmt.TruncateTo(tailString(out.String(), 1500), 1500)), nil
 	case <-promoteChan(fg):
 		job, perr := t.Jobs.AdoptWith(in.Command, cmd, out, wait, pipe.hand())
 		if perr != nil {
@@ -473,4 +505,17 @@ func clampTimeout(ms int, def, max time.Duration) time.Duration {
 		return max
 	}
 	return time.Duration(ms) * time.Millisecond
+}
+
+// tailString is the last n bytes of s, cut at a line start when one is
+// near.
+func tailString(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	s = s[len(s)-n:]
+	if i := strings.IndexByte(s, '\n'); i >= 0 && i < 200 {
+		s = s[i+1:]
+	}
+	return s
 }

@@ -274,3 +274,32 @@ func TestSplitSedArgs(t *testing.T) {
 		t.Fatalf("args=%v files=%v", args, files)
 	}
 }
+
+// With a hold limit, a command still running at the limit becomes a job
+// by itself, with what it printed so far; one that finishes first, or
+// one whose timeout is below the limit, is untouched.
+func TestHoldLimitBackgroundsALongCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell")
+	}
+	jobs := &Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	b := Bash{Root: t.TempDir(), Jobs: jobs, Running: &Running{}, HoldLimit: 300 * time.Millisecond}
+	start := time.Now()
+	in, _ := json.Marshal(map[string]any{"command": "echo begun; sleep 30", "timeout_ms": 600000})
+	out, err := b.Run(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > 5*time.Second || !strings.Contains(out, "moved to background job 1") || !strings.Contains(out, "begun") {
+		t.Fatalf("after %s: %q", time.Since(start), out)
+	}
+	in, _ = json.Marshal(map[string]any{"command": "echo quick"})
+	if out, _ := b.Run(context.Background(), in); strings.Contains(out, "background job") || !strings.Contains(out, "quick") {
+		t.Fatalf("a quick command was backgrounded: %q", out)
+	}
+	in, _ = json.Marshal(map[string]any{"command": "sleep 1; echo short", "timeout_ms": 200})
+	if out, _ := b.Run(context.Background(), in); strings.Contains(out, "background job") {
+		t.Fatalf("a command with a timeout under the limit was backgrounded: %q", out)
+	}
+}
