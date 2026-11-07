@@ -15,6 +15,8 @@ import (
 // EditFile replaces an exact substring in a file.
 type EditFile struct {
 	Root string
+	// Slim advertises only the fields a headless run uses (see slim.go).
+	Slim bool
 	WS   *Workspace
 	// Seen, when set, refuses to edit a file that changed since the agent
 	// last read or wrote it.
@@ -32,6 +34,9 @@ type EditFile struct {
 
 func (EditFile) Name() string { return "edit_file" }
 func (t EditFile) Description() string {
+	if t.Slim {
+		return "Replace text in one file. Put every change to the file in edits: each old_string must match exactly once, whitespace included, unless replace_all is set, and all land or none do. The result shows the file around the change."
+	}
 	d := "Replace text inside one file, named by path. Each change needs a place to go as well as the text to write: old_string must match exactly once (including whitespace) unless replace_all is true; it fails if there is no match or the match is ambiguous. To make several changes to the same file, pass them all in edits — they are applied in order and either all land or none do, which is one call instead of one per change. The result shows the file around what changed, so there is usually no need to read it back."
 	if !t.NoLines {
 		d += " A change can be located by line instead of by text: when you already know the line numbers — read_file gives them to you — give from_line and to_line instead of old_string, and only the replacement text: retyping the old text to say where an edit goes is the single most expensive thing you write. Line numbers always refer to the file as it is before this call, so a list of line edits does not have to account for its own shifting."
@@ -47,6 +52,16 @@ func (EditFile) Mutating() bool { return true }
 // list the fields with their types only and point at the descriptions
 // above.
 func (t EditFile) Schema() json.RawMessage {
+	if t.Slim {
+		return json.RawMessage(`{"type":"object","properties":{
+"path":{"type":"string"},
+"edits":{"type":"array","items":{"type":"object","properties":{
+"old_string":{"type":"string"},
+"new_string":{"type":"string"},
+"replace_all":{"type":"boolean"}},
+"required":["old_string","new_string"],"additionalProperties":false}}},
+"required":["path","edits"],"additionalProperties":false}`)
+	}
 	locator := `"old_string":{"type":"string","description":"Exact text to find"},`
 	bare := `"old_string":{"type":"string"},`
 	if !t.NoLines {

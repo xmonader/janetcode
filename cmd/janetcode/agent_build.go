@@ -457,10 +457,10 @@ func (b *agentBuilder) stepCore() error {
 		Provider: d.prov,
 		Log:      b.sess,
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
-			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"]},
-			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"], NoEcho: b.off["editecho"]},
-			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe(), Nudge: b.toolNudge(), HoldLimit: b.holdLimit(), Verified: func() string { return b.ag.VerifiedBy() }},
+			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, Slim: b.slim()},
+			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"], Slim: b.slim()},
+			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"], NoEcho: b.off["editecho"], Slim: b.slim()},
+			tool.Bash{Slim: b.slim(), Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe(), Nudge: b.toolNudge(), HoldLimit: b.holdLimit(), Verified: func() string { return b.ag.VerifiedBy() }},
 			tool.JobTool{Jobs: d.jobs},
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},
 			tool.FetchURL{Typed: d.typed},
@@ -715,7 +715,7 @@ func (b *agentBuilder) stepSearchTools() error {
 		ag.Tools.Activate("advisor")
 	}
 	ag.Tools.Intent = d.cfg.IntentEnabled() && !b.off["intent"]
-	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
+	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow, Slim: b.slim()})
 	return nil
 }
 
@@ -737,6 +737,12 @@ func (b *agentBuilder) holdLimit() time.Duration {
 const planBudgetChars = 32_000
 
 // headlessCore is what a headless run's requests carry: the coding loop.
+// slim reports whether this run advertises the slim tool schemas (see
+// internal/tool/slim.go): a headless run with the coding core deferred.
+func (b *agentBuilder) slim() bool {
+	return b.d.headless && !b.off["headlesscore"] && !b.off["slimtools"]
+}
+
 // Everything else stays loadable through tool_search.
 var headlessCore = map[string]bool{"read_file": true, "write_file": true, "edit_file": true, "bash": true, "tool_search": true}
 

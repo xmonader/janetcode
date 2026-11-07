@@ -19,6 +19,8 @@ import (
 // Bash runs a shell command in the working directory.
 type Bash struct {
 	Root string
+	// Slim advertises only the fields a headless run uses (see slim.go).
+	Slim bool
 	WS   *Workspace
 	// DefaultTimeout applies when the model gives none. Zero means 2 minutes.
 	DefaultTimeout time.Duration
@@ -60,11 +62,20 @@ type Bash struct {
 }
 
 func (Bash) Name() string { return "bash" }
-func (Bash) Description() string {
+func (b Bash) Description() string {
+	if b.Slim {
+		return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command."
+	}
 	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Set timeout_ms for a long-running command, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). A command that asks questions: pass the answers in stdin, or set interactive: true and answer each prompt with the job tool's stdin action. Not for reading, searching or editing files: use read_file, grep, glob, edit_file."
 }
 func (Bash) Mutating() bool { return true }
-func (Bash) Schema() json.RawMessage {
+func (b Bash) Schema() json.RawMessage {
+	if b.Slim {
+		return json.RawMessage(`{"type":"object","properties":{
+"command":{"type":"string"},
+"timeout_ms":{"type":"integer","description":"Default 120000, max 600000"}},
+"required":["command"],"additionalProperties":false}`)
+	}
 	return json.RawMessage(`{"type":"object","properties":{
 "command":{"type":"string","description":"The command to run"},
 "timeout_ms":{"type":"integer","description":"Timeout in milliseconds (default 120000, max 600000)"},

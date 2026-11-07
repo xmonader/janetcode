@@ -1,5 +1,7 @@
 package prompt
 
+import "strings"
+
 // Headless is the base a headless run (-p, stream-json input) starts from
 // in place of the interactive instructions and the harness section: a
 // run with nobody at the terminal needs the coding loop and none of the
@@ -20,3 +22,7 @@ const Headless = `You are janetcode, a coding agent working in the user's reposi
 - Keep reasoning short and do not draft code in it: write code once, in the tool call.
 - Paths are relative to the working directory; stay inside it. bash is non-interactive.
 - Be concise: say what you changed once, at the end.`
+
+// HeadlessSlim is Headless for the slim tool schemas, which leave then_run
+// out: Kimi used it 0 times in 126 edits.
+var HeadlessSlim = strings.Replace(Headless, ", as then_run on the edit that completes it, not a large", ", not a large", 1)

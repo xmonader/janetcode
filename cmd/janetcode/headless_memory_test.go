@@ -94,7 +94,9 @@ func TestHeadlessSendsTheCodingCore(t *testing.T) {
 	if !strings.HasPrefix(sys, "You are janetcode, a coding agent working in the user's repository.") || strings.Contains(sys, "# The harness you are running in") || !strings.Contains(sys, "# Environment") {
 		t.Fatalf("headless system prompt:\n%s", sys)
 	}
-	for _, loadable := range []string{"todo", "task", "glob", "grep"} {
+	// The slim tool_search names the kinds of tool it can load, not every
+	// one (internal/tool/slim.go): 3 calls to it in 3,267.
+	for _, loadable := range []string{"glob", "grep", "subagents"} {
 		if !strings.Contains(search, loadable) {
 			t.Fatalf("tool_search does not list %s: %q", loadable, search)
 		}

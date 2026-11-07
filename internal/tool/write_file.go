@@ -14,6 +14,8 @@ import (
 // WriteFile creates or overwrites a file.
 type WriteFile struct {
 	Root string
+	// Slim advertises only the fields a headless run uses (see slim.go).
+	Slim bool
 	WS   *Workspace
 	// Seen, when set, refuses to overwrite a file that changed since the
 	// agent last read or wrote it.
@@ -24,13 +26,16 @@ type WriteFile struct {
 }
 
 func (WriteFile) Name() string { return "write_file" }
-func (WriteFile) Description() string {
+func (t WriteFile) Description() string {
+	if t.Slim {
+		return "Create or overwrite a file with the given content."
+	}
 	return "Create or overwrite a file with the given content. Parent directories are created. Prefer edit_file for changes to existing files."
 }
 func (WriteFile) Mutating() bool { return true }
 func (t WriteFile) Schema() json.RawMessage {
 	thenRun := ""
-	if t.ThenRun {
+	if t.ThenRun && !t.Slim {
 		thenRun = thenRunProp
 	}
 	return json.RawMessage(`{"type":"object","properties":{

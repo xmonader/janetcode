@@ -20,6 +20,8 @@ const NotFound = "does not exist"
 // ReadFile reads a file with optional line window.
 type ReadFile struct {
 	Root string
+	// Slim advertises only the fields a headless run uses (see slim.go).
+	Slim bool
 	// WS, when set, is the shared workspace so /ssh retargets this tool
 	// in place. Root is the fallback tests and worktrees still set.
 	WS *Workspace
@@ -31,11 +33,21 @@ type ReadFile struct {
 }
 
 func (ReadFile) Name() string { return "read_file" }
-func (ReadFile) Description() string {
+func (t ReadFile) Description() string {
+	if t.Slim {
+		return "Read a text file. Returns numbered lines; use offset/limit for a large one."
+	}
 	return "Read a text file. Returns numbered lines. Use offset/limit for large files (max 2000 lines per call). Set anchors to number them as 12:abc instead, where the letters mark the line's content: edit_file takes those in from_anchor/to_anchor and they keep pointing at the right line even after earlier edits move it."
 }
 func (ReadFile) Mutating() bool { return false }
-func (ReadFile) Schema() json.RawMessage {
+func (t ReadFile) Schema() json.RawMessage {
+	if t.Slim {
+		return json.RawMessage(`{"type":"object","properties":{
+"path":{"type":"string"},
+"offset":{"type":"integer","description":"1-based first line"},
+"limit":{"type":"integer"}},
+"required":["path"],"additionalProperties":false}`)
+	}
 	return json.RawMessage(`{"type":"object","properties":{
 "path":{"type":"string","description":"File path, relative to the working directory or absolute"},
 "offset":{"type":"integer","description":"1-based line to start from (default 1)"},

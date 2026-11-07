@@ -17,6 +17,8 @@ import (
 // part of every later request.
 type ToolSearch struct {
 	Registry *Registry
+	// Slim advertises only the fields a headless run uses (see slim.go).
+	Slim bool
 	// ContextWindow is the model's input limit in tokens, when known. It
 	// sets how much of the deferred set may be revealed in one go.
 	ContextWindow int
@@ -39,6 +41,9 @@ func (t *ToolSearch) Description() string {
 	// Every tool that can be loaded, loaded already or not: a description
 	// that shrank as tools were loaded rewrote the cached tool list on
 	// every load.
+	if t.Slim {
+		return "Find and load a tool that is not listed here (grep, glob, web fetch and search, background jobs, subagents and more) by keyword or exact name."
+	}
 	names := t.loadableNames()
 	if len(names) == 0 {
 		return "Find and load tools that are not listed by default. Nothing is deferred right now."
