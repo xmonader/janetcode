@@ -46,7 +46,7 @@ default tasks × 3 seeds, 20-minute cap, `kimi-for-coding` on ai02.
 - pi is ahead on every column but cache hit. janetcode's input gap is two
   runaway runs: a-catalog-paging s2 (95 calls, timeout) and d-cronexpr s3
   (88 calls, timeout), each debugging a check of its own after the tests
-  passed. Without them janetcode is at 18.3 calls and 300k input a run.
+  passed. Without them janetcode is at 17.5 calls and 255k input a run.
 - The five other misses are one hidden rule each, on tasks where pi
   passed every seed. The wrap-up note fired in 13 runs (8 passed) and not
   in 11 (9 passed); it fires on the long runs, so this does not separate
