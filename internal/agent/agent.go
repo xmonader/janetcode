@@ -299,6 +299,10 @@ type Agent struct {
 	// SpecReview, when set, sends a turn that changed files and passed its
 	// checks back once to hold the change against the task (specreview.go).
 	SpecReview bool
+	// WrapUp, when set, tells a headless turn once to finish after it has
+	// spent wrapUpAfter calls checking a change that already passes
+	// (wrapup.go).
+	WrapUp bool
 	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go).
 	Adaptive bool
 	// TestGuard, when set, refuses the first write to each test file
@@ -764,6 +768,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.pl.startTurn()
 	a.effort.start(a.Settings().Effort)
 	a.reviewSteps = -1
+	a.wrap = wrapState{}
 	a.conflict = nil
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
@@ -1150,6 +1155,7 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		}
 	}
 	results, images, runErr := a.executeAll(ctx, uses, emit)
+	wrapNote := a.wrapUpNote(len(uses))
 	a.dedupReads(a.Messages, uses, results)
 	// Stand-ins past the fourth are dropped from the history below, after
 	// the step's notes are attached; extra is what those notes add.
@@ -1186,6 +1192,11 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	if note := a.reviewStepNote(); note != "" && len(results) > 0 {
 		results[len(results)-1].Text += "\n\n" + note
 		emit(Event{Kind: EvNotice, Text: "the review has used its calls; asking the model to wrap up"})
+	}
+	if wrapNote != "" && len(results) > 0 && a.reviewSteps < 0 {
+		results[len(results)-1].Text += "\n\n" + wrapNote
+		a.wrap.fired = true
+		emit(Event{Kind: EvNotice, Text: "the change passes and has been checked for a while; asking the model to finish"})
 	}
 	if a.EffortControlOn() {
 		a.noteEffort(stepEffortSignal(uses, results, a.effort.edited))

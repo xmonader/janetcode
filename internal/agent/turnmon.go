@@ -90,6 +90,9 @@ type turnMonitor struct {
 	// reviewSteps counts the tool steps since the spec review sent the
 	// turn back, -1 before it does (see specreview.go).
 	reviewSteps int
+	// wrap counts the calls made since the turn first passed its checks
+	// (see wrapup.go).
+	wrap wrapState
 	// postDiag holds the language-server checks of this turn's edits
 	// that run beside it (see postdiag.go).
 	postDiag postDiag

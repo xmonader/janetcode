@@ -537,6 +537,7 @@ func (b *agentBuilder) stepCore() error {
 	if b.d.headless {
 		ag.PlanBudget = planBudgetChars
 		ag.SpecReview = true
+		ag.WrapUp = true
 		ag.TestGuard = true
 		ag.TestLedger = true
 	}
