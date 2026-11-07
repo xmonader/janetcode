@@ -93,6 +93,8 @@ type turnMonitor struct {
 	// wrap counts the calls made since the turn first passed its checks
 	// (see wrapup.go).
 	wrap wrapState
+	// own is whether the own-check note has been given (owncheck.go).
+	own ownState
 	// postDiag holds the language-server checks of this turn's edits
 	// that run beside it (see postdiag.go).
 	postDiag postDiag
