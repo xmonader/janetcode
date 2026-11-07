@@ -22,6 +22,38 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: owncheck dropped, wrapstop kept (`syn-kimi-owncheck`, `syn-kimi-wrapstop`, 2026-11-07)
+
+Both A/Bs ran one switch off against the same binary, on a-build-incremental,
+a-catalog-paging, c-ts-eventsource, d-cronexpr and d-todocli × 3 seeds.
+
+**`owncheck` (`b2407e6c`, reverted in `571ebd06`).** When the project tests
+pass and the model's own check has failed three times at the same place,
+one note asks it whether the check or the code is wrong.
+
+| arm | passed | wall/run | median | calls/run | input/run | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|
+| on | 7/15 | 474 s | 417 s | 22.0 | 465k | 25.9k | 21.1k |
+| off | **10/15** | 453 s | 399 s | 22.7 | **405k** | 24.1k | 19.1k |
+
+It lost three passes and saved nothing. Part of the note says to drop a
+check the task does not state, and the misses suggest the model also
+dropped checks the task did state.
+
+**`wrapstop` (`863dc5f0`, kept).** Ten calls after the wrap-up note, a turn
+whose change still passes is ended by the harness.
+
+| arm | passed | wall/run | median | max | calls/run | input/run | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|---|
+| on | 12/15 | **397 s** | 425 s | **615 s** | **16.5** | **231k** | 20.2k | 17.1k |
+| off | 12/15 | 541 s | 422 s | 1200 s | 24.8 | 528k | 27.9k | 22.0k |
+
+It ended only one run (d-cronexpr s1, a miss either way), so most of the
+gap is the off arm's runaway runs: a-catalog-paging s3 timed out, and
+d-cronexpr ran at 46 calls a run. Those are the runs it exists to cut off,
+and it costs nothing when it does not fire, so it is kept. The size of
+its saving is not measured.
+
 ## Kimi: synthetic, janetcode with wrap-up and slim tools against pi (`syn-kimi-pi2`, 2026-11-07)
 
 janetcode `eb5fe36f` (wrap-up note and slim tool schemas on) and pi, the 8
