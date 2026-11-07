@@ -22,6 +22,37 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: synthetic, janetcode with wrap-up and slim tools against pi (`syn-kimi-pi2`, 2026-11-07)
+
+janetcode `eb5fe36f` (wrap-up note and slim tool schemas on) and pi, the 8
+default tasks × 3 seeds, 20-minute cap, `kimi-for-coding` on ai02.
+
+| arm | passed | wall/run | median | max | calls/run | input/run | hit | uncached/run | output/run | tools bytes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| janetcode | 17/24 | 472 s | 409 s | 1200 s | 23.6 | 500k | 95% | 25.0k | 17.0k | 2321 |
+| pi | **23/24** | **410 s** | **283 s** | 1210 s | **15.0** | **210k** | 90% | **21.8k** | **14.0k** | 2956 |
+
+| task | janetcode pass | janetcode calls | pi pass | pi calls |
+|---|---|---|---|---|
+| a-build-incremental | 1/3 | 14.7 | 3/3 | 16.3 |
+| a-catalog-paging | 1/3 | 48.7 | 3/3 | 23.0 |
+| b-promo-clock | 2/3 | 8.0 | 3/3 | 11.7 |
+| b-report-paging | 3/3 | 10.7 | 3/3 | 11.0 |
+| c-rs-logstore | 3/3 | 19.3 | 3/3 | 18.0 |
+| c-ts-eventsource | 3/3 | 18.3 | 3/3 | 18.7 |
+| d-cronexpr | 1/3 | 50.7 | 2/3 | 10.7 |
+| d-todocli | 3/3 | 18.7 | 3/3 | 11.0 |
+
+- pi is ahead on every column but cache hit. janetcode's input gap is two
+  runaway runs: a-catalog-paging s2 (95 calls, timeout) and d-cronexpr s3
+  (88 calls, timeout), each debugging a check of its own after the tests
+  passed. Without them janetcode is at 18.3 calls and 300k input a run.
+- The five other misses are one hidden rule each, on tasks where pi
+  passed every seed. The wrap-up note fired in 13 runs (8 passed) and not
+  in 11 (9 passed); it fires on the long runs, so this does not separate
+  cause from effect.
+- Two fixes for the runaway runs are under A/B (`owncheck`, `wrapstop`).
+
 ## Kimi: the wrap-up note and slim tool schemas (2026-11-07, both kept)
 
 Both A/Bs on a-build-incremental, a-catalog-paging, d-todocli,
