@@ -150,10 +150,17 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		// A run with nobody at the terminal starts from the headless base
 		// (see prompt.Headless); JANETCODE_SYSTEM_MD still replaces it.
 		promptOv.Base = prompt.Headless
-		if off := envOff(); !off["headlesscore"] && !off["slimtools"] {
+		off := envOff()
+		if off["literal"] {
+			promptOv.Base = prompt.HeadlessNoLiteral
+		}
+		if !off["headlesscore"] && !off["slimtools"] {
 			// The slim edit tools do not advertise then_run (see
 			// internal/tool/slim.go), so the prompt does not name it.
 			promptOv.Base = prompt.HeadlessSlim
+			if off["literal"] {
+				promptOv.Base = prompt.HeadlessSlimNoLiteral
+			}
 		}
 	}
 	// A mode the managed policy disables is a usage error when asked for

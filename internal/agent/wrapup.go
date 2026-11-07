@@ -54,5 +54,11 @@ func (a *Agent) wrapUpNote(n int) string {
 	}
 	by, _, _ = strings.Cut(by, "\n") // an inline script: its first line names it
 	by = textfmt.TruncateTo(by, 120)
+	if !a.Off["wraprules"] {
+		spec, checks := turnSpecAndChecks(a.Messages)
+		if note := wrapRulesNote(by, a.wrap.calls, spec, checks); note != "" {
+			return note
+		}
+	}
 	return fmt.Sprintf("[harness] Your change passes `%s`, and you have spent %d calls checking it since it first passed. Finish now: give your answer. Check one more thing only if a rule the task states is still unchecked, and name that rule.", by, a.wrap.calls)
 }
