@@ -307,6 +307,9 @@ type Agent struct {
 	// probably the wrong one after it failed three times at one place while
 	// the tests pass (owncheck.go).
 	OwnCheck bool
+	// WrapStop, when set, ends a headless turn that is still passing
+	// wrapStopAfter calls after the wrap-up note (wrapstop.go).
+	WrapStop bool
 	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go).
 	Adaptive bool
 	// TestGuard, when set, refuses the first write to each test file
@@ -774,6 +777,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.reviewSteps = -1
 	a.wrap = wrapState{}
 	a.own = ownState{}
+	a.wrapStop = wrapStopState{}
 	a.conflict = nil
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
@@ -1160,6 +1164,7 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		}
 	}
 	results, images, runErr := a.executeAll(ctx, uses, emit)
+	wrapWasFired := a.wrap.fired
 	wrapNote := a.wrapUpNote(len(uses))
 	a.dedupReads(a.Messages, uses, results)
 	// Stand-ins past the fourth are dropped from the history below, after
@@ -1232,6 +1237,10 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
 		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 		return true, ErrStuck
+	}
+	if check := a.wrapStopCheck(len(uses), wrapWasFired); check != "" {
+		a.stopForWrap(ctx, check, emit)
+		return true, nil
 	}
 	// Tools can cost money too (a subagent runs its own turns), and the
 	// next model call is about to be made with a history this step just
