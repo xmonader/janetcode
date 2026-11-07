@@ -303,10 +303,6 @@ type Agent struct {
 	// spent wrapUpAfter calls checking a change that already passes
 	// (wrapup.go).
 	WrapUp bool
-	// OwnCheck, when set, tells a headless turn once that its own check is
-	// probably the wrong one after it failed three times at one place while
-	// the tests pass (owncheck.go).
-	OwnCheck bool
 	// WrapStop, when set, ends a headless turn that is still passing
 	// wrapStopAfter calls after the wrap-up note (wrapstop.go).
 	WrapStop bool
@@ -776,7 +772,6 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	a.effort.start(a.Settings().Effort)
 	a.reviewSteps = -1
 	a.wrap = wrapState{}
-	a.own = ownState{}
 	a.wrapStop = wrapStopState{}
 	a.conflict = nil
 	a.tools = nil // pick up any tool that registered since the last turn
@@ -1207,13 +1202,6 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		results[len(results)-1].Text += "\n\n" + wrapNote
 		a.wrap.fired = true
 		emit(Event{Kind: EvNotice, Text: "the change passes and has been checked for a while; asking the model to finish"})
-	} else if len(results) > 0 && a.reviewSteps < 0 {
-		// Not on a step that carries the wrap-up note: one note at a time.
-		if note := a.ownCheckNote(); note != "" {
-			results[len(results)-1].Text += "\n\n" + note
-			a.own.fired = true
-			emit(Event{Kind: EvNotice, Text: "the tests pass and the model's own check keeps failing at one place; asking it which is wrong"})
-		}
 	}
 	if a.EffortControlOn() {
 		a.noteEffort(stepEffortSignal(uses, results, a.effort.edited))

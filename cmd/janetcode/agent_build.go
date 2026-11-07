@@ -539,7 +539,6 @@ func (b *agentBuilder) stepCore() error {
 		ag.SpecReview = true
 		ag.WrapUp = true
 		ag.WrapStop = true
-		ag.OwnCheck = true
 		ag.TestGuard = true
 		ag.TestLedger = true
 	}

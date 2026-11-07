@@ -474,7 +474,7 @@ var switches = map[string]bool{
 	"plancarry": true, "readdedup": true, "edgerules": true, "compactskip": true, "steplimit": true,
 	"idlebound": true, "hold": true, "editecho": true, "testhint": true, "failexcerpt": true, "astedit": true, "emptyprobe": true, "toolnudge": true, "memarchive": true,
 
-	"wrapup": true, "wrapstop": true, "owncheck": true, "slimtools": true, "probememory": true, "readblame": true,
+	"wrapup": true, "wrapstop": true, "slimtools": true, "probememory": true, "readblame": true,
 	"numclaim":  true,
 	"typosquat": true,
 	"dossier":   true,
