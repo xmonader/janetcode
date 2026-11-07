@@ -100,8 +100,6 @@ type root struct {
 	// closers are run in reverse on the way out, the order the defers
 	// they replace ran in.
 	closers []func()
-	// scratchDir is the headless run's check directory, "" if none.
-	scratchDir string
 }
 
 func (r *root) onClose(f func()) { r.closers = append(r.closers, f) }
@@ -151,17 +149,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	if unattended && promptOv.Base == "" && !envOff()["leanprompt"] {
 		// A run with nobody at the terminal starts from the headless base
 		// (see prompt.Headless); JANETCODE_SYSTEM_MD still replaces it.
-		// The scratch directory is made only for a run that is told about
-		// it, and removed with the run.
-		var scratch string
-		if !envOff()["scratchcheck"] && sess != nil {
-			if dir, remove, err := tool.OpenScratch(sess.Meta.ID); err == nil {
-				scratch = dir
-				r.onClose(remove)
-			}
-		}
-		r.scratchDir = scratch
-		promptOv.Base = prompt.HeadlessWith(!envOff()["autocheck"], scratch)
+		promptOv.Base = prompt.Headless
 	}
 	// A mode the managed policy disables is a usage error when asked for
 	// on the command line: quietly running with it off would be a run
@@ -179,7 +167,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 		return r, err
 	}
 	r.gate = gate
-	deps := agentDeps{safe: o.safeMode, tools: filter, headless: unattended, gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, scratchDir: r.scratchDir, symbols: treesitter.Parser()}
+	deps := agentDeps{safe: o.safeMode, tools: filter, headless: unattended, gate: gate, prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err

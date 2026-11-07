@@ -310,10 +310,6 @@ type Agent struct {
 	// tests failing against the code, or a branch on a value only a test
 	// holds (testledger.go).
 	TestLedger bool
-	// Headless marks a run with no one at the terminal. AutoCheck acts
-	// only in one (autocheck.go): an interactive user is watching and
-	// has not asked for a command to run behind their back.
-	Headless bool
 	// ConflictExit, when set, accepts a CONFLICT: line ending a turn as a
 	// claim that the task and a test disagree, and ends the turn on it
 	// once the cited test is confirmed failing (conflict.go). The prompt

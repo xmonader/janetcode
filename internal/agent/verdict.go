@@ -600,9 +600,6 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			continue
 		}
 		switch {
-		case editTool(e.Name) && !e.IsError && tool.IsScratchPath(argPathOf(e.Arguments)):
-			// The model's own check file (tool.OpenScratch) is how it
-			// checks the work, not part of it.
 		case editTool(e.Name) && !e.IsError:
 			if p := argPathOf(e.Arguments); p != "" {
 				edited[p] = true

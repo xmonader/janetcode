@@ -230,11 +230,6 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 			dedup[dedupKey(u)] = true
 		}
 	}
-	// Every call has its result, so the reply's edits are known to have
-	// landed or failed: the point to rerun the model's check for it.
-	if err := a.autoCheck(ctx, uses, results, emit); err != nil {
-		return stop(err)
-	}
 	return results, images, nil
 }
 
@@ -271,24 +266,16 @@ func (a *Agent) runThenRun(ctx context.Context, u llm.Block, cmd, out string, ed
 	if _, ok := a.Tools.Get("bash"); !ok {
 		return out + "\n\n[then_run not run: bash is not available in this session]", nil
 	}
-	res, _, err := a.runBash(ctx, u.ID+"~then_run", cmd, emit)
+	input, _ := json.Marshal(map[string]string{"command": cmd})
+	run := llm.Block{Type: llm.BlockToolUse, ID: u.ID + "~then_run", Name: "bash", Input: input}
+	start := time.Now()
+	ctx, wait := meterWaits(ctx)
+	res, _, isErr, err := a.executeTool(ctx, run, emit)
+	a.stats.tool(run.Name, time.Since(start)-wait.total(), isErr || err != nil)
 	if err != nil {
 		return out, err
 	}
 	return out + "\n\n[then_run] $ " + cmd + "\n" + res, nil
-}
-
-// runBash runs a command the harness chose as a bash call of its own under
-// the given id: what then_run and autocheck both need, so both pass the
-// gates a model's own bash call would.
-func (a *Agent) runBash(ctx context.Context, id, cmd string, emit func(Event)) (res string, isErr bool, err error) {
-	input, _ := json.Marshal(map[string]string{"command": cmd})
-	run := llm.Block{Type: llm.BlockToolUse, ID: id, Name: "bash", Input: input}
-	start := time.Now()
-	ctx, wait := meterWaits(ctx)
-	res, _, isErr, err = a.executeTool(ctx, run, emit)
-	a.stats.tool(run.Name, time.Since(start)-wait.total(), isErr || err != nil)
-	return res, isErr, err
 }
 
 // authorize is everything that has to happen before a tool call may run:

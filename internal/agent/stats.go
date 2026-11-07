@@ -467,7 +467,7 @@ var switches = map[string]bool{
 	"protected": true, "ladder": true, "undoabout": true, "mermaid": true,
 	"keeprevert": true, "memoryrank": true, "sleep": true, "decisions": true,
 	"escalate": true, "advisor": true, "scrub": true, "opentodos": true,
-	"orient": true, "baseline": true, "thenrun": true, "autocheck": true, "scratchcheck": true, "inline": true, "asyncdiag": true, "headlesscore": true, "leanprompt": true, "planbudget": true, "burstcap": true, "specreview": true, "testguard": true, "claimcheck": true, "tour": true, "testledger": true,
+	"orient": true, "baseline": true, "thenrun": true, "inline": true, "asyncdiag": true, "headlesscore": true, "leanprompt": true, "planbudget": true, "burstcap": true, "specreview": true, "testguard": true, "claimcheck": true, "tour": true, "testledger": true,
 	"evidence": true,
 	"taint":    true, "honeytoken": true, "depgate": true,
 	"probes":    true,

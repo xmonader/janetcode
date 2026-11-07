@@ -211,10 +211,6 @@ type agentDeps struct {
 	running *tool.Running
 	// extraDirs are additional local roots file tools may use (--add-dir).
 	extraDirs []string
-	// scratchDir is the headless session's own check directory (see
-	// tool.OpenScratch), "" when there is none. It is a file-tool root but
-	// not recorded in the session, which would outlive the directory.
-	scratchDir string
 	// symbols is the grammar-backed parser the repository map reads
 	// non-Go languages with, nil in a build without the grammars. The
 	// composition root supplies it; repomap registers nothing itself.
@@ -433,11 +429,6 @@ func (b *agentBuilder) stepWorkspace() error {
 	if extras := b.ws.ExtraDirs(); len(extras) > 0 {
 		_ = b.sess.SetExtraDirs(extras)
 	}
-	if b.d.scratchDir != "" {
-		if err := b.ws.AddDir(b.d.scratchDir); err != nil {
-			return fmt.Errorf("scratch dir %s: %w", b.d.scratchDir, err)
-		}
-	}
 	return nil
 }
 
@@ -548,7 +539,6 @@ func (b *agentBuilder) stepCore() error {
 		ag.SpecReview = true
 		ag.TestGuard = true
 		ag.TestLedger = true
-		ag.Headless = true
 	}
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	if d.cfg.ConflictExitEnabled() {
