@@ -22,6 +22,27 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: synthetic, janetcode against pi (`syn-kimi-pi`, 2026-11-07)
+
+janetcode `0a58b3e9` and pi side by side, the 8 default tasks × 2 seeds,
+20-minute cap, `kimi-for-coding` on ai02.
+
+| arm | passed | wall/run | median | max | calls/run | input/run | hit | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|---|---|
+| janetcode | **14/16** | 482 s | 492 s | 1115 s | 19.8 | 373k | 94% | 23.9k | 18.2k |
+| pi | 13/16 | **428 s** | **300 s** | 1168 s | **17.1** | **254k** | 91% | **22.9k** | **14.6k** |
+
+- Every miss is one hidden test. janetcode: a-build-incremental s2 (a
+  failed build keeps its cache entry), d-cronexpr s1 (`MON/2`). pi: both
+  a-build-incremental runs (`plan()` reads an output that is not built
+  yet), d-cronexpr s2 (`prev` at an exact match).
+- Wall is model time (janetcode 424 s/run of 482, pi 348 of 428). janetcode
+  writes 25% more output: on d-todocli s1 (1115 s, 41 calls) it wrote a
+  150-line acceptance script of its own and spent 25 calls running it. It
+  passed; pi passed the same task in 281 s.
+- The same janetcode build passed 15/16 at 363 s/run in `syn-kimi-lean`
+  the day before: between windows, wall moves about 30%.
+
 ## Kimi: realrepo and synthetic, master against a pi-shaped lean arm (2026-11-06)
 
 Model `kimi-for-coding` on ai02. Realrepo: 5 bug fixes in caddy and hugo
