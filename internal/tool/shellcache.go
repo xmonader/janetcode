@@ -3,6 +3,7 @@ package tool
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +31,9 @@ type shellEntry struct {
 	when time.Time
 }
 
-const noCacheMarker = "# no-cache"
+// NoCacheMarker on a command forces a rerun; the cached note tells the
+// model to append it.
+const NoCacheMarker = "# no-cache"
 
 func (c *ShellCache) ttl() time.Duration {
 	if c.TTL > 0 {
@@ -42,7 +45,13 @@ func (c *ShellCache) ttl() time.Duration {
 // key returns the cache key for command on root, or "" when caching does
 // not apply (not a git tree, or the command opts out).
 func (c *ShellCache) key(root, command string) string {
-	if c == nil || strings.Contains(command, noCacheMarker) {
+	if c == nil || strings.Contains(command, NoCacheMarker) {
+		return ""
+	}
+	// A command that reads the session's check file depends on a file
+	// outside the tree the fingerprint covers: after the model edits its
+	// check, the cache would answer with the run of the old one.
+	if strings.Contains(filepath.ToSlash(command), scratchSegment) {
 		return ""
 	}
 	fp := gitx.TreeState(root)

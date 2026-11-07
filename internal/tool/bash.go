@@ -135,7 +135,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	cacheKey := t.Cache.key(root, in.Command)
 	if in.Stdin == nil && (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		if out, age, ok := t.Cache.get(cacheKey); ok {
-			return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), noCacheMarker), nil
+			return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), NoCacheMarker), nil
 		}
 	}
 	def, max := t.DefaultTimeout, t.MaxTimeout

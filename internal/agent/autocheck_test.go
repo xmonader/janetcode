@@ -204,6 +204,9 @@ func TestLearnedChecks(t *testing.T) {
 			return e
 		}()}, nil},
 		{"a failing check is learned", []session.Event{bashEv("go test ./...", "FAIL\n[exit code 1]", 5)}, []string{"go test ./..."}},
+		{"the no-cache marker makes no second command", []session.Event{
+			bashEv("python /c/checks/s/check.py", ok, 5), bashEv("python /c/checks/s/check.py # no-cache", ok, 5),
+		}, []string{"python /c/checks/s/check.py"}},
 		{"a leading cd of the workspace is not part of it", []session.Event{bashEv("cd /w && go test ./...", ok, 5)}, []string{"go test ./..."}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
