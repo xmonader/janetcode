@@ -58,9 +58,7 @@ func learnedChecks(events []session.Event, turn int, root string) []string {
 		if e.Type != session.TypeToolResult || e.Turn != turn || e.CallID == "" || e.Name != "bash" || refused(e) {
 			continue
 		}
-		// The marker that forces a rerun past the shell cache makes no
-		// second command: keyed with it, the same check was rerun twice.
-		cmd := strings.TrimSpace(strings.ReplaceAll(shell.TrimWorkspaceCd(shell.CommandOf(e.Arguments), root), tool.NoCacheMarker, ""))
+		cmd := shell.TrimWorkspaceCd(shell.CommandOf(e.Arguments), root)
 		if !shell.IsCheck(cmd) {
 			continue
 		}

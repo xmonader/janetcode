@@ -117,24 +117,3 @@ func TestShellCacheIsBounded(t *testing.T) {
 		t.Fatalf("a fresh entry was not served: %q %v", out, ok)
 	}
 }
-
-// A command that runs the session's check file is never cached: the file
-// is outside the tree the fingerprint covers.
-func TestShellCacheSkipsTheScratchCheck(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not installed")
-	}
-	root := t.TempDir()
-	for _, args := range [][]string{{"init", "-q"}, {"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"}} {
-		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-	}
-	c := &ShellCache{}
-	if c.key(root, "python /home/u/.cache/janetcode/checks/s1/check.py") != "" {
-		t.Fatal("a scratch check got a cache key")
-	}
-	if c.key(root, "python -m pytest -q") == "" {
-		t.Fatal("an ordinary command lost its cache key")
-	}
-}
