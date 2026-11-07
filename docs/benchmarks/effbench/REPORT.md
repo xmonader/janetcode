@@ -22,6 +22,28 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: the harness reruns checks, and a check file (`syn-kimi-autocheck`, 2026-11-07, dropped)
+
+`b5c8e5e2` added `autocheck` (after an editing reply, the harness reran the
+model's last two check commands and appended the output to the edit's
+result) and `scratchcheck` (one check file in a session dir outside the
+repository, edited instead of retyped). A/B against the same binary with
+both off: a-build-incremental, a-catalog-paging, d-todocli, b-promo-clock,
+c-ts-eventsource × 3 seeds.
+
+| arm | passed | wall/run | median | calls/run | input/run | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|
+| on | 12/15 | 399 s | 416 s | 23.4 | 471k | 25.4k | 15.0k |
+| off | 13/15 | 400 s | 387 s | **18.7** | **306k** | **21.4k** | 15.7k |
+
+- Same wall, 25% more calls, 19% more uncached input. Output fell 5%.
+- The model kept running the tests itself (3.5/run, 1.3 of them straight
+  after an autocheck had shown the result) and ran its check file itself
+  5.1 times a run besides the 7.4 autocheck reruns. The check file added
+  3.5 edits of it per run: a script call became an edit call.
+- Reverted (`d6a639b8`, `ca3fc6d5`). With Kimi, a harness-side rerun does
+  not replace the model's own: it adds to it.
+
 ## Kimi: synthetic, janetcode against pi (`syn-kimi-pi`, 2026-11-07)
 
 janetcode `0a58b3e9` and pi side by side, the 8 default tasks × 2 seeds,
