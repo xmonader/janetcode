@@ -22,6 +22,40 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: the wrap-up note and slim tool schemas (2026-11-07, both kept)
+
+Both A/Bs on a-build-incremental, a-catalog-paging, d-todocli,
+b-promo-clock and c-ts-eventsource × 3 seeds, one switch off against the
+same binary.
+
+**`wrapup` (`5337ca25`, `syn-kimi-wrapup`).** Once a headless turn is
+green (VerifiedBy) and the model has made 8 more calls since it first
+was, one note: finish, or check one more rule and name it. pi makes 7.1
+calls after its first green run; janetcode made 12.3.
+
+| arm | passed | wall/run | median | calls/run | input/run | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|
+| on | 11/15 | 356 s | 358 s | **14.9** | **226k** | 20.3k | **14.5k** |
+| off | 11/15 | 361 s | 332 s | 17.8 | 303k | 20.8k | 15.7k |
+
+It fired in 6 runs; the model made about 4 more calls and finished. 16%
+fewer calls, 25% less input, same passes.
+
+**`slimtools` (`49d882c0`, `syn-kimi-slim`).** A headless run advertises
+only the fields Kimi used (3,267 calls: then_run 0, background 2, stdin 1,
+anchors 1, line edits 24). Tool list 6,515 → 2,321 bytes; first call
+6.46k → 5.57k tokens.
+
+| arm | passed | wall/run | median | calls/run | input/run | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|
+| slim | 12/15 | 371 s | 351 s | 16.3 | 246k | 20.5k | 15.6k |
+| full | 13/15 | 366 s | 378 s | 15.1 | 227k | 19.9k | 15.7k |
+
+The ~900 tokens a call it removes are lost in the spread of calls per run
+(a-catalog-paging: 29 against 15 calls); the one extra miss is
+a-build-incremental s3, a task that misses about one run in three on
+either arm. Kept for the fixed per-call saving; to watch.
+
 ## Kimi: the harness reruns checks, and a check file (`syn-kimi-autocheck`, 2026-11-07, dropped)
 
 `b5c8e5e2` added `autocheck` (after an editing reply, the harness reran the
