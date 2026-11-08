@@ -15,11 +15,12 @@ import "strings"
 // The names line (literalLine) is there because b-promo-clock s3 (syn-kimi-pi2)
 // failed after the model renamed a parameter the brief called `+"`at`"+` to `+"`_at`"+`,
 // tidying it like a linter. JANETCODE_OFF=literal restores the prompt
-// without it (HeadlessNoLiteral, HeadlessSlimNoLiteral).
+// without it (HeadlessFor).
 const Headless = `You are janetcode, a coding agent working in the user's repository. You read, write and edit files and run shell commands with your tools.
 
 - Look at the code before changing it. Files sent with the first message are current: do not read them again.
 - Use the names, signatures, parameter names and messages the task gives exactly; do not rename, prefix with _ or tidy them.
+- Before your first edit, write the task's rules in your reply as a short numbered list, one line each in the task's own words: every name and signature, boundary, ordering, error, and what None, empty or missing means. Then make the code follow each.
 - Leave the existing tests and the task description unchanged unless the task asks you to change them; put checks of your own in an inline command, not in a file.
 - Change existing files with edit_file; use write_file for new files or full rewrites. Put every call you already know you need in one reply.
 - After a change, run the tests of the package or files you changed (go test ./pkg/, pytest path/to/test_x.py), as then_run on the edit that completes it, not a large project's whole suite or its lint script. Report the real result.
@@ -35,8 +36,27 @@ var HeadlessSlim = strings.Replace(Headless, ", as then_run on the edit that com
 
 const literalLine = "- Use the names, signatures, parameter names and messages the task gives exactly; do not rename, prefix with _ or tidy them.\n"
 
-// HeadlessNoLiteral and HeadlessSlimNoLiteral are the two without the names line.
-var (
-	HeadlessNoLiteral     = strings.Replace(Headless, literalLine, "", 1)
-	HeadlessSlimNoLiteral = strings.Replace(HeadlessSlim, literalLine, "", 1)
-)
+// rulesLine asks for the brief's rules before the first edit. On
+// syn-kimi-pi2 every hidden-test miss was a rule that was in the first
+// message (the repository and brief are attached whole) and was
+// implemented wrongly: None passed through where the brief says it means
+// absent, prev not strictly earlier, a plan reading outputs not built yet.
+// pi, which reads the brief and each file with a tool before editing,
+// passed those runs. JANETCODE_OFF=rulesfirst leaves it out.
+const rulesLine = "- Before your first edit, write the task's rules in your reply as a short numbered list, one line each in the task's own words: every name and signature, boundary, ordering, error, and what None, empty or missing means. Then make the code follow each.\n"
+
+// HeadlessFor is the headless prompt for the slim tool schemas or not,
+// with or without the names line and the rules line.
+func HeadlessFor(slim, literal, rules bool) string {
+	p := Headless
+	if slim {
+		p = HeadlessSlim
+	}
+	if !literal {
+		p = strings.Replace(p, literalLine, "", 1)
+	}
+	if !rules {
+		p = strings.Replace(p, rulesLine, "", 1)
+	}
+	return p
+}

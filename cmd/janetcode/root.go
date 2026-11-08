@@ -149,19 +149,10 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	if unattended && promptOv.Base == "" && !envOff()["leanprompt"] {
 		// A run with nobody at the terminal starts from the headless base
 		// (see prompt.Headless); JANETCODE_SYSTEM_MD still replaces it.
-		promptOv.Base = prompt.Headless
+		// The slim edit tools do not advertise then_run (see
+		// internal/tool/slim.go), so the prompt does not name it.
 		off := envOff()
-		if off["literal"] {
-			promptOv.Base = prompt.HeadlessNoLiteral
-		}
-		if !off["headlesscore"] && !off["slimtools"] {
-			// The slim edit tools do not advertise then_run (see
-			// internal/tool/slim.go), so the prompt does not name it.
-			promptOv.Base = prompt.HeadlessSlim
-			if off["literal"] {
-				promptOv.Base = prompt.HeadlessSlimNoLiteral
-			}
-		}
+		promptOv.Base = prompt.HeadlessFor(!off["headlesscore"] && !off["slimtools"], !off["literal"], !off["rulesfirst"])
 	}
 	// A mode the managed policy disables is a usage error when asked for
 	// on the command line: quietly running with it off would be a run
