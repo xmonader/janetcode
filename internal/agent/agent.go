@@ -306,6 +306,8 @@ type Agent struct {
 	// WrapStop, when set, ends a headless turn that is still passing
 	// wrapStopAfter calls after the wrap-up note (wrapstop.go).
 	WrapStop bool
+	// NoEdgeRules leaves out the edge-rules note (edgerules_note.go).
+	NoEdgeRules bool
 	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go).
 	Adaptive bool
 	// TestGuard, when set, refuses the first write to each test file

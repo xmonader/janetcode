@@ -535,7 +535,13 @@ func (b *agentBuilder) stepCore() error {
 		ag.Evidence = proof.NewKeySigner(dir)
 	}
 	if b.d.headless {
-		ag.PlanBudget = planBudgetChars
+		// No plan budget and no edge-rules note: on Kimi (effbench
+		// syn-kimi-final, 8 tasks x 3 seeds) a run without them and
+		// without the spec review passed as often as master, 19/24, at
+		// 11.5 against 16.6 calls and 147k against 256k input. The spec
+		// review stays: without it a-catalog-paging, the task it was made
+		// for, passed 0/3.
+		ag.NoEdgeRules = true
 		ag.SpecReview = true
 		ag.WrapUp = true
 		ag.WrapStop = true
@@ -731,11 +737,6 @@ func (b *agentBuilder) holdLimit() time.Duration {
 	}
 	return headlessHold
 }
-
-// planBudgetChars is how much reasoning a headless reply may stream
-// before it acts: about 10k tokens, two to three minutes on MiMo. Past it
-// the reply is ended and the model told to act (agent/planbudget.go).
-const planBudgetChars = 32_000
 
 // headlessCore is what a headless run's requests carry: the coding loop.
 // slim reports whether this run advertises the slim tool schemas (see

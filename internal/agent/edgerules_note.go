@@ -135,7 +135,7 @@ func turnSpecAndChecks(msgs []llm.Message) (spec string, checks []string) {
 // edgeRulesGate returns true when it queued the note: the turn ended
 // green after its last edit, once per turn.
 func (a *Agent) edgeRulesGate(outcome TurnOutcome, noted *bool, emit func(Event)) bool {
-	if a.Off["edgerules"] || *noted || !a.riskyTurn() || a.DryRunOn() {
+	if a.NoEdgeRules || a.Off["edgerules"] || *noted || !a.riskyTurn() || a.DryRunOn() {
 		return false
 	}
 	switch outcome.Verdict {
