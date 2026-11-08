@@ -22,6 +22,48 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: overnight A/Bs (2026-11-08)
+
+Each A/B: a-build-incremental, a-catalog-paging, b-promo-clock, d-cronexpr
+and d-todocli × 3 seeds, the same binary in every arm, `kimi-for-coding`
+on ai02.
+
+**Noise floor.** The first wraprules and literal campaigns compared a binary with
+itself: `JANETCODE_OFF` drops a name the switch registry does not list,
+and neither was listed (fixed in `82d2695b`, with a test that every
+`Off[...]` name the code reads is registered). Identical arms scored 11/15
+against 10/15 and 9/15 against 11/15, and calls a run differed by up to
+34%. A difference of one or two passes in 15 runs is noise.
+
+| campaign | arm | passed | wall/run | calls/run | input/run | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|
+| `syn-kimi-rules2` | on | 9/15 | 360 s | 17.6 | 267k | 20.7k | 16.0k |
+| | wraprules off | 9/15 | 367 s | **16.0** | **227k** | 19.2k | 14.3k |
+| | literal off | 10/15 | 414 s | 21.5 | 354k | 23.3k | 17.2k |
+| `syn-kimi-endrounds` | on | 9/15 | 405 s | 19.5 | 309k | 22.0k | 16.9k |
+| | specreview off | 10/15 | 346 s | 17.2 | **256k** | 19.9k | 15.3k |
+| | edgerules off | 10/15 | 345 s | **16.1** | 298k | 20.4k | 16.1k |
+| `syn-kimi-inline` | repo attached | 9/15 | 411 s | **19.0** | **339k** | 22.7k | 17.5k |
+| | model reads files | 11/15 | 446 s | 24.7 | 391k | 26.3k | 18.3k |
+
+- **wraprules** (`7e7d769a`): the wrap-up note listed the brief's strict rules that no check exercised.
+  It fired in 8 runs and 3 of them passed, with no passes gained and 1.6
+  calls a run added. Dropped in `e6b0ae20`.
+- **literal** (prompt line: use the task's names verbatim): one pass
+  fewer with it, fewer calls. Kept, since the line is cheap; to watch.
+- **specreview and edgerules**: turning either off cost no passes and
+  saved 12–17% of calls. Tested together with the plan budget in
+  `syn-kimi-plan`.
+- **The attached repository**: having the model read files costs 30% more calls for two
+  passes, which is within noise. Kept attached.
+- **Provider stop**: Kimi on ai02 ended two streams with finish `repeat`
+  (StopOther). The turn ended there after one call, and one of the two
+  runs failed. Such a reply is now sent back like a cut-off one
+  (`6608d9ec`).
+- **Plan budget**: in 9 campaigns, the budget cut a reply in all 27
+  d-cronexpr runs, and 6 of those passed. pi passes that task 2/3. This
+  is under A/B in `syn-kimi-plan`.
+
 ## Kimi: owncheck dropped, wrapstop kept (`syn-kimi-owncheck`, `syn-kimi-wrapstop`, 2026-11-07)
 
 Both A/Bs ran one switch off against the same binary, on a-build-incremental,
