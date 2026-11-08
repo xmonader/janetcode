@@ -48,6 +48,13 @@ d-cronexpr fails.
   headless default (`7caa0ca2`) drops the plan budget and edge-rules note
   and keeps the spec review.
 
+**Confirmation (`syn-kimi-confirm`, `7caa0ca2` against pi, void).** From
+07:15 ai02 answered 429 to both agents ("all API keys for provider kimi
+are unavailable"). Only 9 task-seeds were clean on both sides: janetcode
+7/9, 431 s, 15.2 calls, 231k input, 20.5k uncached, 16.2k output; pi 9/9,
+342 s, 15.9 calls, 262k, 25.5k, 17.0k. It is rerun as
+`syn-kimi-confirm2` once the quota is back.
+
 ## Kimi: overnight A/Bs (2026-11-08)
 
 Each A/B: a-build-incremental, a-catalog-paging, b-promo-clock, d-cronexpr
