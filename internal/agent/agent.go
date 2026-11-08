@@ -1021,7 +1021,20 @@ func (a *Agent) continueCutReply(resp *llm.Response, g *turnGates, emit func(Eve
 		a.appendHarnessText(planBudgetNudge)
 		return true
 	}
-	if resp.StopReason != llm.StopMaxTokens || len(resp.Message.ToolUses()) > 0 || g.cutReplies >= maxCutReplies {
+	if len(resp.Message.ToolUses()) > 0 || g.cutReplies >= maxCutReplies {
+		return false
+	}
+	if resp.StopReason == llm.StopOther {
+		// The provider ended the reply for a reason of its own: Kimi on
+		// ai02 stops a stream it judges repetitive with finish "repeat",
+		// and twice in ~300 effbench runs that ended the turn after one
+		// call with nothing done.
+		g.cutReplies++
+		emit(Event{Kind: EvNotice, Text: "the provider stopped the reply before it acted; asking the model to go on"})
+		a.appendHarnessText("[harness] Your last reply was stopped by the provider before it called a tool or finished. Take the next step now with a tool call and keep your reasoning short.")
+		return true
+	}
+	if resp.StopReason != llm.StopMaxTokens {
 		return false
 	}
 	g.cutReplies++

@@ -31,6 +31,24 @@ func TestCutReplyIsSentBack(t *testing.T) {
 	}
 }
 
+// A reply the provider stopped for a reason of its own (Kimi's "repeat")
+// before any tool call is sent back the same way.
+func TestProviderStoppedReplyIsSentBack(t *testing.T) {
+	stopped := text("same line\nsame line")
+	stopped.StopReason = llm.StopOther
+	f := &fake{responses: []*llm.Response{stopped, text("done")}}
+	a, _ := newAgent(t, f, nil)
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 2 {
+		t.Fatalf("model calls = %d, want 2", len(f.requests))
+	}
+	if got := diagLastText(f.requests[1]); !strings.Contains(got, "stopped by the provider") {
+		t.Fatalf("second request ends with %q", got)
+	}
+}
+
 // The send-back is bounded: a model that keeps running out ends the turn.
 func TestCutRepliesAreBounded(t *testing.T) {
 	f := &fake{responses: []*llm.Response{cutOff(""), cutOff(""), cutOff(""), text("never reached")}}
