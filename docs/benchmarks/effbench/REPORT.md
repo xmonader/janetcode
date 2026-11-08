@@ -22,6 +22,31 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: master, a lean arm and pi (`syn-kimi-final`, `syn-kimi-plan`, 2026-11-08)
+
+`syn-kimi-plan` (5 hard tasks × 3 seeds, binary `6608d9ec`+): master 11/15, 15.5 calls, 231k
+input; plan budget off 10/15, 16.0 calls, 239k; plan budget, spec review and edge rules
+off ("lean") 9/15, 14.1 calls, 204k. The plan budget is not why
+d-cronexpr fails.
+
+`syn-kimi-final`: the 8 default tasks × 3 seeds, three arms in one window.
+
+| arm | passed | wall/run | median | max | calls/run | input/run | hit | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|---|---|
+| master | 19/24 | 426 s | 324 s | 1210 s | 16.6 | 256k | 92% | 20.1k | 14.7k |
+| lean | 19/24 | **283 s** | **234 s** | **576 s** | **11.5** | **147k** | 89% | **16.3k** | **12.8k** |
+| pi | **22/24** | 376 s | 292 s | 1210 s | 15.2 | 221k | 90% | 21.6k | 13.8k |
+
+- Lean passed as often as master at 31% fewer calls, 43% less input and
+  34% less wall time. Against pi it used 24% fewer calls, 33% less input,
+  25% less uncached input and 7% less output, and its slowest run took
+  576 s (pi: one 1210 s timeout).
+- Lean's five misses: a-catalog-paging 0/3 and a-build-incremental 1/3.
+  The spec review was added for a-catalog-paging, and turning it off
+  alone also lost passes there in `syn-kimi-endrounds`. So the new
+  headless default (`7caa0ca2`) drops the plan budget and edge-rules note
+  and keeps the spec review.
+
 ## Kimi: overnight A/Bs (2026-11-08)
 
 Each A/B: a-build-incremental, a-catalog-paging, b-promo-clock, d-cronexpr
