@@ -42,8 +42,9 @@ d-cronexpr fails.
   25% less uncached input and 7% less output, and its slowest run took
   576 s (pi: one 1210 s timeout).
 - Lean's five misses: a-catalog-paging 0/3 and a-build-incremental 1/3.
-  The spec review was added for a-catalog-paging, and turning it off
-  alone also lost passes there in `syn-kimi-endrounds`. So the new
+  The spec review was added for a-catalog-paging, and lean also scored
+  1/3 there in `syn-kimi-plan`, against master's 2/3. (Spec review off
+  alone scored 2/3 in `syn-kimi-endrounds`, so the evidence is thin.) The new
   headless default (`7caa0ca2`) drops the plan budget and edge-rules note
   and keeps the spec review.
 
