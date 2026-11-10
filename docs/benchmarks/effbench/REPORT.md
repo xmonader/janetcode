@@ -22,6 +22,52 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Kimi: why janetcode missed where pi passed — reasoning was never sent back (2026-11-10, offline analysis)
+
+From the session logs, not a new run (the ai02 Kimi quota is exhausted).
+
+**Cause.** Kimi on ai02 returns its reasoning in the `reasoning` field.
+pi sends it back on every later request, in that same field (pi-ai
+`openai-completions`, `thinkingSignature: "reasoning"`). janetcode stored
+it and dropped it from every request, so each reply started without the
+design the previous one had reasoned out.
+
+- syn-kimi-final lean a-catalog-paging-s1. At call 1 the model reasoned:
+  "for descending, item_key < key, or item_key == key and id > …". At
+  call 2, with that reasoning gone (its thinking was one line), it wrote
+  `search()` with `(key(p), p.id) > (bound_key, bound_id)` for both
+  directions. Hidden tests `test_cursor_with_descending_and_ties` and
+  `test_walk_every_sort…` failed. pi got this right first time on all 3 seeds.
+- All 552 janetcode sessions. A plancarry notice marks a reply that
+  reasoned at length and then edited, after which the plan is lost.
+  - Runs with that notice: 66% pass.
+  - Runs without: 74% pass.
+  - d-cronexpr: 3/18 with a lost plan, against 27/61 without.
+
+**Second defect: wrap-up timing.** The wrap-up count ran from the first
+green test run and ignored edits. In the same run:
+- call 4: tests green;
+- call 5: the model's own check found a real tie-break bug;
+- call 6: it fixed the bug;
+- call 12: the note said the change had been "checked since it first
+  passed", and the model then dropped its red cursor checks.
+
+Across all sessions the note fired in 104/160 failed runs and 126/392 passed ones.
+
+**Fixes.**
+- `2cd18dce`: the thinking block records its field (`llm.Block.Via`) and
+  is sent back there. The plancarry note is skipped when the reasoning is
+  replayed. `JANETCODE_OFF=reasoning` turns replay off.
+- `a092fd39`: an edit of a product file restarts the wrap-up count.
+
+A wire check against a local SSE stub confirmed the second request
+carries `"reasoning"` on the assistant tool-call message.
+
+**To measure.** `syn-kimi-replay` (replay / noreplay / pi, 8 tasks × 3
+seeds, `bin/janetcode-m6`) is queued and starts when the quota returns.
+Expect more input tokens per call, mostly cached, and fewer misses on
+a-catalog-paging and d-cronexpr.
+
 ## Kimi: master, a lean arm and pi (`syn-kimi-final`, `syn-kimi-plan`, 2026-11-08)
 
 `syn-kimi-plan` (5 hard tasks × 3 seeds, binary `6608d9ec`+): master 11/15, 15.5 calls, 231k
