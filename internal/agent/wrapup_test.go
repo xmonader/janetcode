@@ -88,7 +88,8 @@ func TestWrapUpOncePerTurn(t *testing.T) {
 }
 
 // An edit after the last check, or a red last check, is not green: no
-// note on that step, and it comes when the state is green again.
+// note on that step. An edit of a product file also restarts the count,
+// so the note comes eight calls after it, not on the next green.
 func TestWrapUpNeedsAGreenState(t *testing.T) {
 	edited := append(greens(wrapUpAfter-1), "edit")
 	if n, _ := wrapRun(t, true, nil, edited...); n != 0 {
@@ -98,8 +99,11 @@ func TestWrapUpNeedsAGreenState(t *testing.T) {
 	if n, _ := wrapRun(t, true, nil, red...); n != 0 {
 		t.Fatalf("%d notes with a red last check, want 0", n)
 	}
-	if n, _ := wrapRun(t, true, nil, append(edited, "green")...); n != 1 {
-		t.Fatalf("%d notes once the state is green again, want 1", n)
+	if n, _ := wrapRun(t, true, nil, append(edited, "green")...); n != 0 {
+		t.Fatalf("%d notes one call after an edit, want 0", n)
+	}
+	if n, _ := wrapRun(t, true, nil, append(edited, greens(wrapUpAfter)...)...); n != 1 {
+		t.Fatalf("%d notes %d calls after an edit, want 1", n, wrapUpAfter)
 	}
 }
 
@@ -119,7 +123,7 @@ func TestWrapUpStaysOutOfTheReview(t *testing.T) {
 	a.reviewSteps = 1
 	a.wrap.seen = true
 	a.wrap.calls = 20
-	if n := a.wrapUpNote(1); n != "" {
+	if n := a.wrapUpNote([]llm.Block{{Type: llm.BlockToolUse, ID: "c", Name: "bash"}}, nil); n != "" {
 		t.Fatalf("note during a review: %q", n)
 	}
 	if a.wrap.calls != 20 {

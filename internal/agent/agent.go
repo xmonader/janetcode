@@ -1175,7 +1175,7 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 	}
 	results, images, runErr := a.executeAll(ctx, uses, emit)
 	wrapWasFired := a.wrap.fired
-	wrapNote := a.wrapUpNote(len(uses))
+	wrapNote := a.wrapUpNote(uses, results)
 	a.dedupReads(a.Messages, uses, results)
 	// Stand-ins past the fourth are dropped from the history below, after
 	// the step's notes are attached; extra is what those notes add.
