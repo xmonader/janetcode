@@ -1,0 +1,8 @@
+# effbench arm config for xiaomi/mimo-v2.6-flash on the ai02 broker: the routed MiMo, used when
+# the broker's own MiMo box (effbench's `mimo` config) is down. Only `ctx` and `serve` are read.
+[[models]]
+alias = "mimo-flash"
+tier = "fast"
+ctx = 131072
+caps = ["text", "tools"]
+serve = [{ backend = "ai02", model = "xiaomi/mimo-v2.6-flash" }]

@@ -1,0 +1,8 @@
+# effbench arm config for deepseek/deepseek-v4.1-flash on the ai02 broker: the routed DeepSeek, used when
+# the broker's own DeepSeek box (effbench's `deepseek` config) is down. Only `ctx` and `serve` are read.
+[[models]]
+alias = "deepseek-flash"
+tier = "fast"
+ctx = 131072
+caps = ["text", "tools"]
+serve = [{ backend = "ai02", model = "deepseek/deepseek-v4.1-flash" }]

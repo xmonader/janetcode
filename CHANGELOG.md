@@ -5,6 +5,18 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Loop fixes (2026-11-10)
+- A provider failure that arrives mid-stream (a 5xx or 429 error frame
+  after the stream opened) is retried instead of ending the turn.
+- A headless turn is no longer ended by the harness right after the model
+  changed the code: a product edit restarts the count (twice at most).
+- The plan-check note stops asking the model to verify names that are not
+  the repository's (expressions, data files, ids, built-in exceptions,
+  library members).
+- A language server that cannot start is reported once a session.
+- Reasoning replay measured on DeepSeek: 24/24 against 22/24 without it,
+  15% fewer calls, 21% cheaper (docs/benchmarks/effbench/REPORT.md).
+
 ### Deep review fixes (2026-10-21)
 A whole-tree bug review: each fix has a regression test that fails without it.
 - Safety gates: the command classifier now reads commands inside `{ }`,

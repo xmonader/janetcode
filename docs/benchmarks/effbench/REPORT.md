@@ -22,6 +22,61 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## DeepSeek: reasoning replay measured, and four loop fixes (`syn-ds-replay`, `syn-ds-lsp`, 2026-11-10)
+
+Kimi on ai02 was still out (upstream credential rejected), and so were the
+broker's own MiMo and DeepSeek boxes. Both campaigns ran on the routed
+`deepseek/deepseek-v4.1-flash` (config `deepseek-flash`), the 8 default
+tasks × 3 seeds. The routed `xiaomi/mimo-v2.6-flash` (config `mimo-flash`)
+answers too, but a reply takes up to seven minutes.
+
+**`syn-ds-replay`: reasoning sent back or dropped, same binary (`4ee37868`+), and pi.**
+
+| arm | passed | wall/run | median | max | calls/run | input/run | hit | uncached/run | output/run | cost/run |
+|---|---|---|---|---|---|---|---|---|---|---|
+| replay (default) | **24/24** | **111 s** | **94 s** | **301 s** | **10.0** | 211k | 85% | 32.5k | 19.1k | $0.0181 |
+| `JANETCODE_OFF=reasoning` | 22/24 | 181 s | 127 s | 1200 s | 11.8 | **157k** | 77% | 36.2k | 26.4k | $0.0230 |
+| pi | **24/24** | 129 s | 107 s | 318 s | 14.6 | 272k | **91%** | **24.6k** | **18.8k** | **$0.0157** |
+
+- Replay costs 34% more input a run, most of it cached, and saves 15% of
+  the calls, 28% of the output and 21% of the cost. The two passes are
+  within the noise floor (2 in 15); one noreplay run hit the 20-minute cap.
+- Against pi: the same passes, 31% fewer calls, 22% less input and 14%
+  less wall time. pi is still 13% cheaper a run, because its cache hit is
+  91% against 85% and it sends 24% less uncached input.
+
+**`syn-ds-lsp`: Python diagnostics reachable or hidden, same binary (`1f0ba002`).**
+pyright is a `pip --user` install, and the benchmark's throwaway `HOME`
+hides it, so no Python task in any earlier campaign had language-server
+checks. The `lsp` arm sets `PYTHONUSERBASE` so it starts.
+
+| arm | passed | wall/run | calls/run | input/run | hit | uncached/run | output/run | cost/run |
+|---|---|---|---|---|---|---|---|---|
+| base | 23/24 | 110 s | 10.2 | 215k | 80% | 43.4k | 18.5k | $0.0177 |
+| lsp | 24/24 | 117 s | 10.5 | 241k | 86% | 34.5k | 19.5k | $0.0180 |
+
+No difference outside noise. The benchmark's missing pyright has not been
+distorting the results.
+
+**Four fixes, each from session logs, none A/B'd on its own.**
+- `d47bcc96`: a 5xx or 429 error frame inside an open stream is resent.
+  It was final: the MiMo smoke run ended with exit 59 on "Upstream idle
+  timeout exceeded" after a seven-minute first reply.
+- `4ee37868`: a product edit restarts the wrap-stop count, at most twice a
+  turn (`JANETCODE_OFF=wrapstopedit`). Runs the harness ended passed 10 of
+  36 on Kimi, against 379 of 495 for runs the model ended; 20 of the 36
+  had edited a product file in their last ten calls, some one call before
+  the stop.
+- `82e28c4a`: the plan check no longer flags expressions, virtual paths,
+  data files, ids, built-in exceptions, dunders or library members. It
+  went into 134 of 552 Kimi runs with about 200 names, none of them wrong.
+- `1f0ba002`: "diagnostics unavailable" is said once a session, not after
+  every edit (50 of the 77 diagnostics notes in syn-kimi-final).
+
+**Open.** The Kimi replay A/B (`syn-kimi-replay`) still waits for the
+quota. The cache-hit gap to pi (85% against 91%) is the next thing to
+look at: it is what keeps pi cheaper.
+
 ## Kimi: why janetcode missed where pi passed — reasoning was never sent back (2026-11-10, offline analysis)
 
 From the session logs, not a new run (the ai02 Kimi quota is exhausted).
