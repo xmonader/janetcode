@@ -66,3 +66,34 @@ func TestCheckPlanFlagsUnknownNamesAndMissingFiles(t *testing.T) {
 		t.Fatalf("cap: %s", note)
 	}
 }
+
+// What the headless effbench runs were told to verify, none of it wrong:
+// expressions and option lists with a slash, a virtual path, the
+// program's own data file, ids and constants, built-in exceptions, dunder
+// methods, and members of a library or a local variable.
+func TestCheckPlanLeavesNonRepoNamesAlone(t *testing.T) {
+	c := &Cache{Root: fixture(t)}
+	ctx := context.Background()
+	for _, text := range []string{
+		"The step form `7/2` and `JAN-MAR/2` follow `N/S`; `5-7/2` wraps.",
+		"After `out/a` is rebuilt, `out/b` and `src/a` stay; the flags are `--all/--done`.",
+		"The store saves to `todo.json` on every change.",
+		"Page two starts at `P0005`; `TOKEN` is read from the environment.",
+		"It raises `NameError`, not `AttributeError`, and `ValidationError` for the rest.",
+		"Sorting needs `__eq__` and `__len__` on the key.",
+		"Use `json.dumps` and `sys.settrace`; `calls.clear` resets the recorder and `assert.throws` checks it.",
+	} {
+		if note := c.CheckPlan(ctx, text); note != "" {
+			t.Errorf("%q flagged: %s", text, note)
+		}
+	}
+	// Still flagged: a source file missing from a directory that exists,
+	// a bare source file, a member of a type or package the repository
+	// has, and a code-shaped name nothing defines.
+	note := c.CheckPlan(ctx, "Read `store/cache.go` and `evict.go`; `Store.Evict` and `store.Purge` call `flush_all`.")
+	for _, want := range []string{"`store/cache.go` does not exist", "`evict.go` does not exist", "`Store.Evict` is neither", "`store.Purge` is neither", "`flush_all` is neither"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("missing %q in %q", want, note)
+		}
+	}
+}

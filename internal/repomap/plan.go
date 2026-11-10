@@ -135,6 +135,9 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 				if ix.hasPathSuffix(filepath.ToSlash(p)) {
 					continue
 				}
+				if !plausibleMissingFile(p, abs) {
+					continue
+				}
 				seen[span] = true
 				missing = append(missing, fmt.Sprintf("`%s` does not exist", span))
 			case looksLikeSymbol(span):
@@ -142,7 +145,13 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 				if i := strings.LastIndexByte(name, '.'); i >= 0 {
 					name, owner = name[i+1:], name[:i]
 				}
-				if len(name) < 3 || ix.Known(name) {
+				if len(name) < 3 || ix.Known(name) || notARepoName(name) {
+					continue
+				}
+				// A member of something the repository does not define is
+				// a library's or a local variable's (`json.dumps`,
+				// `calls.clear`), not a name the plan gets wrong here.
+				if owner != "" && !ix.owns(owner) {
 					continue
 				}
 				// Standard-library API, unless it is named as a member of
@@ -163,6 +172,80 @@ func (c *Cache) CheckPlan(ctx context.Context, text string) string {
 		missing = append(missing[:maxPlanItems], fmt.Sprintf("%d more", len(missing)-maxPlanItems))
 	}
 	return "plan check: " + strings.Join(missing, "; ") + ". If you mean to create them, go ahead; otherwise verify the names before building on them."
+}
+
+// The four filters below come from the 552 headless effbench runs on Kimi
+// (syn-kimi-*, 2026-11): the note went into 134 of them, naming about 200
+// spans, and none was a name the model had wrong. They were cron
+// expressions and option lists (`7/2`, `N/S`, `--all/--done`), paths of
+// the task's own in-memory filesystem (`out/a`), a data file the program
+// writes when it runs (`todo.json`), record ids and constants (`P0005`,
+// `TOKEN`), Python's built-in exceptions and dunder methods (`NameError`,
+// `__eq__`), and members of a library or a local (`sys.settrace`,
+// `calls.clear`). Each note told the model to verify names that were fine.
+
+// planDataExt is the extensions of files a program reads and writes when
+// it runs. Named without a directory, such a file is as likely the
+// program's own output as a file the repository should have.
+var planDataExt = regexp.MustCompile(`\.(json|yaml|yml|toml|txt|sum|html|css|sql)$`)
+
+// plausibleMissingFile reports whether p, which the repository does not
+// have, reads as a file the plan expected to find there: it has a file
+// extension, and it sits in a directory that exists or, named without
+// one, is a source or documentation file.
+func plausibleMissingFile(p, abs string) bool {
+	if !planFileExt.MatchString(p) {
+		return false
+	}
+	if strings.Contains(p, "/") {
+		st, err := os.Stat(filepath.Dir(abs))
+		return err == nil && st.IsDir()
+	}
+	return !planDataExt.MatchString(p)
+}
+
+// notARepoName reports whether name reads as something no repository
+// index would hold: a dunder method, a constant or record id written in
+// capitals and digits, or an exception named the way the languages'
+// built-in ones are.
+func notARepoName(name string) bool {
+	if strings.HasPrefix(name, "__") && strings.HasSuffix(name, "__") {
+		return true
+	}
+	if strings.ToUpper(name) == name {
+		return true
+	}
+	for _, suffix := range []string{"Error", "Exception", "Warning"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// owns reports whether owner, the part of a dotted name before its last
+// dot, is something of the repository's: a name it defines, or one of its
+// directories or source files (a package or a module).
+func (ix *Index) owns(owner string) bool {
+	if i := strings.LastIndexByte(owner, '.'); i >= 0 {
+		owner = owner[i+1:]
+	}
+	if len(ix.definers[owner]) > 0 {
+		return true
+	}
+	for def := range ix.definers {
+		if i := strings.IndexByte(def, '.'); i >= 0 && def[i+1:] == owner {
+			return true
+		}
+	}
+	for _, f := range ix.Files {
+		for _, part := range strings.Split(f.Path, "/") {
+			if part == owner || strings.TrimSuffix(part, filepath.Ext(part)) == owner {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // splitSentences splits on line breaks and sentence-ending periods
