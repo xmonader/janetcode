@@ -40,6 +40,29 @@ type postDiag struct {
 	// clean result for them is worth a line and a clean result for any
 	// other path is not.
 	dirty map[string]bool
+	// unavailable: the session has already been told the language server
+	// is not answering (unavailableOnce).
+	unavailable bool
+}
+
+// diagUnavailable opens the note a check leaves when the language server
+// could not be asked at all.
+const diagUnavailable = "[diagnostics unavailable"
+
+// unavailableOnce passes a "diagnostics unavailable" note the first time
+// in a session and drops it afterwards; d.mu is held. A server that fails
+// to start fails the same way after every edit: in syn-kimi-final 50 of
+// the 77 diagnostics notes the model was sent were "pyright: initialize:
+// language server closed its output", up to one an edit.
+func (d *postDiag) unavailableOnce(note string) string {
+	if !strings.HasPrefix(note, diagUnavailable) {
+		return note
+	}
+	if d.unavailable {
+		return ""
+	}
+	d.unavailable = true
+	return note
 }
 
 // startDiagnose checks path in the background. A newer edit to the same
@@ -122,9 +145,13 @@ func (a *Agent) collectDiagnostics(wait time.Duration) (string, bool) {
 		if d.jobs[p] == j {
 			delete(d.jobs, p)
 		}
-		note := strings.TrimSpace(j.note)
+		note := d.unavailableOnce(strings.TrimSpace(j.note))
 		clean := note == "" || strings.HasPrefix(note, "[diagnostics: no problems")
 		switch {
+		case strings.HasPrefix(note, diagUnavailable):
+			// Not a finding about the file: said once, and the path is
+			// not marked as having had problems.
+			notes = append(notes, note)
 		case clean && d.dirty[p]:
 			delete(d.dirty, p)
 			notes = append(notes, fmt.Sprintf("[diagnostics for %s: no problems now]", p))

@@ -163,3 +163,36 @@ func TestDiagnosticWarningsDoNotHoldTheTurn(t *testing.T) {
 		t.Fatalf("model calls = %d, want 2", len(f.requests))
 	}
 }
+
+// A language server that cannot start fails the same way after every
+// edit. The session hears it once, on either path, and the path is not
+// marked as one that had problems.
+func TestDiagnosticsUnavailableIsSaidOnce(t *testing.T) {
+	const gone = "[diagnostics unavailable: lsp: pyright: initialize: language server closed its output]"
+	for _, off := range []map[string]bool{nil, {"asyncdiag": true}} {
+		f := &fake{responses: []*llm.Response{
+			toolCall("t1", "write_file", `{"path":"a.py","content":"x = 1\n"}`),
+			toolCall("t2", "write_file", `{"path":"b.py","content":"y = 1\n"}`),
+			toolCall("t3", "write_file", `{"path":"a.py","content":"x = 2\n"}`),
+			text("done"),
+		}}
+		a, _ := newAgent(t, f, nil)
+		a.AutoApprove, a.Off = true, off
+		a.Diagnose = func(context.Context, string) string { return gone }
+		if err := a.Run(context.Background(), "go", nil); err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, m := range a.Messages {
+			for _, b := range m.Blocks {
+				n += strings.Count(b.Text, "diagnostics unavailable")
+				if strings.Contains(b.Text, "no problems now") {
+					t.Errorf("off=%v: an unavailable check left the path marked dirty: %q", off, b.Text)
+				}
+			}
+		}
+		if n != 1 {
+			t.Errorf("off=%v: the note went in %d times, want 1", off, n)
+		}
+	}
+}

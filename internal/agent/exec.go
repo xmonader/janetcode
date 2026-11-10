@@ -841,7 +841,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if a.Diagnose != nil && !isErr && editTool(u.Name) {
 		path := perm.Subject(u.Name, u.Input)
 		if a.Off["asyncdiag"] {
-			if note := a.Diagnose(ctx, path); note != "" {
+			note := a.Diagnose(ctx, path)
+			a.postDiag.mu.Lock()
+			note = a.postDiag.unavailableOnce(note)
+			a.postDiag.mu.Unlock()
+			if note != "" {
 				out += "\n" + note
 			}
 		} else {
