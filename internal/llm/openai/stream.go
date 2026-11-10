@@ -181,7 +181,9 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		}
 		if ch.Error != nil {
 			// The server spoke: a structured refusal is not a truncation.
-			return streamError(ch.Error)
+			// It is marked as arriving mid-stream, so a failure behind
+			// the server (a 5xx, a 429) is resent like one sent up front.
+			return llm.InStream(streamError(ch.Error))
 		}
 		gotChunk = true
 		st.add(ch)

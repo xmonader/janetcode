@@ -114,8 +114,12 @@ func Retryable(err error) bool {
 		if PermanentLimit(ClassifyText(err)) {
 			return false
 		}
-		switch se.HTTPStatus() {
-		case 429, 408, 529, 502, 503, 504:
+		switch s := se.HTTPStatus(); {
+		case s == 429, s == 408, s == 529, s == 502, s == 503, s == 504:
+			return true
+		case s >= 500 && MidStream(err):
+			// The server had opened the stream and was answering, so the
+			// request did not break it: something behind it gave out.
 			return true
 		}
 		return false
@@ -153,6 +157,26 @@ func RetryReason(err error) string {
 	}
 	return "connection failed"
 }
+
+// MidStream reports whether err is an error frame the server sent inside
+// a stream it had opened with 200 (see InStream).
+func MidStream(err error) bool {
+	var m *midStream
+	return errors.As(err, &m)
+}
+
+type midStream struct{ err error }
+
+func (e *midStream) Error() string { return e.err.Error() }
+func (e *midStream) Unwrap() error { return e.err }
+
+// InStream marks err as an error frame read from an open stream. What
+// streamed before it is discarded either way; the mark lets the retry
+// policy tell a server that failed while answering from one that refused
+// the request. syn-mimo-smoke (2026-11-10): a seven-minute first reply
+// wrote five files, the second call's stream carried "Upstream idle
+// timeout exceeded" with code 500, and the run ended there with exit 59.
+func InStream(err error) error { return &midStream{err} }
 
 // Truncated reports whether err is a stream that ended before any
 // terminal frame: the connection dropped, the body ended clean but

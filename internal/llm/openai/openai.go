@@ -388,7 +388,7 @@ attempts:
 		if llm.LifetimeStalled(wd.Err()) {
 			return nil, wd.Wrap(err)
 		}
-		if llm.Truncated(err) || stalled {
+		if llm.Truncated(err) || stalled || (llm.MidStream(err) && llm.Retryable(err)) {
 			emit(llm.Event{Type: llm.EventStreamDiscard})
 			if werr := rt.Wait(parent, err); werr != nil {
 				return nil, wd.Wrap(werr)

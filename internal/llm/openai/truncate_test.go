@@ -75,6 +75,52 @@ func TestMidStreamErrorFrameIsFinal(t *testing.T) {
 	}
 }
 
+// An error frame that says something behind the server gave out is
+// resent: the partial reply is discarded and the next attempt answers.
+// OpenRouter sent "Upstream idle timeout exceeded" with code 500 on the
+// second call of a run whose first had taken seven minutes.
+func TestMidStreamServerFailureIsRetried(t *testing.T) {
+	for _, frame := range []string{
+		`{"error":{"message":"Upstream idle timeout exceeded","code":500}}`,
+		`{"error":{"message":"Provider returned error","code":429}}`,
+		`{"error":{"message":"Overloaded","type":"overloaded_error"}}`,
+	} {
+		var calls int32
+		p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			if atomicAdd(&calls) == 1 {
+				io.WriteString(w, sse(`{"choices":[{"delta":{"content":"half an"}}]}`, frame))
+				return
+			}
+			io.WriteString(w, sse(`{"choices":[{"delta":{"content":"full answer"},"finish_reason":"stop"}]}`))
+		})
+		var discarded bool
+		resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}},
+			func(e llm.Event) { discarded = discarded || e.Type == llm.EventStreamDiscard })
+		if err != nil || calls != 2 || resp.Message.Text() != "full answer" || !discarded {
+			t.Fatalf("%s: err = %v calls = %d discarded = %v", frame, err, calls, discarded)
+		}
+	}
+}
+
+// A 500 sent up front is still final, and so is an exhausted account
+// that says so mid-stream.
+func TestMidStreamRetryLeavesTheFinalFailuresFinal(t *testing.T) {
+	if llm.Retryable(&APIError{Status: 500, Message: "x"}) {
+		t.Error("a 500 response should not be retried")
+	}
+	if !llm.Retryable(llm.InStream(&APIError{Status: 500, Message: "x"})) {
+		t.Error("a 500 frame in an open stream should be retried")
+	}
+	var calls int32
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		atomicAdd(&calls)
+		io.WriteString(w, sse(`{"error":{"message":"You exceeded your plan","type":"insufficient_quota","code":"insufficient_quota"}}`))
+	})
+	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err == nil || calls != 1 {
+		t.Fatalf("err = %v calls = %d, want one final failure", err, calls)
+	}
+}
+
 // An error frame says what it is, and it used to be flattened to "HTTP
 // 200" with only its message kept: never retried, and the fallback chain
 // could judge it only by its words. OpenRouter puts the upstream status in
