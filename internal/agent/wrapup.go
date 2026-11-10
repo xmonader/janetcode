@@ -66,7 +66,7 @@ func (a *Agent) wrapUpNote(uses, results []llm.Block) string {
 	}
 	by, _, _ = strings.Cut(by, "\n") // an inline script: its first line names it
 	by = textfmt.TruncateTo(by, 120)
-	return fmt.Sprintf("[harness] Your change passes `%s`, and you have spent %d calls checking it since it first passed. Finish now: give your answer. Check one more thing only if a rule the task states is still unchecked, and name that rule.", by, a.wrap.calls)
+	return fmt.Sprintf("[harness] Your change passes `%s`, and you have spent %d calls checking it since your last change to it. Finish now: give your answer. Check one more thing only if a rule the task states is still unchecked, and name that rule.", by, a.wrap.calls)
 }
 
 // editedProduct reports whether one of the step's calls edited a file that

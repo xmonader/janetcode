@@ -161,7 +161,7 @@ func TestWrapStopStaysOutOfTheReviewAndDryRun(t *testing.T) {
 	a.wrap.fired = true
 	a.wrapStop.calls = 50
 	a.reviewSteps = 1
-	if c := a.wrapStopCheck(1, true); c != "" || a.wrapStop.calls != 50 {
+	if c := a.wrapStopCheck([]llm.Block{{}}, nil, true); c != "" || a.wrapStop.calls != 50 {
 		t.Fatalf("stopped or counted during a review: %q, %d", c, a.wrapStop.calls)
 	}
 }
@@ -181,5 +181,39 @@ func TestWrapStopSkipsTheSpecReview(t *testing.T) {
 		if strings.Contains(m.Text(), specReviewNote) {
 			t.Fatal("the spec review note was sent after the stop")
 		}
+	}
+}
+
+// An edit of a product file after the note restarts the count: the model
+// changed the code, so the checks after it are not the loop this ends.
+// Without the restart the stop lands on the first green run after it.
+func TestWrapStopRestartsAtAProductEdit(t *testing.T) {
+	steps := append(greens(wrapUpAfter+wrapStopAfter-2), "edit", "green")
+	if a, _, _ := stopRun(t, true, nil, false, steps...); stopped(a) {
+		t.Fatal("stopped two calls after a product edit")
+	}
+	if a, _, _ := stopRun(t, true, map[string]bool{"wrapstopedit": true}, false, steps...); !stopped(a) {
+		t.Fatal("wrapstopedit off: want the stop at ten calls after the note")
+	}
+	// Ten green calls after the edit: stopped again.
+	if a, _, _ := stopRun(t, true, nil, false, append(steps, greens(wrapStopAfter-1)...)...); !stopped(a) {
+		t.Fatal("not stopped ten calls after the edit")
+	}
+}
+
+// A model that keeps editing is still ended: the count restarts twice.
+func TestWrapStopRestartsAreBounded(t *testing.T) {
+	steps := greens(wrapUpAfter)
+	for i := 0; i <= wrapStopRestarts; i++ {
+		steps = append(steps, "edit")
+		steps = append(steps, greens(wrapStopAfter-2)...)
+	}
+	steps = append(steps, "green")
+	a, _, _ := stopRun(t, true, nil, false, steps...)
+	if !stopped(a) {
+		t.Fatal("a turn that keeps editing was never stopped")
+	}
+	if a.wrapStop.restarts != wrapStopRestarts {
+		t.Fatalf("restarts = %d, want %d", a.wrapStop.restarts, wrapStopRestarts)
 	}
 }

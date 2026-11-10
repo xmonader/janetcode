@@ -1241,7 +1241,7 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 		return true, ErrStuck
 	}
-	if check := a.wrapStopCheck(len(uses), wrapWasFired); check != "" {
+	if check := a.wrapStopCheck(uses, results, wrapWasFired); check != "" {
 		a.stopForWrap(ctx, check, emit)
 		return true, nil
 	}

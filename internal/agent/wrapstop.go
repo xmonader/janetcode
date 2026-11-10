@@ -19,6 +19,16 @@ import (
 // debugging its own ad-hoc cursor check until the 20-minute cap: 95 calls,
 // 3.3M input tokens, a FAIL. A note can be ignored; this is the bound.
 // JANETCODE_OFF=wrapstop turns it off.
+//
+// The count restarts at an edit of a product file, as the wrap-up count
+// does: the stop is for checking that changes nothing, and an edit is a
+// change. Of the 36 Kimi runs the stop ended (syn-kimi-*, 10 passed), 20
+// had edited a product file inside those ten calls. syn-kimi-plan noplan
+// a-catalog-paging-s1 fixed its descending cursor, ran its own check
+// (pages repeated items, the bug the hidden suite fails on) with pytest
+// behind it, and was stopped on that call because pytest passed. Two
+// restarts a turn, so a model that edits for ever is still ended.
+// JANETCODE_OFF=wrapstopedit turns the restart off.
 
 // wrapStopAfter is the model's tool calls after the wrap-up note at which
 // the turn ends while the work is passing. The note asks for an answer at
@@ -27,7 +37,11 @@ const wrapStopAfter = 10
 
 // wrapStopState counts the tool calls made in the steps after the one that
 // carried the wrap-up note. It lives beside wrap (turnmon.go resets both).
-type wrapStopState struct{ calls int }
+type wrapStopState struct{ calls, restarts int }
+
+// wrapStopRestarts is how many times a turn's product edits restart the
+// count: with the first ten, at most thirty calls after the note.
+const wrapStopRestarts = 2
 
 // projectGreen is the latest project test command of the turn (not the
 // model's own check) when it passed and no edit succeeded after it, and
@@ -77,12 +91,16 @@ func projectGreen(events []session.Event, turn int, root string) string {
 // when the turn should end now, "" otherwise. Past the tenth call it asks
 // again after every step, so a red state at ten stops the first time it is
 // green again; nothing else bounds a red loop here, the other limits do.
-func (a *Agent) wrapStopCheck(n int, wasFired bool) string {
+func (a *Agent) wrapStopCheck(uses, results []llm.Block, wasFired bool) string {
 	if !a.WrapStop || a.Off["wrapstop"] || !a.wrap.fired || a.reviewSteps >= 0 || a.DryRunOn() || a.Log == nil {
 		return ""
 	}
 	if wasFired {
-		a.wrapStop.calls += n
+		a.wrapStop.calls += len(uses)
+		if !a.Off["wrapstopedit"] && a.wrapStop.restarts < wrapStopRestarts && editedProduct(uses, results) {
+			a.wrapStop.calls = 0
+			a.wrapStop.restarts++
+		}
 	}
 	if a.wrapStop.calls < wrapStopAfter {
 		return ""
