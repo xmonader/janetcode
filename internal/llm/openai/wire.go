@@ -17,6 +17,12 @@ type wireMessage struct {
 	Content    any            `json:"content"`
 	ToolCalls  []wireToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
+	// The assistant's reasoning, sent back in the field the server sent
+	// it in (llm.Block.Via). Kimi and DeepSeek want it on the replies
+	// that made tool calls; without it the next reply writes code with
+	// none of the plan it just reasoned out.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+	Reasoning        string `json:"reasoning,omitempty"`
 }
 
 // wirePart is one element of a multi-part user message.

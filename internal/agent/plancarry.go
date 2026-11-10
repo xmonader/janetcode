@@ -19,6 +19,10 @@ import (
 // "do not read the file again" cut the extra read_file of the brief.
 // It rides with the step's tool results, the one place a note may go
 // between a tool call and its answer. JANETCODE_OFF=plancarry turns it off.
+//
+// A reply whose reasoning is sent back (llm.Block.Replayed: Kimi's
+// "reasoning" field, an Anthropic signed block) still has its plan, so it
+// gets no note: the note would tell the model something false.
 
 // planCarryTokens is how much reasoning makes a reply a plan to carry
 // (hero_agent: 6000 chars, about 1500 tokens).
@@ -38,7 +42,7 @@ func (a *Agent) planCarryNote(resp *llm.Response) string {
 	if a.Adaptive && len(plannedUnwritten(a.Messages)) == 0 {
 		return ""
 	}
-	if !isPlanReply(resp.Message, resp.Usage) {
+	if !isPlanReply(resp.Message, resp.Usage) || (planReplayed(resp.Message) && !a.Off["reasoning"]) {
 		return ""
 	}
 	a.pl.planCarried = true
@@ -69,6 +73,16 @@ func isPlanReply(m llm.Message, u llm.Usage) bool {
 			Path string `json:"path"`
 		}
 		if json.Unmarshal(u.Input, &in) == nil && in.Path != "" && !isTestFile(in.Path) {
+			return true
+		}
+	}
+	return false
+}
+
+// planReplayed reports whether m's reasoning goes back to the provider.
+func planReplayed(m llm.Message) bool {
+	for _, b := range m.Blocks {
+		if b.Replayed() {
 			return true
 		}
 	}

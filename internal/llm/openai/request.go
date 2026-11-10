@@ -81,9 +81,16 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 			}
 		case llm.RoleAssistant:
 			am := wireMessage{Role: "assistant"}
-			var text strings.Builder
+			var text, think strings.Builder
+			via := ""
 			for _, b := range m.Blocks {
 				switch b.Type {
+				case llm.BlockThinking:
+					if req.DropReasoning || b.Via == "" || b.Text == "" || (via != "" && b.Via != via) {
+						continue
+					}
+					via = b.Via
+					think.WriteString(b.Text)
 				case llm.BlockText:
 					text.WriteString(b.Text)
 				case llm.BlockToolUse:
@@ -97,12 +104,17 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 				}
 			}
 			am.Content = text.String()
+			switch via {
+			case "reasoning_content":
+				am.ReasoningContent = think.String()
+			case "reasoning":
+				am.Reasoning = think.String()
+			}
 			if text.Len() == 0 && len(am.ToolCalls) == 0 {
-				// A reply that was only reasoning (thinking blocks are not
-				// sent back) or nothing at all. Kimi and other servers
-				// refuse an assistant message with empty content and no
-				// tool calls ("must not be empty"), which ended a run
-				// after a plan-budget cut.
+				// A reply that was only reasoning or nothing at all.
+				// Kimi and other servers refuse an assistant message with
+				// empty content and no tool calls ("must not be empty"),
+				// which ended a run after a plan-budget cut.
 				am.Content = emptyAssistant
 			}
 			w.Messages = append(w.Messages, am)

@@ -242,6 +242,9 @@ type streamState struct {
 	emit     func(llm.Event)
 	text     strings.Builder
 	thinking strings.Builder
+	// via is the field the reasoning arrived in, when it was a named one
+	// the server takes back (see llm.Block.Via).
+	via      string
 	inline   llm.ThinkSplitter
 	tools    map[int]*toolAcc
 	byID     map[string]int
@@ -305,11 +308,14 @@ func (s *streamState) add(ch wireChunk) {
 		// (OpenRouter fills "reasoning" and "reasoning_details" with the
 		// same text), so the first one present is the delta and the rest
 		// are copies of it.
-		rc := d.ReasoningContent
+		rc, via := d.ReasoningContent, "reasoning_content"
 		if rc == "" {
-			rc = d.Reasoning
+			rc, via = d.Reasoning, "reasoning"
 		}
 		if rc != "" {
+			if s.via == "" {
+				s.via = via
+			}
 			s.thinking.WriteString(rc)
 			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
 		}
@@ -414,7 +420,7 @@ func (s *streamState) response() (*llm.Response, error) {
 	msg := llm.Message{Role: llm.RoleAssistant}
 	calls := 0
 	if s.thinking.Len() > 0 {
-		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockThinking, Text: s.thinking.String()})
+		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockThinking, Text: s.thinking.String(), Via: s.via})
 	}
 	if s.text.Len() > 0 {
 		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockText, Text: s.text.String()})

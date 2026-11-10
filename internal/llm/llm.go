@@ -74,6 +74,19 @@ type Block struct {
 	// Signature is opaque provider data attached to thinking blocks that must
 	// be echoed back verbatim on later turns.
 	Signature string `json:"signature,omitempty"`
+
+	// Via names the field an OpenAI-compatible server sent a thinking
+	// block's reasoning in ("reasoning_content" or "reasoning"). The
+	// block is sent back in that field on later requests; empty means it
+	// is not sent back (reasoning written inline in the reply text).
+	Via string `json:"via,omitempty"`
+}
+
+// Replayed reports whether a thinking block goes back to the provider on
+// later requests: a signed (Anthropic) block, or one an OpenAI-compatible
+// server sent in a named field.
+func (b Block) Replayed() bool {
+	return b.Type == BlockThinking && (b.Signature != "" || b.Via != "")
 }
 
 // Message is one turn in the conversation.
@@ -158,6 +171,10 @@ type Request struct {
 	// before, so setting it is always safe; ask for it where a malformed
 	// answer would cost something, not everywhere.
 	Schema *Schema
+	// DropReasoning leaves the model's earlier reasoning out of the
+	// request on providers that would send it back (the OpenAI-compatible
+	// path; JANETCODE_OFF=reasoning).
+	DropReasoning bool
 }
 
 // Schema names a JSON shape a reply must take.

@@ -136,6 +136,9 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		Tools:     defs,
 		MaxTokens: a.maxTokens(),
 		Effort:    effort,
+		// Off, the plan a reply reasoned out is gone by the next reply
+		// on the OpenAI-compatible path; see llm.Block.Via.
+		DropReasoning: a.Off["reasoning"],
 	}, func(e llm.Event) {
 		if e.Type == llm.EventRetried && e.Retry != nil {
 			a.stats.retried(e.Retry.Attempts)

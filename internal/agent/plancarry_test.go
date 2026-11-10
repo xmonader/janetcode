@@ -57,3 +57,17 @@ func TestPlanCarryOncePerTurnAndOff(t *testing.T) {
 		t.Fatal("off switch ignored")
 	}
 }
+
+// A plan whose reasoning goes back to the provider (Kimi's "reasoning"
+// field) is still visible, so the note that says it is gone is not given,
+// unless JANETCODE_OFF=reasoning drops it.
+func TestPlanCarrySkipsReplayedReasoning(t *testing.T) {
+	resp := &llm.Response{Message: planReply(8000, "write_file", "core.py")}
+	resp.Message.Blocks[0].Via = "reasoning"
+	if (&Agent{}).planCarryNote(resp) != "" {
+		t.Fatal("note for a plan that is sent back")
+	}
+	if (&Agent{Off: map[string]bool{"reasoning": true}}).planCarryNote(resp) == "" {
+		t.Fatal("no note when the reasoning is dropped")
+	}
+}
