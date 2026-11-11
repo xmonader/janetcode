@@ -73,9 +73,25 @@ distorting the results.
 - `1f0ba002`: "diagnostics unavailable" is said once a session, not after
   every edit (50 of the 77 diagnostics notes in syn-kimi-final).
 
+**The cache-hit gap to pi (85% against 91%) is not a harness defect.**
+Uncached input over the 24 runs, from the proxy logs:
+
+| | first call | new text on later calls | prefix the provider did not serve from cache | total |
+|---|--:|--:|--:|--:|
+| janetcode (241 calls) | 141k | 402k | 237k | 780k |
+| pi (351 calls) | 31k | 395k | 164k | 591k |
+
+- janetcode never shortened or rewrote its history: every request grew.
+- The provider missed the whole prefix on about one call in ten for both
+  agents (21 of 217 follow-up calls, pi 26 of 327). 14 of janetcode's 21
+  were the second call of a run, where the miss re-bills the 5–7k-token
+  first request with the repository attached; pi's first request is 1.6k.
+- So the 190k gap is the attached repository paid for once (110k) and,
+  in most runs, a second time (about 75k). Reading the files instead
+  cost 30% more calls on Kimi (`syn-kimi-inline`), so it stays attached.
+
 **Open.** The Kimi replay A/B (`syn-kimi-replay`) still waits for the
-quota. The cache-hit gap to pi (85% against 91%) is the next thing to
-look at: it is what keeps pi cheaper.
+quota.
 
 ## Kimi: why janetcode missed where pi passed — reasoning was never sent back (2026-11-10, offline analysis)
 
