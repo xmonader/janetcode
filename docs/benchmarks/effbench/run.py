@@ -35,6 +35,13 @@ EFFBENCH = Path(os.environ.get("EFFBENCH_DIR", os.path.expanduser("~/hero/code/h
 sys.path.insert(0, str(EFFBENCH))
 import effbench as eb  # noqa: E402
 
+# Z.ai's coding plan, a provider effbench does not ship: OpenAI-compatible chat completions at
+# /api/coding/paas/v4. The arms call <proxy>/v1/..., so "/v1" is the path hint the proxy strips.
+eb.PROVIDERS["zai"] = {"upstream": "https://api.z.ai/api/coding/paas/v4", "secret": "ZAI_CODING_PLAN_API_KEY",
+                       "key_env": "ZAI_CODING_PLAN_API_KEY", "path_hint": "/v1", "herox_backend": "zai",
+                       "herox_env": {}}
+eb.BACKEND_PROVIDER["zai"] = "zai"
+
 HERE = Path(__file__).resolve().parent
 JANETCODE = Path(os.environ.get("JANETCODE_BIN", HERE.parents[2] / "bin" / "janetcode"))
 
@@ -258,7 +265,7 @@ def main():
     eb.PROVIDER = eb.BACKEND_PROVIDER[eb.served_backend(cfg)]
     prov = eb.PROVIDERS[eb.PROVIDER]
     eb.UPSTREAM, eb.KEY_NAME, eb.PATH_HINT = prov["upstream"], prov["key_env"], prov["path_hint"]
-    key = os.environ.get(prov["key_env"]) or os.environ.get("AIBROKER_API_KEY")
+    key = os.environ.get(prov["key_env"]) or (os.environ.get("AIBROKER_API_KEY") if eb.PROVIDER == "ai02" else None)
     if not key:
         raise SystemExit(f"set {prov['key_env']} (or AIBROKER_API_KEY) to the broker key")
     os.environ[prov["key_env"]] = key

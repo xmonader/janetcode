@@ -1,0 +1,8 @@
+# effbench arm config for glm-4.7 on Z.ai's coding plan (run.py registers the `zai` backend;
+# the key is ZAI_CODING_PLAN_API_KEY). Only `ctx` and the `serve` line are read.
+[[models]]
+alias = "glm-4.7"
+tier = "fast"
+ctx = 200000
+caps = ["text", "tools"]
+serve = [{ backend = "zai", model = "glm-4.7" }]
