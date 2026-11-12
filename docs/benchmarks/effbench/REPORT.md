@@ -22,6 +22,38 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## glm-4.7: janetcode against pi, Kimi Code, Qwen Code and Claude Code (`syn-glm-agents`, `syn-glm-claudecode`, 2026-11-12)
+
+Every agent ran glm-4.7 on the Z.ai coding plan: 8 synthetic tasks × 3
+seeds, a 20-minute cap per task. Janetcode was `bin/janetcode-m10` with its
+defaults. Claude Code went through Z.ai's Anthropic endpoint, so it ran in a
+campaign of its own (`syn-glm-claudecode`) on the same 24 task-seeds. The
+other four ran side by side in `syn-glm-agents`.
+
+| agent | passed | wall/run | median | calls/run | input/run | hit | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|---|
+| janetcode | **24/24** | 625 s | 547 s | **12.6** | 436k | 89% | 49.2k | 35.0k |
+| pi | 23/24 | **472 s** | **469 s** | 19.2 | **410k** | 92% | **32.8k** | **24.5k** |
+| Kimi Code | 24/24 | 629 s | 673 s | 21.7 | 848k | 94% | 52.9k | 30.3k |
+| Qwen Code | 18/24 | 743 s | 628 s | 20.0 | 742k | 94% | 45.9k | 34.2k |
+| Claude Code | 23/24 | 628 s | 562 s | 26.3 | 922k | 93% | 62.9k | 29.1k |
+
+- **Failures:**
+  - **pi:** `d-todocli` seed 2.
+  - **Claude Code:** `a-build-incremental` seed 3, which ran into the cap.
+  - **Qwen Code:** all six `d-cronexpr` and `d-todocli` runs. Three of them
+    ran into the cap after five calls of about 50k output tokens each.
+- **The tamper flag:** effbench flagged Qwen Code's `b-report-paging` seed 3
+  run as tampered. It added a `test_contract.py` of its own, which the
+  hash of guarded `test_*.py` files counts as a change. The hidden tests
+  passed, so this run counts as a pass.
+- **Janetcode against pi:** janetcode is the only agent besides Kimi Code to
+  pass all 24, and it makes the fewest calls by a third. pi sends 6% less
+  input, a third less uncached input and output, and finishes 25% sooner.
+  So janetcode's lead is reliability and pi's lead is still the cheap start
+  described below.
+- **The other three** send 1.7–2.1× janetcode's input for no more passes.
+
 ## Where pi's leverage is (source of the benchmarked build `eb326d265`, and the GLM logs)
 
 **Nothing in pi's harness is clever.** The system prompt is 2.8 KB: a
