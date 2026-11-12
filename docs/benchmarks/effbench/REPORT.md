@@ -66,8 +66,24 @@ reads cost little because its context is small when it makes them.
 janetcode's plan saves later calls on every model, and costs more than it
 saves on a model that reasons at length (GLM, MiMo). On Kimi the attached
 repository won (`syn-kimi-inline`: reading files cost 30% more calls).
-`syn-ds-start` (DeepSeek, running) measures the start on its own: the
-default, `JANETCODE_OFF=inline`, `JANETCODE_OFF=rulesfirst`, both, and pi.
+`syn-ds-start` (DeepSeek, 8 tasks × 3 seeds, binary `79d71434`) measured
+the start on its own:
+
+| arm | passed | wall/run | calls/run | input/run | uncached/run | output/run | first reply |
+|---|---|---|---|---|---|---|---|
+| default | **24/24** | 120 s | 11.2 | 245k | 32.0k | 20.6k | 8.1k tok, 40 s |
+| `OFF=inline` (no attached repository) | 23/24 | 108 s | 16.5 | 350k | 30.8k | 22.3k | 106 tok, 1 s |
+| `OFF=rulesfirst` | 23/24 | **91 s** | **10.1** | **188k** | **24.0k** | **15.7k** | 7.0k tok, 41 s |
+| `OFF=inline,rulesfirst` (pi-shaped) | 23/24 | 112 s | 17.0 | 321k | 36.5k | 19.2k | 106 tok, 1 s |
+| pi | **24/24** | 113 s | 17.0 | 348k | 33.3k | 19.3k | 106 tok, 1 s |
+
+- Copying pi's start does not pay: without the attached repository
+  janetcode makes pi's 17 calls and sends pi's input. The repository stays.
+- The rules-first line (`a96edb03`, added 2026-11-10 and never measured,
+  since Kimi was out) costs 23% of the input, 24% of the output and 24% of
+  the wall time. The one miss without it (a-catalog-paging s2) is within
+  noise; the other two arms that missed, missed the same task. To be
+  confirmed on GLM before it comes out of the default.
 
 ## GLM-4.7: replay costs input and buys no passes; pi uses fewer tokens (`syn-glm-replay`, 2026-11-11)
 
