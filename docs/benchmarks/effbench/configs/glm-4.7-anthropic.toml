@@ -1,0 +1,8 @@
+# glm-4.7 on Z.ai's coding plan through its Anthropic Messages endpoint, for the Claude Code arm
+# (run.py registers the `zai-anthropic` backend; key ZAI_CODING_PLAN_API_KEY).
+[[models]]
+alias = "glm-4.7-anthropic"
+tier = "fast"
+ctx = 200000
+caps = ["text", "tools"]
+serve = [{ backend = "zai-anthropic", model = "glm-4.7" }]

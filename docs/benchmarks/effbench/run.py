@@ -41,6 +41,10 @@ eb.PROVIDERS["zai"] = {"upstream": "https://api.z.ai/api/coding/paas/v4", "secre
                        "key_env": "ZAI_CODING_PLAN_API_KEY", "path_hint": "/v1", "herox_backend": "zai",
                        "herox_env": {}}
 eb.BACKEND_PROVIDER["zai"] = "zai"
+# The same plan's Anthropic Messages endpoint, for Claude Code: it calls <proxy>/v1/messages,
+# which lands on https://api.z.ai/api/anthropic/v1/messages.
+eb.PROVIDERS["zai-anthropic"] = {**eb.PROVIDERS["zai"], "upstream": "https://api.z.ai/api/anthropic", "path_hint": ""}
+eb.BACKEND_PROVIDER["zai-anthropic"] = "zai-anthropic"
 
 HERE = Path(__file__).resolve().parent
 JANETCODE = Path(os.environ.get("JANETCODE_BIN", HERE.parents[2] / "bin" / "janetcode"))
@@ -227,7 +231,7 @@ def main():
     ap.add_argument("--no-hide", action="store_true", help="do not hide evals/, the tasks dir and other arms' "
                     "workspaces from the agents (see hide_prefix)")
     ap.add_argument("--arms", default="janetcode,pi",
-                    help="janetcode, pi, qwencode, hermes, openclaw; janetcode:<name>=<binary>[+K=V,...] for a variant")
+                    help="janetcode, pi, qwencode, hermes, openclaw, claudecode, kimi; janetcode:<name>=<binary>[+K=V,...] for a variant")
     ap.add_argument("--seeds", type=int, default=2)
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--timeout", type=int, default=1200)
@@ -279,7 +283,7 @@ def main():
     arms = []
     # A comma starts a new arm only before an arm's name, so one variant can
     # carry several K=V settings: janetcode:x=bin+set.a=1,set.b=2,pi
-    for spec in re.split(r",(?=(?:janetcode|pi|qwencode|hermes|openclaw)\b)", a.arms):
+    for spec in re.split(r",(?=(?:janetcode|pi|qwencode|hermes|openclaw|claudecode|kimi)\b)", a.arms):
         if spec == "janetcode":
             arms.append(JanetcodeArm(camp, cfg, model, a.timeout, key))
         elif spec.startswith("janetcode:"):
@@ -294,7 +298,7 @@ def main():
             arms.append(PiStraceArm(camp, cfg, model, a.timeout, pi_cli, key))
         elif spec == "qwencode":
             arms.append(QwenArm(camp, cfg, model, a.timeout, key))
-        elif spec in ("hermes", "openclaw"):
+        elif spec in ("hermes", "openclaw", "claudecode", "kimi"):
             arms.append(eb.ARM_CLASSES[spec](camp, cfg, model, a.timeout, key))
         else:
             raise SystemExit(f"unknown arm {spec}")
