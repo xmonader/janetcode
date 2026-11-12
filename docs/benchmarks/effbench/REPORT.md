@@ -54,6 +54,24 @@ other four ran side by side in `syn-glm-agents`.
   described below.
 - **The other three** send 1.7–2.1× janetcode's input for no more passes.
 
+## glm-4.7: the rules-first line pays here (`syn-glm-rules`, 2026-11-12, kept)
+
+The same binary (`bin/janetcode-m10`) ran with its defaults and with
+`JANETCODE_OFF=rulesfirst`, 8 synthetic tasks × 3 seeds. The default arm's
+last 10 runs died when the disk filled up for a while at 15:10. They were
+rerun in the same campaign, and effbench skipped the runs that had already
+finished.
+
+| arm | passed | wall/run | median | calls/run | input/run | hit | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|---|
+| default | **24/24** | **484 s** | 523 s | **12.0** | **369k** | 87% | **47.4k** | **29.5k** |
+| no rules-first | 23/24 | 547 s | 469 s | 13.2 | 438k | 89% | 48.2k | 32.1k |
+
+Without the line the model sends 19% more input and fails one more run
+(`d-cronexpr` seed 2). On DeepSeek the same switch saved 23% of input for
+one fewer pass (`syn-ds-start`). The line stays in the default. Its effect
+depends on the model, so the gap to pi on GLM has to close somewhere else.
+
 ## Where pi's leverage is (source of the benchmarked build `eb326d265`, and the GLM logs)
 
 **Nothing in pi's harness is clever.** The system prompt is 2.8 KB: a
