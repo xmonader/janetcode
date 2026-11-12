@@ -22,6 +22,53 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Where pi's leverage is (source of the benchmarked build `eb326d265`, and the GLM logs)
+
+**Nothing in pi's harness is clever.** The system prompt is 2.8 KB: a
+preamble, four tools (read, bash, edit, write), generic edit rules, "be
+concise". There are no turn-end gates, nudges, plan checks or loop
+detectors in the headless path. Tool output is cut at 2,000 lines / 50 KB.
+Reasoning is sent back on every request in the field it came in, the
+same as janetcode since `2cd18dce`, and nothing old is ever stripped.
+effbench declares the model to pi with `reasoning: false`, so pi sends
+no thinking parameters at all.
+
+**Its leverage is how it starts.** pi's first request is the brief alone,
+1.4k tokens. Its first reply is a 60-token `read`. janetcode's first
+request carries the whole repository (17k characters on these tasks) and
+asks the model to list the task's rules before its first edit, so the
+first reply designs the whole change:
+
+| GLM-4.7, 24 runs | first reply | its wall time | prompt at call 2 | prompt at call 6 |
+|---|--:|--:|--:|--:|
+| janetcode | 13.5k tokens (median) | 168 s (41% of the run) | 18k | 25k |
+| pi | 62 tokens | 2 s | 3k | 19k |
+
+That plan's ~10k reasoning tokens are then replayed on every later call,
+which is the whole input gap (448k against 396k) and most of the wall-time
+gap (413 s against 346 s).
+
+**It is not call efficiency.** Tool calls a run, split at the first green
+test run (GLM):
+
+| | pi | janetcode |
+|---|--:|--:|
+| before green | 17.5 (7.0 reads) | 8.9 (0 reads) |
+| after green | 7.3 (2.9 own checks, 3.0 test runs) | 8.5 (5.0 own checks, 2.4 test runs) |
+| model calls | 17.7 (1.4 tools a call) | 14.7 (1.2) |
+
+janetcode reaches green in half pi's calls. Both drift after green;
+janetcode's tail leans more on ad-hoc check scripts. Harness-injected
+text is negligible: about 500 characters a run.
+
+**So the trade is cheap early calls against one expensive plan.** pi's
+reads cost little because its context is small when it makes them.
+janetcode's plan saves later calls on every model, and costs more than it
+saves on a model that reasons at length (GLM, MiMo). On Kimi the attached
+repository won (`syn-kimi-inline`: reading files cost 30% more calls).
+`syn-ds-start` (DeepSeek, running) measures the start on its own: the
+default, `JANETCODE_OFF=inline`, `JANETCODE_OFF=rulesfirst`, both, and pi.
+
 ## GLM-4.7: replay costs input and buys no passes; pi uses fewer tokens (`syn-glm-replay`, 2026-11-11)
 
 `glm-4.7` on Z.ai's coding plan (config `glm-4.7`, backend `zai` in
