@@ -22,6 +22,34 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## GLM-4.7: replay costs input and buys no passes; pi uses fewer tokens (`syn-glm-replay`, 2026-11-11)
+
+`glm-4.7` on Z.ai's coding plan (config `glm-4.7`, backend `zai` in
+`run.py`, key `ZAI_CODING_PLAN_API_KEY`), the 8 default tasks × 3 seeds,
+binary `79d71434`. The plan bills no per-token cost. GLM is slow here:
+the campaign took 3 h 24 min at 3 jobs.
+
+| arm | passed | wall/run | median | max | calls/run | input/run | hit | uncached/run | output/run |
+|---|---|---|---|---|---|---|---|---|---|
+| replay (default) | 24/24 | 413 s | 450 s | 758 s | **14.7** | 448k | 91% | 41.2k | 30.8k |
+| `JANETCODE_OFF=reasoning` | 24/24 | 507 s | 420 s | 1200 s | 14.9 | **280k** | 92% | **23.3k** | 37.2k |
+| pi | 24/24 | **346 s** | **341 s** | **669 s** | 17.7 | 396k | 92% | 32.8k | **25.2k** |
+
+- Every arm passed everything, so this says nothing about reliability.
+- Replay: 60% more input and 77% more uncached input for the same number
+  of calls, 17% less output and 19% less wall time. One noreplay run hit
+  the 20-minute cap and still passed.
+- Against pi, janetcode with replay makes 17% fewer calls but sends 13%
+  more input, 26% more uncached input, writes 22% more output and is 19%
+  slower. On this model pi is the leaner agent. Without replay janetcode
+  sends 29% less input than pi but writes 48% more output.
+- GLM reasons at length (30–37k output tokens a run against DeepSeek's
+  19k), and every token of it is sent back on each later call. Replay
+  paid for itself on DeepSeek and does not here.
+
+**Open.** Bound what is replayed (for example only the reasoning of
+replies since the last edit, or a size cap) and A/B it on both models.
+
 ## DeepSeek: reasoning replay measured, and four loop fixes (`syn-ds-replay`, `syn-ds-lsp`, 2026-11-10)
 
 Kimi on ai02 was still out (upstream credential rejected), and so were the
