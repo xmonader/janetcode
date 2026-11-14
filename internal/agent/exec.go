@@ -764,6 +764,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	manifests := a.manifestsBefore(t, u)
 	squats := a.squatBefore(t, u)
+	if err := a.persistenceErr(); err != nil {
+		return "", nil, true, err
+	}
 	out, images, err := a.runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	if hit := a.proxyCanaryHit(emit); hit != nil {
@@ -1020,6 +1023,9 @@ func (a *Agent) LastTurnMutated() bool { return a.mutated }
 // model — a call the harness itself refused will be refused again with
 // the same words.
 func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMessage) (string, bool, bool) {
+	if err := a.persistenceErr(); err != nil {
+		return err.Error(), true, true
+	}
 	emit := a.emitter()
 	// A script sees the same tool schemas the model does, so it passes
 	// intent= as a keyword argument. It has to come off here too, or every
@@ -1073,6 +1079,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		shellBefore = a.bashAuditBefore(ctx, u)
 	}
 	start := time.Now()
+	if err := a.persistenceErr(); err != nil {
+		return err.Error(), true, true
+	}
 	out, _, runErr := a.runSafely(ctx, t, u.Input)
 	a.bashAuditAfter(ctx, u, shellBefore)
 	dur := time.Since(start)

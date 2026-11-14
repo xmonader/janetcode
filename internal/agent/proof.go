@@ -93,7 +93,7 @@ func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committ
 	}
 	var events []session.Event
 	if a.Log != nil {
-		events = a.Log.Events()
+		events = a.logEvents()
 	}
 	outcomes := make(map[int]proof.TurnOutcomeInput, len(turnsUsed))
 	for tn := range turnsUsed {

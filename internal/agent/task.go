@@ -783,16 +783,9 @@ func (t *Task) bill(kid *subagent, child *Agent) {
 	t.Parent.addSideUsage(child.Settings().Model, delta)
 }
 
-// inheritBudget bounds a child by what is left of the parent's cost
-// ceiling. The parent looks at its ceiling after every model call, but a
-// child's spend reaches the parent only when the child's run ends — so
-// a run under --max-cost could delegate one job and watch it make fifty
-// calls past the line before the parent had a chance to stop. The child
-// is priced the way the parent prices what it is billed, and its own
-// ceiling is what it has already spent (billed to the parent before)
-// plus what the parent has left. Children running side by side are each
-// given the whole remainder; the parent's own check stops the run once
-// they report.
+// inheritBudget joins the parent's shared account before a child starts.
+// Each model call reserves the remainder and charges its usage immediately;
+// billing the child's transcript later does not charge that account again.
 func (t *Task) inheritBudget(child *Agent) {
 	p := t.Parent
 	ceiling := p.MaxCost()
@@ -800,15 +793,11 @@ func (t *Task) inheritBudget(child *Agent) {
 		return
 	}
 	child.Prices = p.PriceOf
-	spent, over := p.overBudget()
-	left := ceiling - spent
-	if over || left <= 0 {
-		// Nothing is left, but a zero ceiling means "unbounded": the
-		// smallest positive one stops the child after its first call.
-		left = 1e-9
-	}
-	have, _, _, _ := child.SessionCost()
-	child.SetMaxCost(have + left)
+	account := p.sharedAccount()
+	child.budgetMu.Lock()
+	child.budget = account
+	child.budgetMu.Unlock()
+	child.SetMaxCost(ceiling)
 }
 
 // briefInput is the one-line summary of a child tool call for the live

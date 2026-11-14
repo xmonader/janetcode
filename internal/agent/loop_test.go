@@ -141,11 +141,11 @@ func TestLoopDetectorFindsReadThrash(t *testing.T) {
 	if stop || !strings.Contains(note, "read big.go 5 times") {
 		t.Fatalf("nudge: note=%q stop=%v", note, stop)
 	}
-	for i := thrashNudgeAt; i < thrashStopAt-1; i++ {
+	for i := thrashNudgeAt; i < (thrashNudgeAt+3)-1; i++ {
 		read(i)
 	}
-	if _, stop = read(thrashStopAt); !stop || !strings.Contains(d.reason, "read big.go 8 times") {
-		t.Fatalf("stop=%v reason=%q", stop, d.reason)
+	if _, stop = read((thrashNudgeAt + 3)); stop {
+		t.Fatalf("distinct windows must not stop the turn: %s", d.reason)
 	}
 	// Reading different files is not thrash.
 	d.reset()

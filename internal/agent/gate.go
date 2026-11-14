@@ -18,7 +18,8 @@ const maxStopContinues = 3
 // gateState tracks verification within one turn.
 type gateState struct {
 	rounds int
-	seen   int // a.mutations when the checks last ran
+	seen   int  // a.mutations when the checks last ran
+	final  bool // report a forced stop's checks without buying repair consults
 	// preNoted is set once the turn has been reminded of failures that
 	// were there before it (see baselineGate).
 	preNoted bool
@@ -81,6 +82,10 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 			return false
 		}
 		feedback = res.Feedback()
+	}
+	if g.final {
+		emit(Event{Kind: EvNotice, Text: res.Summary(), IsError: true})
+		return true
 	}
 	g.rounds++
 	if g.rounds > verify.MaxRounds {

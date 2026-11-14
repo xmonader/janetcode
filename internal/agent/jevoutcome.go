@@ -109,7 +109,7 @@ func (a *Agent) ClassifySessionOutcome(ctx context.Context) {
 	if a.Log == nil || !dp.Available() {
 		return
 	}
-	turns := AnnotateTurns(a.Log.Events())
+	turns := AnnotateTurns(a.logEvents())
 	if len(turns) == 0 {
 		return
 	}

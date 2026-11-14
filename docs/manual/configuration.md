@@ -757,11 +757,13 @@ compound definition name in the whole index ("refund" for
 12 KB, after the repository map. Nothing runs: no model, no command, no
 language server.
 
-`route_cheap` is a model name; empty (the default) is off. When set, a
-turn's mechanical steps — reading a file, listing a directory, grep, a
-check command that already passed — are sent to it instead of the
-session's model, which stays on the first call of every turn, on
-planning and edits, and on anything that goes wrong. It is resolved the
+`route_cheap` is a model name; empty (the default) is off. When set,
+eligible continuations can use it for repository reads: `read_file`,
+`list_dir`, `glob`, `grep`, and `repo_map`. The cheap model receives only
+those tool definitions. If it asks for another tool anyway, including a
+tool call written as prose, that reply is discarded and the session's
+model handles the step. The discarded call's usage is still billed.
+It is resolved the
 same way `fallback_models` is, so it may live on a different provider;
 a name nothing can route turns the feature off for the session with one
 notice rather than failing every call.
@@ -785,8 +787,7 @@ prefix is billed as fresh input on the call that switches, in either
 direction (see "Prompt-cache accounting" via `/why` or the cache report,
 and `internal/agent/cachestat.go`). So the router only ever switches when
 that cost is small: `route_cheap` is on the same provider as the
-session's model (nothing else about the request changes, and the eventual
-switch back is the same one-time cost), or the conversation so far is
+session's model, or the conversation so far is
 small enough — under 20,000 estimated tokens — that repricing it from
 cold costs little in absolute terms even across providers. Past that, a
 cross-provider route is skipped for that call.

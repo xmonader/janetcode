@@ -25,7 +25,7 @@ func (a *Agent) attachEvidence(ctx context.Context, root, sha string, r proof.Re
 	}
 	var events []session.Event
 	if a.Log != nil {
-		events = a.Log.Events()
+		events = a.logEvents()
 	}
 	claims := map[int]string{}
 	for _, t := range r.Turns {

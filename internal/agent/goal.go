@@ -143,7 +143,7 @@ func (a *Agent) CreateGoal(objective string, maxRounds int) (string, []string) {
 	}
 	var paused []string
 	if a.Log != nil {
-		for _, g := range FoldGoals(a.Log.Events()) {
+		for _, g := range FoldGoals(a.logEvents()) {
 			if g.Phase == GoalActive {
 				a.SetGoalPhase(g.ID, GoalPaused, "paused by a new goal")
 				paused = append(paused, g.ID)
@@ -154,7 +154,7 @@ func (a *Agent) CreateGoal(objective string, maxRounds int) (string, []string) {
 	// inside one turn do not share an id (and fold into one).
 	id := "g1"
 	if a.Log != nil {
-		id = fmt.Sprintf("g%d", len(FoldGoals(a.Log.Events()))+1)
+		id = fmt.Sprintf("g%d", len(FoldGoals(a.logEvents()))+1)
 	}
 	a.logEvent(session.Event{Type: session.TypeGoalCreate, Name: id, Output: strings.TrimSpace(objective), Tokens: maxRounds})
 	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: GoalActive})
@@ -211,7 +211,7 @@ func (a *Agent) SpentGoal() (Goal, bool) {
 	if a.Log == nil {
 		return Goal{}, false
 	}
-	g := ActiveGoal(a.Log.Events())
+	g := ActiveGoal(a.logEvents())
 	if g == nil || g.Rounds < g.MaxRounds {
 		return Goal{}, false
 	}
@@ -235,7 +235,7 @@ func (a *Agent) goalCompletedThisTurn() *Goal {
 	if a.Log == nil {
 		return nil
 	}
-	ev := a.Log.Events()
+	ev := a.logEvents()
 	id := ""
 	for _, e := range ev {
 		if e.Type == session.TypeGoalPhase && e.Turn == a.turnN && e.Reason == GoalComplete {
@@ -261,7 +261,7 @@ func (a *Agent) goalWasReopened(id string) bool {
 	if a.Log == nil {
 		return false
 	}
-	for _, e := range a.Log.Events() {
+	for _, e := range a.logEvents() {
 		if e.Type == session.TypeGoalPhase && e.Name == id && strings.HasPrefix(e.Output, GoalReopened) {
 			return true
 		}
@@ -325,7 +325,7 @@ func (a *Agent) nextGoalRound() (Goal, bool) {
 	if a.Log == nil {
 		return Goal{}, false
 	}
-	g := ActiveGoal(a.Log.Events())
+	g := ActiveGoal(a.logEvents())
 	if g == nil || g.Rounds >= g.MaxRounds {
 		return Goal{}, false
 	}
@@ -372,7 +372,7 @@ func (g *GoalStatus) Run(_ context.Context, input json.RawMessage) (string, erro
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", err
 	}
-	events := g.Parent.Log.Events()
+	events := g.Parent.logEvents()
 	cur := ActiveGoal(events)
 	if cur == nil {
 		// A model that has just completed a goal often calls this again

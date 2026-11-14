@@ -220,7 +220,7 @@ func (a *Agent) probeGate(ctx context.Context, g *probeGateState, emit func(Even
 	}
 	a.probeMemArm(ctx, led, emit)
 	var fresh []Probe
-	for _, p := range InlineProbes(a.Log.Events(), a.turnN, a.displayRoot()) {
+	for _, p := range InlineProbes(a.logEvents(), a.turnN, a.displayRoot()) {
 		if !led.seen[p.Key] && !a.gateCommand(p.Key) {
 			fresh = append(fresh, p)
 		}

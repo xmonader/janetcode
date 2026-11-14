@@ -88,7 +88,7 @@ func (a *Agent) rewindCut(cp Checkpoint) (keep int, ok bool, why string) {
 		}
 		return cp.Messages, true, ""
 	}
-	ev := a.Log.Events()
+	ev := a.logEvents()
 	seqs := session.CurrentSeqs(ev)
 	if len(seqs) != len(a.Messages) {
 		return 0, false, moved
@@ -129,7 +129,7 @@ func (a *Agent) rewindScan(n int) (turns int, archived []string, plan bool) {
 	// resume: a session with no plan/mode event before turn n was not in
 	// plan mode when it began.
 	seen := map[int]bool{}
-	for _, e := range a.Log.Events() {
+	for _, e := range a.logEvents() {
 		if e.Turn < n {
 			if e.Type == session.TypePlanMode && e.Active != nil {
 				plan = *e.Active
@@ -244,7 +244,7 @@ func (a *Agent) rewindThroughLog(keep int, note llm.Message) bool {
 	if a.Log == nil {
 		return false
 	}
-	seqs := session.CurrentSeqs(a.Log.Events())
+	seqs := session.CurrentSeqs(a.logEvents())
 	if len(seqs) != len(a.Messages) || keep > len(seqs) {
 		return false
 	}
@@ -265,7 +265,7 @@ func (a *Agent) rewindThroughLog(keep int, note llm.Message) bool {
 		Replaces:  dropped,
 		Message:   &note,
 	})
-	a.setMessages(session.FoldSurface(a.Log.Events()))
+	a.setMessages(session.FoldSurface(a.logEvents()))
 	return true
 }
 

@@ -185,7 +185,7 @@ func (a *Agent) readBlameChecks() map[int]string {
 	if a.Log == nil {
 		return out
 	}
-	for _, e := range a.Log.Events() {
+	for _, e := range a.logEvents() {
 		if e.Type != session.TypeVerdict || e.IsError || len(e.Extra) == 0 {
 			continue
 		}

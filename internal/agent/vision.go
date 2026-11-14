@@ -234,7 +234,7 @@ func (a *Agent) askVision(ctx context.Context, prov llm.Provider, vmodel string,
 	if focus != "" {
 		ask += "\n\nThe message the image came with, for what to look at closely:\n" + focus
 	}
-	resp, err := prov.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, prov, llm.Request{
 		Model:     vmodel,
 		Messages:  []llm.Message{{Role: llm.RoleUser, Blocks: []llm.Block{img, {Type: llm.BlockText, Text: ask}}}},
 		MaxTokens: 2000,

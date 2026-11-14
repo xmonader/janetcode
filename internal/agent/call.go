@@ -42,7 +42,7 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		if err == nil {
 			return resp, nil
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || errors.Is(err, ErrBudget) {
 			return nil, err
 		}
 		// What the failed call streamed is void, as before a fallback:
@@ -57,10 +57,22 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		streamed, track := streamedAny(emit)
 		resp, err := a.callOn(ctx, prov, model, callRoute{slot: "cheap", kind: "route", why: why}, track)
 		if err == nil {
+			// Apply the same restriction to gateways that return tools as
+			// prose, and to providers that ignore the advertised tool list.
+			a.recoverToolCalls(resp, func(Event) {})
+			for _, u := range resp.Message.ToolUses() {
+				if !mechanicalTools[u.Name] {
+					a.addUsage(model, resp.Usage)
+					err = fmt.Errorf("cheap routing is limited to repository reads; %s requires the main model", u.Name)
+					break
+				}
+			}
+		}
+		if err == nil {
 			a.stats.routed()
 			return resp, nil
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || errors.Is(err, ErrBudget) {
 			return nil, err
 		}
 		if *streamed {
@@ -121,6 +133,16 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	var firstToken time.Time
 	system := a.systemPrompt()
 	defs := a.turnTools()
+	if rt.kind == "route" {
+		defs = append([]llm.ToolDef(nil), defs...)
+		kept := defs[:0]
+		for _, d := range defs {
+			if mechanicalTools[d.Name] {
+				kept = append(kept, d)
+			}
+		}
+		defs = kept
+	}
 	a.usageMu.Lock()
 	a.prefix.note(a.turnN, system, a.Messages, defs)
 	a.usageMu.Unlock()
@@ -129,7 +151,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	effort, steered := a.callEffort(prov, emit)
 	callCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
-	resp, err := prov.Stream(callCtx, llm.Request{
+	resp, err := a.stream(callCtx, prov, llm.Request{
 		Model:     model,
 		System:    system,
 		Messages:  a.bridgeImages(ctx, a.Messages, model, emit),
@@ -347,7 +369,7 @@ func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
 	if max <= 0 || max > 2048 {
 		max = 2048
 	}
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, s.Provider, llm.Request{
 		Model:     s.Model,
 		System:    a.systemPrompt(),
 		Messages:  msgs,

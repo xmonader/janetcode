@@ -849,7 +849,7 @@ func (a *Agent) Outcome() TurnOutcome {
 	if a.Log == nil {
 		return TurnOutcome{Verdict: VerdictNoChanges, Why: "no session log to judge from"}
 	}
-	return FoldOutcomeIn(a.Log.Events(), a.turnN, a.displayRoot())
+	return FoldOutcomeIn(a.logEvents(), a.turnN, a.displayRoot())
 }
 
 // VerifiedBy is the check that ran last, when it passed after the turn's

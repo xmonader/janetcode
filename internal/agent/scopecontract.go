@@ -174,7 +174,7 @@ func (a *Agent) ScopeReport() *scope.Report {
 	if r == nil || a.Log == nil {
 		return r
 	}
-	answers := scopeAnswers(a.Log.Events())
+	answers := scopeAnswers(a.logEvents())
 	for i, o := range r.Outside {
 		if o.Unjustified && answers[o.Path] != "" {
 			r.Outside[i].Justification, r.Outside[i].Unjustified = answers[o.Path], false

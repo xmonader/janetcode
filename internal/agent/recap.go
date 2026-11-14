@@ -32,7 +32,7 @@ func (a *Agent) Recap(ctx context.Context) (string, error) {
 	if cheap := a.RouteCheapName(); cheap != "" {
 		model = cheap
 	}
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, s.Provider, llm.Request{
 		Model:     model,
 		System:    recapSystem,
 		Messages:  msgs,

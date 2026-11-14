@@ -11,12 +11,10 @@ import (
 // Step-level model routing (experimental, off by default — see RouteCheap
 // and route_cheap in docs/manual/configuration.md).
 //
-// Most of what a turn does is mechanical: read a file, list a directory,
-// grep, run a check that was already known to pass. None of that needs the
-// model the user picked for planning and debugging; it needs a model that
-// will not misread a diff. The idea is to send exactly that part of the
-// turn to a cheaper model and keep everything that plans, edits or reacts
-// to a failure on the model the user chose.
+// A clean read or passing check can qualify the next call for a cheaper
+// model. That call receives only repository-read tools. call validates
+// the reply too: an unadvertised tool request returns the step to the
+// main model before anything runs, including calls recovered from prose.
 //
 // The policy below is deliberately not learned: every rule is one a
 // session can name for itself ("that call routed because the last three

@@ -60,7 +60,7 @@ func (a *Agent) Todos() []Todo {
 	if a.Log == nil {
 		return nil
 	}
-	return FoldTodos(a.Log.Events())
+	return FoldTodos(a.logEvents())
 }
 
 // todosWrittenThisTurn reports whether the plan now in force was written
@@ -69,7 +69,7 @@ func (a *Agent) todosWrittenThisTurn() bool {
 	if a.Log == nil {
 		return false
 	}
-	for _, e := range a.Log.Events() {
+	for _, e := range a.logEvents() {
 		if e.Type == session.TypeTodoWrite {
 			if e.Turn == a.turnN {
 				return true

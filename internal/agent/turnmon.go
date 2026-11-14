@@ -48,6 +48,8 @@ type turnMonitor struct {
 	// ceiling, and a model with no price cannot be held to one. Read
 	// through MaxCost, written through SetMaxCost.
 	MaxCostUSD float64
+	budgetMu   sync.Mutex
+	budget     *sharedBudget
 	// MaxToolCalls, when set, ends a run before a batch of tool calls
 	// that would take its total past this many (see toollimit.go).
 	MaxToolCalls int

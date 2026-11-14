@@ -252,7 +252,7 @@ func (a *Agent) maybeCompactAfterRecipe(ctx context.Context, emit func(Event)) {
 func (a *Agent) RecipeSteps(turn int) ([]recipe.Step, error) {
 	var events []session.Event
 	if a.Log != nil {
-		events = a.Log.Events()
+		events = a.logEvents()
 	}
 	steps, err := recipe.FromEvents(events, turn)
 	if err != nil {

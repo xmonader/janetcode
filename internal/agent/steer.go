@@ -122,7 +122,7 @@ func (a *Agent) logUserMessage(merged bool) {
 	msg := a.Messages[n-1]
 	e := session.Event{Type: session.TypeUserMessage, Surface: true, Message: &msg}
 	if merged {
-		if seqs := session.CurrentSeqs(a.Log.Events()); len(seqs) == n {
+		if seqs := session.CurrentSeqs(a.logEvents()); len(seqs) == n {
 			e.SurfaceOp = session.SurfaceOpReplace
 			e.Replaces = []int{seqs[n-1]}
 		}

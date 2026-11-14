@@ -35,9 +35,8 @@ type modelRouter struct {
 	// window from it (see WindowOf).
 	Windows func(model string) int
 	// RouteCheap is the model mechanical steps of a turn are sent to
-	// instead of Model -- reads, listings, greps and checks that already
-	// passed -- while planning, edits and anything that goes wrong stay
-	// on Model. Empty (the default) is off: this is experimental, and
+	// instead of Model, with only repository-read tools available.
+	// Other tool requests are retried on Model. Empty (the default) is off: this is experimental, and
 	// stays off by default until an eval run justifies turning it on
 	// (see docs/manual/evals.md, "Measuring step routing"). Resolved
 	// through Route at call time, the same way a Fallback is; when it

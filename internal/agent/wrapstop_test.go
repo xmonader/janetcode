@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -110,15 +111,16 @@ func TestWrapStopRecordsTheOutcome(t *testing.T) {
 }
 
 // Red at the tenth call: no stop; the first green step after it stops.
-// An edit after the last run is not green either.
+// The separate failing command remains unresolved, so that forced stop
+// reports incomplete verification. An edit after the last run is not green.
 func TestWrapStopWaitsForGreen(t *testing.T) {
 	steps := append(greens(wrapUpAfter+wrapStopAfter-1), "red")
 	if a, _, _ := stopRun(t, true, nil, false, steps...); stopped(a) {
 		t.Fatal("stopped on a red state")
 	}
 	a, calls, err := stopRun(t, true, nil, false, append(steps, "green")...)
-	if err != nil || !stopped(a) {
-		t.Fatalf("err = %v, stopped = %v, want a stop at the next green step", err, stopped(a))
+	if !errors.Is(err, ErrVerification) || !stopped(a) {
+		t.Fatalf("err = %v, stopped = %v, want an incomplete stop at the next green step", err, stopped(a))
 	}
 	if want := 3 + len(steps) + 1; calls != want {
 		t.Fatalf("%d model calls, want %d", calls, want)
@@ -134,8 +136,8 @@ func TestWrapStopWaitsForGreen(t *testing.T) {
 func TestWrapStopCountsProjectTestsOverAFailingOwnCheck(t *testing.T) {
 	steps := append(greens(wrapUpAfter), "own", "own", "own", "own", "own", "own", "own", "own", "own", "own")
 	a, _, err := stopRun(t, true, nil, false, steps...)
-	if err != nil || !stopped(a) {
-		t.Fatalf("err = %v, stopped = %v", err, stopped(a))
+	if !errors.Is(err, ErrVerification) || !stopped(a) {
+		t.Fatalf("err = %v, stopped = %v; a failing own check must not report success", err, stopped(a))
 	}
 }
 

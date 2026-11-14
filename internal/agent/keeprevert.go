@@ -24,7 +24,7 @@ func (a *Agent) keepOrRevert(ctx context.Context, outcome TurnOutcome, emit func
 	if a.Off["keeprevert"] || a.Log == nil {
 		return false
 	}
-	if ActiveGoal(a.Log.Events()) == nil {
+	if ActiveGoal(a.logEvents()) == nil {
 		return false
 	}
 	if a.steeredThisTurn {

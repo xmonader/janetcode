@@ -312,7 +312,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 	// a.Messages by index (CurrentSeqs folds in model order).
 	var surface []int
 	if a.Log != nil {
-		surface = session.CurrentSeqs(a.Log.Events())
+		surface = session.CurrentSeqs(a.logEvents())
 		if len(surface) != len(a.Messages) {
 			surface = nil // out of step: fall back to replacing the whole surface
 		}
@@ -459,7 +459,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool, trigg
 		var shadowed []int
 		relog := surface == nil
 		if relog {
-			shadowed = session.CurrentSeqs(a.Log.Events())
+			shadowed = session.CurrentSeqs(a.logEvents())
 		} else {
 			shadowed = append(shadowed, surface[:len(head)]...)
 			if pending != nil && mergedPending {
@@ -577,7 +577,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		// TUI's /compact crashed here.
 		return nil, errors.New("compact: no provider (run /connect)")
 	}
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, s.Provider, llm.Request{
 		Model:     s.Model,
 		System:    a.systemPrompt(),
 		Messages:  msgs,
@@ -592,7 +592,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 	if strings.TrimSpace(resp.Message.Text()) != "" {
 		return resp, nil
 	}
-	cold, err := s.Provider.Stream(ctx, llm.Request{
+	cold, err := a.stream(ctx, s.Provider, llm.Request{
 		Model:     s.Model,
 		System:    instruction,
 		Messages:  append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, "Now.")),
@@ -661,7 +661,7 @@ func (a *Agent) syncSurface() {
 	if a.Log == nil {
 		return
 	}
-	ev := a.Log.Events()
+	ev := a.logEvents()
 	seqs := session.CurrentSeqs(ev)
 	if len(seqs) != len(a.Messages) {
 		return // shape changed; compaction logs its own replacement

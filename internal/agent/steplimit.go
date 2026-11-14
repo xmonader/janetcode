@@ -179,7 +179,7 @@ func (a *Agent) closingFromModel(ctx context.Context, emit func(Event)) string {
 	ctx, cancel := context.WithTimeout(ctx, closeTimeout)
 	defer cancel()
 	msgs := append(append([]llm.Message{}, a.Messages...), llm.TextMessage(llm.RoleUser, closingInstruction))
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, s.Provider, llm.Request{
 		Model: s.Model, System: a.systemPrompt(), Messages: msgs, Tools: a.turnTools(),
 		MaxTokens: s.MaxTokens, Effort: s.Effort,
 	}, nil)

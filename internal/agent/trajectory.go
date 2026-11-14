@@ -152,7 +152,7 @@ func turnEvents(events []session.Event, turn int) []session.Event {
 // Trajectory describes the running turn as feature values.
 func (a *Agent) Trajectory() map[string]float64 {
 	if a.Log != nil {
-		if ev := turnEvents(a.Log.Events(), a.turnN); len(ev) > 0 {
+		if ev := turnEvents(a.logEvents(), a.turnN); len(ev) > 0 {
 			f := FoldTrajectory(ev)
 			if !a.turnStart.IsZero() {
 				f["minutes"] = time.Since(a.turnStart).Minutes()

@@ -163,6 +163,7 @@ type Agent struct {
 	// permissions owns what a tool call must satisfy before it runs
 	// (see permissions.go). Embedded for the same reason.
 	permissions
+	logState logState
 	// turnMonitor watches the running turn: cost, counters, and the
 	// three things that notice a turn going wrong (see turnmon.go).
 	// Embedded for the same reason.
@@ -622,6 +623,14 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 // itself holds no state of its own beyond the compaction threshold.
 func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) (err error) {
 	emit = serialize(a.ledgered(a.traced(emit)))
+	defer func() {
+		if fault := a.persistenceErr(); fault != nil && !errors.Is(err, ErrSessionLog) {
+			err = errors.Join(err, fault)
+		}
+	}()
+	if err := a.persistenceErr(); err != nil {
+		return err
+	}
 	if a.Settings().Provider == nil {
 		return errors.New("no provider")
 	}
@@ -684,6 +693,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	defer a.endTurnEscalation()
 	var gates turnGates
 	for iter := 0; iter < maxIter; iter++ {
+		if err := a.persistenceErr(); err != nil {
+			return err
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -725,6 +737,15 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if a.continueCutReply(resp, &gates, emit) {
 				continue
 			}
+			if a.finishTurn(ctx, resp, &gates, emit) {
+				return nil
+			}
+			continue
+		}
+		if len(resp.Message.ToolUses()) == 0 {
+			// A malformed tool-use stop still owes the same completion
+			// checks as a normal text response.
+			resp.StopReason = llm.StopEndTurn
 			if a.finishTurn(ctx, resp, &gates, emit) {
 				return nil
 			}
@@ -910,6 +931,10 @@ func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote st
 		Slot: a.lastCallSlot, Provider: a.lastCallProvider, Route: a.lastCallRoute, RouteWhy: a.lastCallWhy,
 		TTFTMs: a.lastTTFT.Milliseconds(), DecodeMs: a.lastDecode.Milliseconds(), Effort: a.lastCallEffort})
 	emit(Event{Kind: EvTextBlockDone})
+	if err := a.persistenceErr(); err != nil {
+		a.answerUnrun(resp.Message.ToolUses(), "session persistence failed", emit)
+		return "", err
+	}
 	// The ceiling is asked about here, while the call just paid for
 	// is in the totals and before its tools are run.
 	if spent, over := a.overBudget(); over {
@@ -1159,14 +1184,6 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 // reached, or because err ended it.
 func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote string, emit func(Event)) (done bool, err error) {
 	uses := resp.Message.ToolUses()
-	if len(uses) == 0 {
-		// Provider said tool_use but sent none; treat as end of turn
-		// rather than looping forever.
-		a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
-		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(llm.StopEndTurn)})
-		emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: llm.StopEndTurn})
-		return true, nil
-	}
 	planNote := ""
 	if a.PlanCheck != nil && !a.Off["plan"] {
 		if text := strings.TrimSpace(resp.Message.Text()); text != "" {
@@ -1242,8 +1259,7 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		return true, ErrStuck
 	}
 	if check := a.wrapStopCheck(uses, results, wrapWasFired); check != "" {
-		a.stopForWrap(ctx, check, emit)
-		return true, nil
+		return true, a.stopForWrap(ctx, check, emit)
 	}
 	// Tools can cost money too (a subagent runs its own turns), and the
 	// next model call is about to be made with a history this step just

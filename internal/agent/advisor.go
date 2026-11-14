@@ -107,7 +107,7 @@ func (a *Agent) sideQueryReply(ctx context.Context, system, question, model stri
 	if maxTok <= 0 {
 		maxTok = 800
 	}
-	resp, err := prov.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, prov, llm.Request{
 		Model:     model,
 		System:    system,
 		Messages:  msgs,

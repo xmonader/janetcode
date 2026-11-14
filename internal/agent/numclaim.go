@@ -64,7 +64,7 @@ func (a *Agent) numclaimGate(text string, g *turnGates, emit func(Event)) bool {
 	if a.Off["numclaim"] || a.Log == nil || strings.TrimSpace(text) == "" {
 		return false
 	}
-	fs := numclaimFindings(text, a.Log.Events(), a.displayRoot())
+	fs := numclaimFindings(text, a.logEvents(), a.displayRoot())
 	if len(fs) == 0 {
 		return false
 	}

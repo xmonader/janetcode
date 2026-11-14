@@ -31,11 +31,9 @@ const (
 	alternateNudgeAt = 5
 	alternateStopAt  = 8
 	// thrashWindow recent calls holding thrashNudgeAt reads of one file
-	// say so, thrashStopAt end the turn. A file read eight times in
-	// fifteen calls is being re-read instead of remembered.
+	// get an advisory note. Distinct windows never justify a hard stop.
 	thrashWindow  = 15
 	thrashNudgeAt = 5
-	thrashStopAt  = 8
 	// maxTurnCalls is the most tool calls one turn may make. Past this a
 	// turn is not working, it is running.
 	maxTurnCalls = 100
@@ -97,7 +95,12 @@ func newSignature(name string, input []byte, isErr, changed bool) signature {
 	if isErr {
 		label += " fails"
 	}
-	return signature{key: fmt.Sprintf("%s\x00%s\x00%t", name, subject, isErr), label: label, name: name, subject: subject, failed: isErr, changed: changed}
+	key := fmt.Sprintf("%s\x00%s\x00%t", name, subject, isErr)
+	if name == "read_file" {
+		// Different windows are new information, including in A-B cycles.
+		key += "\x00" + canonical(input)
+	}
+	return signature{key: key, label: label, name: name, subject: subject, failed: isErr, changed: changed}
 }
 
 // cycle reports the shortest period (2..maxCycle) the turn's recent
@@ -269,11 +272,10 @@ func (d *loopDetector) record(name string, input []byte, isErr, mutating bool) (
 		return fmt.Sprintf("\n\n[harness] You have gone back and forth between %s and %s %d times. Alternating between two calls is not progress: do something different, or tell the user what is blocking you.", a, b, reps), false
 	}
 	if path, reads := d.thrash(); reads >= thrashNudgeAt {
-		if reads >= thrashStopAt {
-			d.reason = fmt.Sprintf("the model read %s %d times in %d calls", path, reads, min(len(d.seq), thrashWindow))
-			return "", true
-		}
-		return fmt.Sprintf("\n\n[harness] You have read %s %d times in the last %d calls. You already have it: work from what it said, or read a different part of it with offset and limit.", path, reads, min(len(d.seq), thrashWindow)), false
+		// Path frequency alone cannot prove repetition: a large file
+		// may need many disjoint windows. Exact repeats remain bounded
+		// by the canonical-input counter above.
+		return fmt.Sprintf("\n\n[harness] You have read %s %d times in the last %d calls. If these windows overlap, use the content already returned; read new windows only when needed.", path, reads, min(len(d.seq), thrashWindow)), false
 	}
 	return "", false
 }

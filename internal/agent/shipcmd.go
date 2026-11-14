@@ -178,7 +178,7 @@ func (a *Agent) draft(ctx context.Context, system, prompt string, maxTokens int)
 	if s.Provider == nil {
 		return "", errors.New("no provider")
 	}
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, s.Provider, llm.Request{
 		Model:     s.Model,
 		System:    system,
 		Messages:  []llm.Message{llm.TextMessage(llm.RoleUser, prompt)},

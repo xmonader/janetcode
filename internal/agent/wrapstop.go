@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -107,7 +108,7 @@ func (a *Agent) wrapStopCheck(uses, results []llm.Block, wasFired bool) string {
 	}
 	by := a.VerifiedBy()
 	if by == "" {
-		by = projectGreen(a.Log.Events(), a.turnN, a.displayRoot())
+		by = projectGreen(a.logEvents(), a.turnN, a.displayRoot())
 	}
 	if by == "" {
 		return ""
@@ -116,33 +117,57 @@ func (a *Agent) wrapStopCheck(uses, results []llm.Block, wasFired bool) string {
 	return textfmt.TruncateTo(by, 120)
 }
 
-// stopForWrap ends the turn the way a model's final answer does, minus the
-// gates. The history ends on the step's tool results, so the closing text
-// is appended as the assistant's reply, the verdict is logged and shown
-// as finishTurn does, and the turn/end and EvTurnDone follow: RunBlocks
-// returns nil, the run exits 0 and headless output is built from the same
-// events as for any finished turn.
-//
-// finishTurn itself is bypassed on purpose. Its gates send a model that
-// says it is done back for more calls (stop hook, verify, spec review,
-// edge rules ...), and the wrap-up note is a reply to a model that cannot
-// stop checking: a note that sent it back after ten ignored ones would
-// undo the bound, and specreview and edgerules would read the change a
-// second time at a cost the run has already overspent.
-func (a *Agent) stopForWrap(ctx context.Context, check string, emit func(Event)) {
+// ErrVerification distinguishes an incomplete forced stop from success.
+var ErrVerification = errors.New("turn stopped with failed or incomplete verification")
+
+// stopForWrap ends model activity while preserving deterministic
+// completion checks. Reviews and repair rounds cannot extend this stop.
+func (a *Agent) stopForWrap(ctx context.Context, check string, emit func(Event)) error {
+	// Stop buying model rounds, but retain the deterministic guarantees
+	// of normal completion. Evaluate every gate even if an earlier one
+	// fails; the final report must include all outstanding failures.
+	var g turnGates
+	g.verify.final = true
+	failed := false
+	if !a.Off["verify"] {
+		failed = a.verifyGate(ctx, &g.verify, emit) || failed
+	}
+	failed = a.probeGate(ctx, &g.probes, emit) || failed
+	failed = a.acceptVerifyGate(ctx, &g.accept, emit) || failed
+	failed = a.testLedgerGate(ctx, &g.ledger, emit) || failed
+	failed = a.diffFuzzGate(ctx, &g.difffuzz, emit) || failed
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	outcome := a.Outcome()
+	failed = failed || !outcome.OK()
+	if failed && outcome.OK() {
+		// Integrity checks and probe findings need not look like shell
+		// failures to the outcome fold. They must still invalidate a
+		// previously green verdict and a completed goal.
+		outcome.Verdict = VerdictCheckFailed
+		outcome.Why = "a mandatory completion check failed"
+	}
 	reply := fmt.Sprintf("Stopped by the harness: the change passes `%s` and further checking was not changing it.", check)
+	if failed {
+		reply = "Stopped by the harness: verification failed or remains incomplete. " + outcome.Line()
+	}
 	msg := llm.TextMessage(llm.RoleAssistant, reply)
 	a.appendMessage(msg)
 	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg})
 	emit(Event{Kind: EvText, Text: reply})
 	emit(Event{Kind: EvTextBlockDone})
-	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("turn stopped: %d calls after the wrap-up note and the change still passes", a.wrapStop.calls)})
-	outcome := a.Outcome()
+	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("turn stopped: %d calls after the wrap-up note", a.wrapStop.calls), IsError: failed})
 	a.logOutcome(outcome)
+	a.ReopenCompletedGoal(outcome, emit)
 	a.refreshProofNotes(ctx, emit)
 	if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
 		emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
 	}
 	a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "wrapstop"})
 	emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: llm.StopEndTurn})
+	if failed {
+		return ErrVerification
+	}
+	return nil
 }

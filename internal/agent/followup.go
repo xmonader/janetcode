@@ -25,7 +25,7 @@ func (a *Agent) SuggestFollowup(ctx context.Context) (string, error) {
 	if cheap := a.RouteCheapName(); cheap != "" {
 		model = cheap
 	}
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	resp, err := a.stream(ctx, s.Provider, llm.Request{
 		Model:     model,
 		System:    followupSystem,
 		Messages:  msgs,

@@ -40,7 +40,7 @@ func (a *Agent) Interrupted() *session.Interrupted {
 	if a.Log == nil {
 		return nil
 	}
-	return session.FindInterrupted(a.Log.Events())
+	return session.FindInterrupted(a.logEvents())
 }
 
 // InterruptedNotice is the one line a front-end shows on opening a

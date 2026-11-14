@@ -275,7 +275,7 @@ func (a *Agent) replayCommands(root string) ([]string, int) {
 		return nil, 0
 	}
 	last := ""
-	for _, e := range a.Log.Events() {
+	for _, e := range a.logEvents() {
 		if e.Turn != a.turnN || e.Type != session.TypeToolResult || e.Name != "bash" || refused(e) {
 			continue
 		}

@@ -27,7 +27,7 @@ func (a *Agent) RecipeSave(sessionID, cwd, rest string) (cmdresult.Result, error
 	if a.Log == nil {
 		return cmdresult.Result{}, errors.New("no session log")
 	}
-	events := a.Log.Events()
+	events := a.logEvents()
 	if turn == 0 {
 		turn = recipe.LatestToolTurn(events)
 	}
