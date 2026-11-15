@@ -122,9 +122,21 @@ func TestBwrapStrictHasNoNetworkAndReadOnlyGit(t *testing.T) {
 	if o, err := runIn(t, sb, root, `d=.g; d=${d}it; touch "$d/x"`); err == nil {
 		t.Fatalf(".git writable under strict: %q", o)
 	}
-	o, _ := runIn(t, sb, root, "cat /proc/net/dev | tail -n +3 | cut -d: -f1 | tr -d ' ' | sort | tr '\n' ,")
-	if strings.TrimSpace(o) != "lo," {
-		t.Fatalf("interfaces under strict = %q, want only lo", o)
+	// A fresh network namespace also holds the kernel's fallback tunnel
+	// devices (gre0, sit0, ...) when those modules are loaded on the host;
+	// they are created down with no address or route, so they are not a way
+	// out and are left out of the comparison.
+	o, _ := runIn(t, sb, root, "cat /proc/net/dev | tail -n +3 | cut -d: -f1 | tr -d ' '")
+	var ifaces []string
+	for _, name := range strings.Fields(o) {
+		switch name {
+		case "gre0", "gretap0", "erspan0", "ip_vti0", "ip6_vti0", "sit0", "tunl0", "ip6tnl0", "ip6gre0":
+			continue
+		}
+		ifaces = append(ifaces, name)
+	}
+	if len(ifaces) != 1 || ifaces[0] != "lo" {
+		t.Fatalf("interfaces under strict = %q (all: %q), want only lo", ifaces, o)
 	}
 }
 
