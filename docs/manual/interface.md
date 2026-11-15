@@ -566,8 +566,14 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 for a second press before quitting, so a stray one never closes a session.
 
 `/connect` walks through provider → base URL → API keys → model with
-arrow-key lists that filter as you type; `/model` alone opens just the model
-list for the current provider (`/model name` sets one directly). Both write
+arrow-key lists that filter as you type; `/model` alone lists models from
+all configured providers that have credentials, plus local servers. Each
+row names its provider, and search matches both provider and model names.
+Saved models appear immediately while live lists load independently.
+Press `ctrl+p` to browse providers or connect another one.
+`/model name` sets one directly;
+`/model provider name` selects an exact provider when several serve the
+same model. Model completion shows the provider too. Both dialogs write
 the choice to the config file. When the provider's model list carries a
 context length and prices (OpenRouter does), the list shows them
 (`128k ctx · $0.15/$0.6 per M`) and the choice is saved under `"models"`
@@ -576,10 +582,14 @@ compaction runs at three quarters of the model's window (capped at 200k
 tokens) instead of the 80k default. Explicit `"prices"` and `compact_at`
 still win; Claude and GPT windows are known without a listing.
 
+The browser model picker shows the provider on every model row and
+searches both names. Models offered through several providers remain
+separate choices, and selecting one keeps that provider.
+
 A session has more than one model slot, and `/model` fills any of them.
 `/model` alone, or `/model <name>`, is the session's own model as it has
 always been; `/model cheap`, `/model strong`, `/model advisor` and
-`/model vision` open the very same list for the slot named, and
+`/model vision` open the current provider's model list for the slot named, and
 `/model <slot> off` gives a slot back. An unset slot reads
 `cheap: unset (main: anthropic/claude-opus-5)`, because an empty slot is
 the session's model and not a hole. What each slot is for, and which

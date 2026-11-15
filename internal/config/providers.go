@@ -165,10 +165,13 @@ var Presets = []Preset{
 	{"openai", "OpenAI", "openai", "https://api.openai.com/v1"},
 	{"openai-responses", "OpenAI (Responses API, keeps reasoning between calls)", "responses", "https://api.openai.com/v1"},
 	{"openrouter", "OpenRouter", "openai", "https://openrouter.ai/api/v1"},
+	{"opencode-go", "OpenCode Go", "openai", "https://opencode.ai/inference/go/v1"},
+	{"opencode-zen", "OpenCode Zen", "openai", "https://opencode.ai/inference/v1"},
 	{"dashscope-coding", "Alibaba Qwen coding plan", "openai", "https://coding-intl.dashscope.aliyuncs.com/v1"},
 	{"dashscope", "Alibaba Model Studio (Qwen)", "openai", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
 	{"deepseek", "DeepSeek", "openai", "https://api.deepseek.com/v1"},
 	{"moonshot", "Moonshot (Kimi)", "openai", "https://api.moonshot.ai/v1"},
+	{"zai-coding-plan", "Z.ai Coding Plan (GLM)", "openai", "https://api.z.ai/api/coding/paas/v4"},
 	{"zhipu", "Zhipu (GLM)", "openai", "https://open.bigmodel.cn/api/paas/v4"},
 	{"minimax", "MiniMax", "openai", "https://api.minimax.io/v1"},
 	{"gemini", "Google Gemini", "gemini", "https://generativelanguage.googleapis.com/v1beta"},
@@ -185,12 +188,28 @@ var Presets = []Preset{
 
 // FindPreset returns the preset called name.
 func FindPreset(name string) (Preset, bool) {
+	name = normalizeProviderName(name)
 	for _, p := range Presets {
 		if p.Name == name {
 			return p, true
 		}
 	}
 	return Preset{}, false
+}
+
+// Keep the documented uppercase provider spelling usable on the CLI
+// and in environment/config selections, while storing one provider ID.
+func normalizeProviderName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	switch name {
+	case "zai_coding_plan":
+		return zaiCodingPlan
+	case "opencode_go", "opencodego":
+		return "opencode-go"
+	case "opencode", "opencode_zen", "opencodezen", "zen":
+		return "opencode-zen"
+	}
+	return name
 }
 
 // Active returns the selected provider entry.
@@ -257,6 +276,16 @@ func update(path, name string, p Provider, model string, setDefault bool) error 
 	if r, ok := raw["providers"]; ok && len(r) > 0 {
 		if err := json.Unmarshal(r, &provs); err != nil {
 			return fmt.Errorf("config %s: providers: %w", path, err)
+		}
+	}
+	if name == zaiCodingPlan || IsOpenCode(name) {
+		for oldName, entry := range provs {
+			if oldName != name && normalizeProviderName(oldName) == name {
+				if _, exists := provs[name]; !exists {
+					provs[name] = entry
+				}
+				delete(provs, oldName)
+			}
 		}
 	}
 	if p.envKeys {

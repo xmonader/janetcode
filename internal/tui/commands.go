@@ -683,20 +683,42 @@ func (m *model) cmdModel(text string, fields []string) (tea.Cmd, bool) {
 		}
 		return m.openConnect(stepModel), true
 	}
-	var prov llm.Provider
-	if err := settingsapply.Allowed(m.opts.Config, "", "", fields[1]); err != nil {
+	name, modelID, explicit, err := m.opts.Config.ModelChoice(strings.Join(fields[1:], " "))
+	if err != nil {
 		m.transcript.errorf("%v", err)
 		return nil, false
 	}
-	if cfg := m.opts.Config; cfg != nil && m.opts.Models != nil {
+	var prov llm.Provider
+	if err := settingsapply.Allowed(m.opts.Config, "", "", modelID); err != nil {
+		m.transcript.errorf("%v", err)
+		return nil, false
+	}
+	if cfg := m.opts.Config; cfg != nil && explicit && name != cfg.Provider {
+		if err := settingsapply.Allowed(cfg, name, cfg.Providers[name].Type, modelID); err != nil {
+			m.transcript.errorf("%v", err)
+			return nil, false
+		}
+		if m.opts.Build == nil {
+			m.transcript.errorf("provider switching is not available in this build")
+			return nil, false
+		}
+		sub := *cfg
+		sub.Provider, sub.Model = name, modelID
+		prov, err = m.opts.Build(&sub)
+		if err != nil {
+			m.transcript.errorf("%v", err)
+			return nil, false
+		}
+		cfg.Provider, m.opts.Provider = name, name
+	} else if cfg := m.opts.Config; cfg != nil && !explicit && m.opts.Models != nil {
 		// The name may belong to a provider other than the one in
 		// use; follow it rather than sending it to the wrong endpoint.
-		if name, ok := cfg.RouteFor(fields[1]); ok && name != cfg.Provider {
+		if name, ok := cfg.RouteFor(modelID); ok && name != cfg.Provider {
 			if err := settingsapply.Allowed(cfg, name, cfg.Providers[name].Type, ""); err != nil {
 				m.transcript.errorf("%v", err)
 				return nil, false
 			}
-			p, _, err := m.opts.Models(fields[1])
+			p, _, err := m.opts.Models(modelID)
 			if err != nil {
 				m.transcript.errorf("%v", err)
 				return nil, false
@@ -704,19 +726,19 @@ func (m *model) cmdModel(text string, fields []string) (tea.Cmd, bool) {
 			prov = p
 			cfg.Provider = name
 			m.opts.Provider = name
-			m.note("switched to provider " + name + " for " + fields[1])
+			m.note("switched to provider " + name + " for " + modelID)
 		}
 	}
-	settingsapply.SwitchModel(m.opts.Config, m.opts.Agent, fields[1], prov)
+	settingsapply.SwitchModel(m.opts.Config, m.opts.Agent, modelID, prov)
 	if cfg := m.opts.Config; cfg != nil {
-		cfg.Model = fields[1]
+		cfg.Model = modelID
 		if m.opts.ConfigPath != "" {
-			if err := config.Update(m.opts.ConfigPath, cfg.Provider, cfg.Active(), fields[1]); err != nil {
+			if err := config.Update(m.opts.ConfigPath, cfg.Provider, cfg.Active(), modelID); err != nil {
 				m.transcript.errorf("saving config: %v", err)
 			}
 		}
 	}
-	m.note("model set to " + fields[1] + " on " + m.opts.Provider)
+	m.note("model set to " + modelID + " on " + m.opts.Provider)
 	return nil, false
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/gemini"
 	"github.com/xmonader/janetcode/internal/llm/openai"
+	"github.com/xmonader/janetcode/internal/llm/opencode"
 	"github.com/xmonader/janetcode/internal/llm/responses"
 )
 
@@ -40,6 +41,9 @@ func (p *providerPool) For(model string) (llm.Provider, string, error) {
 	if !ok {
 		return nil, "", fmt.Errorf("no configured provider serves %q; add one with /connect, or route it in the config", model)
 	}
+	if _, bare, ref := config.OpenCodeModelRef(model); ref {
+		model = bare
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if prov, ok := p.by[name]; ok {
@@ -58,6 +62,10 @@ func (p *providerPool) For(model string) (llm.Provider, string, error) {
 
 func buildProvider(cfg *config.Config) (llm.Provider, error) {
 	p := cfg.Active()
+	if config.IsOpenCode(cfg.Provider) {
+		preset, _ := config.FindPreset(cfg.Provider)
+		return opencode.New(opencode.Config{Name: preset.Name, BaseURL: p.BaseURL, APIKeys: p.Keys(), Thinking: cfg.ThinkingEnabled(), HideThinking: !cfg.ThinkingShown(), Effort: cfg.Effort, Limits: cfg.StreamLimits()})
+	}
 	switch p.Type {
 	case "anthropic":
 		return anthropic.New(anthropic.Config{

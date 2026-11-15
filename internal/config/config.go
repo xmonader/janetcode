@@ -814,6 +814,8 @@ func mergeProviders(cfg *Config, getenv func(string) string) {
 	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
 	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "", "OPENAI_BASE_URL")
 	fold("gemini", TypeGemini, ProviderConfig{}, "GEMINI_API_KEY", "", "GEMINI_BASE_URL")
+	mergeZAI(cfg, getenv)
+	mergeOpenCode(cfg, getenv)
 	for n, e := range cfg.Providers {
 		if pre, ok := FindPreset(n); ok {
 			if e.Type == "" {
@@ -883,7 +885,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 	// Normalised as cfg.Provider is below, so "OpenRouter" in the file
 	// is recognised as the provider the file's model belongs to.
-	fileProvider, fileModel := strings.ToLower(strings.TrimSpace(cfg.Provider)), cfg.Model
+	fileProvider, fileModel := normalizeProviderName(cfg.Provider), cfg.Model
 	setIf(&cfg.Provider, "JANETCODE_PROVIDER")
 	setIf(&cfg.Model, "JANETCODE_MODEL")
 	setIf(&cfg.Effort, "JANETCODE_EFFORT")
@@ -912,7 +914,13 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, err
 	}
 
-	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
+	cfg.Provider = normalizeProviderName(cfg.Provider)
+	if provider, model, ref := OpenCodeModelRef(cfg.Model); ref {
+		if (ov.Provider != "" || getenv("JANETCODE_PROVIDER") != "") && cfg.Provider != provider {
+			return nil, badf("model %q names provider %q, conflicting with selected provider %q", cfg.Model, provider, cfg.Provider)
+		}
+		cfg.Provider, cfg.Model = provider, model
+	}
 	if cfg.Provider == "" {
 		cfg.Provider = inferProvider(cfg)
 	} else if ov.Provider == "" && getenv("JANETCODE_PROVIDER") == "" {
@@ -972,10 +980,21 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 	case TypeOpenAI, TypeGemini, TypeResponses:
 		if cfg.Model == "" {
+			cfg.Model = defaultProviderModel(cfg.Provider)
+		}
+		if cfg.Model == "" {
 			return nil, badf("provider %q needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)", cfg.Provider)
 		}
 		if len(active.Keys()) == 0 && active.NeedsKey() {
-			if cfg.Provider == "openai" {
+			if cfg.Provider == zaiCodingPlan {
+				credErr = fmt.Errorf("%w for provider %q: set ZAI_CODING_PLAN_API_KEY or ZAI_API_KEY, or use /connect", ErrNoCredentials, cfg.Provider)
+			} else if IsOpenCode(cfg.Provider) {
+				key := "OPENCODE_API_KEY or OPENCODE_ZEN_API_KEY"
+				if cfg.Provider == "opencode-go" {
+					key = "OPENCODE_GO_API_KEY or OPENCODE_API_KEY"
+				}
+				credErr = fmt.Errorf("%w for provider %q: set %s, or use /connect", ErrNoCredentials, cfg.Provider, key)
+			} else if cfg.Provider == "openai" {
 				credErr = fmt.Errorf("%w: run janetcode and /connect to paste one, or set OPENAI_API_KEY or providers.openai.api_key in %s", ErrNoCredentials, path)
 			} else {
 				credErr = fmt.Errorf("%w for provider %q: run janetcode and /connect to paste one, or set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)

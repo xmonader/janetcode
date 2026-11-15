@@ -42,13 +42,15 @@ const (
 
 // row is one selectable line; section groups rows under a heading.
 type row struct {
-	section string
-	key     string // matched by the search field
-	cells   []string
-	tag     string
-	prov    config.Provider
-	name    string
-	custom  bool
+	section  string
+	key      string // matched by the search field
+	cells    []string
+	tag      string
+	prov     config.Provider
+	name     string
+	custom   bool
+	provider string
+	info     llm.ModelInfo
 }
 
 type connect struct {
@@ -75,20 +77,34 @@ type connect struct {
 	problem   string
 	// rows is the list budget the last frame fitted, so pgup and pgdown
 	// move by a screenful of the window actually drawn.
-	rows int
-	gen  int // ignores model lists from an abandoned dialog
+	rows          int
+	gen           int // ignores model lists from an abandoned dialog
+	pendingModels int
+}
+
+func (c *connect) providerLabel() string {
+	label := c.prov.Label(c.name)
+	if label != c.name {
+		return label + " (" + c.name + ")"
+	}
+	return label
 }
 
 // modelsMsg carries the asynchronously fetched model list.
 type modelsMsg struct {
-	gen    int
-	models []llm.ModelInfo
-	err    error
+	gen      int
+	provider string
+	models   []llm.ModelInfo
+	err      error
 }
 
 // openConnect starts the dialog at step. It refuses while a turn runs
 // because the agent's provider is swapped in place.
 func (m *model) openConnect(step connectStep) tea.Cmd {
+	return m.openConnectFor(step, "")
+}
+
+func (m *model) openConnectFor(step connectStep, slot string) tea.Cmd {
 	if m.opts.Config == nil || m.opts.Build == nil {
 		m.transcript.errorf("provider switching is not available in this build")
 		return nil
@@ -97,7 +113,7 @@ func (m *model) openConnect(step connectStep) tea.Cmd {
 		m.transcript.errorf("wait for the current turn to finish first")
 		return nil
 	}
-	c := &connect{gen: m.connectGen + 1, field: textinput.New()}
+	c := &connect{gen: m.connectGen + 1, field: textinput.New(), slot: slot}
 	c.field.Prompt = ""
 	c.field.Focus()
 	m.connectGen = c.gen
@@ -191,7 +207,8 @@ func (m *model) enterStep(step connectStep) tea.Cmd {
 		}
 	case stepModel:
 		c.field.Placeholder = "search models, or type a model id"
-		c.models, c.loadErr, c.loading = nil, "", true
+		c.models, c.meta, c.loadErr, c.loading = nil, nil, "", true
+		c.pendingModels = 0
 		// Each visit lists afresh, under a generation of its own: a list
 		// still in flight from an earlier visit (a key since replaced, a
 		// URL since changed) must not land in this one, least of all an
@@ -199,7 +216,12 @@ func (m *model) enterStep(step connectStep) tea.Cmd {
 		// and drops the ones just typed.
 		m.connectGen++
 		c.gen = m.connectGen
-		cmd = tea.Batch(m.fetchModels(), m.spinner.Tick)
+		if c.modelOnly && c.slot == "" {
+			c.field.Placeholder = "search model or provider, or type a model id"
+			cmd = tea.Batch(m.fetchConfiguredModels(), m.spinner.Tick)
+		} else {
+			cmd = tea.Batch(m.fetchModels(), m.spinner.Tick)
+		}
 	}
 	m.refresh(false)
 	return cmd
@@ -288,6 +310,10 @@ func (m *model) handleModels(msg modelsMsg) {
 	if c == nil || c.step != stepModel || msg.gen != c.gen {
 		return
 	}
+	if c.modelOnly && c.slot == "" && msg.provider != "" {
+		m.handleConfiguredModels(msg)
+		return
+	}
 	c.loading = false
 	switch {
 	case msg.err != nil:
@@ -340,7 +366,7 @@ func (m *model) handleModels(msg modelsMsg) {
 			if mi.Name != "" && mi.Name != mi.ID {
 				desc = strings.TrimSpace(desc + "  " + mi.Name)
 			}
-			r := row{key: mi.ID + " " + mi.Name, cells: []string{mi.ID, desc}, name: mi.ID}
+			r := row{section: "models · " + c.providerLabel(), key: mi.ID + " " + mi.Name + " " + c.name + " " + c.prov.Label(c.name), cells: []string{mi.ID, desc}, name: mi.ID}
 			switch mi.ID {
 			case current:
 				r.tag = "current"
@@ -380,6 +406,11 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	c := m.connect
 	c.problem = ""
 	switch keyName(msg) {
+	case "ctrl+p":
+		if c.modelOnly && c.slot == "" && c.step == stepModel {
+			c.providers = m.providerRows()
+			return m.enterStep(stepPick), true
+		}
 	case "ctrl+c":
 		m.closeConnect("")
 		return nil, true
@@ -444,6 +475,10 @@ func (m *model) connectEnter() tea.Cmd {
 		}
 		r := rows[idx]
 		c.name, c.prov, c.custom = r.name, r.prov, r.custom
+		if c.modelOnly && !r.custom && r.section == "configured" {
+			return m.enterStep(stepModel)
+		}
+		c.modelOnly = false
 		if r.custom {
 			return m.enterStep(stepName)
 		}
@@ -483,7 +518,15 @@ func (m *model) connectEnter() tea.Cmd {
 		rows, idx := m.visible()
 		id := v
 		if len(rows) > 0 {
-			id = rows[idx].name
+			r := rows[idx]
+			id = r.name
+			if c.modelOnly && c.slot == "" && r.provider != "" {
+				c.name, c.prov = r.provider, r.prov
+				if c.meta == nil {
+					c.meta = map[string]llm.ModelInfo{}
+				}
+				c.meta[id] = r.info
+			}
 		}
 		if id == "" {
 			return m.fail("type a model id")

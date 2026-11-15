@@ -101,6 +101,9 @@ func (a *Agent) SetLog(l session.Log) {
 	a.Log = l
 	a.logState.mu.Unlock()
 	a.RestoreFromLog()
+	a.usageMu.Lock()
+	a.requestSessionID = ""
+	a.usageMu.Unlock()
 	a.budgetMu.Lock()
 	if a.budget != nil && a.budget.owner == a {
 		a.budget = nil // the next call seeds the new session's usage

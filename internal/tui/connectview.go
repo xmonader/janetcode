@@ -147,9 +147,12 @@ func (m *model) dialogTitle() string {
 	c := m.connect
 	switch {
 	case c.slot != "":
-		return "Choose the " + c.slot + " model"
+		return "Choose the " + c.slot + " model · " + c.providerLabel()
 	case c.modelOnly:
-		return "Choose a model"
+		if c.step == stepPick {
+			return "Choose a provider"
+		}
+		return "Choose a model · all configured providers"
 	case c.step == stepPick:
 		return "Connect to a provider"
 	default:
@@ -183,6 +186,9 @@ func (m *model) dialogContext() string {
 	c := m.connect
 	if c.step == stepPick || c.step == stepName {
 		return ""
+	}
+	if c.modelOnly && c.slot == "" {
+		return "Current: " + m.opts.Config.Provider + "/" + m.opts.Agent.Settings().Model + " · search by model or provider"
 	}
 	parts := []string{c.prov.Type + " API"}
 	if c.step > stepURL && c.prov.BaseURL != "" {
@@ -391,12 +397,18 @@ func (m *model) dialogHelp() string {
 	c := m.connect
 	switch c.step {
 	case stepPick:
+		if c.modelOnly {
+			return "↑↓ move · enter lists models · /connect adds providers · esc close"
+		}
 		return "↑↓ move · enter select · esc close"
 	case stepModel:
 		rows, idx := m.visible()
 		back := "esc back"
 		if c.modelOnly {
 			back = "esc close"
+			if c.slot == "" {
+				back = "ctrl+p providers · esc close"
+			}
 		}
 		if len(rows) == 0 && strings.TrimSpace(c.field.Value()) != "" {
 			return fmt.Sprintf("enter uses %q as the model id · %s", strings.TrimSpace(c.field.Value()), back)

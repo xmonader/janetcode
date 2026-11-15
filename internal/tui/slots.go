@@ -117,7 +117,7 @@ func (m *model) slotLines() []string {
 // searched and priced exactly as /model shows it, ending in one config
 // key instead of a session-wide switch.
 func (m *model) openSlot(slot string) tea.Cmd {
-	cmd := m.openConnect(stepModel)
+	cmd := m.openConnectFor(stepModel, slot)
 	if m.connect == nil {
 		return cmd // openConnect refused (mid-turn, or no provider builder)
 	}

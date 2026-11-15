@@ -92,10 +92,46 @@ janetcode --provider anthropic --model deepseek/deepseek-v4.1-flash
 ```
 
 Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
-`OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_URL` (a key may be a
+`OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_URL`,
+`ZAI_CODING_PLAN_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_PLAN` (a key may be a
 comma-separated list), `JANETCODE_PROVIDER`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
+
+Z.ai Coding Plan is available as `zai-coding-plan` in `/connect` and
+`--provider`; `ZAI_CODING_PLAN` is an alias. It uses the OpenAI-compatible
+`https://api.z.ai/api/coding/paas/v4` endpoint, with `glm-5` as its default
+model. Set `--model` or `JANETCODE_MODEL` to choose another model.
+Credentials are read from `ZAI_CODING_PLAN_API_KEY`, then `ZAI_API_KEY`,
+then `ZAI_CODING_PLAN`, using the first nonempty variable. An explicit
+provider `key_env` still takes precedence. Provider inference uses the
+existing priority rules, so another explicitly selected provider stays selected.
+
+OpenCode Go (`opencode-go`) and Zen (`opencode-zen`) are also presets.
+Go reads `OPENCODE_GO_API_KEY`, falling back to `OPENCODE_API_KEY`.
+Zen reads `OPENCODE_API_KEY`, falling back to `OPENCODE_ZEN_API_KEY`.
+A generic key makes both available, with Go first during provider inference.
+An explicit `key_env` overrides these default lookups. Environment keys
+are never written to the config file.
+
+Use `--provider opencode-go --model kimi-k3` or the equivalent
+`--model opencode-go/kimi-k3`; Zen accepts the same provider/model syntax.
+Both default to `kimi-k3` when no model is selected. The presets use
+`https://opencode.ai/inference/go/v1` and
+`https://opencode.ai/inference/v1` for the model catalog and derive the
+native API URL for each model. Chat Completions, Responses, Anthropic
+Messages, and Gemini models use the existing protocol clients.
+Legacy `https://opencode.ai/zen/go/v1` and `/zen/v1` configurations
+remain supported. `OPENCODE_GO_BASE_URL` overrides Go's URL;
+`OPENCODE_ZEN_BASE_URL` or `OPENCODE_BASE_URL` overrides Zen's URL.
+
+Every OpenCode request carries `x-opencode-session`; conversation IDs
+survive resume, and children get their own IDs. Exhausted subscription
+windows fail promptly with reset information when supplied by the
+gateway; short rate limits retain normal retries. Models on the
+proprietary `jev-*` endpoint are excluded. See the current
+[OpenCode Go endpoints](https://opencode.ai/docs/console/go/) and
+[model APIs](https://opencode.ai/docs/console/models/).
 
 `JANETCODE_SHELL` names the shell that `bash`, hooks, verify commands
 and background jobs run through, in place of bash on Unix and PowerShell

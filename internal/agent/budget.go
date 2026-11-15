@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math"
@@ -46,6 +47,19 @@ func (a *Agent) stream(ctx context.Context, p llm.Provider, req llm.Request, emi
 	if err := a.persistenceErr(); err != nil {
 		return nil, err
 	}
+	id := ""
+	if sess, ok := a.Log.(*session.Session); ok {
+		id = sess.Meta.ID
+	}
+	if id == "" {
+		a.usageMu.Lock()
+		if a.requestSessionID == "" {
+			a.requestSessionID = rand.Text()
+		}
+		id = a.requestSessionID
+		a.usageMu.Unlock()
+	}
+	ctx = llm.WithSessionID(ctx, id)
 	b := a.sharedAccount()
 	if b == nil {
 		return p.Stream(ctx, req, emit)

@@ -24,19 +24,40 @@ func (s *server) model(arg string) {
 	var prov llm.Provider
 	s.cfgMu.Lock()
 	defer s.cfgMu.Unlock()
-	if err := settingsapply.Allowed(cfg, "", "", arg); err != nil {
+	name, modelID, explicit, err := cfg.ModelChoice(arg)
+	if err != nil {
 		s.errf("%v", err)
 		return
 	}
-	if cfg != nil && s.opts.Models != nil {
+	if err := settingsapply.Allowed(cfg, "", "", modelID); err != nil {
+		s.errf("%v", err)
+		return
+	}
+	if cfg != nil && explicit && name != cfg.Provider {
+		if err := settingsapply.Allowed(cfg, name, cfg.Providers[name].Type, modelID); err != nil {
+			s.errf("%v", err)
+			return
+		}
+		if s.opts.BuildProvider == nil {
+			s.errf("provider switching is not available in this build")
+			return
+		}
+		prov, err = s.opts.BuildProvider(name)
+		if err != nil {
+			s.errf("%v", err)
+			return
+		}
+		cfg.Provider = name
+		s.setProvider(name)
+	} else if cfg != nil && !explicit && s.opts.Models != nil {
 		// The name may belong to a provider other than the one in use;
 		// follow it rather than sending it to the wrong endpoint.
-		if name, ok := cfg.RouteFor(arg); ok && name != cfg.Provider {
+		if name, ok := cfg.RouteFor(modelID); ok && name != cfg.Provider {
 			if err := settingsapply.Allowed(cfg, name, cfg.Providers[name].Type, ""); err != nil {
 				s.errf("%v", err)
 				return
 			}
-			p, _, err := s.opts.Models(arg)
+			p, _, err := s.opts.Models(modelID)
 			if err != nil {
 				s.errf("%v", err)
 				return
@@ -44,19 +65,19 @@ func (s *server) model(arg string) {
 			prov = p
 			cfg.Provider = name
 			s.setProvider(name)
-			s.notice("switched to provider " + name + " for " + arg)
+			s.notice("switched to provider " + name + " for " + modelID)
 		}
 	}
-	settingsapply.SwitchModel(cfg, ag, arg, prov)
+	settingsapply.SwitchModel(cfg, ag, modelID, prov)
 	if cfg != nil {
-		cfg.Model = arg
+		cfg.Model = modelID
 		if s.opts.ConfigPath != "" {
-			if err := config.Update(s.opts.ConfigPath, cfg.Provider, cfg.Active(), arg); err != nil {
+			if err := config.Update(s.opts.ConfigPath, cfg.Provider, cfg.Active(), modelID); err != nil {
 				s.errf("saving config: %v", err)
 			}
 		}
 	}
-	s.notice("model set to " + arg + " on " + s.provider())
+	s.notice("model set to " + modelID + " on " + s.provider())
 	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
 }
 

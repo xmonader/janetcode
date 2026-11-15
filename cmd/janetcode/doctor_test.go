@@ -29,6 +29,12 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("ZAI_CODING_PLAN_API_KEY", "")
+	t.Setenv("ZAI_API_KEY", "")
+	t.Setenv("ZAI_CODING_PLAN", "")
+	t.Setenv("OPENCODE_API_KEY", "")
+	t.Setenv("OPENCODE_ZEN_API_KEY", "")
+	t.Setenv("OPENCODE_GO_API_KEY", "")
 	os.MkdirAll(filepath.Join(work, ".janetcode", "skills", "review"), 0o755)
 	files := map[string]string{
 		".janetcode/hooks.json":             `{"pre_tool": [{"command": "echo hi"}], "stop": [{"command": "true"}]}`,

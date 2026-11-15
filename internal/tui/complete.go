@@ -129,14 +129,22 @@ func (m *model) completeModel(partial string) []command {
 	}
 	for _, n := range m.opts.Config.ProviderNames() {
 		p := m.opts.Config.Providers[n]
-		if p.Model == "" || seen[p.Model] {
+		key := n + " " + p.Model
+		if p.Model == "" || seen[key] {
 			continue
 		}
-		seen[p.Model] = true
-		if partial != "" && !strings.Contains(strings.ToLower(p.Model), strings.ToLower(partial)) {
+		seen[key] = true
+		match := true
+		for _, word := range strings.Fields(strings.ToLower(partial)) {
+			if !strings.Contains(strings.ToLower(key), word) {
+				match = false
+				break
+			}
+		}
+		if !match {
 			continue
 		}
-		out = append(out, command{name: "/model " + p.Model, help: "configured for " + n})
+		out = append(out, command{name: "/model " + key, help: "provider: " + p.Label(n)})
 	}
 	return out
 }

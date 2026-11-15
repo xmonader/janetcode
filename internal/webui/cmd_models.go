@@ -76,14 +76,14 @@ func (s *server) cachedOrLiveModels(current string) ([]modelGroup, bool) {
 	if time.Since(s.modelsAt) < modelsFresh && s.modelsCache != nil {
 		groups := s.modelsCache
 		s.modelsMu.Unlock()
-		return markCurrent(groups, current), true
+		return markCurrent(groups, current, s.provider()), true
 	}
 	if s.modelsFetching {
 		// A fetch is in flight (another menu opened a moment ago); stale
 		// beats two simultaneous provider sweeps.
 		groups := s.modelsCache
 		s.modelsMu.Unlock()
-		return markCurrent(groups, current), groups != nil
+		return markCurrent(groups, current, s.provider()), groups != nil
 	}
 	s.modelsFetching = true
 	s.modelsMu.Unlock()
@@ -100,7 +100,7 @@ func (s *server) cachedOrLiveModels(current string) ([]modelGroup, bool) {
 	if groups == nil {
 		return nil, false
 	}
-	return markCurrent(groups, current), true
+	return markCurrent(groups, current, s.provider()), true
 }
 
 // fetchLiveModels asks every configured provider what it serves, in
@@ -160,7 +160,7 @@ func (s *server) fetchLiveModels() []modelGroup {
 	seen := map[string]bool{}
 	for _, g := range groups {
 		for _, m := range g.Models {
-			seen[m.Model] = true
+			seen[g.Provider+"\x00"+m.Model] = true
 		}
 	}
 	for i, name := range names {
@@ -188,9 +188,9 @@ func (s *server) fetchLiveModels() []modelGroup {
 			merged = append(merged, m)
 		}
 		for _, live := range ans[i].rows {
-			if !seen[live.Model] {
+			if !seen[name+"\x00"+live.Model] {
 				merged = append(merged, live)
-				seen[live.Model] = true
+				seen[name+"\x00"+live.Model] = true
 			}
 		}
 		groups[gi].Models = merged
@@ -219,10 +219,10 @@ func (s *server) configKnownModels(cfg *config.Config, current string) []modelGr
 	groups := []modelGroup{}
 	add := func(provider, model string) {
 		model = strings.TrimSpace(model)
-		if model == "" || seen[model] {
+		if model == "" || seen[provider+"\x00"+model] {
 			return
 		}
-		seen[model] = true
+		seen[provider+"\x00"+model] = true
 		for i := range groups {
 			if groups[i].Provider == provider {
 				groups[i].Models = append(groups[i].Models, modelRow{Model: model, Context: contextOf(cfg, model)})
@@ -258,14 +258,14 @@ func (s *server) configKnownModels(cfg *config.Config, current string) []modelGr
 	}
 	// The model in use leads even when nothing lists it: it is the one
 	// the reader most wants to see, and the ✓ has to land somewhere.
-	if current != "" && !seen[current] {
+	if current != "" && !seen[s.provider()+"\x00"+current] {
 		add(s.provider(), current)
 	}
 	for i := range groups {
 		sort.SliceStable(groups[i].Models, func(a, b int) bool { return groups[i].Models[a].Model < groups[i].Models[b].Model })
 	}
 	sortGroups(groups, s.provider())
-	return groups
+	return markCurrent(groups, current, s.provider())
 }
 
 // sortGroups puts the active provider first; the rest are alphabetical.
@@ -281,7 +281,7 @@ func sortGroups(groups []modelGroup, active string) {
 	})
 }
 
-func markCurrent(groups []modelGroup, current string) []modelGroup {
+func markCurrent(groups []modelGroup, current, provider string) []modelGroup {
 	if current == "" {
 		return groups
 	}
@@ -291,10 +291,11 @@ func markCurrent(groups []modelGroup, current string) []modelGroup {
 	for i, g := range groups {
 		out[i] = modelGroup{Provider: g.Provider, Models: make([]modelRow, len(g.Models))}
 		for j, m := range g.Models {
-			m.Current = m.Model == current
+			m.Current = m.Model == current && g.Provider == provider
 			out[i].Models[j] = m
 		}
 	}
+	sortGroups(out, provider)
 	return out
 }
 

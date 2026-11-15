@@ -97,6 +97,28 @@ more API keys, choose a model from the server's list, and the choice is
 saved to the config file. Several keys for one provider are rotated
 automatically when one is rate limited or rejected.
 
+For Z.ai Coding Plan, export `ZAI_CODING_PLAN_API_KEY` (or `ZAI_API_KEY`)
+and run `janetcode --provider ZAI_CODING_PLAN`. The dedicated Coding Plan
+endpoint is selected automatically, with `glm-5` as the default model;
+`--model` overrides it. If Z.ai is the only provider with a key, the provider
+flag is optional. Environment keys are kept out of the config file.
+
+OpenCode Go and Zen are also built in, including native model protocols
+and the conversation header required by the gateway:
+
+```sh
+export OPENCODE_GO_API_KEY=...
+janetcode --model opencode-go/kimi-k3
+janetcode --model opencode-go/gpt-5.6-luna
+
+export OPENCODE_API_KEY=...
+janetcode --model opencode-zen/claude-sonnet-5-5
+```
+
+`OPENCODE_ZEN_API_KEY` is also accepted for Zen. A generic
+`OPENCODE_API_KEY` enables both presets, with Go first when inferring a
+provider; `OPENCODE_GO_API_KEY` enables only Go. `/connect` lists both.
+
 The provider is inferred from whichever key is set (`--provider` overrides
 it, and accepts any configured or preset name). Put `model` and the keys in
 the config file (see below), or export `JANETCODE_MODEL`, to skip the flag.

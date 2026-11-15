@@ -75,6 +75,10 @@ func (c *Config) RouteFor(model string) (string, bool) {
 	if best != "" {
 		return best, true
 	}
+	if provider, _, ref := OpenCodeModelRef(model); ref {
+		_, exists := c.Providers[provider]
+		return provider, exists
+	}
 	// A provider that lists the model claims it.
 	for _, name := range c.ProviderNames() {
 		for _, m := range c.Providers[name].Models {
@@ -85,6 +89,14 @@ func (c *Config) RouteFor(model string) (string, bool) {
 	}
 	// Otherwise the family, when that provider is configured.
 	if fam := Family(model); fam != "" {
+		if fam == "zhipu" {
+			if _, coding := c.Providers[zaiCodingPlan]; coding {
+				_, general := c.Providers[fam]
+				if c.Provider == zaiCodingPlan || !general {
+					return zaiCodingPlan, true
+				}
+			}
+		}
 		if _, ok := c.Providers[fam]; ok {
 			return fam, true
 		}

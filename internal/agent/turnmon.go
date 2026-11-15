@@ -47,9 +47,10 @@ type turnMonitor struct {
 	// results, not only between turns; see budget.go. Zero means no
 	// ceiling, and a model with no price cannot be held to one. Read
 	// through MaxCost, written through SetMaxCost.
-	MaxCostUSD float64
-	budgetMu   sync.Mutex
-	budget     *sharedBudget
+	MaxCostUSD       float64
+	budgetMu         sync.Mutex
+	budget           *sharedBudget
+	requestSessionID string // usageMu guards the fallback ID for unsaved sessions
 	// MaxToolCalls, when set, ends a run before a batch of tool calls
 	// that would take its total past this many (see toollimit.go).
 	MaxToolCalls int
