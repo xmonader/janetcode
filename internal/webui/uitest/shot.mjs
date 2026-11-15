@@ -54,12 +54,17 @@ await cmd('Page.addScriptToEvaluateOnNewDocument', { source: `
     // The branch and the context share come from the tree and the model
     // this run happens to have; pin them so the pixels do not follow it.
     ? realFetch(url, opts).then(async (r) => { const d = await r.clone().json(); d.branch = 'main'; d.ctx_pct = 34; d.ctx_label = '68k / 200k'; return new Response(JSON.stringify(d), { headers: { 'Content-Type': 'application/json' } }); })
+    : String(url).startsWith('/api/state') && !opts
+    ? realFetch(url, opts).then(async (r) => { const d = await r.clone().json(); if (d.hello) { d.hello.cwd = '/home/xmonader/wspace/janetcode'; d.hello.cwd_short = '~/wspace/janetcode'; } return new Response(JSON.stringify(d), { headers: { 'Content-Type': 'application/json' } }); })
     : realFetch(url, opts);
 `});
 await cmd('Page.navigate', { url: APP });
 await sleep(2500);
 await cmd('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 await sleep(300);
+// Freeze before the first frame as well: its entrance and webfont load are
+// otherwise timing-sensitive. Interaction tests cover motion separately.
+await evaljs(`document.fonts.ready.then(() => { const st = document.createElement('style'); st.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }'; document.head.appendChild(st); return 1; })`);
 await cmd('Page.captureScreenshot', { format: 'png' }).then(r => { writeFileSync(`${OUT}/00-empty.png`, Buffer.from(r.result.data, 'base64')); console.log('shot 00-empty'); });
 
 const GO = 'func Interpolate(v string, seen map[string]bool) (string, error) {\n\tif !strings.Contains(v, "%(") {\n\t\treturn v, nil\n\t}\n\treturn v, nil\n}';
@@ -108,10 +113,6 @@ const setSize = async (w, h) => { await cmd('Emulation.setDeviceMetricsOverride'
 // The message clock is a real time; pin the zone it is read in so the
 // shot is the same on any machine.
 await cmd('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
-
-// A spinner caught mid-turn, or a fade half done, is a different picture
-// every run; the gate compares still frames.
-await evaljs(`(() => { const st = document.createElement('style'); st.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }'; document.head.appendChild(st); return 1; })()`);
 
 // feed fixtures through the fake EventSource
 await evaljs(`(() => {
@@ -332,7 +333,7 @@ for (const theme of ['dark', 'light']) {
     await evaljs(`document.getElementById('input').value = ${JSON.stringify(FILES.map(([n]) => '@' + UP + n).join(' ') + ' ')}; JanetExtras.uploaded(window.__files, ${JSON.stringify(FILES.map(([n]) => UP + n))}); document.getElementById('composer').classList.add('dragover'); 1`);
     await sleep(300);
     await shot(`17-dragover-${tag}`);
-    await evaljs(`document.getElementById('composer').classList.remove('dragover'); document.getElementById('input').value = ''; 1`);
+    await evaljs(`document.getElementById('composer').classList.remove('dragover'); document.getElementById('input').value = ''; document.getElementById('input').dispatchEvent(new Event('input', { bubbles: true })); 1`);
     await evaljs(`JanetExtras.openGallery(); 1`);
     await sleep(400);
     await shot(`16-gallery-${tag}`);

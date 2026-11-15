@@ -7,8 +7,8 @@
 
   // JanetConnect wires the dialog in index.html and returns open, which
   // shows it with an optional note. closePalette, composer and status are
-  // the page's: opening closes the palette, closing gives the composer
-  // back its focus, and a connection is announced on the status line.
+  // the page's: opening closes the palette and closing restores the
+  // invoker through the shared modal handling.
   global.JanetConnect = function ({ closePalette, composer, status }) {
     const cx = {
       root: document.getElementById("connect"),
@@ -32,6 +32,7 @@
       go: document.getElementById("cx-go"),
       providers: [],
       busy: false,
+      gen: 0,
     };
     function cxSay(text, kind) {
       cx.msg.className = "cx-msg" + (kind ? " " + kind : "");
@@ -96,7 +97,8 @@
         return;
       }
       const ms = out.models || [];
-      cx.models.innerHTML = ms.map((m) => `<option value="${esc(m.id)}">${esc([m.name, m.context ? Math.round(m.context / 1000) + "k context" : ""].filter(Boolean).join(" · "))}</option>`).join("");
+      const provider = cxChosen().name;
+      cx.models.innerHTML = ms.map((m) => `<option value="${esc(m.id)}">${esc([provider, m.name, m.context ? Math.round(m.context / 1000) + "k context" : ""].filter(Boolean).join(" · "))}</option>`).join("");
       cxSay(ms.length ? `${ms.length} ${ms.length === 1 ? "model" : "models"} available. Pick one, then Connect.` : "The provider lists no models; type the model id.", "ok");
       cx.model.focus();
     }
@@ -121,10 +123,12 @@
       // Opening again while open would reset what is half filled in.
       if (!cx.root.hidden && cx.root.dataset.ready) { if (note) cxSay(note); return; }
       delete cx.root.dataset.ready;
+      const gen = ++cx.gen;
       cx.root.hidden = false;
       cxSay(note || "");
       let data = null;
       try { const r = await fetch("/api/connect"); if (r.ok) data = await r.json(); } catch (_) {}
+      if (gen !== cx.gen || cx.root.hidden) return;
       if (!data) { cxSay("Connecting is not available in this session.", "bad"); return; }
       cx.providers = data.providers || [];
       if (data.config) document.getElementById("cx-path").textContent = data.config;
@@ -140,6 +144,7 @@
     }
     function closeConnect() {
       if (cx.root.hidden) return;
+      cx.gen++;
       cx.root.hidden = true;
       cx.key.value = "";
       composer.focus();

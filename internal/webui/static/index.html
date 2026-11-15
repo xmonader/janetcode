@@ -99,7 +99,7 @@
       <button type="button" id="nav-toggle" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar"><svg class="i" aria-hidden="true"><use href="#i-panel-left"/></svg></button>
       <span class="spacer"></span>
       <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings"><svg class="i" aria-hidden="true"><use href="#i-settings"/></svg></button>
-      <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+      <button type="button" id="theme-toggle" class="icon-btn" title="Switch theme" aria-label="Switch theme"></button>
     </div>
     <div class="drag-handle" id="nav-resize" title="Drag to resize · double-click to reset"></div>
   </aside>
@@ -219,7 +219,7 @@
       <form id="composer">
         <div id="slash" class="slash" hidden></div>
         <div id="ac" class="ac" hidden></div>
-        <div id="mode-menu" class="slash mode-menu" hidden></div>
+        <div id="mode-menu" class="slash mode-menu" role="menu" aria-label="Permission mode" hidden></div>
         <div id="chips" class="chips-row" hidden></div>
         <textarea id="input" data-testid="composer" rows="1" placeholder="What should we do next?" aria-label="Message"></textarea>
         <div class="composer-bar">
@@ -231,10 +231,10 @@
           </div>
           <div class="cb-pick">
             <span class="model-group">
-              <button type="button" id="model" class="model-btn" title="Switch model"></button>
-              <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort"></button>
+              <button type="button" id="model" class="model-btn" title="Switch model" aria-haspopup="listbox" aria-controls="switch-menu" aria-expanded="false"></button>
+              <button type="button" id="effort-chip" class="mode-chip effort-chip" hidden title="Reasoning effort" aria-haspopup="listbox" aria-controls="switch-menu" aria-expanded="false"></button>
             </span>
-            <button type="button" id="mode-chip" class="mode-chip">ask</button>
+            <button type="button" id="mode-chip" class="mode-chip" aria-haspopup="menu" aria-controls="mode-menu" aria-expanded="false">ask</button>
           </div>
           <div class="cb-send">
             <span id="ctx-chip" class="ctx-chip" title="Context window used" hidden></span>
@@ -264,7 +264,7 @@
 
     <aside class="work" id="work">
       <div class="drag-handle" id="work-resize" title="Drag to resize · double-click to reset"></div>
-      <div class="work-tabs" role="tablist">
+      <div class="work-tabs" role="tablist" aria-label="Session details">
         <button type="button" role="tab" data-pane="plan" class="on">Plan</button>
         <button type="button" role="tab" data-pane="files">Files<i class="tab-n" id="tab-n-files" hidden></i></button>
         <button type="button" role="tab" data-pane="jobs">Jobs<i class="tab-n" id="tab-n-jobs" hidden></i></button>
@@ -335,18 +335,18 @@
       </header>
       <section>
         <h3>Appearance</h3>
-        <div class="seg" id="theme-seg">
+        <div class="seg" id="theme-seg" role="group" aria-label="Theme">
           <button type="button" data-theme="light">Light</button>
           <button type="button" data-theme="dark">Dark</button>
           <button type="button" data-theme="system">System</button>
         </div>
         <h3>Density</h3>
-        <div class="seg" id="density-seg">
+        <div class="seg" id="density-seg" role="group" aria-label="Density">
           <button type="button" data-density="comfortable">Comfortable</button>
           <button type="button" data-density="compact">Compact</button>
         </div>
         <h3>Font size</h3>
-        <div class="seg" id="font-seg">
+        <div class="seg" id="font-seg" role="group" aria-label="Font size">
           <button type="button" data-font="small">S</button>
           <button type="button" data-font="medium">M</button>
           <button type="button" data-font="large">L</button>
@@ -404,8 +404,8 @@
   </div>
 
   <div id="switch-menu" class="menu" hidden>
-    <input id="switch-q" class="menu-q" type="search" placeholder="Switch model…" aria-label="Switch model">
-    <div id="switch-list" class="menu-list"></div>
+    <input id="switch-q" class="menu-q" type="search" placeholder="Switch model…" aria-label="Switch model" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="switch-list" autocomplete="off">
+    <div id="switch-list" class="menu-list" role="listbox" aria-label="Available choices"></div>
   </div>
 
   <div id="connect" class="palette connect" role="dialog" aria-modal="true" aria-labelledby="connect-title" hidden>
@@ -435,8 +435,8 @@
   </div>
 
   <div id="palette" data-testid="palette" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
-    <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off" aria-label="Search commands">
-    <div id="palette-list"></div>
+    <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off" aria-label="Search commands" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="palette-list">
+    <div id="palette-list" role="listbox" aria-label="Commands"></div>
   </div>
 <!-- One polite voice for what a screen reader should hear: an approval,
        a finished turn. The conversation itself streams token by token and

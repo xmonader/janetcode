@@ -1408,11 +1408,14 @@
       ? palItems.map((c, i) => {
         const head = !q && c.group !== last ? `<div class="pal-group">${esc(c.group)}</div>` : "";
         last = c.group;
-        return head + `<div class="${i === palIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help || "")}</span>${c.key ? `<kbd class="pal-key">${esc(c.key)}</kbd>` : ""}</div>`;
+        return head + `<div id="pal-option-${i}" role="option" aria-selected="${i === palIdx}" class="${i === palIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help || "")}</span>${c.key ? `<kbd class="pal-key">${esc(c.key)}</kbd>` : ""}</div>`;
       }).join("")
       : `<div class="empty-pal">Nothing matches</div>`;
     const on = paletteList.querySelector(".on");
-    if (on) on.scrollIntoView({ block: "nearest" });
+    if (on) {
+      paletteQ.setAttribute("aria-activedescendant", on.id);
+      on.scrollIntoView({ block: "nearest" });
+    } else paletteQ.removeAttribute("aria-activedescendant");
   }
   async function runPaletteItem(c) {
     closePalette();
@@ -1504,9 +1507,29 @@
   let modelGroups = [];
   let switchRows = [];
   let switchIdx = 0;
+  let switchAnchor = null;
+  let switchGen = 0;
 
-  function closeSwitchMenu() {
+  function closeSwitchMenu(restore = true) {
+    if (switchMenu.hidden) return;
+    switchGen++;
     switchMenu.hidden = true;
+    modelBtn.setAttribute("aria-expanded", "false");
+    effortChip.setAttribute("aria-expanded", "false");
+    switchQ.setAttribute("aria-expanded", "false");
+    switchQ.removeAttribute("aria-activedescendant");
+    const anchor = switchAnchor;
+    switchAnchor = null;
+    if (restore && anchor) anchor.focus();
+  }
+  function showSwitchMenu(anchor) {
+    closeSwitchMenu(false);
+    switchAnchor = anchor;
+    modelBtn.setAttribute("aria-expanded", anchor === modelBtn ? "true" : "false");
+    effortChip.setAttribute("aria-expanded", anchor === effortChip ? "true" : "false");
+    switchQ.setAttribute("aria-expanded", "true");
+    switchMenu.hidden = false;
+    switchQ.focus();
   }
   function placeSwitchMenu(anchor) {
     const r = anchor.getBoundingClientRect();
@@ -1532,17 +1555,18 @@
   async function openModelMenu() {
     switchMode = "model";
     switchQ.value = "";
-    switchQ.placeholder = "Switch model…";
-    switchList.innerHTML = `<div class="menu-empty">Loading…</div>`;
+    switchQ.placeholder = "Search model or provider…";
+    switchQ.setAttribute("aria-label", "Search models and providers");
+    switchList.innerHTML = `<div class="menu-empty" role="status">Loading…</div>`;
     placeSwitchMenu(modelBtn);
-    switchMenu.hidden = false;
-    switchQ.focus();
+    showSwitchMenu(modelBtn);
+    const gen = ++switchGen;
+    let groups = [];
     try {
-      modelGroups = (await (await fetch("/api/models")).json()).groups || [];
-    } catch (_) {
-      modelGroups = [];
-    }
-    if (switchMenu.hidden || switchMode !== "model") return;
+      groups = (await (await fetch("/api/models")).json()).groups || [];
+    } catch (_) {}
+    if (gen !== switchGen || switchMenu.hidden || switchMode !== "model") return;
+    modelGroups = groups;
     renderSwitchMenu(switchQ.value);
   }
 
@@ -1550,10 +1574,10 @@
     switchMode = "effort";
     switchQ.value = "";
     switchQ.placeholder = "Set effort…";
-    renderSwitchMenu("");
+    switchQ.setAttribute("aria-label", "Search reasoning effort");
     placeSwitchMenu(effortChip);
-    switchMenu.hidden = false;
-    switchQ.focus();
+    showSwitchMenu(effortChip);
+    renderSwitchMenu("");
   }
 
   // contextSize is a window as people say it: "128k context", "1M context".
@@ -1564,11 +1588,21 @@
   }
 
   function rowHTML(i, main, sub) {
-    return `<div class="menu-row" data-i="${i}"><span>${esc(main)}</span>` + (sub ? `<span class="menu-sub">${esc(sub)}</span>` : "") + `</div>`;
+    return `<div id="switch-option-${i}" class="menu-row" role="option" aria-selected="false" data-i="${i}"><span>${esc(main)}</span>` + (sub ? `<span class="menu-sub">${esc(sub)}</span>` : "") + `</div>`;
   }
 
   function paintSwitchRows() {
-    switchList.querySelectorAll(".menu-row").forEach((el) => el.classList.toggle("on", Number(el.dataset.i) === switchIdx));
+    let active = null;
+    switchList.querySelectorAll(".menu-row").forEach((el) => {
+      const on = Number(el.dataset.i) === switchIdx;
+      el.classList.toggle("on", on);
+      el.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) active = el;
+    });
+    if (active) {
+      switchQ.setAttribute("aria-activedescendant", active.id);
+      active.scrollIntoView({ block: "nearest" });
+    } else switchQ.removeAttribute("aria-activedescendant");
   }
 
   function renderSwitchMenu(q) {
@@ -1579,19 +1613,23 @@
       for (const g of modelGroups) {
         // The model in use leads its group, so the menu opens on it
         // rather than on whatever sorts first ("aion-labs/…").
-        const rows = g.models.filter((m) => !q || m.model.toLowerCase().includes(q))
+        const words = q.split(/\s+/).filter(Boolean);
+        const rows = g.models.filter((m) => words.every((word) =>
+          [g.provider, g.label, m.model].filter(Boolean).join(" ").toLowerCase().includes(word)))
           .sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
         if (!rows.length) continue;
-        html += `<div class="menu-group">${esc(g.label || g.provider)} · ${rows.length}</div>`;
+        html += `<div class="menu-group" role="presentation">${esc(g.label || g.provider)} · ${rows.length}</div>`;
         for (const m of rows) {
-          switchRows.push({ cmd: "/model " + m.model });
-          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""), contextSize(m.context));
+          switchRows.push({ cmd: "/model " + g.provider + " " + m.model, current: m.current });
+          const provider = g.label && g.label !== g.provider ? `${g.label} (${g.provider})` : g.provider;
+          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""),
+            [provider, contextSize(m.context)].filter(Boolean).join(" · "));
         }
       }
       // A name nobody listed is still switchable: /model routes it by
       // family or prefix, and remembers it.
-      if (q && !modelGroups.some((g) => g.models.some((m) => m.model.toLowerCase() === q))) {
-        switchRows.unshift({ cmd: "/model " + q });
+      if (q && !switchRows.length && !modelGroups.some((g) => g.models.some((m) => m.model.toLowerCase() === q))) {
+        switchRows.push({ cmd: "/model " + q });
         html = rowHTML(0, `switch to “${q}”`, "not listed; use it by name") + html;
       }
     } else {
@@ -1603,7 +1641,8 @@
       }
     }
     switchList.innerHTML = html || `<div class="menu-empty">Nothing matches</div>`;
-    switchIdx = 0;
+    const current = switchRows.findIndex((r) => r.current);
+    switchIdx = current >= 0 ? current : 0;
     paintSwitchRows();
   }
 
@@ -1628,8 +1667,12 @@
   switchQ.addEventListener("input", () => renderSwitchMenu(switchQ.value));
   switchQ.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape") { ev.preventDefault(); closeSwitchMenu(); return; }
-    if (ev.key === "ArrowDown") { ev.preventDefault(); switchIdx = Math.min(switchIdx + 1, switchRows.length - 1); paintSwitchRows(); return; }
-    if (ev.key === "ArrowUp") { ev.preventDefault(); switchIdx = Math.max(switchIdx - 1, 0); paintSwitchRows(); return; }
+    if (ev.key === "Tab") { closeSwitchMenu(); return; }
+    if (!switchRows.length) return;
+    if (ev.key === "ArrowDown") { ev.preventDefault(); switchIdx = (switchIdx + 1) % switchRows.length; paintSwitchRows(); return; }
+    if (ev.key === "ArrowUp") { ev.preventDefault(); switchIdx = (switchIdx - 1 + switchRows.length) % switchRows.length; paintSwitchRows(); return; }
+    if (ev.key === "Home") { ev.preventDefault(); switchIdx = 0; paintSwitchRows(); return; }
+    if (ev.key === "End") { ev.preventDefault(); switchIdx = switchRows.length - 1; paintSwitchRows(); return; }
     if (ev.key === "Enter") { ev.preventDefault(); chooseSwitch(switchIdx); }
   });
   switchList.addEventListener("click", (ev) => {
@@ -1638,7 +1681,7 @@
   });
   document.addEventListener("click", (ev) => {
     if (switchMenu.hidden) return;
-    if (!ev.target.closest("#switch-menu") && !ev.target.closest("#model") && !ev.target.closest("#effort-chip")) closeSwitchMenu();
+    if (!ev.target.closest("#switch-menu") && !ev.target.closest("#model") && !ev.target.closest("#effort-chip")) closeSwitchMenu(false);
   });
   stopBtn.addEventListener("click", async () => {
     await post("/api/cancel", {});
@@ -2010,7 +2053,13 @@
   }).catch((err) => { console.error("BOOT FAILED", err); });
   const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");
-  function drawTheme() { themeBtn.innerHTML = icon(document.documentElement.dataset.theme === "dark" ? "sun" : "moon"); }
+  function drawTheme() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    themeBtn.innerHTML = icon(dark ? "sun" : "moon");
+    const label = dark ? "Switch to light theme" : "Switch to dark theme";
+    themeBtn.setAttribute("aria-label", label);
+    themeBtn.title = label;
+  }
   function applyThemeChoice(choice) {
     localStorage.setItem("janetcode-theme", choice);
     document.documentElement.dataset.themeChoice = choice;
@@ -2018,7 +2067,11 @@
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     terminal.restyle();
     drawTheme();
-    document.querySelectorAll("#theme-seg [data-theme]").forEach((b) => b.classList.toggle("on", b.dataset.theme === choice));
+    document.querySelectorAll("#theme-seg [data-theme]").forEach((b) => {
+      const on = b.dataset.theme === choice;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
   themeBtn.addEventListener("click", () => {
     applyThemeChoice(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
@@ -2052,11 +2105,9 @@
   function openSettings() {
     settingsEl.hidden = false;
     applyThemeChoice(document.documentElement.dataset.themeChoice || "system");
-    const fs = document.documentElement.dataset.fontScale || "medium";
-    document.querySelectorAll("#font-seg [data-font]").forEach((b) => b.classList.toggle("on", b.dataset.font === fs));
+    setFontScale(document.documentElement.dataset.fontScale || "medium");
     paintSound();
-    const dn = document.documentElement.dataset.density || "comfortable";
-    document.querySelectorAll("#density-seg [data-density]").forEach((b) => b.classList.toggle("on", b.dataset.density === dn));
+    setDensity(document.documentElement.dataset.density || "comfortable");
   }
   document.getElementById("settings-btn").addEventListener("click", openSettings);
   document.getElementById("settings-close").addEventListener("click", () => { settingsEl.hidden = true; });
@@ -2067,12 +2118,20 @@
   function setFontScale(v) {
     document.documentElement.dataset.fontScale = v;
     try { localStorage.setItem("janetcode-font-scale", v); } catch (_) {}
-    document.querySelectorAll("#font-seg [data-font]").forEach((x) => x.classList.toggle("on", x.dataset.font === v));
+    document.querySelectorAll("#font-seg [data-font]").forEach((x) => {
+      const on = x.dataset.font === v;
+      x.classList.toggle("on", on);
+      x.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
   function setDensity(v) {
     document.documentElement.dataset.density = v;
     try { localStorage.setItem("janetcode-density", v); } catch (_) {}
-    document.querySelectorAll("#density-seg [data-density]").forEach((x) => x.classList.toggle("on", x.dataset.density === v));
+    document.querySelectorAll("#density-seg [data-density]").forEach((x) => {
+      const on = x.dataset.density === v;
+      x.classList.toggle("on", on);
+      x.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
   document.getElementById("font-seg").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-font]");
@@ -2104,7 +2163,12 @@
   ];
   const modeMenuEl = document.getElementById("mode-menu");
   const modeChip = document.getElementById("mode-chip");
-  function hideModeMenu() { modeMenuEl.hidden = true; }
+  function hideModeMenu(restore = true) {
+    if (modeMenuEl.hidden) return;
+    modeMenuEl.hidden = true;
+    modeChip.setAttribute("aria-expanded", "false");
+    if (restore) modeChip.focus();
+  }
   function activeModeKeys() {
     const ws = lastWorkspace || {};
     // Away rides on top of the auto-approve switch: it is the one mode shown.
@@ -2115,16 +2179,38 @@
     const on = activeModeKeys();
     modeMenuEl.innerHTML = MODE_ITEMS.map((it) => {
       const isOn = it.key === "ask" ? !on.length : on.includes(it.key);
-      return `<div class="${isOn ? "on" : ""}" data-key="${it.key}" data-testid="mode-opt-${it.key.toLowerCase()}"><span class="mk">✓</span><span class="name">${it.label}</span><span>${it.what}</span></div>`;
+      return `<button type="button" role="menuitemradio" aria-checked="${isOn}" tabindex="-1" class="${isOn ? "on" : ""}" data-key="${it.key}" data-testid="mode-opt-${it.key.toLowerCase()}"><span class="mk" aria-hidden="true">✓</span><span class="name">${it.label}</span><span>${it.what}</span></button>`;
     }).join("");
+    const selected = modeMenuEl.querySelector(".on") || modeMenuEl.querySelector("button");
+    if (selected) selected.tabIndex = 0;
   }
-  modeChip.addEventListener("click", () => {
-    if (!modeMenuEl.hidden) { hideModeMenu(); return; }
+  function openModeMenu() {
     paintModeMenu();
     modeMenuEl.hidden = false;
+    modeChip.setAttribute("aria-expanded", "true");
+    const selected = modeMenuEl.querySelector(".on") || modeMenuEl.querySelector("button");
+    if (selected) selected.focus();
+  }
+  modeChip.addEventListener("click", () => {
+    if (!modeMenuEl.hidden) hideModeMenu(); else openModeMenu();
   });
   modeChip.addEventListener("keydown", (ev) => {
+    if ((ev.key === "ArrowDown" || ev.key === "ArrowUp") && modeMenuEl.hidden) { ev.preventDefault(); openModeMenu(); }
     if (ev.key === "Escape" && !modeMenuEl.hidden) { ev.preventDefault(); hideModeMenu(); }
+  });
+  modeMenuEl.addEventListener("keydown", (ev) => {
+    const rows = [...modeMenuEl.querySelectorAll("button")];
+    const at = rows.indexOf(document.activeElement);
+    let next = -1;
+    if (ev.key === "ArrowDown") next = (at + 1) % rows.length;
+    else if (ev.key === "ArrowUp") next = (at - 1 + rows.length) % rows.length;
+    else if (ev.key === "Home") next = 0;
+    else if (ev.key === "End") next = rows.length - 1;
+    else if (ev.key === "Escape") { ev.preventDefault(); hideModeMenu(); return; }
+    else if (ev.key === "Tab") { hideModeMenu(); return; }
+    else return;
+    ev.preventDefault();
+    if (rows[next]) rows[next].focus();
   });
   modeMenuEl.addEventListener("click", async (ev) => {
     const row = ev.target.closest("[data-key]");
@@ -2143,7 +2229,7 @@
     for (const c of cmds) await post("/api/command", { text: c });
   });
   document.addEventListener("click", (ev) => {
-    if (!modeMenuEl.hidden && !ev.target.closest("#mode-menu") && !ev.target.closest("#mode-chip")) hideModeMenu();
+    if (!modeMenuEl.hidden && !ev.target.closest("#mode-menu") && !ev.target.closest("#mode-chip")) hideModeMenu(false);
   });
   document.addEventListener("keydown", (ev) => {
     if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && ev.key.toLowerCase() === "o") {

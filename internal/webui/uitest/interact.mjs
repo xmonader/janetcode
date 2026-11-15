@@ -181,6 +181,13 @@ await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devic
 await evaljs(`localStorage.setItem('janetcode-nav-collapsed', ''); location.reload(); 1`);
 await sleep(2000);
 check('phone rail starts closed', await evaljs(`document.querySelector('.shell').classList.contains('nav-collapsed')`));
+const phoneEmpty = await evaljs(`(() => {
+  const chips = document.querySelector('#empty .chips');
+  const last = chips.lastElementChild.getBoundingClientRect();
+  const composer = document.getElementById('composer').getBoundingClientRect();
+  return { columns: getComputedStyle(chips).gridTemplateColumns.split(' ').length, inside: last.right <= innerWidth && last.left >= 0, clear: last.bottom < composer.top };
+})()`);
+check('phone empty state uses one column and clears the composer', phoneEmpty.columns === 1 && phoneEmpty.inside && phoneEmpty.clear, JSON.stringify(phoneEmpty));
 await evaljs(`document.getElementById('nav-open').click()`);
 await sleep(300);
 check('phone rail opens', await evaljs(`!document.querySelector('.shell').classList.contains('nav-collapsed')`));
@@ -229,9 +236,19 @@ const fixed = await evaljs(`(() => {
   const b = [...document.querySelectorAll('.turn.err')].pop().querySelector('.fix-btn');
   if (!b) return { button: false };
   b.click();
-  return new Promise((done) => setTimeout(() => { const c = document.getElementById('connect'); const open = !c.hidden; c.hidden = true; done({ button: true, label: b.textContent, open }); }, 300));
+  return new Promise((done) => setTimeout(() => { const c = document.getElementById('connect'); const open = !c.hidden; document.getElementById('cx-cancel').click(); done({ button: true, label: b.textContent, open }); }, 300));
 })()`);
 check('a key failure offers a Fix connection button that opens the form', fixed.button && fixed.label === 'Fix connection' && fixed.open, JSON.stringify(fixed));
+const connectRace = await evaljs(`(async () => {
+  const real = window.fetch;
+  window.fetch = (url, opts) => String(url).startsWith('/api/connect') ? new Promise(resolve => setTimeout(() => resolve(new Response(JSON.stringify({ providers: [] }))), 400)) : real(url, opts);
+  window.JanetApp.openConnect();
+  document.getElementById('cx-cancel').click();
+  await new Promise(r => setTimeout(r, 550));
+  window.fetch = real;
+  return { closed: document.getElementById('connect').hidden, focusStolen: document.activeElement === document.getElementById('cx-provider'), inert: document.querySelector('.shell').inert };
+})()`);
+check('closing provider setup cancels its pending focus handoff', connectRace.closed && !connectRace.focusStolen && !connectRace.inert, JSON.stringify(connectRace));
 
 // 16. a long working directory keeps its end — the project name — and
 // the full path is one hover away.
@@ -309,6 +326,33 @@ await sleep(200);
 const palBack = await evaljs(`document.getElementById('palette').hidden && document.activeElement.id === 'input'`);
 check('Ctrl+K opens the palette with focus in it; Escape returns to the composer', palOpen && palBack, JSON.stringify({ palOpen, palBack }));
 
+const paletteModal = await evaljs(`(async () => {
+  const wait = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const opener = document.getElementById('search-btn');
+  opener.focus(); opener.click(); await wait();
+  const q = document.getElementById('palette-q');
+  q.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+  const active = q.getAttribute('aria-activedescendant');
+  const option = document.getElementById(active);
+  const opened = { inert: document.querySelector('.shell').inert, active, role: option?.getAttribute('role'), selected: option?.getAttribute('aria-selected') };
+  q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+  opened.trapped = document.activeElement === q;
+  q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  await wait();
+  return { ...opened, closed: document.getElementById('palette').hidden, restored: document.activeElement === opener, inertAfter: document.querySelector('.shell').inert };
+})()`);
+check('palette is a focus-trapped listbox and returns to its invoker', paletteModal.inert && paletteModal.trapped && paletteModal.role === 'option' && paletteModal.selected === 'true' && paletteModal.closed && paletteModal.restored && !paletteModal.inertAfter, JSON.stringify(paletteModal));
+
+const settingsState = await evaljs(`(async () => {
+  document.getElementById('settings-btn').click();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const states = ['theme', 'density', 'font'].map(name => [...document.querySelectorAll('#' + name + '-seg button')].map(b => b.getAttribute('aria-pressed')));
+  document.getElementById('settings-close').click();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return states;
+})()`);
+check('appearance controls expose their selected state', settingsState.every(rows => rows.filter(v => v === 'true').length === 1), JSON.stringify(settingsState));
+
 // An approval is announced and takes focus — to the card, never to
 // Allow, so a stray Enter approves nothing — unless the user is typing.
 const perm = (summary) => evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: { name: 'bash', summary: '${summary}', preview: '${summary}' } }) }); return 1; })()`);
@@ -353,8 +397,8 @@ check('a finished turn is announced', /done in 4s/.test(doneSaid), JSON.stringif
 // including allow-all is a row, the active one is marked, and picking a
 // row drives the same toggle command as the session-panel switches.
 await evaljs(`document.getElementById('mode-chip').click()`);
-const menu = await evaljs(`(() => { const m = document.getElementById('mode-menu'); return { open: !m.hidden, rows: m.querySelectorAll('[data-key]').length, yolo: !!m.querySelector('[data-key="YOLO"]'), askOn: !!m.querySelector('[data-key="ask"].on') }; })()`);
-check('mode chip opens the composer mode menu', menu.open && menu.rows === 6 && menu.yolo && menu.askOn, JSON.stringify(menu));
+const menu = await evaljs(`(() => { const m = document.getElementById('mode-menu'); return { open: !m.hidden, rows: m.querySelectorAll('[data-key]').length, yolo: !!m.querySelector('[data-key="YOLO"]'), away: !!m.querySelector('[data-key="AWAY"]'), askOn: !!m.querySelector('[data-key="ask"].on') }; })()`);
+check('mode chip opens the composer mode menu', menu.open && menu.rows === 7 && menu.yolo && menu.away && menu.askOn, JSON.stringify(menu));
 await evaljs(`document.querySelector('#mode-menu [data-key="YOLO"]').click()`);
 let chipNow = '';
 for (let i = 0; i < 10 && chipNow !== 'Allow all'; i++) { await sleep(300); chipNow = await evaljs(`document.getElementById('mode-chip').textContent.trim()`); }
@@ -368,6 +412,20 @@ chipNow = '';
 for (let i = 0; i < 10 && chipNow !== 'Ask first'; i++) { await sleep(300); chipNow = await evaljs(`document.getElementById('mode-chip').textContent.trim()`); }
 check('Ask first row turns the mode off again', chipNow === 'Ask first', chipNow);
 await evaljs(`document.getElementById('mode-menu').hidden = true; 1`);
+const modeKeys = await evaljs(`(() => {
+  const chip = document.getElementById('mode-chip');
+  chip.click();
+  const menu = document.getElementById('mode-menu');
+  const before = { expanded: chip.getAttribute('aria-expanded'), role: document.activeElement.getAttribute('role'), checked: document.activeElement.getAttribute('aria-checked') };
+  menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+  const moved = document.activeElement.dataset.key;
+  menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  const escaped = { closed: menu.hidden, expandedAfter: chip.getAttribute('aria-expanded'), restored: document.activeElement === chip };
+  chip.click();
+  menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+  return { ...before, ...escaped, moved, tabClosed: menu.hidden, tabRestored: document.activeElement === chip };
+})()`);
+check('permission menu supports arrows, radio state, Escape and focus return', modeKeys.expanded === 'true' && modeKeys.role === 'menuitemradio' && modeKeys.checked === 'true' && modeKeys.moved === 'AUTO' && modeKeys.closed && modeKeys.expandedAfter === 'false' && modeKeys.restored && modeKeys.tabClosed && modeKeys.tabRestored, JSON.stringify(modeKeys));
 
 // The /usage card keeps each model's name, calls and figures apart: the
 // share bar used to take the row's whole width and push the name onto
@@ -438,6 +496,8 @@ const header = await evaljs(`(() => {
 })()`);
 check('the effort chip says effort: auto, not default', header.effort === 'effort: auto' && header.label === 'Effort: auto', JSON.stringify(header));
 check('the connection dot is not green with no model', header.idle !== header.live, JSON.stringify(header));
+await evaljs(`(() => { if (!document.getElementById('connect').hidden) document.getElementById('cx-cancel').click(); return 1; })()`);
+await sleep(50);
 
 // The model menu heads a group with the service it reaches, says sizes
 // the way people do, and opens on the model in use.
@@ -450,14 +510,54 @@ const modelMenu = await evaljs(`(() => new Promise((done) => {
     window.fetch = rf;
     const rows = [...document.querySelectorAll('#switch-menu .menu-row')].map((r) => r.textContent);
     const head = document.querySelector('#switch-menu .menu-group')?.textContent || '';
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    document.getElementById('switch-menu').hidden = true;
-    done({ head, rows });
+    const q = document.getElementById('switch-q');
+    const active = document.getElementById(q.getAttribute('aria-activedescendant'));
+    const semantics = { expanded: document.getElementById('model').getAttribute('aria-expanded'), combobox: q.getAttribute('role'), list: document.getElementById('switch-list').getAttribute('role'), selected: active?.getAttribute('aria-selected'), current: active?.textContent.includes('deepseek/v4-flash') };
+    q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    semantics.restored = document.activeElement === document.getElementById('model');
+    semantics.activeAfter = document.activeElement.id || document.activeElement.tagName;
+    semantics.inert = document.querySelector('.shell').inert;
+    semantics.expandedAfter = document.getElementById('model').getAttribute('aria-expanded');
+    done({ head, rows, semantics });
   }, 400);
 }))()`);
 check('the model menu names the service, not "openai"', modelMenu.head.startsWith('openrouter'), JSON.stringify(modelMenu));
 check('the model menu opens on the model in use', (modelMenu.rows[0] || '').startsWith('deepseek/v4-flash'), JSON.stringify(modelMenu.rows));
 check('context sizes read 1M, not 1049k ctx · live', modelMenu.rows.some((r) => r.includes('1M context')) && !modelMenu.rows.some((r) => /live|ctx/.test(r)), JSON.stringify(modelMenu.rows));
+check('model picker exposes its active option and restores trigger focus', modelMenu.semantics.expanded === 'true' && modelMenu.semantics.combobox === 'combobox' && modelMenu.semantics.list === 'listbox' && modelMenu.semantics.selected === 'true' && modelMenu.semantics.current && modelMenu.semantics.restored && modelMenu.semantics.expandedAfter === 'false', JSON.stringify(modelMenu.semantics));
+const switchTab = await evaljs(`(async () => {
+  document.getElementById('model').click();
+  await new Promise(r => setTimeout(r, 300));
+  const q = document.getElementById('switch-q');
+  q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+  return { closed: document.getElementById('switch-menu').hidden, restored: document.activeElement === document.getElementById('model') };
+})()`);
+check('model picker closes on Tab without losing focus', switchTab.closed && switchTab.restored, JSON.stringify(switchTab));
+
+const providerChoice = await evaljs(`(() => new Promise((done) => {
+  const original = window.fetch;
+  const commands = [];
+  window.fetch = (u, o) => {
+    if (String(u).includes('/api/models')) return Promise.resolve(new Response(JSON.stringify({ groups: [
+      { provider: 'opencode-go', label: 'OpenCode Go', models: [{ model: 'kimi-k3', current: true }] },
+      { provider: 'opencode-zen', label: 'OpenCode Zen', models: [{ model: 'kimi-k3' }] }
+    ] })));
+    if (String(u).includes('/api/command')) { commands.push(JSON.parse(o.body).text); return Promise.resolve(new Response('{}')); }
+    return original(u, o);
+  };
+  document.getElementById('model').click();
+  setTimeout(() => {
+    const all = [...document.querySelectorAll('#switch-menu .menu-row')].map(r => r.textContent);
+    const q = document.getElementById('switch-q');
+    q.value = 'opencode-zen kimi'; q.dispatchEvent(new Event('input', { bubbles: true }));
+    const filtered = [...document.querySelectorAll('#switch-menu .menu-row')].map(r => r.textContent);
+    document.querySelector('#switch-menu .menu-row')?.click();
+    setTimeout(() => { window.fetch = original; done({ all, filtered, commands }); }, 50);
+  }, 400);
+}))()`);
+check('model rows keep both providers for the same model', providerChoice.all.length === 2 && providerChoice.all.some(r => r.includes('opencode-go')) && providerChoice.all.some(r => r.includes('opencode-zen')), JSON.stringify(providerChoice));
+check('model search accepts a provider and a model', providerChoice.filtered.length === 1 && providerChoice.filtered[0].includes('opencode-zen'), JSON.stringify(providerChoice));
+check('model selection keeps the chosen provider', providerChoice.commands[0] === '/model opencode-zen kimi-k3', JSON.stringify(providerChoice.commands));
 
 // Muted and faint text stay readable (WCAG AA, 4.5:1) in both themes.
 const contrastOf = `(() => {
@@ -565,6 +665,26 @@ const termCheck = await evaljs(`(async () => {
 })()`);
 check('the terminal tab opens a shell and follows the theme', termCheck.shown && termCheck.restyled && termCheck.hiddenAgain, JSON.stringify(termCheck));
 
+const tabKeys = await evaljs(`(async () => {
+  const ring = document.getElementById('view-ring');
+  const chat = ring.querySelector('[data-view=chat]');
+  chat.click(); chat.focus();
+  ring.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+  await new Promise(r => requestAnimationFrame(r));
+  const current = document.activeElement;
+  const view = { selected: current.getAttribute('aria-selected'), controls: current.getAttribute('aria-controls'), panelRole: document.getElementById('trajectory').getAttribute('role'), labelled: document.getElementById('trajectory').getAttribute('aria-labelledby'), tabStops: [...ring.querySelectorAll('[role=tab]')].filter(b => b.tabIndex === 0).length };
+  chat.click();
+  const sessions = document.querySelector('.sess-tabs');
+  const active = sessions.querySelector('[data-tab=active]');
+  active.click(); active.focus();
+  sessions.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+  const archived = sessions.querySelector('[data-tab=archived]');
+  const session = { selected: archived.getAttribute('aria-selected'), focused: document.activeElement === archived, controls: archived.getAttribute('aria-controls'), panel: document.getElementById('sessions').getAttribute('aria-labelledby') };
+  active.click(); active.focus();
+  return { view, session };
+})()`);
+check('main view tabs implement keyboard and panel semantics', tabKeys.view.selected === 'true' && tabKeys.view.controls === 'trajectory' && tabKeys.view.panelRole === 'tabpanel' && tabKeys.view.labelled === 'view-tab-trajectory' && tabKeys.view.tabStops === 1, JSON.stringify(tabKeys.view));
+check('session tabs implement roving keyboard selection', tabKeys.session.selected === 'true' && tabKeys.session.focused && tabKeys.session.controls === 'sessions' && tabKeys.session.panel === 'sessions-tab-archived', JSON.stringify(tabKeys.session));
 // Attaching: the paperclip's file picker and a drop on the composer each
 // upload once and put an @path in the input. The picker gives a FileList,
 // which has no forEach; a drop on the composer used to reach two drop
@@ -609,11 +729,21 @@ const motion = await evaljs(`(async () => {
   return { alone: has('mo-alone'), burst: [has('mo-b2'), has('mo-b3')] };
 })()`);
 check('a lone entry rises in, a burst does not', motion.alone && !motion.burst[0] && !motion.burst[1], JSON.stringify(motion));
+await evaljs(`document.getElementById('settings-btn').click(); 1`);
+const sheetMotion = await evaljs(`getComputedStyle(document.querySelector('#settings .help-card')).animationName`);
+await evaljs(`document.getElementById('settings-close').click(); 1`);
+await cmd('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+await evaljs(`document.getElementById('settings-btn').click(); 1`);
+const reducedMotion = await evaljs(`getComputedStyle(document.querySelector('#settings .help-card')).animationName`);
+await evaljs(`document.getElementById('settings-close').click(); 1`);
+await cmd('Emulation.setEmulatedMedia', { features: [] });
+check('sheets move gently and reduced-motion removes the movement', sheetMotion === 'sheet-in' && reducedMotion === 'none', JSON.stringify({ sheetMotion, reducedMotion }));
 
 // The agent dashboard opens from the sidebar, lists the live session in
 // a group, shows the dispatch box, and closes with Escape.
 const dash = await evaljs(`(async () => {
   const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  document.getElementById('dash-btn').focus();
   document.getElementById('dash-btn').click();
   await wait(700);
   const root = document.getElementById('dashboard');
@@ -624,13 +754,53 @@ const dash = await evaljs(`(async () => {
     live: !!root.querySelector('.dash-card.cur'),
     dispatch: !document.getElementById('dash-dispatch-form').hidden,
     expanded: document.getElementById('dash-btn').getAttribute('aria-expanded'),
+    role: root.getAttribute('role'),
+    inert: document.querySelector('.shell').inert,
   };
+  const focusable = [...root.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null);
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  last.focus();
+  root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+  out.trapped = document.activeElement === first;
   root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await wait(50);
   out.closed = root.hidden;
+  out.restored = document.activeElement === document.getElementById('dash-btn');
+  out.inertAfter = document.querySelector('.shell').inert;
   return out;
 })()`);
 check('the dashboard lists sessions in three groups', dash.open && dash.groups.join() === 'awaiting,working,idle' && dash.live && dash.expanded === 'true', JSON.stringify(dash));
 check('the dashboard offers dispatch and closes on Escape', dash.dispatch && dash.closed, JSON.stringify(dash));
+check('dashboard traps focus, isolates the page and restores its opener', dash.role === 'dialog' && dash.inert && dash.trapped && dash.restored && !dash.inertAfter, JSON.stringify(dash));
+
+const viewerModal = await evaljs(`(async () => {
+  const wait = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const opener = document.getElementById('work-toggle');
+  opener.focus();
+  document.getElementById('viewer-path').textContent = 'example.diff';
+  document.getElementById('viewer').hidden = false;
+  await wait();
+  const opened = { role: document.querySelector('.viewer-card').getAttribute('role'), focused: document.activeElement === document.getElementById('viewer-close'), inert: document.querySelector('.shell').inert };
+  document.getElementById('viewer-close').click();
+  await wait();
+  return { ...opened, closed: document.getElementById('viewer').hidden, restored: document.activeElement === opener, inertAfter: document.querySelector('.shell').inert };
+})()`);
+check('file viewer behaves as a modal and returns focus', viewerModal.role === 'dialog' && viewerModal.focused && viewerModal.inert && viewerModal.closed && viewerModal.restored && !viewerModal.inertAfter, JSON.stringify(viewerModal));
+
+await evaljs(`document.getElementById('new-chat').click(); 1`);
+await sleep(500);
+const sessionMenuKeys = await evaljs(`(() => {
+  const trigger = document.querySelector('#sessions [data-sess-menu]');
+  if (!trigger) return { present: false };
+  trigger.focus(); trigger.click();
+  const menu = document.querySelector('.sess-menu');
+  const opened = { present: true, expanded: trigger.getAttribute('aria-expanded'), role: menu?.getAttribute('role'), first: document.activeElement.dataset.act };
+  menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+  const moved = document.activeElement.dataset.act;
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  return { ...opened, moved, closed: !document.querySelector('.sess-menu'), restored: document.activeElement === trigger, expandedAfter: trigger.getAttribute('aria-expanded') };
+})()`);
+check('conversation actions support arrows, Escape and focus restoration', sessionMenuKeys.present && sessionMenuKeys.expanded === 'true' && sessionMenuKeys.role === 'menu' && sessionMenuKeys.first === 'rename' && sessionMenuKeys.moved === 'archive' && sessionMenuKeys.closed && sessionMenuKeys.restored && sessionMenuKeys.expandedAfter === 'false', JSON.stringify(sessionMenuKeys));
 
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 

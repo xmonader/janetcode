@@ -602,38 +602,62 @@
   }
 
   // ----------------------------------------------------------- accessibility
-  // help and settings are plain overlays in the page; make them behave as
-  // modals: named dialog, focus inside, Tab trapped, background inert, and
-  // focus back where it was when they close. Esc is answered in app.js.
-  function modalize(id, label) {
+  // Plain overlays share modal behavior: a name, contained focus, an inert
+  // page behind them, and focus returned to the control that opened them.
+  const modalStack = [];
+  let lastPageFocus = input;
+  document.addEventListener("focus", (ev) => { if (shell && shell.contains(ev.target)) lastPageFocus = ev.target; }, true);
+  document.addEventListener("keydown", () => { if (shell && shell.contains(document.activeElement)) lastPageFocus = document.activeElement; }, true);
+  document.addEventListener("click", (ev) => {
+    if (!shell || !shell.contains(ev.target)) return;
+    const control = ev.target.closest('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (control) lastPageFocus = control;
+    else if (shell.contains(document.activeElement)) lastPageFocus = document.activeElement;
+  }, true);
+  const modalFocusables = (el) => [...el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((n) => !n.disabled && n.offsetParent !== null);
+  function syncModals() { if (shell) shell.inert = modalStack.length > 0; }
+  function modalize(id, label, cardSelector) {
     const el = $(id);
     if (!el) return;
-    const card = el.querySelector(".help-card");
+    const card = cardSelector ? el.querySelector(cardSelector) : el;
     if (card) { card.setAttribute("role", "dialog"); card.setAttribute("aria-modal", "true"); card.setAttribute("aria-label", label); }
     let back = null;
-    const focusables = () => [...el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((n) => !n.disabled && n.offsetParent !== null);
     new MutationObserver(() => {
+      const at = modalStack.indexOf(el);
       if (!el.hidden) {
-        back = document.activeElement;
-        if (shell) shell.inert = true;
-        requestAnimationFrame(() => { const f = focusables(); if (f.length) f[0].focus(); });
+        if (at >= 0) return;
+        back = modalStack.length ? document.activeElement : (shell && shell.contains(document.activeElement) ? document.activeElement : lastPageFocus);
+        modalStack.push(el);
+        syncModals();
+        requestAnimationFrame(() => { const f = modalFocusables(el); if (f.length) f[0].focus(); });
+        return;
+      }
+      if (at < 0) return;
+      modalStack.splice(at, 1);
+      syncModals();
+      if (modalStack.length) {
+        const f = modalFocusables(modalStack[modalStack.length - 1]);
+        if (f.length) f[0].focus();
       } else {
-        if (shell) shell.inert = false;
         const b = back; back = null;
-        if (b && b.isConnected && b !== document.body) b.focus(); else if (input) input.focus();
+        if (b && b.isConnected && b !== document.body && b.offsetParent !== null) b.focus(); else if (input) input.focus();
       }
     }).observe(el, { attributes: true, attributeFilter: ["hidden"] });
     el.addEventListener("keydown", (ev) => {
       if (ev.key !== "Tab") return;
-      const f = focusables();
-      if (!f.length) return;
+      const f = modalFocusables(el);
+      if (!f.length) { ev.preventDefault(); return; }
       const first = f[0], last = f[f.length - 1];
       if (ev.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) { ev.preventDefault(); last.focus(); }
       else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
     });
   }
-  modalize("help", "Help and keyboard shortcuts");
-  modalize("settings", "Settings");
+  modalize("help", "Help and keyboard shortcuts", ".help-card");
+  modalize("settings", "Settings", ".help-card");
+  modalize("palette", "Command palette");
+  modalize("connect", "Connect a provider");
+  modalize("viewer", "File details", ".viewer-card");
+  modalize("dashboard", "Agent dashboard");
 
   // Keyboard resize: the two drag handles become separators the arrow keys move.
   function keyResize(id, label, min, max, dir, get, set, storageKey) {
@@ -664,18 +688,25 @@
     () => workPanel.getBoundingClientRect().width,
     (w) => { workPanel.style.width = w + "px"; shell.style.setProperty("--work-w-actual", w + "px"); }, "janetcode-work-w");
 
-  // Workbench tabs: one tab stop, arrows move between them.
-  (function rovingTabs() {
-    const list = document.querySelector(".work-tabs");
+  // Tab lists have one tab stop and arrow/Home/End navigation. Their panels
+  // are linked in both directions so the selected view is announced.
+  function rovingTabs(list, paneFor, idPrefix) {
     if (!list) return;
-    const tabs = () => [...list.querySelectorAll('[role="tab"]')];
+    const tabs = () => [...list.querySelectorAll("[data-pane], [data-view]")];
     function sync() {
-      tabs().forEach((t) => {
+      tabs().forEach((t, i) => {
         const on = t.classList.contains("on");
+        t.setAttribute("role", "tab");
         t.setAttribute("aria-selected", on ? "true" : "false");
         t.tabIndex = on ? 0 : -1;
-        const pane = document.querySelector('.work-pane[data-pane="' + t.dataset.pane + '"]');
-        if (pane) { if (!pane.id) pane.id = "wp-" + t.dataset.pane; t.setAttribute("aria-controls", pane.id); }
+        if (!t.id) t.id = idPrefix + "-" + (t.dataset.pane || t.dataset.view || i);
+        const pane = paneFor(t);
+        if (pane) {
+          if (!pane.id) pane.id = "panel-" + t.id;
+          t.setAttribute("aria-controls", pane.id);
+          pane.setAttribute("role", "tabpanel");
+          pane.setAttribute("aria-labelledby", t.id);
+        }
       });
     }
     sync();
@@ -693,7 +724,9 @@
       t[j].click();
       t[j].focus();
     });
-  })();
+  }
+  rovingTabs(document.querySelector(".work-tabs"), (t) => document.querySelector('.work-pane[data-pane="' + t.dataset.pane + '"]'), "work-tab");
+  rovingTabs($("view-ring"), (t) => $(t.dataset.view === "chat" ? "chat-view" : t.dataset.view), "view-tab");
 
   window.JanetExtras = { toolDefault, uploaded, actions, openExport, openQuickPrompts, openGallery, openArtifact, quiet: quietOn };
   // Anything rendered before this file ran.

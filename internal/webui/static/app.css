@@ -71,6 +71,8 @@
   --shadow-card: 0 0 0 0.5px rgba(19, 20, 26, 0.06);
   --shadow-composer: 0 4px 20px rgba(15, 16, 22, 0.07), 0 0 0 0.5px rgba(19, 20, 26, 0.05);
   --pulse: rgba(91, 61, 245, 0.3);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans", Helvetica, Arial, sans-serif;
   --display: var(--sans);
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -266,16 +268,17 @@ button:disabled { cursor: default; opacity: 0.55; }
   margin: 0 0 8px;
   padding: 0 14px;
   border-radius: 12px;
-  background: var(--surface);
-  border: 0.5px solid var(--line);
+  background: var(--accent-soft);
+  border: 0.5px solid var(--accent-soft-border);
   color: var(--ink);
   font-size: 13.5px;
-  font-weight: 500;
+  font-weight: 550;
   box-shadow: var(--shadow-card);
-  transition: background 0.14s ease, border-color 0.14s ease;
+  transition: background 0.16s var(--ease-standard), border-color 0.16s var(--ease-standard), transform 0.16s var(--ease-out);
 }
-.new-session:hover { background: var(--surface-2); border-color: var(--line-strong); }
-.new-plus { display: inline-flex; font-size: 15px; color: var(--mute); }
+.new-session:hover { background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface)); border-color: var(--accent); }
+.new-session:active { transform: scale(0.985); }
+.new-plus { display: inline-flex; font-size: 15px; color: var(--accent); }
 /* The live conversation reads as the first row of the list: same shape,
    a green pulse where the list has a hover, nothing more. */
 .current-session { margin: 0 0 6px; }
@@ -323,13 +326,13 @@ button:disabled { cursor: default; opacity: 0.55; }
   width: 100%;
   margin: 6px 0 6px;
   border: 0.5px solid transparent;
-  border-radius: 10px;
+  border-radius: 11px;
   background: var(--surface-2);
   color: var(--ink);
   font-size: 12.5px;
-  padding: 7px 11px;
+  padding: 8px 11px;
   outline: none;
-  transition: border-color 0.14s ease, background 0.14s ease;
+  transition: border-color 0.16s var(--ease-standard), background 0.16s var(--ease-standard), box-shadow 0.16s var(--ease-standard);
 }
 .session-filter::placeholder { color: var(--faint); }
 .session-filter:focus { border-color: var(--accent-soft-border); background: var(--surface); }
@@ -409,19 +412,19 @@ button:disabled { cursor: default; opacity: 0.55; }
   display: inline-flex;
   flex: none;
   gap: 2px;
-  padding: 2px;
-  border-radius: 9px;
+  padding: 3px;
+  border-radius: 11px;
   background: var(--surface-2);
 }
 .view-ring button {
   background: transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--mute);
   font-size: 12.5px;
   font-weight: 500;
   height: 26px;
   padding: 0 11px;
-  transition: background 0.13s ease, color 0.13s ease;
+  transition: background 0.16s var(--ease-standard), color 0.16s var(--ease-standard), box-shadow 0.16s var(--ease-standard);
 }
 .view-ring button:hover { color: var(--ink); }
 .view-ring button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card), 0 1px 2px rgba(0, 0, 0, 0.12); }
@@ -596,41 +599,59 @@ button:disabled { cursor: default; opacity: 0.55; }
   flex: none;
 }
 
-/* ---- empty state: one question, a row of starters --------------------- */
-.empty { margin: 15vh 0 0; text-align: center; }
+/* ---- empty state: one question, a small set of useful starts ---------- */
+.empty { position: relative; isolation: isolate; margin: 12vh auto 0; padding: 24px; max-width: 760px; text-align: center; }
+.empty::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(34rem, 90vw);
+  height: 20rem;
+  left: 50%;
+  top: -5rem;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse, var(--accent-soft), transparent 68%);
+  pointer-events: none;
+}
 .empty-mark {
   display: flex;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 20px;
-  border-radius: 16px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 14px 36px var(--pulse);
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 22px;
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 16px 40px var(--pulse);
 }
 #empty-lead {
-  font: 600 25px/1.25 var(--display);
-  letter-spacing: -0.015em;
-  margin: 0 0 0.6rem;
+  font: 650 30px/1.18 var(--display);
+  letter-spacing: -0.035em;
+  margin: 0 0 0.75rem;
   color: var(--ink);
 }
 .empty-sub { margin: 0 auto; color: var(--mute); max-width: 32rem; font-size: 0.95rem; }
 .chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-top: 1.9rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  max-width: 40rem;
+  margin: 2rem auto 0;
 }
 .chip {
-  background: var(--surface);
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.5rem 1rem;
+  border-radius: 13px;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
   font-size: 0.84rem;
+  font-weight: 450;
   color: var(--mute);
   box-shadow: var(--shadow-card);
-  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+  transition: border-color 0.18s var(--ease-standard), color 0.18s var(--ease-standard), background 0.18s var(--ease-standard), transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-standard);
 }
-.chip:hover { border-color: var(--accent-soft-border); color: var(--accent); background: var(--accent-soft); }
+.chip:hover { border-color: var(--accent-soft-border); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); box-shadow: 0 5px 16px var(--accent-soft); }
+.chip:active { transform: translateY(0) scale(0.99); }
 
 /* ---- messages ---------------------------------------------------------- */
 .turn { margin: 0 0 1.75rem; }
@@ -1328,11 +1349,11 @@ pre.sheetbody {
 #composer {
   position: relative;
   background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: 20px;
-  padding: 12px 12px 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 14px 14px 11px 18px;
   box-shadow: var(--shadow-composer);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.2s var(--ease-standard), box-shadow 0.2s var(--ease-standard), transform 0.2s var(--ease-out);
 }
 #composer:focus-within {
   border-color: var(--accent-soft-border);
@@ -1348,11 +1369,11 @@ pre.sheetbody {
   border: 0;
   outline: none;
   background: transparent;
-  min-height: 2.6rem;
+  min-height: 2.8rem;
   max-height: 14rem;
   line-height: 1.55;
   padding: 2px 4px 0 0;
-  font-size: 0.98rem;
+  font-size: 1rem;
   color: var(--ink);
 }
 #input::placeholder { color: var(--faint); }
@@ -1376,9 +1397,10 @@ pre.sheetbody {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background 0.16s var(--ease-standard), color 0.16s var(--ease-standard), transform 0.16s var(--ease-out);
 }
 .cmd-btn:hover { background: var(--surface-2); color: var(--ink); }
+.cmd-btn:active { transform: scale(0.92); }
 #mode-chip {
   cursor: pointer;
   margin-left: 4px;
@@ -1413,10 +1435,10 @@ pre.sheetbody {
 .model-prov { color: var(--mute); }
 .model-btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--surface-2); }
 .send-btn, #send {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
   border: 0;
   padding: 0;
   background: var(--accent);
@@ -1426,17 +1448,18 @@ pre.sheetbody {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.13s ease, transform 0.06s ease;
+  box-shadow: 0 3px 10px var(--accent-soft-border);
+  transition: background 0.16s var(--ease-standard), transform 0.16s var(--ease-out), box-shadow 0.16s var(--ease-standard);
 }
-#send:hover { background: var(--accent-deep); }
+#send:hover { background: var(--accent-deep); box-shadow: 0 5px 14px var(--accent-soft-border); }
 /* Nothing typed, nothing to send: the button rests until there is. */
-#composer:has(#input:placeholder-shown):not(:has(.file-chip)) #send { background: var(--surface-2); color: var(--faint); }
-#send:active { transform: translateY(1px); }
+#composer:has(#input:placeholder-shown):not(:has(.file-chip)) #send { background: var(--surface-2); color: var(--faint); box-shadow: none; }
+#send:active { transform: scale(0.92); }
 .stop-btn, #stop {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
   padding: 0;
   background: transparent;
   border: 1px solid var(--bad-border);
@@ -1474,7 +1497,7 @@ pre.sheetbody {
   z-index: 15;
   padding: 5px;
 }
-.slash div, .ac div {
+.slash div, .ac div, .mode-menu button {
   display: grid;
   grid-template-columns: 8rem 1fr;
   gap: 0.6rem;
@@ -1484,8 +1507,9 @@ pre.sheetbody {
   font-size: 0.83rem;
   color: var(--mute);
 }
+.mode-menu button { width: 100%; border: 0; background: transparent; text-align: left; font-family: inherit; }
 .ac div { display: block; font-family: var(--mono); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slash div.on, .ac div.on, .slash div:hover, .ac div:hover { background: var(--accent-soft); color: var(--ink); }
+.slash div.on, .ac div.on, .slash div:hover, .ac div:hover, .mode-menu button.on, .mode-menu button:hover, .mode-menu button:focus-visible { background: var(--accent-soft); color: var(--ink); }
 .slash .name { color: var(--accent); font-family: var(--mono); font-weight: 600; }
 .ac .ac-hint { font-family: var(--sans); font-style: italic; cursor: default; color: var(--faint); }
 .ac .ac-hint:hover { background: none; }
@@ -1493,11 +1517,11 @@ pre.sheetbody {
    anchored left by the chip. Rows are the permission modes; the check
    marks the active one, and the yolo row is red the way its chip is. */
 .mode-menu { left: 10px; right: auto; width: min(330px, calc(100% - 20px)); }
-.mode-menu div { grid-template-columns: 1.1rem 6.5rem 1fr; align-items: center; }
+.mode-menu button { grid-template-columns: 1.1rem 6.5rem 1fr; align-items: center; }
 .mode-menu .mk { color: var(--ok); visibility: hidden; font-size: 0.8rem; }
-.mode-menu div.on .mk { visibility: visible; }
+.mode-menu button.on .mk { visibility: visible; }
 .mode-menu .name { color: var(--ink); font-family: var(--sans); font-weight: 600; }
-.mode-menu div[data-key="YOLO"] .name { color: var(--bad); }
+.mode-menu button[data-key="YOLO"] .name { color: var(--bad); }
 .chips-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.45rem; }
 .file-chip {
   display: inline-flex;
@@ -1666,6 +1690,9 @@ body:has(#connect:not([hidden]))::after {
 }
 .menu-row.on { background: var(--accent-soft); }
 .menu-sub { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+#switch-menu .menu-row { flex-direction: column; align-items: stretch; gap: 3px; }
+#switch-menu .menu-row > span:first-child { overflow-wrap: anywhere; }
+#switch-menu .menu-sub { color: var(--mute); }
 .menu-empty { padding: 10px; color: var(--faint); font-size: 12px; }
 
 /* drag-to-resize handles on the three panels' inner edges */
@@ -1935,9 +1962,10 @@ body.resizing .preview { transition: none !important; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 18px;
+  padding: 15px 20px;
   border-bottom: 0.5px solid var(--line);
   font: 600 14px/1 var(--display);
+  letter-spacing: -0.01em;
 }
 .help-cols {
   display: grid;
@@ -1971,18 +1999,18 @@ kbd {
 .seg button {
   background: transparent;
   border-radius: 7px;
-  height: 28px;
+  height: 30px;
   padding: 0 0.9rem;
   color: var(--mute);
   font-size: 0.8rem;
   font-weight: 500;
-  transition: background 0.13s ease, color 0.13s ease;
+  transition: background 0.16s var(--ease-standard), color 0.16s var(--ease-standard), box-shadow 0.16s var(--ease-standard);
 }
 .seg button:hover { color: var(--ink); }
 .seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card), 0 1px 2px rgba(0, 0, 0, 0.12); }
-.settings-card { width: min(26rem, 92vw); }
-.settings-card section { padding: 18px 20px 4px; display: flex; flex-direction: column; align-items: flex-start; }
-.settings-card h3 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--mute); }
+.settings-card { width: min(27rem, 92vw); }
+.settings-card section { padding: 20px 22px 6px; display: flex; flex-direction: column; align-items: flex-start; }
+.settings-card h3 { margin: 0 0 9px; font-size: 11px; font-weight: 600; letter-spacing: 0.045em; text-transform: uppercase; color: var(--faint); }
 
 /* ---- trajectory view ---------------------------------------------------- */
 .trajectory {
@@ -2193,12 +2221,27 @@ kbd {
    Small and quick: an entry rises into place, a verdict lands with a
    little weight, the streaming caret breathes. Everything here is off
    under prefers-reduced-motion (below). */
-.turn[data-enter] { animation: rise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.turn.verdict[data-enter] { animation: land 0.42s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
-@keyframes land { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+.turn[data-enter] { animation: rise 0.36s var(--ease-out) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+.turn.verdict[data-enter] { animation: land 0.42s var(--ease-out) both; }
+@keyframes land { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 .md .caret { display: inline-block; color: var(--accent); animation: breathe 1.1s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: 0.25; } }
+/* Sheets and popovers arrive once, quickly, and from a few pixels away.
+   Streaming text itself never animates; only a newly opened surface moves. */
+.help { animation: veil-in 0.18s ease-out both; }
+.help-card, .xd-card { animation: sheet-in 0.24s var(--ease-out) both; transform-origin: 50% 20%; }
+.palette { animation: palette-in 0.22s var(--ease-out) both; }
+.ask { animation: ask-in 0.24s var(--ease-out) both; }
+.menu, .sess-menu { animation: pop-in 0.18s var(--ease-out) both; transform-origin: bottom center; }
+.work-pane { animation: pane-in 0.18s var(--ease-out) both; }
+#empty { animation: pane-in 0.45s var(--ease-out) both; }
+@keyframes veil-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes palette-in { from { opacity: 0; transform: translate(-50%, 8px) scale(0.985); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes ask-in { from { opacity: 0; transform: translate(-50%, 8px) scale(0.985); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes pane-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* ---- responsive ---------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
@@ -2267,6 +2310,13 @@ kbd {
   /* Reconnecting is said by the red dot; the word squeezed the model
      pill to one letter and pushed the panel toggle off the edge. */
   .conn.off { font-size: 0; gap: 0; padding: 0 6px; }
+  .empty { margin-top: 6vh; padding: 16px; }
+  #empty-lead { font-size: 26px; }
+  .chips { grid-template-columns: 1fr; max-width: 22rem; margin-top: 1.5rem; }
+}
+@media (pointer: coarse) {
+  .cmd-btn, .icon-btn { min-width: 36px; min-height: 36px; }
+  .send-btn, #send, .stop-btn, #stop { width: 38px; height: 38px; min-width: 38px; }
 }
 
 /* /connect: one form, provider to model. */

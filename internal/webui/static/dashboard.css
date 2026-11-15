@@ -1,10 +1,10 @@
 /* The agent dashboard overlay (dashboard.js). */
-.dash-btn { display: flex; align-items: center; gap: 8px; width: calc(100% - 24px); margin: 0 12px 8px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-s, 8px); background: transparent; color: var(--mute); font: inherit; font-size: 13px; cursor: pointer; }
+.dash-btn { display: flex; align-items: center; gap: 8px; width: calc(100% - 24px); height: 38px; margin: 0 12px 8px; padding: 0 12px; border: 1px solid transparent; border-radius: 11px; background: transparent; color: var(--mute); font: inherit; font-size: 13px; cursor: pointer; transition: color 0.16s var(--ease-standard), background 0.16s var(--ease-standard), border-color 0.16s var(--ease-standard); }
 .dash-btn:hover { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-soft-border); }
-.dash { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); }
+.dash { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); animation: veil-in 0.18s ease-out both; }
 .dash[hidden] { display: none; }
-.dash-top { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
-.dash-top h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.dash-top { display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+.dash-top h2 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.025em; }
 .dash-top .spacer { flex: 1; }
 #dash-note { color: var(--mute); font-size: 12.5px; min-height: 1em; }
 #dash-dispatch-form { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--sidebar); }
@@ -13,14 +13,15 @@
 .dash button, .dash-btn { font-family: inherit; }
 .dash button[type="submit"], .dash-close { padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
 #dash-dispatch-form button[type="submit"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-#dash-body { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding: 16px 20px; overflow: auto; }
+#dash-body { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; padding: 20px 24px; overflow: auto; }
 .dash-col h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
 .dash-col[data-group="awaiting"] h3 { color: var(--warn); }
 .dash-col[data-group="working"] h3 { color: var(--accent); }
 .dash-count { margin-left: 4px; padding: 0 7px; border-radius: 10px; background: var(--surface-2); color: var(--mute); font-weight: 500; font-size: 12px; }
 .dash-hint { margin: 2px 0 10px; color: var(--mute); font-size: 12px; }
 .dash-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.dash-card { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.dash-card { padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: var(--shadow-card); transition: border-color 0.16s var(--ease-standard), box-shadow 0.16s var(--ease-standard), transform 0.16s var(--ease-out); }
+.dash-card:hover { border-color: var(--line-strong); box-shadow: 0 5px 18px rgba(15, 16, 22, 0.07); transform: translateY(-1px); }
 .dash-col[data-group="awaiting"] .dash-card { border-color: var(--warn-border); background: var(--warn-soft); }
 .dash-card.cur { box-shadow: inset 3px 0 0 var(--accent); }
 .dash-head { display: flex; align-items: baseline; gap: 8px; }

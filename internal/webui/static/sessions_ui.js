@@ -36,24 +36,43 @@
   const tabs = document.createElement("div");
   tabs.className = "sess-tabs";
   tabs.setAttribute("role", "tablist");
-  tabs.innerHTML = `<button type="button" role="tab" data-tab="active">Active</button><button type="button" role="tab" data-tab="archived">Archived</button>`;
+  tabs.innerHTML = `<button type="button" id="sessions-tab-active" role="tab" data-tab="active" aria-controls="sessions">Active</button><button type="button" id="sessions-tab-archived" role="tab" data-tab="archived" aria-controls="sessions">Archived</button>`;
+  tabs.setAttribute("aria-label", "Conversations");
   const list = $("sessions");
   if (list && list.parentNode) list.parentNode.insertBefore(tabs, list);
+  if (list) list.setAttribute("role", "tabpanel");
   function paintTabs() {
     tabs.querySelectorAll("[data-tab]").forEach((b) => {
       const on = b.dataset.tab === tab;
       b.classList.toggle("on", on);
       b.setAttribute("aria-selected", on ? "true" : "false");
+      b.tabIndex = on ? 0 : -1;
+      if (on && list) list.setAttribute("aria-labelledby", b.id);
     });
   }
   paintTabs();
   tabs.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-tab]");
-    if (!b || b.dataset.tab === tab) return;
-    tab = b.dataset.tab;
-    try { localStorage.setItem("janetcode-sess-tab", tab); } catch (_) {}
-    paintTabs();
-    refresh();
+    if (!b) return;
+    if (b.dataset.tab !== tab) {
+      tab = b.dataset.tab;
+      try { localStorage.setItem("janetcode-sess-tab", tab); } catch (_) {}
+      paintTabs();
+      refresh();
+    } else paintTabs();
+  });
+  tabs.addEventListener("keydown", (ev) => {
+    const rows = [...tabs.querySelectorAll("[data-tab]")];
+    const at = rows.indexOf(document.activeElement);
+    let next = -1;
+    if (ev.key === "ArrowRight") next = (at + 1) % rows.length;
+    else if (ev.key === "ArrowLeft") next = (at - 1 + rows.length) % rows.length;
+    else if (ev.key === "Home") next = 0;
+    else if (ev.key === "End") next = rows.length - 1;
+    if (next < 0 || !rows[next]) return;
+    ev.preventDefault();
+    rows[next].click();
+    rows[next].focus();
   });
 
   // seen is called with every listing: it marks the open conversation read
@@ -87,19 +106,31 @@
     const unread = !r.current && m[r.id] && r.updated && Date.parse(r.updated) > Date.parse(m[r.id]);
     const dot = r.running ? `<span class="sess-dot run" title="A turn is running" role="img" aria-label="running"></span>`
       : unread ? `<span class="sess-dot unread" title="New activity" role="img" aria-label="unread"></span>` : "";
-    return dot + `<button type="button" class="sess-more" data-sess-menu="${esc(r.id)}" title="Rename, archive, delete" aria-label="Conversation actions" aria-haspopup="menu">⋯</button>`;
+    return dot + `<button type="button" class="sess-more" data-sess-menu="${esc(r.id)}" title="Rename, archive, delete" aria-label="Conversation actions" aria-haspopup="menu" aria-expanded="false">⋯</button>`;
   }
 
   // ---- row menu: rename, archive, delete ----------------------------
   let menu = null;
-  function closeMenu() { if (menu) { menu.remove(); menu = null; } }
+  let menuTrigger = null;
+  function closeMenu(restore = false) {
+    if (!menu) return;
+    menu.remove();
+    menu = null;
+    if (menuTrigger) {
+      menuTrigger.setAttribute("aria-expanded", "false");
+      if (restore && menuTrigger.isConnected) menuTrigger.focus();
+    }
+    menuTrigger = null;
+  }
   document.addEventListener("click", (ev) => { if (menu && !ev.target.closest(".sess-menu")) closeMenu(); }, true);
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeMenu(); closePop(); } });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeMenu(true); closePop(); } });
 
   function openMenu(btn) {
     closeMenu();
     const li = btn.closest("li[data-id]");
     if (!li) return;
+    menuTrigger = btn;
+    btn.setAttribute("aria-expanded", "true");
     const id = btn.dataset.sessMenu;
     const archived = tab === "archived";
     menu = document.createElement("div");
@@ -114,6 +145,20 @@
     menu.style.top = Math.min(window.innerHeight - menu.offsetHeight - 8, b.bottom + 4) + "px";
     menu.style.left = Math.max(8, Math.min(window.innerWidth - menu.offsetWidth - 8, b.left - menu.offsetWidth + b.width)) + "px";
     menu.dataset.id = id;
+    menu.setAttribute("aria-label", "Conversation actions");
+    menu.addEventListener("keydown", (ev) => {
+      const rows = [...menu.querySelectorAll("button")];
+      const at = rows.indexOf(document.activeElement);
+      let next = -1;
+      if (ev.key === "ArrowDown") next = (at + 1) % rows.length;
+      else if (ev.key === "ArrowUp") next = (at - 1 + rows.length) % rows.length;
+      else if (ev.key === "Home") next = 0;
+      else if (ev.key === "End") next = rows.length - 1;
+      else if (ev.key === "Tab") { closeMenu(true); return; }
+      else return;
+      ev.preventDefault();
+      if (rows[next]) rows[next].focus();
+    });
     menu.querySelector("button").focus();
   }
 
