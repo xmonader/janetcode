@@ -29,12 +29,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Fix GitHub Actions billing; then ci/release.yml run again (GHCR image).
-- #2 (file admission: /admit, /attach, --file-mode/--admit/--attach, internal/admit)
-  implemented on branch, unreleased; see CHANGELOG Unreleased.
-- GitHub issues: #6 and #7 closed (2026-11-16). #1-#3, #5, #8-#12 stay open:
-  checked against their acceptance criteria, parts are missing (no file
-  admission mode #2, no `--doctor security` #10, no extension doctor #8, no observers #11, no offline audit replay #12,
-  no dry-run cost estimate #9, partial checkpoints #1 and memory #3).
+- All GitHub issues #1-#12 closed (2026-11-16); #1-#3, #5, #8-#12 landed on
+  master after v0.3.0 (CHANGELOG "Unreleased"), each closed with its commits.
+  Next release (v0.3.1/v0.4.0): `make release-gates` + `make repro-check`,
+  then `make dist` + `gh release create` while Actions billing is broken.
 - t3code round, live checks left: phone approval end to end over tailscale serve (machine needs
   `doas tailscale up`, Tailscale 1.104.7 installed); a real `op read`; the
   ntfy hook against a real topic.
