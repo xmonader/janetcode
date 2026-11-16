@@ -127,6 +127,7 @@ result=$(jq -r '.result // empty' "$work/result.json" 2>/dev/null || true)
 cost=$(jq -r '.cost_usd // empty' "$work/result.json" 2>/dev/null || true)
 session=$(jq -r '.session_id // empty' "$work/result.json" 2>/dev/null || true)
 model=$(jq -r '.model // empty' "$work/result.json" 2>/dev/null || true)
+error=$(jq -r '.error // empty' "$work/result.json" 2>/dev/null | head -c 1000 || true)
 output result "$result"
 output cost-usd "$cost"
 output exit-code "$code"
@@ -151,7 +152,10 @@ fi
 
 if [ "${INPUT_COMMENT:-true}" = true ] && [ -n "$number" ] && [ -n "$repo" ]; then
   {
-    if [ -n "$result" ]; then printf '%s\n' "$result"; else printf 'janetcode ended without an answer (exit %s).\n' "$code"; fi
+    if [ -n "$result" ]; then printf '%s\n' "$result"; else
+      printf 'janetcode ended without an answer (exit %s).\n' "$code"
+      [ -z "$error" ] || printf '\n```\n%s\n```\n' "$error"
+    fi
     [ -z "$pr_url" ] || printf '\nChanges: %s\n' "$pr_url"
     [ -z "$cost" ] || cost=$(printf '%.4f' "$cost")
     printf '\n<sub>janetcode%s%s · exit %s</sub>\n' "${model:+ · $model}" "${cost:+ · \$$cost}" "$code"

@@ -157,6 +157,26 @@ func TestReviewModeCommentsTheAnswer(t *testing.T) {
 	}
 }
 
+// A run that fails before any answer (no API key, a refused endpoint) used
+// to leave a comment saying only "ended without an answer (exit 41)": the
+// reason was in the result's error field and the job log, not where the
+// pull request's author looks. The comment carries it.
+func TestFailedRunCommentNamesTheError(t *testing.T) {
+	tools := fakeTools(t)
+	os.WriteFile(filepath.Join(tools, "janetcode"), []byte(`#!/bin/sh
+printf '%s\n' '{"type":"result","result":"","is_error":true,"error":"no API key. Either:\n  - set ANTHROPIC_API_KEY","exit_code":41}'
+exit 41
+`), 0o755)
+	_, err := runAction(t, tools, `{"pull_request":{"number":5,"title":"Add bad","body":"desc"}}`, "GITHUB_EVENT_NAME=pull_request", "INPUT_MODE=auto")
+	if err == nil {
+		t.Fatal("a failed run did not fail the step")
+	}
+	comment, _ := os.ReadFile(filepath.Join(tools, "comment.md"))
+	if !strings.Contains(string(comment), "exit 41") || !strings.Contains(string(comment), "no API key") || !strings.Contains(string(comment), "set ANTHROPIC_API_KEY") {
+		t.Errorf("comment lacks the error:\n%s", comment)
+	}
+}
+
 func TestMentionModeIgnoresStrangersAndMissingTrigger(t *testing.T) {
 	tools := fakeTools(t)
 	out, err := runAction(t, tools, `{"issue":{"number":3,"title":"t"},"comment":{"body":"@janetcode fix it","author_association":"NONE"}}`, "GITHUB_EVENT_NAME=issue_comment")
