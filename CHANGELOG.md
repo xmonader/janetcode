@@ -43,6 +43,24 @@ and measurements behind each round are in `docs/notes/history.md`.
   each changed file and list each check result with its turn and the calls
   it followed.
 
+### File admission (issue #2)
+- An optional explicit file mode answers "which files may the model change?"
+  with a list. `/admit mode explicit` (or `--file-mode explicit`) restricts
+  edits to what `/admit <path>` / `--admit <path>` named; `/attach <path>` /
+  `--attach <path>` gives the model read-only context. The default,
+  `workspace`, is unchanged.
+- Enforced in the tools: write_file, edit_file, ast_edit and notebook_edit
+  refuse a non-admitted path (after confinement and `.aiignore`, never in
+  place of them) with a message naming the `/admit` command; a shell
+  command that visibly writes one is refused before it runs; a script whose
+  writes are not in its text has its non-admitted changes put back (git
+  repositories); merge-back of an editing subagent refuses non-admitted
+  files. A link is judged by the file it leads to.
+- The mode and list are on the status line (`files:explicit(n)`), in the
+  web header (files chip), in `/admit`, in the model's system prompt, and
+  in the session record, so `--resume`, `/fork` and worktree sessions keep
+  them. `@path` mentions join the read-only list in explicit mode.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)

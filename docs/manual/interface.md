@@ -375,6 +375,54 @@ The URL carries no token; the request needs the same session cookie as every
 other route, so a copied link is useless without a login. Links in a page
 open in a new browser tab.
 
+## File admission
+
+Confinement says where the file tools may go; it does not say which files the
+model is *allowed to change*. File admission answers that with a list you can
+read. There are two modes, chosen per session:
+
+- `workspace` (the default) edits anything under the working directory (and
+  any `/add-dir` root) that the other rules allow. Nothing changes.
+- `explicit` allows edits only to files and directories you admitted.
+  Reading is unchanged; only changing is narrowed.
+
+`/admit` shows the mode and the lists. `/admit mode explicit` turns the mode
+on, `/admit src/ main.go` admits a directory and a file for editing,
+`/admit remove src/` takes one back, `/admit clear` empties the lists and
+`/admit mode workspace` returns to the default. `/attach docs/` attaches a
+file or directory as read-only context: the model is told it is context and
+cannot edit it until you admit it. In explicit mode an `@path` in your prompt
+joins the read-only list for the same reason. A directory admission shows the
+file set it resolves to today (a count and the first few names; `.git` and
+what `.aiignore` excludes are left out), and keeps covering files created
+under it later.
+
+Headless runs set the same things without a prompt: `janetcode -p "..."
+--file-mode explicit --admit internal/foo.go --admit docs/ --attach README.md`.
+The session remembers the mode and lists, so `--resume`, `/fork` and a
+worktree session (`-w`) come back with them; paths inside the working
+directory are kept relative, so they mean the same files in the new tree.
+
+What is enforced, and where:
+
+| Change made by | Judged by |
+|---|---|
+| `write_file`, `edit_file`, `ast_edit`, `notebook_edit` | the tool itself, so a script, a fork or ACP cannot skip it. The refusal names the missing admission and the command, for example ``pkg/in.go is not admitted for editing ... admit it with `/admit pkg/in.go` (headless: --admit pkg/in.go)``. |
+| a `bash` or `monitor` command whose write targets show in its text (`>`, `tee`, `cp`, `mv`, `rm`, `sed -i`...) | its text, before it runs; one non-admitted target refuses the whole command |
+| a `bash` or `term` call whose writes are not in its text (`make gen`, a script) | the work tree around the call: a non-admitted file it changed is put back from the git index (or removed, if the call created it) and the result says which. A file that already held uncommitted edits cannot be restored, and is named. Only in a git repository; ignored files are not seen. |
+| an editing subagent's work (`task` with `edit`) | merge-back, which refuses a non-admitted file; the patch is returned instead |
+
+Admission is checked after confinement and `.aiignore`, never instead of them.
+A path outside the working directory and the `/add-dir` roots stays refused
+whatever you admit. A symlink is judged by the file it leads to as well as by
+its own name: a link inside an admitted directory does not carry an edit to a
+file you did not admit. The refusal is the approval step: the model cannot
+raise it, only you can, with `/admit` (or `--admit` for a headless run).
+
+The terminal shows `files:explicit(n)` on the status line, the web UI a
+"Files: explicit" chip beside the permission mode (click it for the list), and
+the model's system prompt lists the admitted and attached files.
+
 ## Guest links: sharing a session
 
 `janetcode --web` can hand one other person a read-only view of the
@@ -606,6 +654,8 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /loop [--observe] [duration] [prompt|off|run id|approve id]  (repeat a prompt this session; restored on resume)
 /agents [id|new <brief>|fork <brief>]  (overlay of subagents; new starts a general one, fork inherits this conversation)
 /add-dir <path>  (grant file tools another local directory)
+/admit [path...|mode explicit|workspace|remove path|clear]  (file admission: which files the model may edit)
+/attach <path...>  (attach files or directories as read-only context)
 /btw <question>  (side question; not stored as a user turn)
 /copy            (copy the last assistant reply)
 /config [key=value]  (set a catalogued config key)
