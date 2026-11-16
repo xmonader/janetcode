@@ -5,6 +5,20 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Sandbox egress (2026-11-16)
+- Under an egress policy on Linux, bubblewrap now runs bash in its own
+  network namespace behind a bridge to the proxy (a unix socket), and is
+  preferred over docker and Landlock. A remote host on the proxy's port,
+  UDP and unix sockets are all unreachable, which Landlock's by-port rule
+  could not promise.
+- Docker's egress network is now host-less (`gateway_mode_ipv4=isolated`)
+  with a sidecar forwarding to the proxy, so services on the host that
+  listen on every address are no longer reachable from the container.
+  Needs Docker 28+; the network is renamed `janetcode-egress-isolated`
+  (the old `janetcode-egress` can be removed).
+- Landlock stays the fallback and keeps the by-port limit, now named as
+  the only backend with a hole.
+
 ### Secrets (2026-11-16)
 - `request_secret` tool: the model asks for a token or password in a
   private prompt (masked in the terminal, a password field in the web UI)

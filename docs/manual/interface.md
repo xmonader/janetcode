@@ -1348,14 +1348,32 @@ janetcode runs a small filtering proxy on loopback, points the command's
 `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` (both spellings) at it with
 `NO_PROXY` cleared, and takes every other way out away:
 
-- Landlock (ABI 4, Linux 6.7+) allows TCP connect to the proxy's port
-  alone, and a seccomp filter takes UDP and unix sockets (so DNS too: the
-  proxy resolves names). The rule is by port, so a remote host listening
-  on that same port would be reachable. An older kernel cannot narrow
-  TCP, and sandboxed commands are refused while the policy is active.
-- docker puts the container on an internal network, `janetcode-egress`,
-  which has no route out; the proxy listens on its gateway. Services on
-  the host that listen on every address are reachable from it too.
+- bubblewrap (the first choice on Linux when it runs) gives the command a
+  network namespace of its own, where only loopback exists. The proxy
+  listens on a unix socket that is bind-mounted in, and a small bridge (a
+  re-execution of janetcode) forwards the proxy's loopback port inside to
+  that socket. Nothing else is reachable: not another host on the same
+  port, not the host's services, not UDP or DNS. A seccomp filter also
+  takes unix sockets away (a path-named socket such as docker.sock would
+  otherwise be a way around). It needs the socket filter, so amd64 and
+  arm64.
+- docker puts the container on an internal network, `janetcode-egress-isolated`,
+  that has no route out and no host address on it (Docker 28 or newer;
+  `gateway_mode_ipv4=isolated`), so the host's services are unreachable.
+  A sidecar container on that network and the default bridge forwards to
+  the proxy, which listens on the bridge's gateway address; it needs
+  busybox `nc` in the sandbox image (the default alpine has it) and exits
+  by itself when janetcode stops. Any container on docker's default bridge
+  can reach that proxy listener too, though it only ever filters.
+- Landlock (ABI 4, Linux 6.7+), used when neither of the above can run,
+  allows TCP connect to the proxy's port alone, and a seccomp filter takes
+  UDP and unix sockets (so DNS too: the proxy resolves names). This is the
+  one backend with a known hole: Landlock's network rules match a port,
+  not an address, so a remote host listening on that same port is
+  reachable. The kernel offers nothing finer, and a network namespace is
+  what closes it, which is what bubblewrap does. An older kernel cannot
+  narrow TCP, and sandboxed commands are refused while the policy is
+  active.
 - seatbelt allows network-outbound only to the proxy on localhost.
 
 Each host goes through the policy as the connection is made: allowed

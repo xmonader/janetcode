@@ -52,8 +52,9 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   bound to the first browser; delegate cost/usage not added to session
   totals; secrets are memory-only (lost on resume) and not sent to remote
   workspaces; op:// values cached 5 min; --bg runs get no deep link.
-- The Landlock egress rule is by port: a remote host on the proxy's port is
-  reachable. Docker egress: host services on 0.0.0.0 reachable.
+- Landlock egress is by port (a remote host on the proxy's port is reachable);
+  only used when bwrap (netns + unix-socket bridge) and docker (isolated net +
+  sidecar) are both unavailable. Docker sidecar needs busybox nc in the image.
 
 ## Key Decisions
 - ctrl+r is reverse prompt search (shell convention); effort cycling moved to
