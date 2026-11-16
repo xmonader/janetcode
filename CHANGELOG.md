@@ -39,6 +39,11 @@ and measurements behind each round are in `docs/notes/history.md`.
   bash command, scrubbed environment, read-only CLI modes by default,
   timeout, process-group kill on cancel; the answer and the CLI's cost
   come back as the result and its progress shows on the status line.
+- A delegate's tokens and price count in the session: claude's
+  `total_cost_usd` joins the session cost and the `--max-cost` account
+  (a delegate can stop a run on its ceiling); codex reports tokens only,
+  so its cost stays unknown. Shown as a separate "delegated" section of
+  `/usage` and the web usage card, kept out of the model's cache-hit stats.
 - Tools can now report progress lines to the status line
   (`tool.Progress`).
 

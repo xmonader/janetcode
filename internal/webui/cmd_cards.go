@@ -72,6 +72,18 @@ type usageCard struct {
 	CostUSD  float64          `json:"cost_usd,omitempty"`
 	CachePct int              `json:"cache_pct,omitempty"`
 	Ceiling  float64          `json:"ceiling,omitempty"`
+	// Delegated is kept apart from Models: those tokens are not the
+	// model's and would skew its cache-hit figure.
+	Delegated []usageDelegateCard `json:"delegated,omitempty"`
+}
+
+type usageDelegateCard struct {
+	Agent   string  `json:"agent"`
+	Runs    int     `json:"runs"`
+	In      int     `json:"in"`
+	Out     int     `json:"out"`
+	CostUSD float64 `json:"cost_usd,omitempty"`
+	HasCost bool    `json:"has_cost"`
 }
 
 func (s *server) usageCard() usageCard {
@@ -91,6 +103,10 @@ func (s *server) usageCard() usageCard {
 			Out:        u.OutputTokens,
 			CostUSD:    u.CostUSD,
 		})
+	}
+	for _, d := range ag.UsageDelegated() {
+		out.Delegated = append(out.Delegated, usageDelegateCard{Agent: d.Agent, Runs: d.Runs, In: d.InputTokens, Out: d.OutputTokens, CostUSD: d.CostUSD, HasCost: d.HasCost})
+		out.CostUSD += d.CostUSD
 	}
 	out.In = total.InputTokens
 	out.Cache = total.CacheReadTokens + total.CacheWriteTokens

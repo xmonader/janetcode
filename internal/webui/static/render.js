@@ -124,13 +124,17 @@
           `<span class="ubar"><span class="sl-model" style="width:${Math.max((all / maxTok) * 100, 2)}%"></span></span></div>`;
       })
       .join("");
+    const deleg = (d.delegated || [])
+      .map((x) => `<div class="crow urow"><b>delegated: ${esc(x.agent)}</b><span class="cms">${x.runs} run${x.runs === 1 ? "" : "s"}</span>` +
+        `<span class="cnote">↑${JanetFmt.tokens(x.in)} ↓${JanetFmt.tokens(x.out)} · ${x.has_cost ? "$" + x.cost_usd.toFixed(4) : "cost unknown"}</span></div>`)
+      .join("");
     const foot = [];
     if (d.in + d.out) foot.push(`↑${JanetFmt.tokens(d.in)} ↓${JanetFmt.tokens(d.out)}${d.cache ? " · ⧉" + JanetFmt.tokens(d.cache) : ""}`);
     if (d.cache_pct) foot.push(`cache hit ${d.cache_pct}%`);
     if (d.cost_usd) foot.push(`$${d.cost_usd.toFixed(4)} reported`);
     else foot.push("unpriced");
     if (d.ceiling) foot.push(`ceiling $${d.ceiling.toFixed(2)}`);
-    return `<div class="k">what the session spent</div>` + rows + `<div class="perfmeta">${esc(foot.join(" · "))}</div>`;
+    return `<div class="k">what the session spent</div>` + rows + deleg + `<div class="perfmeta">${esc(foot.join(" · "))}</div>`;
   }
 
   function linkCards(text) {

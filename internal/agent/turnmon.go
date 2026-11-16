@@ -41,7 +41,11 @@ type turnMonitor struct {
 	// session that routed, fell back, asked an advisor or delegated can
 	// say which model spent what. Guarded by usageMu with the rest.
 	byModel map[string]*ModelUsage
-	usageMu sync.Mutex // the status bar reads Usage while a turn runs
+	// delegated is what external agent CLIs (the delegate tool) spent. It
+	// is kept out of Usage and byModel: their tokens are not this model's
+	// and would corrupt its cache-hit figures. Guarded by usageMu.
+	delegated map[string]*DelegateUsage
+	usageMu   sync.Mutex // the status bar reads Usage while a turn runs
 	// MaxCostUSD, when set, ends a run once Usage has cost this much. It
 	// is checked after every model call and after every batch of tool
 	// results, not only between turns; see budget.go. Zero means no

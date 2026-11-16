@@ -982,6 +982,9 @@ func (m *model) cmdUsage(text string, fields []string) (tea.Cmd, bool) {
 	if s := agent.FormatUsageByModel(m.opts.Agent.UsageByModel(), m.opts.Agent.PriceOf); s != "" {
 		line += "\n" + s
 	}
+	if s := agent.FormatUsageDelegated(m.opts.Agent.UsageDelegated()); s != "" {
+		line += "\n" + s
+	}
 	m.transcript.info(line)
 	return nil, false
 }

@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"github.com/xmonader/janetcode/internal/session"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -97,9 +98,27 @@ func (a *Agent) SessionCost() (usd float64, source string, unpriced []string, kn
 		// agent built without the split): the old whole-session figure.
 		u := a.UsageSnapshot()
 		usd, known = u.Cost(a.Settings().Price)
-		return usd, u.CostSource(a.Settings().Price), nil, known
+		source = u.CostSource(a.Settings().Price)
+		for _, d := range a.UsageDelegated() {
+			if d.HasCost {
+				usd += d.CostUSD
+				if !known {
+					source = "reported"
+				}
+				known = true
+			}
+		}
+		return usd, source, nil, known
 	}
 	estimated := false
+	// Delegated CLIs report their own price (claude) or none (codex); a
+	// reported figure counts, tokens alone do not.
+	for _, d := range a.UsageDelegated() {
+		if d.HasCost {
+			usd += d.CostUSD
+			known = true
+		}
+	}
 	for _, r := range rows {
 		c, ok := r.Usage.Cost(a.PriceOf(r.Model))
 		if !ok {
@@ -125,7 +144,7 @@ func (a *Agent) SessionCost() (usd float64, source string, unpriced []string, kn
 // CostNote is the session's cost with where the figure comes from, and
 // what to do about any model it could not price.
 func (a *Agent) CostNote() string {
-	if len(a.UsageByModel()) == 0 && a.UsageSnapshot() == (llm.Usage{}) {
+	if len(a.UsageByModel()) == 0 && a.UsageSnapshot() == (llm.Usage{}) && len(a.UsageDelegated()) == 0 {
 		// Nothing has been called, so nothing has been spent. Saying
 		// "unpriced ... add it under prices" here sent people to fix a
 		// config that was fine, before the rate table had even loaded.
@@ -143,6 +162,21 @@ func (a *Agent) CostNote() string {
 	}
 	if known && len(unpriced) > 0 {
 		note += " · not counted: " + strings.Join(unpriced, ", ") + " (no rate known)"
+	}
+	if d := a.UsageDelegated(); len(d) > 0 {
+		var usd float64
+		unknown := false
+		for _, r := range d {
+			if r.HasCost {
+				usd += r.CostUSD
+			} else {
+				unknown = true
+			}
+		}
+		note += " · includes delegated " + llm.FormatUSDPrecise(usd)
+		if unknown {
+			note += " (some delegates report no price)"
+		}
 	}
 	return note
 }
@@ -235,6 +269,98 @@ func (a *Agent) addSideUsage(model string, u llm.Usage) {
 	a.logUsage(model, u)
 }
 
+// DelegateUsage is one external agent CLI's share of the session. HasCost
+// is false when the CLI reports tokens but no price (codex): the cost is
+// then unknown, not zero.
+type DelegateUsage struct {
+	Agent        string
+	Runs         int
+	InputTokens  int
+	OutputTokens int
+	CostUSD      float64
+	HasCost      bool
+}
+
+const delegatePrefix = "delegate:"
+
+// AddDelegateUsage counts one delegate run in the session: its own bucket
+// (never Usage, so cache-hit stats stay the model's), the session cost,
+// and the shared --max-cost account, so a run over its ceiling because of
+// a delegate stops like any other overrun. It is logged so a resume
+// restores it.
+func (a *Agent) AddDelegateUsage(name string, in, out int, costUSD float64, hasCost bool) {
+	if a == nil || (in <= 0 && out <= 0 && !hasCost) {
+		return
+	}
+	in, out = max(in, 0), max(out, 0)
+	if !(costUSD > 0) || math.IsInf(costUSD, 0) {
+		costUSD, hasCost = 0, false
+	}
+	u := llm.Usage{InputTokens: in, OutputTokens: out, CostUSD: costUSD}
+	// budgetMu then usageMu, as sharedAccount takes them: a budget built
+	// concurrently either sees this run in SessionCost or gets it added.
+	a.budgetMu.Lock()
+	a.noteDelegate(name, u)
+	if b := a.budget; b != nil && hasCost {
+		b.mu.Lock()
+		b.spent += costUSD
+		b.known = true
+		b.mu.Unlock()
+	}
+	a.budgetMu.Unlock()
+	a.logUsage(delegatePrefix+name, u)
+}
+
+func (a *Agent) noteDelegate(name string, u llm.Usage) {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	if a.delegated == nil {
+		a.delegated = map[string]*DelegateUsage{}
+	}
+	d := a.delegated[name]
+	if d == nil {
+		d = &DelegateUsage{Agent: name}
+		a.delegated[name] = d
+	}
+	d.Runs++
+	d.InputTokens += u.InputTokens
+	d.OutputTokens += u.OutputTokens
+	if u.CostUSD > 0 {
+		d.CostUSD += u.CostUSD
+		d.HasCost = true
+	}
+}
+
+// UsageDelegated is what each delegate CLI spent this session, by name.
+func (a *Agent) UsageDelegated() []DelegateUsage {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	out := make([]DelegateUsage, 0, len(a.delegated))
+	for _, d := range a.delegated {
+		out = append(out, *d)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Agent < out[j].Agent })
+	return out
+}
+
+// FormatUsageDelegated renders the delegated bucket for /usage, or "".
+func FormatUsageDelegated(rows []DelegateUsage) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("delegated (separate from the model's tokens and cache stats)")
+	for _, r := range rows {
+		fmt.Fprintf(&sb, "\n  %s  %s · ↑%s ↓%s", r.Agent, textfmt.Plural(r.Runs, "run"), textfmt.Tokens(r.InputTokens), textfmt.Tokens(r.OutputTokens))
+		if r.HasCost {
+			sb.WriteString(" · " + llm.FormatUSDPrecise(r.CostUSD))
+		} else {
+			sb.WriteString(" · cost unknown (the CLI reports no price)")
+		}
+	}
+	return sb.String()
+}
+
 // restoreUsage sets the session totals from its log: every assistant
 // message's usage and every usage event. A resume started them at zero,
 // so ↑/↓, the cost and /usage read as if the session had spent nothing.
@@ -243,8 +369,16 @@ func (a *Agent) restoreUsage(ev []session.Event) {
 	defer a.usageMu.Unlock()
 	a.Usage = llm.Usage{}
 	a.byModel = nil
+	a.delegated = nil
 	for _, e := range ev {
 		if e.Usage == nil || (e.Type != session.TypeAssistant && e.Type != session.TypeUsage) {
+			continue
+		}
+		if name, ok := strings.CutPrefix(e.Model, delegatePrefix); ok && e.Type == session.TypeUsage {
+			// noteDelegate takes usageMu, which is held here.
+			a.usageMu.Unlock()
+			a.noteDelegate(name, *e.Usage)
+			a.usageMu.Lock()
 			continue
 		}
 		a.Usage.Add(*e.Usage)

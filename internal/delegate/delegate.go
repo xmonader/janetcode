@@ -113,6 +113,10 @@ type Tool struct {
 	// Env is the environment the child starts from before scrubbing;
 	// nil means this process's.
 	Env []string
+	// OnUsage, when set, is told what each run spent (tokens, and the
+	// price when the CLI reports one) so the session can count it. It is
+	// called for failed and cancelled runs too: they were billed.
+	OnUsage func(agent string, r Result)
 }
 
 func (t *Tool) Name() string { return "delegate" }
@@ -215,6 +219,9 @@ func (t *Tool) run(ctx context.Context, name string, spec Spec, bin, dir, prompt
 		progress.Report(ctx, name+": "+line)
 	})
 	waitErr := cmd.Wait()
+	if t.OnUsage != nil {
+		t.OnUsage(name, res)
+	}
 	dur := time.Since(start).Round(100 * time.Millisecond)
 
 	switch {

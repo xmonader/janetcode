@@ -1337,6 +1337,15 @@ progress shows as the status line while it works.
   yourself, for example `"--permission-mode", "acceptEdits"` or
   `"--sandbox", "workspace-write"`; `{prompt}` marks where the task goes
   (it is appended when absent).
+- **Cost and usage.** A run's tokens and price are counted in the session:
+  `claude` reports a price (`total_cost_usd`), which is added to the session
+  cost, the status line and `--max-cost` / `/budget`, so a delegate that
+  pushes the run over its ceiling stops it like any other overrun. `codex`
+  reports tokens only, so its cost stays unknown (not zero) and is not
+  counted against a ceiling. `/usage` and the web usage card list delegated
+  runs in their own "delegated" section; their tokens are not added to the
+  model's own counts, so its cache-hit figure stays accurate. Failed and
+  cancelled runs are counted too, and a resumed session restores them.
 - **Limits.** One run is stopped after `timeout_minutes` (default 30); on
   timeout or cancel the CLI and everything it started are killed.
 

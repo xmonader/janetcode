@@ -617,7 +617,10 @@ func (b *agentBuilder) stepAgentTools() error {
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
 	if b.d.cfg.Delegates.Enabled {
-		ag.Tools.Add(&delegate.Tool{Config: b.d.cfg.Delegates, Dir: b.cd.Dir})
+		ag.Tools.Add(&delegate.Tool{Config: b.d.cfg.Delegates, Dir: b.cd.Dir,
+			OnUsage: func(name string, r delegate.Result) {
+				ag.AddDelegateUsage(name, r.InputTokens, r.OutputTokens, r.CostUSD, r.HasCost)
+			}})
 	}
 	ag.Tools.Add(&agent.CronTool{Cron: b.cron})
 	ag.Tools.Add(&memory.Tool{Store: b.d.mem, NoArchive: b.off["memarchive"]})

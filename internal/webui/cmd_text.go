@@ -273,6 +273,9 @@ func (s *server) usageText() string {
 	if s := agent.FormatUsageByModel(ag.UsageByModel(), ag.PriceOf); s != "" {
 		sb.WriteString("\n" + s)
 	}
+	if s := agent.FormatUsageDelegated(ag.UsageDelegated()); s != "" {
+		sb.WriteString("\n" + s)
+	}
 	return sb.String()
 }
 
