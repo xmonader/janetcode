@@ -13,13 +13,7 @@
   const palette = document.getElementById("palette");
   const paletteQ = document.getElementById("palette-q");
   const paletteList = document.getElementById("palette-list");
-  const ac = document.getElementById("ac");
-  let acItems = [];
-  let acIdx = 0;
-  let acStart = -1;
-  let acTimer = 0;
   let curTitle = "";
-  let lastPrompt = "";
 
   const nodes = new Map();
   const openTools = new Set();
@@ -27,8 +21,6 @@
   const openAnswers = new Set();
   const openRuns = new Set();
   const openFileCards = new Set();
-  let running = false;
-  let commands = [];
   let palIdx = 0;
   let palItems = [];
   let lastUserText = "";
@@ -207,7 +199,7 @@
       const x = e.data && e.data.headline ? e.data : null;
       // Retry only where sending the same thing again can help: a
       // rejected key or a missing model fails the same way every time.
-      const retry = (lastPrompt && (!x || x.retry) ? `<button type="button" class="retry-btn" data-retry="1">Retry</button>` : "") +
+      const retry = (S.lastPrompt && (!x || x.retry) ? `<button type="button" class="retry-btn" data-retry="1">Retry</button>` : "") +
         (x && x.fix === "connect" ? `<button type="button" class="fix-btn">Fix connection</button>` : "");
       if (x) {
         const meta = [x.code, x.reason].filter(Boolean).join(" · ");
@@ -447,11 +439,10 @@
     unseen = false;
     paintTitle();
   });
-  let pageSession = "";
   function applyHello(h) {
     if (!h) return;
-    const prevSession = pageSession;
-    if (h.session) pageSession = h.session;
+    const prevSession = S.pageSession;
+    if (h.session) S.pageSession = h.session;
     if (prevSession && h.session && prevSession !== h.session) {
       // Another conversation: its own draft, not the last one's.
       input.value = "";
@@ -487,18 +478,18 @@
 
   function applyStatus(st) {
     if (!st) return;
-    const prev = running;
-    running = !!st.running;
-    if (prev && !running) announce(st.status || "Done");
+    const prev = S.running;
+    S.running = !!st.running;
+    if (prev && !S.running) announce(st.status || "Done");
     maybeNotify(prev, st);
     const sendBtn = document.getElementById("send");
-    sendBtn.title = running ? "Queue behind the running turn" : "Send";
+    sendBtn.title = S.running ? "Queue behind the running turn" : "Send";
     // Kimi-style swap: while a turn runs the round button becomes the
     // stop button; queueing still happens with Enter.
-    sendBtn.hidden = running;
-    document.getElementById("stop").hidden = !running;
+    sendBtn.hidden = S.running;
+    document.getElementById("stop").hidden = !S.running;
     const steerHint = document.getElementById("steer-hint");
-    if (steerHint) steerHint.hidden = !running;
+    if (steerHint) steerHint.hidden = !S.running;
     const bits = [];
     if (st.running) bits.push((st.phase || "Working") + (st.elapsed ? " · " + st.elapsed : ""));
     else if (st.status) bits.push(st.status);
@@ -648,7 +639,7 @@
         if (suggestedFor !== null) loadSuggestions(suggestedFor);
         curTitle = "";
         S.firstUserText = "";
-        lastPrompt = "";
+        S.lastPrompt = "";
         break;
       case "notice":
         statusEl.textContent = msg.notice || "";
@@ -759,293 +750,9 @@
     return r.ok;
   }
 
-  const chips = [];
-  const chipsEl = document.getElementById("chips");
-  function paintChips() {
-    if (!chips.length) { chipsEl.hidden = true; chipsEl.innerHTML = ""; return; }
-    chipsEl.hidden = false;
-    chipsEl.innerHTML = chips.map((p, i) =>
-      `<span class="file-chip">${esc(p.split("/").pop())}<button type="button" data-chip="${i}" aria-label="Remove">${icon("x")}</button></span>`
-    ).join("");
-  }
-  chipsEl.addEventListener("click", (ev) => {
-    const b = ev.target.closest("[data-chip]");
-    if (!b) return;
-    chips.splice(Number(b.dataset.chip), 1);
-    paintChips();
-  });
-  function composedText() {
-    const typed = input.value.trim();
-    const mentions = chips.map(mentionOf).join(" ");
-    return [mentions, typed].filter(Boolean).join("\n");
-  }
-  form.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    if (!slashEl.hidden) { acceptSlash(); return; }
-    const text = composedText();
-    if (!text) return;
-    if (!S.connected && !text.startsWith("/")) {
-      // Keep what they typed: it sends once a provider is connected.
-      openConnect("Connect a provider first. Your message is still in the composer.");
-      return;
-    }
-    if (!text.startsWith("/")) lastPrompt = text;
-    histPush(text);
-    const draft = input.value, attached = chips.slice();
-    input.value = "";
-    saveDraft();
-    chips.length = 0;
-    paintChips();
-    resize();
-    acHide();
-    hideSlash();
-    if (!(await post("/api/prompt", { text }))) {
-      // Not sent: put it back rather than let it vanish. post has already
-      // said why in the status line.
-      if (!input.value) { input.value = draft; saveDraft(); }
-      if (!chips.length) chips.push(...attached);
-      paintChips();
-      resize();
-      input.focus();
-    }
-  });
-
-  // Composer history: the prompts this browser has sent, recalled with
-  // ↑ like the terminal's. The draft you had half-typed comes back on ↓
-  // past the oldest entry.
-  const hist = {
-    items: JSON.parse(localStorage.getItem("janetcode-hist") || "[]"),
-    idx: -1,
-    draft: "",
-  };
-  function histPush(text) {
-    if (!text || hist.items[hist.items.length - 1] === text) return;
-    hist.items.push(text);
-    if (hist.items.length > 200) hist.items.shift();
-    try {
-      localStorage.setItem("janetcode-hist", JSON.stringify(hist.items));
-    } catch (_) {}
-    hist.idx = -1;
-  }
-  // A path with a space in it is mentioned quoted, @"my notes.md", the
-  // form the server's mention parser reads; bare it never attached.
-  function mentionOf(p) {
-    return /\s/.test(p) ? '@"' + p + '"' : "@" + p;
-  }
-  function acWord() {
-    const pos = input.selectionStart;
-    const before = input.value.slice(0, pos);
-    const q = before.match(/(^|\s)@"([^"\n]*)$/);
-    if (q) return { start: pos - q[2].length - 1, partial: q[2], quoted: true };
-    const m = before.match(/(^|\s)@([^\s@"]*)$/);
-    if (!m) return null;
-    return { start: pos - m[2].length, partial: m[2], quoted: false };
-  }
-  function acHide() { ac.hidden = true; acItems = []; acStart = -1; }
-  function acDraw() {
-    ac.innerHTML = acItems.map((p, i) => {
-      const dir = p.endsWith("/");
-      return `<div class="${i === acIdx ? "on" : ""}" data-i="${i}">${dir ? "▸ " : ""}${esc(p)}</div>`;
-    }).join("") || `<div class="ac-hint">no matches</div>`;
-  }
-  async function acRefresh() {
-    const w = acWord();
-    if (!w) { acHide(); return; }
-    acStart = w.start;
-    try {
-      const items = await (await fetch("/api/complete?q=" + encodeURIComponent(w.partial))).json();
-      if (acWord()?.partial !== w.partial) return;
-      acItems = items || [];
-      acIdx = 0;
-      if (!acItems.length) { acHide(); return; }
-      ac.hidden = false;
-      acDraw();
-    } catch (_) { acHide(); }
-  }
-  function acAccept() {
-    const w = acWord();
-    const p = acItems[acIdx];
-    if (!w || !p) return;
-    const tail = input.value.slice(input.selectionStart);
-    const dir = p.endsWith("/");
-    let text = p;
-    // A directory's quote stays open so the path can go on.
-    if (w.quoted || /\s/.test(p)) text = '"' + p + (dir ? "" : '"');
-    const sep = dir ? "" : " ";
-    input.value = input.value.slice(0, acStart) + text + sep + tail;
-    input.selectionStart = input.selectionEnd = acStart + text.length + sep.length;
-    acHide();
-    resize();
-    input.focus();
-  }
-  // The unsent prompt survives a reload or a closed tab. A session switch
-  // or a send clears it; storage that throws just means no draft.
-  // Drafts are per session: the key carries the session id. The old
-  // global key is migrated into the first session that loads.
-  const LEGACY_DRAFT_KEY = "janetcode-draft";
-  const draftKey = () => LEGACY_DRAFT_KEY + (pageSession ? ":" + pageSession : "");
-  function saveDraft() {
-    try {
-      if (input.value) localStorage.setItem(draftKey(), input.value);
-      else localStorage.removeItem(draftKey());
-    } catch (_) {}
-  }
-  function restoreDraft() {
-    try {
-      let d = localStorage.getItem(draftKey());
-      if (!d && pageSession) {
-        d = localStorage.getItem(LEGACY_DRAFT_KEY);
-        if (d) { localStorage.setItem(draftKey(), d); localStorage.removeItem(LEGACY_DRAFT_KEY); }
-      }
-      if (d && !input.value) { input.value = d; resize(); }
-    } catch (_) {}
-  }
-  input.addEventListener("input", () => {
-    saveDraft();
-    resize();
-    slashIdx = 0;
-    drawSlash();
-    clearTimeout(acTimer);
-    acTimer = setTimeout(acRefresh, 120);
-  });
-  ac.addEventListener("click", (ev) => {
-    const d = ev.target.closest("[data-i]");
-    if (!d) return;
-    acIdx = Number(d.dataset.i);
-    acAccept();
-  });
-  document.addEventListener("click", (ev) => {
-    if (!ac.hidden && !ev.target.closest("#composer")) acHide();
-  });
-
-  function resize() {
-    input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 140) + "px";
-  }
-  const slashEl = document.getElementById("slash");
-  let slashItems = [];
-  let slashIdx = 0;
-  function hideSlash() { slashEl.hidden = true; slashItems = []; }
-  function slashQuery() {
-    const v = input.value;
-    if (!v.startsWith("/") || /[\s\n]/.test(v)) return null;
-    return v.toLowerCase();
-  }
-  function drawSlash() {
-    const q = slashQuery();
-    if (q == null) { hideSlash(); return; }
-    acHide();
-    slashItems = commands.filter((c) => {
-      const n = (c.name || "").toLowerCase();
-      if (!q || q === "/") return true;
-      if (n.startsWith(q)) return true;
-      let i = 0;
-      const bare = q.slice(1);
-      for (const ch of n.slice(1)) if (ch === bare[i] && ++i === bare.length) return true;
-      return (c.help || "").toLowerCase().includes(bare);
-    }).slice(0, 8);
-    slashIdx = Math.min(slashIdx, Math.max(slashItems.length - 1, 0));
-    if (!slashItems.length) { hideSlash(); return; }
-    slashEl.hidden = false;
-    slashEl.innerHTML = slashItems.map((c, i) =>
-      `<div class="${i === slashIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help || "")}</span></div>`
-    ).join("");
-  }
-  async function acceptSlash() {
-    const c = slashItems[slashIdx];
-    hideSlash();
-    if (!c) return;
-    if (c.args) {
-      input.value = c.name + " ";
-      input.focus();
-      resize();
-      return;
-    }
-    input.value = "";
-    resize();
-    await post("/api/command", { text: c.name });
-  }
-  slashEl.addEventListener("click", async (ev) => {
-    const row = ev.target.closest("[data-i]");
-    if (!row) return;
-    slashIdx = Number(row.dataset.i);
-    await acceptSlash();
-  });
-
-  input.addEventListener("keydown", async (ev) => {
-    if (!ac.hidden) {
-      if (ev.key === "ArrowDown") { ev.preventDefault(); acIdx = Math.min(acIdx + 1, acItems.length - 1); acDraw(); return; }
-      if (ev.key === "ArrowUp") { ev.preventDefault(); acIdx = Math.max(acIdx - 1, 0); acDraw(); return; }
-      if (ev.key === "Enter" || ev.key === "Tab") { ev.preventDefault(); acAccept(); return; }
-      if (ev.key === "Escape") { ev.preventDefault(); acHide(); return; }
-    }
-    if (!slashEl.hidden) {
-      if (ev.key === "ArrowDown") { ev.preventDefault(); slashIdx = Math.min(slashIdx + 1, slashItems.length - 1); drawSlash(); return; }
-      if (ev.key === "ArrowUp") { ev.preventDefault(); slashIdx = Math.max(slashIdx - 1, 0); drawSlash(); return; }
-      if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); await acceptSlash(); return; }
-      if (ev.key === "Escape") { ev.preventDefault(); hideSlash(); return; }
-    }
-    if (ev.key === "Enter" && !ev.shiftKey && (ev.ctrlKey || ev.metaKey) && running) {
-      ev.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
-      resize();
-      await post("/api/steer", { text });
-      return;
-    }
-    if (ev.key === "Backspace" && input.value === "" && chips.length) {
-      chips.pop();
-      paintChips();
-      return;
-    }
-    if (ev.key === "Enter" && !ev.shiftKey) {
-      ev.preventDefault();
-      form.requestSubmit();
-    }
-    if (ev.key === "ArrowUp" && hist.items.length) {
-      ev.preventDefault();
-      if (hist.idx === -1) {
-        hist.draft = input.value;
-        hist.idx = hist.items.length - 1;
-      } else if (hist.idx > 0) {
-        hist.idx--;
-      }
-      input.value = hist.items[hist.idx];
-      resize();
-      return;
-    }
-    if (ev.key === "ArrowDown" && hist.idx !== -1) {
-      ev.preventDefault();
-      hist.idx++;
-      if (hist.idx >= hist.items.length) {
-        hist.idx = -1;
-        input.value = hist.draft;
-      } else {
-        input.value = hist.items[hist.idx];
-      }
-      resize();
-      return;
-    }
-    if (ev.key === "Escape") {
-      ev.preventDefault();
-      await post("/api/cancel", {});
-    }
-    if (S.pending && input.value === "" && !ev.metaKey && !ev.ctrlKey) {
-      const map = { y: "allow", a: "session", r: "always", n: "deny", c: "cancel" };
-      if (map[ev.key.toLowerCase()]) {
-        ev.preventDefault();
-        await post("/api/permission", { decision: map[ev.key.toLowerCase()], rule: chosenRule(), id: S.pending.id });
-      }
-    }
-    if (ev.key === "s" && ev.ctrlKey && running) {
-      ev.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
-      await post("/api/steer", { text });
-    }
-  });
+  // The composer (send, history, @-complete, drafts, slash menu) lives in composer.js.
+  const { resize, saveDraft, restoreDraft, mentionOf, slashEl, hideSlash } = JanetComposer({
+    S, esc, icon, post, input, form, chosenRule, openConnect: (...a) => openConnect(...a) });
 
   document.querySelector(".switches").addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-cmd]");
@@ -1181,7 +888,7 @@
       act("Settings", "Font size: medium", "", () => setFontScale("medium")),
       act("Settings", "Font size: large", "", () => setFontScale("large")),
       act("Settings", "Open settings", "appearance, sound, notifications", () => openSettings()),
-    ].concat(window.JanetExtras && window.JanetExtras.actions ? window.JanetExtras.actions(act) : [], commands.map(mdFor));
+    ].concat(window.JanetExtras && window.JanetExtras.actions ? window.JanetExtras.actions(act) : [], S.commands.map(mdFor));
   }
   function drawPalette(q) {
     q = q.toLowerCase().replace(/^\//, "");
@@ -1311,7 +1018,7 @@
     }
   });
 
-  fetch("/api/commands").then((r) => r.json()).then((c) => { commands = c || []; }).catch(() => {});
+  fetch("/api/commands").then((r) => r.json()).then((c) => { S.commands = c || []; }).catch(() => {});
   // Save the conversation as markdown, built client-side from the
   // entries on screen — no server round trip, and it saves what you see.
   // entryMarkdown is one entry as the Markdown a reader would paste: the
@@ -1512,8 +1219,8 @@
       openConnect();
       return;
     }
-    if (ev.target.closest(".retry-btn") && lastPrompt) {
-      await post("/api/prompt", { text: lastPrompt });
+    if (ev.target.closest(".retry-btn") && S.lastPrompt) {
+      await post("/api/prompt", { text: S.lastPrompt });
       return;
     }
     const card = ev.target.closest(".link-card");
@@ -1585,7 +1292,7 @@
       resize(); input.dispatchEvent(new Event("input")); input.focus();
     },
     rerenderTools: () => { openTools.clear(); S.latest.forEach((e) => { if (e.kind === "tool") render(e); }); },
-    session: () => pageSession,
+    session: () => S.pageSession,
     title: () => cleanTitle(curTitle),
   };
   if (window.JanetExtras && window.JanetExtras.ready) window.JanetExtras.ready();
@@ -1603,7 +1310,7 @@
     // it were live; say so and offer the reload that shows the new one.
     fetch("/api/state").then((r) => r.json()).then((st) => {
       const now = st && st.hello && st.hello.session;
-      if (pageSession && now && now !== pageSession) {
+      if (S.pageSession && now && now !== S.pageSession) {
         document.getElementById("reload-msg").textContent =
           "janetcode restarted in a new session. Reload to continue; this conversation is in the list on the left.";
         document.getElementById("reload-toast").hidden = false;

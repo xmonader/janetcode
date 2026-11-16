@@ -28,6 +28,14 @@
   "use strict";
   global.JanetState = {
     lastReply: "",
+    // a turn is running (from the status event).
+    running: false,
+    // the session id this page is showing; keys the unsent draft.
+    pageSession: "",
+    // the server's slash commands (/api/commands).
+    commands: [],
+    // the last prompt sent that was not a slash command (retry resends it).
+    lastPrompt: "",
     // the permission request on the approval card, or null.
     pending: null,
     // every transcript entry by id, newest version of each.
