@@ -1,6 +1,7 @@
 // Drive the real webui in headless Chrome over CDP: toggles + drag-resize.
 // Assertions, not eyeballs — run: node interact.mjs <url>
 // Requires chrome with --remote-debugging-port=9223 (see make ui-test).
+import { mkdirSync, writeFileSync } from 'node:fs';
 const CDP_PORT = 9223;
 const APP = process.argv[2] || 'http://127.0.0.1:8787/';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -53,6 +54,68 @@ const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} 
 
 // 0. the page carries the server's stamped build (stale-UI toast data)
 check('build stamped into page', await evaljs(`window.__janetUIBuild && window.__janetUIBuild !== "__JANET_UI_BUILD__"`), await evaljs(`window.__janetUIBuild`));
+
+// 0b. HTML pages (render_html): the frame is sandboxed without
+// allow-same-origin, loads through the cookie the page already holds, and
+// the script inside it cannot read this document or call the API.
+const sessionsDir = process.argv[3];
+if (sessionsDir) {
+  const sid = await evaljs(`fetch('/api/state').then(r => r.json()).then(j => j.hello.session)`);
+  mkdirSync(sessionsDir, { recursive: true });
+  writeFileSync(`${sessionsDir}/${sid}.page-1.html`, `<!doctype html><html><head><title>probe</title></head><body><h1 id="h">probe</h1><a id="lnk" href="https://example.invalid/">out</a><script>
+const r = {};
+try { r.parentDoc = 'read:' + String(parent.document.title); } catch (e) { r.parentDoc = 'blocked:' + e.name; }
+try { r.parentCookie = 'read:' + String(parent.document.cookie); } catch (e) { r.parentCookie = 'blocked:' + e.name; }
+try { r.cookie = 'read:' + document.cookie; } catch (e) { r.cookie = 'blocked:' + e.name; }
+try { r.storage = 'read:' + localStorage.length; } catch (e) { r.storage = 'blocked:' + e.name; }
+try { r.topApp = 'read:' + String(top.JanetPages); } catch (e) { r.topApp = 'blocked:' + e.name; }
+r.theme = document.documentElement.getAttribute('data-theme');
+r.scheme = getComputedStyle(document.documentElement).colorScheme;
+document.addEventListener('click', (e) => e.preventDefault());
+document.getElementById('lnk').click();
+r.target = document.getElementById('lnk').getAttribute('target');
+new MutationObserver(() => parent.postMessage({ type: 'probe2', theme: document.documentElement.getAttribute('data-theme') }, '*')).observe(document.documentElement, { attributes: true });
+fetch('/api/state').then(x => { r.fetch = 'status:' + x.status; }).catch(() => { r.fetch = 'blocked'; }).finally(() => parent.postMessage({ type: 'probe', r }, '*'));
+</script></body></html>`);
+  const probe = await evaljs(`new Promise((done) => {
+    window.addEventListener('message', (ev) => { if (ev.data && ev.data.type === 'probe') done(ev.data.r); });
+    const icon = () => '';
+    const n = document.createElement('article');
+    n.id = 'page-probe';
+    document.getElementById('log').appendChild(n);
+    JanetPages.build(n, { id: 'probe', kind: 'page', data: { sid: ${JSON.stringify(sid)}, n: 1, title: 'Probe page' } }, icon);
+    setTimeout(() => done({ timeout: true }), 8000);
+  })`);
+  const fr = await evaljs(`(() => { const f = document.querySelector('#page-probe iframe'); return { sandbox: f.getAttribute('sandbox'), src: f.getAttribute('src') }; })()`);
+  const tokens = (fr.sandbox || '').split(/\s+/);
+  check('page frame is sandboxed with scripts but never allow-same-origin', tokens.includes('allow-scripts') && !tokens.includes('allow-same-origin') && !tokens.includes('allow-forms') && !tokens.includes('allow-top-navigation'), fr.sandbox);
+  check('page frame URL carries no token', !/token/i.test(fr.src), fr.src);
+  check('page loads and its script runs (cookie auth reaches the frame)', !probe.timeout && probe.theme !== undefined, JSON.stringify(probe));
+  check('script in the page cannot read the parent document, its cookie or the app', /^blocked:/.test(probe.parentDoc) && /^blocked:/.test(probe.parentCookie) && /^blocked:/.test(probe.topApp), JSON.stringify(probe));
+  check('page has an opaque origin: no cookie or storage of its own', /^blocked:/.test(probe.cookie) && /^blocked:/.test(probe.storage), JSON.stringify(probe));
+  check('page cannot call the janetcode API (CSP connect-src none)', probe.fetch === 'blocked', JSON.stringify(probe));
+  const appTheme = await evaljs(`document.documentElement.dataset.theme`);
+  check('page receives the current theme and links open in a new tab', probe.theme === appTheme && probe.scheme === appTheme && probe.target === '_blank', JSON.stringify(probe));
+  // A theme switch reaches the open page through the bridge, no reload.
+  const flip = await evaljs(`new Promise((done) => {
+    const want = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    window.addEventListener('message', function once(ev) { if (ev.data && ev.data.type === 'probe2') { window.removeEventListener('message', once); done({ want, got: ev.data.theme }); } });
+    JanetPages.setTheme(want);
+    setTimeout(() => done({ want, got: 'timeout' }), 3000);
+  })`);
+  check('a theme switch reaches an open page', flip.want === flip.got, JSON.stringify(flip));
+  const full = await evaljs(`(async () => {
+    const wait = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const n = document.getElementById('page-probe');
+    n.querySelector('.page-full').click(); await wait();
+    const b = n.getBoundingClientRect();
+    const on = n.classList.contains('full') && b.width >= innerWidth - 1 && b.height >= innerHeight - 1;
+    n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait();
+    return { on, off: !n.classList.contains('full'), w: b.width, h: b.height };
+  })()`);
+  check('page expands to full screen and closes on Escape', full.on && full.off, JSON.stringify(full));
+  await evaljs(`document.getElementById('page-probe').remove(); 1`);
+}
 
 // 1. handles exist and are visible
 // The empty page's chips are read from the repository the server runs in

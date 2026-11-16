@@ -126,7 +126,7 @@ ui-test: build
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_PORT)/ && break; sleep 0.5; done; \
 	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
-	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/?token=$(UI_TOKEN); \
+	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/?token=$(UI_TOKEN) $$tmp/janetcode/sessions; \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; exit $$rc
 
 # First run in a real browser: --web with no config and no key opens on

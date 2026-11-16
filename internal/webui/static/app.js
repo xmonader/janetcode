@@ -238,6 +238,8 @@
       } else {
         n.innerHTML = esc(e.text || "") + (retry ? " " + retry : "");
       }
+    } else if (e.kind === "page") {
+      JanetPages.build(n, e, icon);
     } else if (e.kind === "verdict") {
       // The server reads the tone; the page only colours it.
       n.className = "turn verdict" + (e.tone === "ok" ? " ok" : e.tone === "bad" ? " bad" : "");
@@ -2093,6 +2095,7 @@
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     terminal.restyle();
     drawTheme();
+    JanetPages.setTheme(dark ? "dark" : "light");
     document.querySelectorAll("#theme-seg [data-theme]").forEach((b) => {
       const on = b.dataset.theme === choice;
       b.classList.toggle("on", on);
