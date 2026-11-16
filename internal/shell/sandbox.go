@@ -282,9 +282,12 @@ func (s *Sandbox) backendFor() (string, error) {
 	case "linux":
 		// bubblewrap first: it confines the command on this machine's
 		// own toolchain, which is what the model was asked to work with,
-		// and enforces more of a profile than Landlock can. It cannot
-		// narrow an existing network namespace to the egress proxy.
-		if s.bwrapUsable() && s.proxyPort(s.Profile()) == 0 {
+		// and enforces more of a profile than Landlock can. Under an
+		// egress policy it puts the command in a network namespace whose
+		// only way out is a bridge to the proxy, which closes what
+		// docker (the host's addresses) and Landlock (any host on the
+		// proxy's port) leave open.
+		if s.bwrapUsable() && (s.proxyPort(s.Profile()) == 0 || egressBridgeSupported()) {
 			return BackendBwrap, nil
 		}
 		if _, err := s.lookPath("docker"); err == nil {
@@ -313,8 +316,8 @@ func (s *Sandbox) usable() (string, error) {
 	}
 	p := s.Profile()
 	proxy := s.proxyPort(p) > 0
-	if backend == BackendBwrap && proxy {
-		return "", fmt.Errorf("bubblewrap cannot narrow the network to the egress proxy; use the docker or landlock backend, or set egress.default to allow")
+	if backend == BackendBwrap && proxy && !egressBridgeSupported() {
+		return "", fmt.Errorf("bubblewrap cannot narrow the network to the egress proxy on this build; use the docker or landlock backend, or set egress.default to allow")
 	}
 	if backend == BackendLandlock && !p.Network && s.landlockABI() < 4 {
 		return "", fmt.Errorf("the %s profile needs the network taken away, and Landlock ABI %d cannot do that (needs ABI 4, Linux 6.7); install docker, or use the workspace profile", p.Name, s.landlockABI())

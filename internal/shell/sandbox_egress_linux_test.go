@@ -15,6 +15,7 @@ type fakeProxy struct{ port int }
 
 func (f fakeProxy) Port() int                          { return f.port }
 func (f fakeProxy) ListenOn(ip string) (string, error) { return fmt.Sprintf("%s:%d", ip, f.port), nil }
+func (f fakeProxy) UnixSocket() (string, error)         { return "", fmt.Errorf("no socket") }
 
 // listen accepts and says hello on a loopback port.
 func listen(t *testing.T) (int, func()) {
@@ -103,30 +104,19 @@ func TestLandlockEgressRequiresSocketFilter(t *testing.T) {
 	}
 }
 
-func TestBwrapRefusesEgressItCannotEnforce(t *testing.T) {
-	s := stubSandbox(t, BackendBwrap, 4)
-	s.probe = func() bool { return true }
-	if err := s.SetProfile("workspace"); err != nil {
-		t.Fatal(err)
-	}
-	s.SetEgressProxy(fakeProxy{4321})
-	if err := s.Enable(); err == nil {
-		t.Fatal("bubblewrap enabled with an egress proxy despite leaving the network unrestricted")
-	}
-}
-
-func TestAutoBackendWithEgressSkipsBwrap(t *testing.T) {
+func TestAutoBackendWithEgressPrefersBwrapBridge(t *testing.T) {
 	s := stubSandbox(t, "", 4)
 	s.probe = func() bool { return true }
 	if err := s.SetProfile("workspace"); err != nil {
 		t.Fatal(err)
 	}
-	if backend := s.Backend(); backend != BackendBwrap {
-		t.Fatalf("backend without egress = %q, want bubblewrap", backend)
-	}
 	s.SetEgressProxy(fakeProxy{4321})
-	if backend := s.Backend(); backend != BackendDocker {
-		t.Fatalf("backend with egress = %q, want an enforcing backend", backend)
+	want := BackendDocker
+	if egressBridgeSupported() {
+		want = BackendBwrap
+	}
+	if backend := s.Backend(); backend != want {
+		t.Fatalf("backend with egress = %q, want %q", backend, want)
 	}
 }
 

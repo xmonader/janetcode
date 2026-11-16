@@ -8,6 +8,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,6 +50,8 @@ type Proxy struct {
 	mu        sync.Mutex
 	listeners map[string]net.Listener // by listen IP
 	addrs     map[string]string
+	sockDir   string // private directory holding the unix listener
+	sockPath  string
 	allowed   map[string]bool // hosts Ask said yes to
 	srv       *http.Server
 	closed    bool
@@ -111,11 +115,50 @@ func (p *Proxy) ListenOn(ip string) (string, error) {
 	return p.addrs[ip], nil
 }
 
+// UnixSocket opens (once) a listener on a unix socket in a private
+// directory and returns its path. A command in its own network namespace
+// has no address to reach the proxy by, but a bind-mounted socket file
+// crosses the namespace: the sandbox bridges loopback inside to this.
+func (p *Proxy) UnixSocket() (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return "", errors.New("egress proxy closed")
+	}
+	if p.sockPath != "" {
+		return p.sockPath, nil
+	}
+	if p.srv == nil {
+		p.listeners, p.addrs, p.allowed = map[string]net.Listener{}, map[string]string{}, map[string]bool{}
+		p.srv = &http.Server{Handler: p, ReadHeaderTimeout: 30 * time.Second}
+	}
+	dir, err := os.MkdirTemp("", "janetcode-egress-")
+	if err != nil {
+		return "", fmt.Errorf("egress proxy: %w", err)
+	}
+	path := filepath.Join(dir, "proxy.sock")
+	l, err := net.Listen("unix", path)
+	if err != nil {
+		os.RemoveAll(dir)
+		return "", fmt.Errorf("egress proxy: listen on %s: %w", path, err)
+	}
+	// Directory 0700 keeps other users out; the file itself is the
+	// proxy, which a sandboxed command is meant to reach.
+	_ = os.Chmod(path, 0o600)
+	p.listeners["unix:"+path] = l
+	p.sockDir, p.sockPath = dir, path
+	go func() { _ = p.srv.Serve(l) }()
+	return path, nil
+}
+
 // Close stops every listener and the tunnels they carry.
 func (p *Proxy) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.closed = true
+	if p.sockDir != "" {
+		defer os.RemoveAll(p.sockDir)
+	}
 	if p.srv != nil {
 		return p.srv.Close()
 	}

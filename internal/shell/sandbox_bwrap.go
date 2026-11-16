@@ -27,14 +27,39 @@ func (s *Sandbox) bwrap(ctx context.Context, p Profile, root string, extra []str
 	if err != nil {
 		return nil, fmt.Errorf("bwrap not found")
 	}
-	cmd := exec.CommandContext(ctx, path, bwrapArgs(p, root, extra, os.TempDir(), command)...)
+	env := ScrubEnv(os.Environ())
+	var eg *bwrapEgress
+	if port := s.proxyPort(p); port > 0 {
+		if !egressBridgeSupported() {
+			return nil, fmt.Errorf("the egress policy needs a bridge into bubblewrap's network namespace, which this build cannot make")
+		}
+		sock, err := s.egressProxy().UnixSocket()
+		if err != nil {
+			return nil, fmt.Errorf("egress policy: %w", err)
+		}
+		eg = &bwrapEgress{Sock: sock, Port: port}
+		env = WithProxyEnv(env, fmt.Sprintf("http://127.0.0.1:%d", port))
+	}
+	args, err := bwrapArgs(p, root, extra, os.TempDir(), command, eg)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = root
-	cmd.Env = ScrubEnv(os.Environ())
+	cmd.Env = env
 	SetProcessGroup(cmd)
 	return cmd, nil
 }
 
-func bwrapArgs(p Profile, root string, extra []string, tempDir, command string) []string {
+// bwrapEgress is the way out a command in bubblewrap's own network
+// namespace has under the egress policy: the proxy's unix socket,
+// bridged to loopback on Port inside (see sandbox_egress_bridge_linux.go).
+type bwrapEgress struct {
+	Sock string
+	Port int
+}
+
+func bwrapArgs(p Profile, root string, extra []string, tempDir, command string, eg *bwrapEgress) ([]string, error) {
 	args := []string{
 		"--die-with-parent",
 		// A new session: a sandboxed command cannot push keystrokes into
@@ -45,7 +70,7 @@ func bwrapArgs(p Profile, root string, extra []string, tempDir, command string) 
 		"--dev", "/dev",
 		"--proc", "/proc",
 	}
-	if !p.Network {
+	if !p.Network || eg != nil {
 		args = append(args, "--unshare-net")
 	}
 	roots := p.WritableRoots(root, extra, tempDir)
@@ -55,6 +80,12 @@ func bwrapArgs(p Profile, root string, extra []string, tempDir, command string) 
 		if isDir(r) {
 			args = append(args, "--bind", r, r)
 		}
+	}
+	if eg != nil {
+		// Whatever else is mounted at the socket's directory, the proxy
+		// stays reachable and nothing can replace it.
+		d := filepath.Dir(eg.Sock)
+		args = append(args, "--ro-bind", d, d)
 	}
 	// Later mounts sit on top of earlier ones, so a protected directory
 	// inside a write root is read-only again. One that does not exist yet
@@ -83,9 +114,15 @@ func bwrapArgs(p Profile, root string, extra []string, tempDir, command string) 
 		}
 	}
 	sh := Default()
-	args = append(args, "--chdir", root, "--", sh.Path)
-	args = append(args, sh.Args...)
-	return append(args, command)
+	argv := append(append([]string{sh.Path}, sh.Args...), command)
+	if eg != nil {
+		var err error
+		if argv, err = bridgeArgv(eg.Sock, eg.Port, argv); err != nil {
+			return nil, err
+		}
+	}
+	args = append(args, "--chdir", root, "--")
+	return append(args, argv...), nil
 }
 
 func exists(p string) bool {

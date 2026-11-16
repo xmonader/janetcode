@@ -13,6 +13,7 @@ import (
 type EgressProxy interface {
 	Port() int
 	ListenOn(ip string) (string, error)
+	UnixSocket() (string, error)
 }
 
 // SetEgressProxy routes a sandboxed command's network through p: under a
@@ -66,7 +67,10 @@ func (s *Sandbox) EgressNote() string {
 	}
 	switch backend {
 	case BackendBwrap:
-		return "bubblewrap cannot narrow the network to the egress proxy, so sandboxed commands are refused while the policy is active"
+		if !egressBridgeSupported() {
+			return "this build cannot bridge bubblewrap's network namespace to the egress proxy, so sandboxed commands are refused while the policy is active"
+		}
+		return "bash runs in a network namespace of its own whose only way out is a bridge to the egress proxy; UDP and unix sockets are taken away too"
 	case BackendLandlock:
 		if s.landlockABI() < 4 {
 			return fmt.Sprintf("Landlock ABI %d cannot narrow TCP to the egress proxy (needs ABI 4, Linux 6.7), so sandboxed commands are refused while the policy is active", s.landlockABI())

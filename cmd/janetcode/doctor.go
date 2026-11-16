@@ -647,3 +647,4 @@ type doctorProxy struct{}
 
 func (doctorProxy) Port() int                          { return 0 }
 func (doctorProxy) ListenOn(ip string) (string, error) { return ip + ":0", nil }
+func (doctorProxy) UnixSocket() (string, error)        { return "", nil }
