@@ -30,6 +30,36 @@ func TestRecorderScrubsSecretShapedValues(t *testing.T) {
 	}
 }
 
+// A remote MCP server's JSON-RPC payload is counted and attributed to its
+// host, and the payload itself (which may carry a bearer token in a header
+// or an argument) is not what the report keeps.
+func TestTransportReportsMCPPayloadByHostNotContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	const key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+	var rec Recorder
+	rec.Begin(1)
+	ctx := With(context.Background(), &rec)
+	client := &http.Client{Transport: Transport(nil, KindMCP)}
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"arguments":{"token":"` + key + `"}}}`
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+"/mcp", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+key)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	rep := rec.End(0)
+	if len(rep.Entries) != 1 || rep.Entries[0].Kind != KindMCP || rep.Entries[0].Bytes != int64(len(body)) {
+		t.Fatalf("report = %+v", rep.Entries)
+	}
+	for _, s := range []string{rep.Text(), rep.JSON()} {
+		if strings.Contains(s, "abcdefghijklmnopqrstuvwxyz") || strings.Contains(s, "Bearer") {
+			t.Fatalf("the MCP request's credential reached the report:\n%s", s)
+		}
+	}
+}
+
 func TestRecorderMergesAndRolls(t *testing.T) {
 	var r Recorder
 	r.Begin(1)

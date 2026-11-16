@@ -93,6 +93,34 @@ func TestEgressReportCoversTheTurn(t *testing.T) {
 	}
 }
 
+// An image attached to the prompt is listed with its size, and nothing of
+// its bytes appears in the report.
+func TestEgressReportListsAttachedImages(t *testing.T) {
+	a, _ := newAgent(t, &fake{responses: []*llm.Response{text("seen")}}, nil)
+	_, emit := collect()
+	png := strings.Repeat("\x89PNGdata", 300)
+	blocks := []llm.Block{
+		{Type: llm.BlockText, Text: "what is in this picture"},
+		{Type: llm.BlockImage, MediaType: "image/png", Data: png},
+	}
+	if err := a.RunBlocks(context.Background(), blocks, emit); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ := a.EgressLast()
+	var img *egress.Entry
+	for i := range rep.Entries {
+		if rep.Entries[i].Kind == egress.KindImage {
+			img = &rep.Entries[i]
+		}
+	}
+	if img == nil || img.Bytes != int64(len(png)) || !strings.Contains(rep.Text(), "images") {
+		t.Fatalf("image not reported: %+v\n%s", img, rep.Text())
+	}
+	if strings.Contains(rep.JSON(), "PNGdata") {
+		t.Fatal("image bytes leaked into the report")
+	}
+}
+
 func TestEgressPolicyBlocksAndAsks(t *testing.T) {
 	ran := false
 	f := &fake{responses: []*llm.Response{

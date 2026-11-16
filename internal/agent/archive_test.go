@@ -134,6 +134,53 @@ func (bigTool) Mutating() bool                                         { return 
 func (bigTool) Schema() json.RawMessage                                { return json.RawMessage(`{"type":"object"}`) }
 func (b bigTool) Run(context.Context, json.RawMessage) (string, error) { return b.out, nil }
 
+// A key in a long output is scrubbed before the output is archived, so
+// neither the preview the model sees nor what expand_output reads back
+// later (nor the archive file on disk) holds it.
+func TestArchivedOutputHoldsNoCredential(t *testing.T) {
+	const key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+	var sb strings.Builder
+	sb.WriteString("ANTHROPIC_API_KEY=" + key + "\n")
+	for i := 1; i <= 3000; i++ {
+		fmt.Fprintf(&sb, "row %04d %s\n", i, strings.Repeat("x", 20))
+	}
+	dir := t.TempDir()
+	ar := NewArchive(dir)
+	reg := tool.NewRegistry(bigTool{out: sb.String()}, &ExpandOutput{Archive: ar})
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bigtool", `{}`),
+		toolCall("t2", "expand_output", `{"id":"ctx-1","offset":1,"limit":5}`),
+		text("done"),
+	}}
+	a := &Agent{Provider: f, Tools: reg, Model: "m", Archive: ar}
+	a.CompactAt = -1
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	for i, m := range a.Messages {
+		for _, b := range m.Blocks {
+			if strings.Contains(b.Text, "abcdefghijklmnopqrstuvwxyz") {
+				t.Fatalf("message %d carries the key: %.200s", i, b.Text)
+			}
+		}
+	}
+	rep, _ := a.EgressLast()
+	if !strings.Contains(rep.Text(), "secret-shaped values redacted") {
+		t.Fatalf("the scrub is not in the report:\n%s", rep.Text())
+	}
+	if got, err := (&ExpandOutput{Archive: ar}).Run(context.Background(), json.RawMessage(`{"id":"ctx-1","grep":"ANTHROPIC"}`)); err != nil || strings.Contains(got, "abcdefghijklmnopqrstuvwxyz") {
+		t.Fatalf("the archive returns the key: %q %v", got, err)
+	}
+	filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if b, _ := os.ReadFile(p); strings.Contains(string(b), "abcdefghijklmnopqrstuvwxyz") {
+				t.Errorf("%s on disk carries the key", p)
+			}
+		}
+		return nil
+	})
+}
+
 func TestLongOutputIsArchivedAndExpandable(t *testing.T) {
 	var sb strings.Builder
 	for i := 1; i <= 3000; i++ {
