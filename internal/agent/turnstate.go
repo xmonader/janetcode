@@ -62,6 +62,9 @@ type turnState struct {
 	// tools is this turn's tool list, held so that a server registering
 	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
 	tools []llm.ToolDef
+	// toolsAct is the registry's activation count when tools was built: a
+	// tool_search load mid-turn makes the list stale on purpose.
+	toolsAct int
 
 	steerMu sync.Mutex
 	steer   []string // notes for the running turn (see Steer)

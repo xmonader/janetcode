@@ -181,6 +181,13 @@ func (r *Registry) Activate(name string) bool {
 	return true
 }
 
+// Activations counts the deferred tools tool_search has loaded so far.
+func (r *Registry) Activations() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.activated)
+}
+
 // DeferAllBut defers every visible tool keep does not name: its schema
 // leaves the request and tool_search lists it as loadable. A call to it by
 // name still runs; only the request stops carrying its description.

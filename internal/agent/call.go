@@ -255,8 +255,15 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 // that arrives mid-turn becomes available on the next one, which costs
 // nothing anybody notices.
 func (a *Agent) turnTools() []llm.ToolDef {
-	if a.tools != nil {
+	// A tool the model itself loaded with tool_search joins the list at
+	// once: it was told "callable from now on", and a headless -p run is
+	// one turn, so waiting for the next turn meant it never got the
+	// schema and could not call the tool it had just asked for. This is
+	// the one mid-turn change worth the cache re-bill; MCP arrivals are not.
+	if act := a.Tools.Activations(); a.tools != nil && act == a.toolsAct {
 		return a.tools
+	} else {
+		a.toolsAct = act
 	}
 	if a.readOnly() {
 		a.tools = a.Tools.DefsIf(func(t tool.Tool) bool { return !t.Mutating() })
