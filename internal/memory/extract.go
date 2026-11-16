@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -277,11 +278,15 @@ func slimMessages(msgs []llm.Message, toolCap int) []llm.Message {
 			case llm.BlockThinking:
 				continue
 			case llm.BlockToolResult:
-				b.Text = textfmt.TruncateTo(b.Text, toolCap)
+				b.Text, _ = secret.Redact(textfmt.TruncateTo(b.Text, toolCap))
 			case llm.BlockText:
 				if strings.HasPrefix(b.Text, "<skill ") || strings.HasPrefix(b.Text, "<memory ") {
 					continue // attached context, not conversation
 				}
+				// The extractor is one more request that leaves the
+				// machine: a credential the user typed or pasted does
+				// not ride along in it.
+				b.Text, _ = secret.Redact(b.Text)
 				if b.Synthetic {
 					b.Text = "<harness>\n" + b.Text + "\n</harness>"
 					b.Synthetic = false

@@ -207,6 +207,32 @@ func TestParseExtractedDropsAConversationalReply(t *testing.T) {
 	}
 }
 
+// The extractor call leaves the machine like any other request: a key the
+// user pasted, or one a tool printed, is scrubbed from what it is sent.
+func TestExtractRequestCarriesNoCredential(t *testing.T) {
+	const key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+	f := &fakeProvider{reply: "NONE"}
+	msgs := []llm.Message{
+		llm.TextMessage(llm.RoleUser, "use this key "+key+" for the deploy"),
+		llm.ToolResultMessage(llm.ToolResult("t", "export TOKEN="+key, false)),
+	}
+	if _, err := Extract(context.Background(), f, "m", msgs, nil); err != nil {
+		t.Fatal(err)
+	}
+	sent := 0
+	for _, m := range f.req.Messages {
+		for _, b := range m.Blocks {
+			sent++
+			if strings.Contains(b.Text, "abcdefghijklmnopqrstuvwxyz") {
+				t.Fatalf("the extractor request carries the key: %q", b.Text)
+			}
+		}
+	}
+	if sent < 3 {
+		t.Fatalf("only %d blocks sent: %+v", sent, f.req.Messages)
+	}
+}
+
 func TestExtractParsesAppliesAndReplaces(t *testing.T) {
 	s := Open(t.TempDir(), t.TempDir())
 	s.Put(Entry{Name: "commit-size", Description: "Commits under 100 lines", Body: "old"})
