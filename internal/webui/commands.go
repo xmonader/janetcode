@@ -29,7 +29,7 @@ var webCommands = []string{
 	"/help", "/clear", "/recover", "/compact", "/compact-fast", "/yolo", "/afk", "/auto", "/edits", "/sandbox", "/review", "/security-review", "/commit", "/pr", "/pr-comments", "/issue", "/loop",
 	"/readonly", "/dryrun", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/tour", "/checkpoints", "/diff", "/open", "/context",
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
-	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/context-window", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
+	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/context-window", "/fork", "/add-dir", "/admit", "/attach", "/btw", "/recap", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/worktree", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress", "/share",
 }
@@ -265,6 +265,14 @@ var webDispatch = map[string]webHandler{
 	"/fork": (*server).cmdFork,
 	"/add-dir": func(s *server, arg string) (bool, error) {
 		s.addDir(arg)
+		return false, nil
+	},
+	"/admit": func(s *server, arg string) (bool, error) {
+		s.admit(arg, false)
+		return false, nil
+	},
+	"/attach": func(s *server, arg string) (bool, error) {
+		s.admit(arg, true)
 		return false, nil
 	},
 	"/btw": func(s *server, arg string) (bool, error) {

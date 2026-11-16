@@ -265,6 +265,14 @@ var dispatch = map[string]cmdHandler{
 		m.addDirCommand(cmdArg(text, fields))
 		return nil, false
 	},
+	"/admit": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.admitCommand(cmdArg(text, fields), false)
+		return nil, false
+	},
+	"/attach": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.admitCommand(cmdArg(text, fields), true)
+		return nil, false
+	},
 	"/recap": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.recapCommand(false), true
 	},

@@ -252,3 +252,19 @@ type doctorMsg struct {
 	report string
 	err    error
 }
+
+// admitCommand is /admit and /attach: the file admission policy, shown and
+// changed. The grammar is agent.Admit's, shared with the web UI.
+func (m *model) admitCommand(arg string, attach bool) {
+	run := agent.Admit
+	if attach {
+		run = agent.Attach
+	}
+	out, err := run(m.opts.Workspace, m.opts.Session, arg)
+	if err != nil {
+		m.transcript.errorf("%v", err)
+		return
+	}
+	m.transcript.info(out)
+	m.refresh(false)
+}

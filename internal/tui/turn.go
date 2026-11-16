@@ -171,6 +171,7 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 	m.opts.Typed.Note(text)
 	m.hist.lastUser = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
+	agent.NoteMentions(m.opts.Workspace, m.opts.Session, prompt.Paths(atts))
 	if len(atts) > 0 {
 		m.noteUse("@path")
 		names := make([]string, len(atts))

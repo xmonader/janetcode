@@ -421,6 +421,11 @@ type statusPayload struct {
 	Verbose bool   `json:"verbose"`
 	Status  string `json:"status,omitempty"`
 	Cost    string `json:"cost,omitempty"`
+	// FileMode is the file admission mode ("workspace" or "explicit"), and
+	// Admitted and Attached the paths on its two lists: the files chip.
+	FileMode string   `json:"file_mode,omitempty"`
+	Admitted []string `json:"admitted,omitempty"`
+	Attached []string `json:"attached,omitempty"`
 }
 
 type permPayload struct {
@@ -913,6 +918,7 @@ func (s *server) runTurn(ctx context.Context, text string) {
 	}
 	blocks := []llm.Block{{Type: llm.BlockText, Text: text}}
 	expanded, atts := prompt.ExpandMentions(s.cwd(), text)
+	agent.NoteMentions(s.opts.Workspace, s.sess(), prompt.Paths(atts))
 	if len(atts) > 0 {
 		names := make([]string, len(atts))
 		for i, a := range atts {
@@ -1178,6 +1184,11 @@ func (s *server) statusOf(f sessionState) statusPayload {
 	}
 	if f.running && !f.started.IsZero() {
 		st.Elapsed = textfmt.Duration(time.Since(f.started))
+	}
+	if ws := s.opts.Workspace; ws != nil {
+		pol := ws.Admission()
+		st.FileMode = string(pol.Mode())
+		st.Admitted, st.Attached = pol.Lines()
 	}
 	return st
 }

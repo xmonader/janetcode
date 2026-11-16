@@ -508,6 +508,7 @@
     statusEl.classList.toggle("busy", !!st.running);
     if (st.mode) setModeChip(st.mode, st.dry_run);
     setEffortChip(st.effort);
+    admission.paint(st);
     if (st.phase) lastFlavor = st.phase;
     relabelThinking();
     refreshWorkspace();
@@ -965,6 +966,7 @@
   const settingsEl = settings.el;
   // The permission-mode chip and menu live in modemenu.js.
   const modeMenu = JanetModeMenu({ S, post });
+  const admission = JanetAdmission({ post });
   document.addEventListener("keydown", (ev) => {
     if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && ev.key.toLowerCase() === "o") {
       ev.preventDefault();

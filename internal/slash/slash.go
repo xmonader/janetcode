@@ -31,6 +31,8 @@ var Commands = withIdle([]Command{
 	{Name: "/diff", Args: "[path|revert path:n]", Help: "changes against HEAD; a file's hunks; revert one hunk"},
 	{Name: "/fork", Args: "[stay] [title]", Help: "copy this conversation into a new session; stay keeps this one live"},
 	{Name: "/add-dir", Args: "<path>", Help: "grant file tools another local directory for this session"},
+	{Name: "/admit", Args: "[path...|mode explicit|workspace|remove path|clear]", Help: "file admission: which files the model may edit; alone shows the mode and what is admitted, a path admits it, mode explicit refuses edits to anything else"},
+	{Name: "/attach", Args: "<path...>", Help: "attach files or directories as read-only context; they cannot be edited until admitted"},
 	{Name: "/btw", Args: "<question>", Help: "ask a side question that is not stored as a user turn"},
 	{Name: "/recap", Args: "", Help: "a short \"where was I\" summary of the session so far; shown to you only, never added to the conversation (recap_idle_minutes writes one on its own when you return from a break)"},
 	{Name: "/copy", Args: "", Help: "copy the last assistant reply to the clipboard"},

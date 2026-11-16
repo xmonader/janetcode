@@ -7,6 +7,7 @@
 //   find.js          Ctrl+F in the thread        settings.js  theme, dialog, ding
 //   panels.js        rails, preview drawer, drag-resize
 //   notify.js        desktop notifications       switchmenu.js model/effort menu
+//   admission.js     file-admission chip (explicit mode)
 //   modemenu.js      permission-mode menu        sessionsrail.js sessions rail
 //   workspacepane.js Changes/Jobs/Agents/Plan    approvals.js ask/questions/secret
 //   composer.js      send, history, @-complete, drafts, slash menu

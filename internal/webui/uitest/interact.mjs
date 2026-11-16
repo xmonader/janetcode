@@ -474,6 +474,19 @@ await evaljs(`document.querySelector('#mode-menu [data-key="ask"]').click()`);
 chipNow = '';
 for (let i = 0; i < 10 && chipNow !== 'Ask first'; i++) { await sleep(300); chipNow = await evaljs(`document.getElementById('mode-chip').textContent.trim()`); }
 check('Ask first row turns the mode off again', chipNow === 'Ask first', chipNow);
+// The files chip shows only in explicit file mode: it counts what is
+// admitted, lists the paths in its tooltip, and clicking it asks for /admit.
+const filesDefault = await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', file_mode: 'workspace' } }) }); return document.getElementById('files-chip').hidden; })()`);
+check('files chip is hidden in the default workspace mode', filesDefault === true, String(filesDefault));
+const filesExplicit = await evaljs(`(() => {
+  window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', file_mode: 'explicit', admitted: ['src/', 'main.go'], attached: ['README.md'] } }) });
+  const c = document.getElementById('files-chip');
+  return { hidden: c.hidden, text: c.textContent.trim(), title: c.title };
+})()`);
+check('files chip shows explicit mode, the admitted count and the paths', filesExplicit.hidden === false && /explicit/.test(filesExplicit.text) && /2 admitted/.test(filesExplicit.text) && /src\/, main\.go/.test(filesExplicit.title) && /README\.md/.test(filesExplicit.title), JSON.stringify(filesExplicit));
+const filesClick = await evaljs(`(async () => { window.__cmds = []; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/command')) window.__cmds.push(JSON.parse(o.body).text); return Promise.resolve(new Response('{}')); }; document.getElementById('files-chip').click(); await new Promise(r => setTimeout(r, 100)); window.fetch = f; return window.__cmds; })()`);
+check('clicking the files chip asks for /admit', JSON.stringify(filesClick) === '["/admit"]', JSON.stringify(filesClick));
+await evaljs(`window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask', file_mode: 'workspace' } })}); 1`);
 await evaljs(`document.getElementById('mode-menu').hidden = true; 1`);
 const modeKeys = await evaljs(`(() => {
   const chip = document.getElementById('mode-chip');

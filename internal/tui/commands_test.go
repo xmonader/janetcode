@@ -1955,3 +1955,46 @@ func TestJobsStdinDoesNotFreezeTheWindow(t *testing.T) {
 		t.Fatalf("the abandoned write was not reported; last entry %q", last.text)
 	}
 }
+
+// /admit and /attach are the terminal's face of file admission: they show
+// the mode and the lists, change them, persist them with the session, and
+// the status line keeps the mode in view once it is explicit.
+func TestAdmitCommands(t *testing.T) {
+	h := newHarness(t)
+	cwd := h.m.opts.Cwd
+	os.MkdirAll(filepath.Join(cwd, "src"), 0o755)
+	os.WriteFile(filepath.Join(cwd, "src", "a.go"), []byte("package src\n"), 0o644)
+	os.WriteFile(filepath.Join(cwd, "README.md"), []byte("# r\n"), 0o644)
+	h.m.opts.Workspace = tool.NewLocal(cwd)
+
+	if strings.Contains(plain(h.m.statusState()), "files:") {
+		t.Fatalf("the default mode must not add a chip: %q", plain(h.m.statusState()))
+	}
+	h.keys("/admit mode explicit")
+	h.enter()
+	h.keys("/admit src")
+	h.enter()
+	h.keys("/attach README.md")
+	h.enter()
+	if got := plain(h.m.statusState()); !strings.Contains(got, "files:explicit(1)") {
+		t.Fatalf("status line = %q, want files:explicit(1)", got)
+	}
+	h.keys("/admit")
+	h.enter()
+	view := plain(h.m.View())
+	for _, want := range []string{"file mode: explicit", "src/ (1 files: a.go)", "attached read-only", "README.md"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("/admit report lacks %q:\n%s", want, view)
+		}
+	}
+	// An error is shown, not swallowed.
+	h.keys("/admit mode bogus")
+	h.enter()
+	if !strings.Contains(plain(h.m.View()), "unknown file mode") {
+		t.Errorf("a bad mode was not reported:\n%s", plain(h.m.View()))
+	}
+	re, _, err := session.Open(dirOf(h.m.opts.Session), h.m.opts.Session.Meta.ID)
+	if err != nil || re.Meta.Admission == nil || re.Meta.Admission.Mode != "explicit" || len(re.Meta.Admission.Edit) != 1 || len(re.Meta.Admission.Attach) != 1 {
+		t.Fatalf("persisted admission = %+v err=%v", re.Meta.Admission, err)
+	}
+}

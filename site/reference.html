@@ -81,6 +81,8 @@
 <tr><td><code>/fork</code></td><td><code>[stay] [title]</code></td><td>copy this conversation into a new session; stay keeps this one live</td></tr>
 <tr><td><code>/share</code></td><td><code>[stop]</code></td><td>in the browser page: make a read-only guest link for this session that expires in 24 hours (a new one replaces the last); their messages wait for you to send or dismiss them; stop ends it now</td></tr>
 <tr><td><code>/add-dir</code></td><td><code>&lt;path&gt;</code></td><td>grant file tools another local directory for this session</td></tr>
+<tr><td><code>/admit</code></td><td><code>[path...|mode explicit|workspace|remove path|clear]</code></td><td>file admission: which files the model may edit; alone shows the mode and what is admitted, a path admits it, mode explicit refuses edits to anything else</td></tr>
+<tr><td><code>/attach</code></td><td><code>&lt;path...&gt;</code></td><td>attach files or directories as read-only context; they cannot be edited until admitted</td></tr>
 <tr><td><code>/btw</code></td><td><code>&lt;question&gt;</code></td><td>ask a side question that is not stored as a user turn</td></tr>
 <tr><td><code>/copy</code></td><td></td><td>copy the last assistant reply to the clipboard</td></tr>
 <tr><td><code>/voice</code></td><td><code>[stop]</code></td><td>record a prompt from the microphone; <code>/voice</code> again stops, and the transcript lands in the input to read and send</td></tr>
@@ -206,6 +208,9 @@
 <tr><td><code>--continue</code> (or <code>-c</code>), <code>--resume &lt;id&gt;</code> (or <code>-r</code>)</td><td>carry on the last session here, or a named one (including one started with <code>--bg</code>)</td></tr>
 <tr><td><code>--bg</code></td><td>run the prompt in the background, print the session id, and return; reopen with <code>--resume</code>. What its permission mode asks about waits for <code>--answer</code>; it runs <code>--yolo</code> only when given</td></tr>
 <tr><td><code>--answer &lt;id&gt; [allow|session|deny]</code></td><td>show or settle the permission request a <code>--bg</code> run is waiting on</td></tr>
+<tr><td><code>--file-mode &lt;mode&gt;</code></td><td>which files the model may edit: workspace (default) or explicit (only what <code>--admit</code> and <code>/admit</code> name)</td></tr>
+<tr><td><code>--admit &lt;path&gt;</code></td><td>admit a file or directory for editing (repeatable)</td></tr>
+<tr><td><code>--attach &lt;path&gt;</code></td><td>attach a file or directory as read-only context (repeatable)</td></tr>
 <tr><td><code>--add-dir &lt;path&gt;</code></td><td>extra local directory file tools may read and edit this session (repeatable)</td></tr>
 <tr><td><code>--replay &lt;session&gt;</code></td><td>re-run a saved session against the current code, with the model&#x27;s replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key</td></tr>
 <tr><td><code>--what-if &lt;session&gt;</code></td><td>counterfactual replay: see <a href="features.html#what-if">what-if replay</a></td></tr>

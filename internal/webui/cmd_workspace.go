@@ -75,3 +75,20 @@ func (s *server) retarget(kind, arg string, dial func(string) (tool.Host, error)
 	}
 	s.notice(status)
 }
+
+// admit is /admit and /attach: the file admission policy, shown and
+// changed. The grammar is agent.Admit's, shared with the terminal. The
+// status is re-sent so the header's file-mode chip follows.
+func (s *server) admit(arg string, attach bool) {
+	run := agent.Admit
+	if attach {
+		run = agent.Attach
+	}
+	out, err := run(s.opts.Workspace, s.sess(), arg)
+	if err != nil {
+		s.errf("%v", err)
+		return
+	}
+	s.sheet("file admission", out)
+	s.emitStatus()
+}

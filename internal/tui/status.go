@@ -248,6 +248,15 @@ func (m *model) statusState() string {
 	if ws := m.opts.Workspace; ws != nil && !ws.Local() {
 		s += m.styles.faint.Render(" · " + ws.Kind())
 	}
+	// File admission narrows what the model may edit to a list, and a
+	// list the user cannot see is no better than none: the mode and the
+	// count stay in view, /admit names the files.
+	if ws := m.opts.Workspace; ws != nil {
+		if pol := ws.Admission(); pol.Explicit() {
+			edit, _ := pol.Lines()
+			s += m.styles.key.Render(fmt.Sprintf(" · files:explicit(%d)", len(edit)))
+		}
+	}
 	// Untrusted content in the context changes what will ask from here
 	// on, so it stays in view for as long as it holds (/egress says why).
 	if ag := m.opts.Agent; ag != nil {
