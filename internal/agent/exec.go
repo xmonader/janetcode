@@ -740,8 +740,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	a.applyPathRules(t, u.Input, emit)
 	// A dry run lets through only calls that read (see dryIntercept):
 	// they need no checkpoint and do not make the turn a mutating one.
+	var late *lateCall
 	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
-		a.snapshotBefore(ctx, t, u.Input, emit)
+		late = a.snapshotBefore(ctx, t, u.Input, emit)
 	}
 	start := time.Now()
 	var pend []pending
@@ -785,6 +786,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		out += a.scopeAfter(u, intent, pend)
 	}
 	a.bashAuditAfter(ctx, u, shellBefore)
+	late.end(ctx, t, u)
 	admitNote := a.admitAfter(ctx, admitSnapBefore)
 	if ctx.Err() != nil && err != nil {
 		// The call was interrupted before it produced a result. It was
@@ -1078,9 +1080,10 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	var tamperedBefore string
 	var shellBefore bashAuditState
 	var admitSnapBefore *admitSnap
+	var late *lateCall
 	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
-		a.snapshotBefore(ctx, t, u.Input, emit)
+		late = a.snapshotBefore(ctx, t, u.Input, emit)
 		pend = a.before(t, u.Input)
 		shellBefore = a.bashAuditBefore(ctx, u)
 		admitSnapBefore = a.admitBefore(ctx, u)
@@ -1091,6 +1094,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	}
 	out, _, runErr := a.runSafely(ctx, t, u.Input)
 	a.bashAuditAfter(ctx, u, shellBefore)
+	late.end(ctx, t, u)
 	admitNote := a.admitAfter(ctx, admitSnapBefore)
 	dur := time.Since(start)
 	// What a script read enters the context through the script's own

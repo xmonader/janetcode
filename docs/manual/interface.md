@@ -938,8 +938,11 @@ carries out the last restore preview.
 Every turn that changed something ends with a line naming its
 checkpoint (`checkpoint t4·1a2b3c4 · 2 paths changed`), also when the
 turn was cancelled; a turn that changed nothing leaves none. Changes a
-background fork or other forked agent makes while the turn runs belong to
-the same checkpoint.
+background fork or other forked agent makes belong to the same checkpoint,
+while the turn runs and after it has ended: a fork's late write is added to
+that checkpoint's manifest, so `/undo turn n` and restore, diff and export
+include it. When the turn itself changed nothing, a fork's late write opens
+a checkpoint of its own, which `/checkpoints` lists.
 
 **Restoring refuses to overwrite your edits.** `/undo turn n` previews
 every file it would put back, and which of them are not as the turns left

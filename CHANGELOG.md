@@ -84,6 +84,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   git commit of one turn's files with the attribution behaviour shown
   first. The web card gets Compare, Export and Commit buttons and a
   separate forced-apply button.
+- A fork or background subagent that writes after its turn has ended is
+  recorded in the manifest of the checkpoint it joined (or in one of its
+  own when the turn left none), so a scoped `/undo turn n` removes or
+  restores its files too.
 
 ### Verification evidence (github issue #5)
 - One evidence model (`internal/evidence`) for every check the session ran:

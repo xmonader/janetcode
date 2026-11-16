@@ -63,6 +63,9 @@ type Checkpoint struct {
 	// first as the second is what made an undo clobber work done after
 	// the turn.
 	Manifested bool `json:"manifested,omitempty"`
+	// Late says a fork wrote after its turn ended, when the turn left no
+	// checkpoint, and opened this one (see undo_late.go).
+	Late bool `json:"late,omitempty"`
 	// Turn is the turn the checkpoint belongs to and Messages how many
 	// messages the conversation held when it began, so an undo can take
 	// the turn's messages out of the context along with its file changes.
@@ -253,7 +256,7 @@ func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, blobs fun
 // is said as it happens, outside git (whose snapshot still holds it): the
 // user learns that /undo cannot put it back before the call changes it,
 // not after.
-func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte, emit func(Event)) {
+func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte, emit func(Event)) *lateCall {
 	// The turn's first change waits for the pre-edit check run, so the
 	// baseline saw the tree this call is about to change.
 	a.awaitBaseline(ctx, emit)
@@ -262,11 +265,22 @@ func (a *Agent) snapshotBefore(ctx context.Context, t tool.Tool, input []byte, e
 		owner = a.UndoOwner
 	}
 	repo := owner.snaps()
+	var (
+		lc    *lateCall
+		after func()
+	)
+	if a.UndoOwner != nil && !owner.running.Load() {
+		lc, after = a.lateBegin(ctx, owner, t)
+	}
 	for _, f := range owner.cp.snapshot(ctx, repo, owner.blobDir, t, input) {
 		if repo == nil && emit != nil {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("checkpoint: %s is %d MiB, over the %d MiB a checkpoint copies — /undo will not be able to put it back", f.Path, f.Size>>20, maxCopyBytes>>20)})
 		}
 	}
+	if after != nil {
+		after()
+	}
+	return lc
 }
 
 // openCheckpoint starts a checkpoint for the running turn. A new change
