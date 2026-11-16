@@ -45,7 +45,9 @@ and measurements behind each round are in `docs/notes/history.md`.
   (`/share`, the header link button, or the command palette). A guest sees
   the transcript stream, including reasoning and tool output, but no diffs,
   prompts or other endpoints; the token is separate from the access token,
-  expires after 24 hours, and `/share stop` or a new link revokes it. A
+  expires after 24 hours, and `/share stop` or a new link revokes it. A link
+  works in one browser: the first to open it is bound by an HttpOnly,
+  SameSite=Strict cookie scoped to the link, and others are refused. A
   guest's messages wait as Requests to send or dismiss. Enforced and tested
   server-side (internal/webui/guest.go); see "Guest links" in the manual.
 

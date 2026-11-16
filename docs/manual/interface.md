@@ -382,7 +382,10 @@ current session, with no account. Use the link button in the page header,
 "Share with guest" in the command palette, or `/share`; it makes a link
 and copies it. The link carries its own random token in the path
 (`/guest/<token>/`), which is not your access token and opens nothing but
-the guest page. It ends after 24 hours, when you choose "Stop sharing" or
+the guest page. It works in one browser: the first browser to open it is
+bound to it with a cookie, opening it again there takes the guest back to
+the session, and any other browser is told the link was already opened
+elsewhere (make a new link to re-share). It ends after 24 hours, when you choose "Stop sharing" or
 run `/share stop`, when you make a new link (which replaces the last at
 once), or when this window moves to another session (`/new`, `/resume`).
 The terminal interface has no server; `/share` there says to use `--web`.

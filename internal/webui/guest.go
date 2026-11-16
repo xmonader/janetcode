@@ -63,6 +63,9 @@ type guestLink struct {
 	expires   time.Time
 	// done is closed when the link ends, to hang up its open streams.
 	done chan struct{}
+	// bind is the secret the first browser to open the page was given in
+	// a cookie; "" until then. Guarded by guestShare.mu.
+	bind string
 }
 
 // guestRequest is a message a guest typed, waiting for the owner.
@@ -358,6 +361,16 @@ func (s *server) guestHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "this guest link has ended or never existed", http.StatusNotFound)
 		return
 	}
+	// The page is where a link gets bound to a browser; every other
+	// route needs the cookie that binding set. The bare-path redirect
+	// carries nothing, so it passes.
+	opensPage := route == "" && hasSlash && (r.Method == http.MethodGet || r.Method == http.MethodHead)
+	if !(route == "" && !hasSlash) && !s.guestBrowser(w, r, l, opensPage) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, guestOtherBrowserPage)
+		return
+	}
 	switch route {
 	case "":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -396,6 +409,49 @@ func (s *server) guestHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+const guestOtherBrowserPage = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Link already opened</title>
+<body style="font:16px system-ui,sans-serif;max-width:32em;margin:15vh auto;padding:0 1em"><h1>This link was already opened in another browser</h1>
+<p>A guest link works in one browser. Ask the person who shared it to make you a new link.</p></body>`
+
+// guestBrowser reports whether this request comes from the browser the
+// link is bound to. The first browser to open the page (bindNow) is
+// bound: it gets a cookie holding a random secret, scoped to this link's
+// path, and every later request must present it. Compared in constant
+// time; no cookie, or a wrong one, is another browser.
+func (s *server) guestBrowser(w http.ResponseWriter, r *http.Request, l *guestLink, bindNow bool) bool {
+	got := ""
+	if c, err := r.Cookie(guestCookieName); err == nil {
+		got = c.Value
+	}
+	s.guest.mu.Lock()
+	defer s.guest.mu.Unlock()
+	if l.bind == "" {
+		if !bindNow {
+			return false
+		}
+		b := make([]byte, 24)
+		if _, err := rand.Read(b); err != nil {
+			return false
+		}
+		l.bind = hex.EncodeToString(b)
+		http.SetCookie(w, &http.Cookie{
+			Name: guestCookieName, Value: l.bind, Path: "/guest/" + l.token + "/",
+			Expires: l.expires, HttpOnly: true, SameSite: http.SameSiteStrictMode,
+			Secure: guestHTTPS(r),
+		})
+		return true
+	}
+	return got != "" && subtle.ConstantTimeCompare([]byte(got), []byte(l.bind)) == 1
+}
+
+const guestCookieName = "janetcode_guest"
+
+// guestHTTPS reports whether the guest reached the server over https:
+// directly, or through a proxy on this machine that says so.
+func guestHTTPS(r *http.Request) bool {
+	return r.TLS != nil || (r.Header.Get("X-Forwarded-Proto") == "https" && loopbackAddr(r.RemoteAddr))
 }
 
 func (s *server) guestFile(w http.ResponseWriter, name, ctype string) {

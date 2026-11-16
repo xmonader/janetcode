@@ -24,6 +24,19 @@ type guestEnv struct {
 	s    *server
 	ts   *httptest.Server
 	prov *scripted
+	// cookies is the binding cookie of the one browser each opened link
+	// belongs to, by token; req and stream send it like that browser would.
+	cookies map[string]string
+}
+
+// guestCookie is the stored binding cookie for a /guest/<token>/ path.
+func (g *guestEnv) guestCookie(path string) string {
+	rest, ok := strings.CutPrefix(path, "/guest/")
+	if !ok {
+		return ""
+	}
+	tok, _, _ := strings.Cut(rest, "/")
+	return g.cookies[tok]
 }
 
 // guestServer is a token-gated server (off loopback, as when shared)
@@ -43,7 +56,7 @@ func guestServer(t *testing.T) *guestEnv {
 	s := newServer(context.Background(), Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Addr: "0.0.0.0:8787", Token: ownerToken})
 	ts := httptest.NewServer(s.handler())
 	t.Cleanup(ts.Close)
-	return &guestEnv{t: t, s: s, ts: ts, prov: prov}
+	return &guestEnv{t: t, s: s, ts: ts, prov: prov, cookies: map[string]string{}}
 }
 
 func (g *guestEnv) req(method, path, body string, hdr map[string]string) (int, string, http.Header) {
@@ -51,6 +64,9 @@ func (g *guestEnv) req(method, path, body string, hdr map[string]string) (int, s
 	r, err := http.NewRequest(method, g.ts.URL+path, strings.NewReader(body))
 	if err != nil {
 		g.t.Fatal(err)
+	}
+	if c := g.guestCookie(path); c != "" {
+		r.AddCookie(&http.Cookie{Name: guestCookieName, Value: c})
 	}
 	for k, v := range hdr {
 		r.Header.Set(k, v)
@@ -69,9 +85,29 @@ func (g *guestEnv) owner(method, path, body string) (int, string) {
 	return code, b
 }
 
-// share makes a link through the owner's API and returns its path
-// (/guest/<token>/) and token.
+// share makes a link and opens it in "the" browser, which binds it: the
+// link then works for every later g.req and g.stream.
 func (g *guestEnv) share() (path, token string) {
+	g.t.Helper()
+	path, token = g.shareUnopened()
+	code, _, h := g.req("GET", path, "", nil)
+	if code != 200 {
+		g.t.Fatalf("first open = %d", code)
+	}
+	for _, c := range (&http.Response{Header: h}).Cookies() {
+		if c.Name == guestCookieName {
+			g.cookies[token] = c.Value
+		}
+	}
+	if g.cookies[token] == "" {
+		g.t.Fatal("first open set no binding cookie")
+	}
+	return path, token
+}
+
+// shareUnopened makes a link through the owner's API and returns its path
+// (/guest/<token>/) and token, without opening it.
+func (g *guestEnv) shareUnopened() (path, token string) {
 	g.t.Helper()
 	code, b := g.owner("POST", "/api/guest", `{"action":"create"}`)
 	if code != 200 {
@@ -102,6 +138,9 @@ func (g *guestEnv) stream(path string) *sseReader {
 	ctx, cancel := context.WithCancel(context.Background())
 	g.t.Cleanup(cancel)
 	r, _ := http.NewRequestWithContext(ctx, "GET", g.ts.URL+path+"events", nil)
+	if c := g.guestCookie(path); c != "" {
+		r.AddCookie(&http.Cookie{Name: guestCookieName, Value: c})
+	}
 	res, err := http.DefaultClient.Do(r)
 	if err != nil {
 		g.t.Fatal(err)
@@ -223,8 +262,9 @@ func TestGuestPageNeverHoldsOwnerToken(t *testing.T) {
 			}
 		}
 	}
-	// The guest page works with no cookie at all.
-	if code, _, _ := g.req("GET", path, "", map[string]string{"Cookie": ""}); code != 200 {
+	// A guest needs no owner cookie: a fresh link opens with none.
+	fresh, _ := g.shareUnopened()
+	if code, _, _ := g.req("GET", fresh, "", map[string]string{"Cookie": ""}); code != 200 {
 		t.Errorf("page without cookies = %d", code)
 	}
 }
@@ -596,4 +636,105 @@ func TestOwnerPageHasShareControls(t *testing.T) {
 		}
 		return e.Type == "entry" && e.Entry.Text == "marker"
 	})
+}
+
+// A link works in the first browser that opens it: the cookie set then
+// is HttpOnly, Strict, scoped to the link, and every other request
+// without it (page, stream, say) is refused with an explanation.
+func TestGuestLinkBindsToTheFirstBrowser(t *testing.T) {
+	g := guestServer(t)
+	path, tok := g.shareUnopened()
+
+	// Without a binding no sub-route works before the page is opened.
+	if code, _, _ := g.req("POST", path+"say", `{"text":"x"}`, nil); code != http.StatusForbidden {
+		t.Fatalf("say before any open = %d", code)
+	}
+
+	code, _, h := g.req("GET", path, "", nil)
+	if code != 200 {
+		t.Fatalf("first open = %d", code)
+	}
+	var c *http.Cookie
+	for _, k := range (&http.Response{Header: h}).Cookies() {
+		if k.Name == guestCookieName {
+			c = k
+		}
+	}
+	if c == nil {
+		t.Fatal("no binding cookie")
+	}
+	if !c.HttpOnly || c.SameSite != http.SameSiteStrictMode || c.Path != path || c.Secure || len(c.Value) < 32 {
+		t.Errorf("cookie = %+v", c)
+	}
+	if strings.Contains(c.Value, tok) || strings.Contains(c.Value, ownerToken) {
+		t.Error("cookie carries a token")
+	}
+	g.cookies[tok] = c.Value
+
+	// Same browser: reopening, the stream and say all work.
+	if code, _, h := g.req("GET", path, "", nil); code != 200 || len(h.Values("Set-Cookie")) != 0 {
+		t.Errorf("reopen = %d, set-cookie %v", code, h.Values("Set-Cookie"))
+	}
+	g.stream(path).until("hello", func(e envelope) bool { return e.Type == "hello" })
+	if code, _, _ := g.req("POST", path+"say", `{"text":"mine"}`, nil); code != 200 {
+		t.Errorf("say from the bound browser = %d", code)
+	}
+
+	// Another browser: no cookie, a wrong cookie, or the cookie of
+	// another link all get the explanation on every route.
+	for name, cookie := range map[string]string{"none": "", "wrong": strings.Repeat("a", len(c.Value)), "short": "a"} {
+		hdr := map[string]string{}
+		if cookie != "" {
+			hdr["Cookie"] = guestCookieName + "=" + cookie
+		}
+		saved := g.cookies[tok]
+		delete(g.cookies, tok)
+		for _, rt := range []struct{ method, p, body string }{
+			{"GET", path, ""}, {"GET", path + "events", ""}, {"GET", path + "app.js", ""},
+			{"POST", path + "say", `{"text":"intruder"}`},
+		} {
+			code, body, h := g.req(rt.method, rt.p, rt.body, hdr)
+			if code != http.StatusForbidden || !strings.Contains(body, "already opened in another browser") {
+				t.Errorf("%s cookie: %s %s = %d %q", name, rt.method, rt.p, code, body)
+			}
+			if len(h.Values("Set-Cookie")) != 0 {
+				t.Errorf("%s cookie: refusal set a cookie", name)
+			}
+		}
+		g.cookies[tok] = saved
+	}
+	for _, r := range g.guestRequests() {
+		if r.Text == "intruder" {
+			t.Error("a refused say was queued")
+		}
+	}
+
+	// The bound browser is unaffected, and revocation still ends the link.
+	if code, _, _ := g.req("GET", path, "", nil); code != 200 {
+		t.Errorf("bound browser after refusals = %d", code)
+	}
+	g.owner("POST", "/api/guest", `{"action":"stop"}`)
+	if code, _, _ := g.req("GET", path, "", nil); code != 404 {
+		t.Errorf("revoked bound link = %d", code)
+	}
+
+	// A new link starts unbound, and a new browser can take it.
+	path2, tok2 := g.shareUnopened()
+	if tok2 == tok {
+		t.Fatal("token reused")
+	}
+	if code, _, _ := g.req("GET", path2, "", nil); code != 200 {
+		t.Errorf("new link first open = %d", code)
+	}
+}
+
+func TestGuestCookieSecureBehindHTTPSProxy(t *testing.T) {
+	g := guestServer(t)
+	path, _ := g.shareUnopened()
+	_, _, h := g.req("GET", path, "", map[string]string{"X-Forwarded-Proto": "https"})
+	for _, c := range (&http.Response{Header: h}).Cookies() {
+		if c.Name == guestCookieName && !c.Secure {
+			t.Error("cookie not Secure behind an https proxy on loopback")
+		}
+	}
 }

@@ -875,6 +875,7 @@ const guestUI = await evaljs(`(async () => {
   const pressed = document.getElementById('share-btn').getAttribute('aria-pressed');
   const link = (await (await fetch('/api/guest')).json());
   const path = link.path;
+  await fetch(path); // opening the page binds the link to this browser
   const say = await fetch(path + 'say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: '<b>hello</b> from a guest' }) });
   const got = await wait(() => document.querySelectorAll('#guest-reqs li').length === 1);
   const li = document.querySelector('#guest-reqs li');
