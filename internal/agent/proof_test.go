@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/proof"
@@ -399,6 +400,11 @@ func TestAutomaticProofIncludesTheTurnsGateRuns(t *testing.T) {
 	}
 	if len(r.Turns) != 1 || r.Turns[0].Passed != 1 || strings.Join(r.Turns[0].Checks, "|") != "true" {
 		t.Fatalf("turns = %+v, want the verify gate's green run recorded", r.Turns)
+	}
+	// The same run on the evidence model: the gate ran after the edit, so
+	// it is fresh and the turn's evidence is passed.
+	if ev := r.Turns[0].Evidence; ev == nil || ev.Status != evidence.Passed || ev.Blocks || len(ev.Checks) != 1 || !ev.Checks[0].Fresh || ev.Checks[0].Source != session.GateVerify {
+		t.Fatalf("turn evidence = %+v", ev)
 	}
 }
 

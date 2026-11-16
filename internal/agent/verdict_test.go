@@ -509,6 +509,7 @@ func TestGateRunSupersedesEarlierRedRunOfTheSameCommand(t *testing.T) {
 	events := []session.Event{
 		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
 		result(1, "bash", `{"command":"cd /work/repo && go test ./internal/x"}`, "FAIL\n[exit code 1]", true),
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
 		say(1, "Done — the tests pass now."),
 		gate,
 	}

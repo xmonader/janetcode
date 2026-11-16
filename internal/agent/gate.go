@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
@@ -48,10 +49,10 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		// With a baseline, what this turn broke goes back on the usual
 		// rounds; what was broken before goes back once, as a reminder.
 		res, feedback = a.baselineGate(ctx, g, gate, run, emit)
+		a.logGate(session.GateVerify, res)
 		if ctx.Err() != nil {
 			return false
 		}
-		a.logGate(session.GateVerify, res)
 		a.working.Verify = res.Summary()
 		if res.OK() {
 			emit(Event{Kind: EvNotice, Text: res.Summary()})
@@ -69,10 +70,10 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		}
 	} else {
 		res = gate.Run(ctx)
+		a.logGate(session.GateVerify, res)
 		if ctx.Err() != nil {
 			return false
 		}
-		a.logGate(session.GateVerify, res)
 		a.working.Verify = res.Summary()
 		if res.Mutation != nil && res.Mutation.Scored() {
 			a.logEvent(res.Mutation.Event())
@@ -128,24 +129,49 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 // logGate records each command a gate ran as a session.TypeGate event,
 // so the verdict fold (see FoldOutcomeIn) counts a gate's runs as checks
 // the turn ran. Only a failure's output is kept on the event; every run
-// also carries its exit code and a digest of what it printed in Extra
-// (proof.GateRun), which signed evidence records and `--proof verify`
-// compares a re-run against.
+// also carries, in Extra (evidence.GateExtra), its exit code, a digest of
+// what it printed, its evidence status and a one-line summary: what
+// signed evidence records and `--proof verify` compares a re-run against.
+// Commands the gate never reached (an earlier one failed, or the run was
+// cancelled) are logged with status not_run, and an interrupted command
+// with status cancelled: neither is a pass or a failure, and the verdict
+// fold ignores them (evidence.GateSkipped).
 func (a *Agent) logGate(source string, res verify.Result) {
 	root := a.RootDir()
-	runs := map[string]json.RawMessage{}
+	runs := map[string]verify.Run{}
 	for _, r := range res.Runs {
-		gr := proof.GateRun{Exit: r.Exit}
-		gr.Output, gr.OutputPartial = proof.OutputDigest(r.Output, root)
-		if b, err := json.Marshal(gr); err == nil {
-			runs[r.Name] = b
+		runs[r.Name] = r
+	}
+	log := func(name string, failed bool) {
+		r, ran := runs[name]
+		ex := evidence.GateExtra{Exit: r.Exit}
+		ev := session.Event{Type: session.TypeGate, Turn: a.turnN, Name: name, Source: source, DurationMs: r.Duration.Milliseconds()}
+		switch {
+		case !ran:
+			ex.Exit, ex.Status = 0, string(evidence.NotRun)
+		case r.Cancelled:
+			ex.Status = string(evidence.Cancelled)
+		default:
+			ex.Status = string(evidence.Classify(r.Exit, r.Output, false))
+			ex.Output, ex.OutputPartial = proof.OutputDigest(r.Output, root)
+			ex.Summary = evidence.Summarize(r.Output)
+			if failed {
+				ev.Output, ev.IsError = r.Output, true
+			}
 		}
+		if b, err := json.Marshal(ex); err == nil {
+			ev.Extra = b
+		}
+		a.logEvent(ev)
 	}
 	for _, c := range res.Passed {
-		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: c, Source: source, Extra: runs[c]})
+		log(c, false)
 	}
 	if res.Failed != "" {
-		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: res.Failed, Output: res.Output, IsError: true, Source: source, Extra: runs[res.Failed]})
+		log(res.Failed, !runs[res.Failed].Cancelled)
+	}
+	for _, c := range res.NotRun {
+		log(c, false)
 	}
 }
 

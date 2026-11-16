@@ -1136,20 +1136,8 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	outcome := a.Outcome()
 	if !g.conflicted && !a.Off["verdict"] && outcome.Overclaimed() && g.corrections == 0 {
 		g.corrections++
-		emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
+		emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.OverclaimWhy()})
 		a.appendHarnessText(outcome.Correction())
-		return false
-	}
-	// The premature stop the verdict rules cannot see: checks passed, the
-	// model edited afterwards, and then it said it was done. Opt-in,
-	// because every baseline in this repository was measured without it,
-	// and bounded by the same one-correction-a-turn counter, because the
-	// expensive mistake here is nagging a turn that is genuinely finished
-	// into another round of model calls.
-	if !g.conflicted && a.StaleNudgeOn() && !a.Off["verdict"] && outcome.StaleCheck() && g.corrections == 0 && a.riskyTurn() {
-		g.corrections++
-		emit(Event{Kind: EvNotice, Text: "the last edit of this turn was never checked: " + outcome.Why})
-		a.appendHarnessText(outcome.StaleCheckNote())
 		return false
 	}
 	if a.numclaimGate(resp.Message.Text(), g, emit) {
@@ -1175,7 +1163,7 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	}
 	a.refreshProofNotes(ctx, emit)
 	if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
-		emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
+		emit(verdictEvent(outcome))
 	}
 	a.capturePlan(resp.Message.Text(), emit)
 	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})

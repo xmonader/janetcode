@@ -79,48 +79,38 @@ func TestStaleCheckDefersToTheClaimAndTheOverclaimGate(t *testing.T) {
 	}
 }
 
-// The gate itself: with the flag off the turn ends exactly as it did
-// before the rule existed, and with it on it is sent back once and only
-// once, sharing the one-correction-a-turn budget.
-func TestStaleCheckNudgeIsOptInAndSendsBackOnce(t *testing.T) {
-	agentAt := func(on bool) *Agent {
-		a := &Agent{Log: &session.Memory{}, Off: map[string]bool{"verify": true}, StaleCheckNudge: on}
+// The gate itself: a success claim over a check that predates the last
+// edit is sent back once whatever stale_check_nudge says (the evidence
+// model enforces it), sharing the one-correction-a-turn budget.
+func TestStaleEvidenceIsEnforcedAndSendsBackOnce(t *testing.T) {
+	for _, nudge := range []bool{false, true} {
+		a := &Agent{Log: &session.Memory{}, Off: map[string]bool{"verify": true}, StaleCheckNudge: nudge}
 		a.turnN = 1
 		for _, e := range staleEvents(true) {
 			a.Log.Append(e)
 		}
-		return a
-	}
-	resp := &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "Done — the tests pass."),
-		StopReason: llm.StopEndTurn}
-
-	off := agentAt(false)
-	var g turnGates
-	if done := off.finishTurn(context.Background(), resp, &g, func(Event) {}); !done {
-		t.Fatal("with the nudge off the turn must end exactly as it did before")
-	}
-
-	on := agentAt(true)
-	g = turnGates{}
-	var notices []string
-	emit := func(e Event) {
-		if e.Kind == EvNotice {
-			notices = append(notices, e.Text)
+		resp := &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "Done — the tests pass."),
+			StopReason: llm.StopEndTurn}
+		var g turnGates
+		var notices []string
+		emit := func(e Event) {
+			if e.Kind == EvNotice {
+				notices = append(notices, e.Text)
+			}
 		}
-	}
-	if done := on.finishTurn(context.Background(), resp, &g, emit); done {
-		t.Fatal("a stale green with a claim over it should be sent back")
-	}
-	if len(notices) == 0 || !strings.Contains(notices[0], "never checked") {
-		t.Fatalf("notices = %v", notices)
-	}
-	last := on.Messages[len(on.Messages)-1]
-	if !strings.Contains(last.Text(), "edited again afterwards") {
-		t.Fatalf("the model was not told: %q", last.Text())
-	}
-	// Once a turn: the budget is shared with the overclaim correction, so
-	// a second pass over the same turn ends it.
-	if done := on.finishTurn(context.Background(), resp, &g, func(Event) {}); !done {
-		t.Fatal("the nudge must fire at most once in a turn")
+		if done := a.finishTurn(context.Background(), resp, &g, emit); done {
+			t.Fatalf("nudge=%v: a stale green with a claim over it should be sent back", nudge)
+		}
+		if len(notices) == 0 || !strings.Contains(notices[0], "check evidence is not_run") || !strings.Contains(notices[0], "parse.go") {
+			t.Fatalf("nudge=%v: notices = %v", nudge, notices)
+		}
+		last := a.Messages[len(a.Messages)-1]
+		if !strings.Contains(last.Text(), "edited again afterwards") {
+			t.Fatalf("the model was not told: %q", last.Text())
+		}
+		// Once a turn: a second pass over the same turn ends it.
+		if done := a.finishTurn(context.Background(), resp, &g, func(Event) {}); !done {
+			t.Fatalf("nudge=%v: the correction must fire at most once in a turn", nudge)
+		}
 	}
 }

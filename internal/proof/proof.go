@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/evidence"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -70,6 +71,12 @@ type Turn struct {
 	Failed      int      `json:"failed"`
 	Tested      bool     `json:"tested"`
 	TestsEdited []string `json:"tests_edited,omitempty"`
+	// Evidence is the turn's checks on the one evidence model
+	// (internal/evidence): each with status, exit code, timing and
+	// freshness against the turn's last edit, and the final status. The
+	// Verdict above is what the turn demonstrated; this is what its
+	// checks say, and whether a success claim was backed.
+	Evidence *evidence.Report `json:"evidence,omitempty"`
 	// Mutation is the mutation-testing score for this turn, when one was
 	// logged (see internal/mutate.Report.Event and TurnOutcomeInput.Mutation).
 	Mutation *Mutation `json:"mutation,omitempty"`
@@ -179,6 +186,8 @@ type TurnOutcomeInput struct {
 	Failed      int
 	Tested      bool
 	TestsEdited []string
+	// Evidence is the turn's evidence report (TurnOutcome.Evidence).
+	Evidence *evidence.Report
 	// Mutation is the turn's mutation-testing score, folded from the
 	// latest session.TypeMutation event logged for that turn, or nil when
 	// none was.
@@ -246,7 +255,7 @@ func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes ma
 		turns = append(turns, Turn{
 			Turn: tn, Verdict: o.Verdict, Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
-			Mutation: o.Mutation, Integrity: o.Integrity, Conflict: o.Conflict,
+			Evidence: o.Evidence, Mutation: o.Mutation, Integrity: o.Integrity, Conflict: o.Conflict,
 		})
 	}
 	return Record{
@@ -547,6 +556,11 @@ func Summary(r Record) string {
 			who = " (" + t.Session + ")"
 		}
 		fmt.Fprintf(&b, "%s turn %d%s: %s: %s", verdictMark(t.Verdict), t.Turn, who, t.Verdict, t.Why)
+		if t.Evidence != nil {
+			if line := t.Evidence.Line(); line != "" {
+				b.WriteString(" · " + line)
+			}
+		}
 		if t.Mutation != nil {
 			fmt.Fprintf(&b, " · mutations %d/%d caught", t.Mutation.Killed, t.Mutation.Total)
 		}

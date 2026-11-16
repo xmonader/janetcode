@@ -160,10 +160,10 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 	emit(Event{Kind: EvNotice, Text: "accept: verifying locked tests · " + command})
 	r := &verify.Runner{Config: verify.Config{Commands: []string{command}}, Cwd: root}
 	res := r.Run(ctx)
+	a.logGate(session.GateAccept, res)
 	if ctx.Err() != nil {
 		return false
 	}
-	a.logGate(session.GateAccept, res)
 	// Only the mode this gate ran for records its result: an /accept off
 	// or a new /accept <request> while the tests ran has replaced it.
 	a.accept.Load().RecordGate(before, res.OK(), res.Summary())

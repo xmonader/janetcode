@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/gaming"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
@@ -102,6 +103,12 @@ type TurnOutcome struct {
 	// Claimed is what the model asserted about verification, when it
 	// asserted anything a check could have shown.
 	Claimed string `json:"claimed,omitempty"`
+	// Evidence is the turn's checks on the one evidence model
+	// (internal/evidence): each with its status, exit code, timing and
+	// freshness against the turn's last edit, and the final status that
+	// says whether a success claim is backed. The verdict above is what
+	// the turn demonstrated; this is what the checks themselves say.
+	Evidence *evidence.Report `json:"evidence,omitempty"`
 }
 
 // OK reports whether the turn checked its work. A self-checked turn
@@ -135,6 +142,23 @@ func (o TurnOutcome) Line() string {
 	return line
 }
 
+// verdictEvent is the EvVerdict for outcome: the verdict line as ever,
+// with the evidence model's report attached for the surfaces to render.
+func verdictEvent(o TurnOutcome) Event {
+	return Event{Kind: EvVerdict, Text: o.Line(), IsError: !o.OK(), Evidence: o.Evidence}
+}
+
+// EvidenceLine is the evidence model's one-line account of the turn's
+// checks (evidence.Report.Line), "" when there is nothing to say. It is
+// kept apart from Line, which is the verdict text headless callers parse
+// and which stays as it was.
+func (o TurnOutcome) EvidenceLine() string {
+	if o.Evidence == nil {
+		return ""
+	}
+	return o.Evidence.Line()
+}
+
 // Reading a check's output for what it actually exercised. Exit 0 is not
 // evidence on its own: a build proves the code compiles, a test run that
 // collected nothing proves less than that, and only tests that ran and
@@ -142,33 +166,11 @@ func (o TurnOutcome) Line() string {
 // the common runners print, and anything unrecognised counts as no
 // evidence rather than as evidence.
 
-// ranRe matches a runner reporting that tests actually executed. Every
-// alternative is anchored or carries a count: "pass" on its own, loose in
-// prose, is what a build log says about itself and is not evidence. A
-// count must be non-zero: "test result: ok. 0 passed", "Ran 0 tests" and
-// "0 examples" are a runner saying it found nothing, and read as tests
-// they made an empty suite verify a turn. Go's "ok  pkg" line is matched
-// in lower case only, or JUnit's "OK (0 tests)" read as one.
-var ranRe = regexp.MustCompile(`(?im)((?-i:^ok)\s+\S+|^PASS$|\b[1-9]\d* passed|\b[1-9]\d* tests?,|test result: ok\. [1-9]|Tests:\s+[1-9]|OK \([1-9]\d* test|Ran [1-9]\d* test|\b[1-9]\d* examples?, \d+ failures|` +
-	// node --test (spec "ℹ pass N", TAP "# pass N"), mocha, zig, ctest,
-	// bazel, dart — each carries the runner's own count or shape, since a
-	// bare "All tests passed!" is what a model's own script prints.
-	`^(?:ℹ|#) pass [1-9]\d*$|\b[1-9]\d* passing\b|^All \d+ tests passed\.$|\d+% tests passed|Executed [1-9]\d* out of \d+ tests?|\+[1-9]\d*: All tests passed!)`)
-
-// nothingRe matches a runner saying it found nothing to run. A green that
-// collected no tests is the easiest way for a change to look done when
-// nothing checked it.
-var nothingRe = regexp.MustCompile(`(?im)(no tests? (ran|were run|were found|to run|found|collected|executed)|collected 0 items|ran 0 tests|0 passed|empty test suite|no test suites found|^(?:ℹ|#) tests 0$|\b0 passing\b)`)
-
-// exercised reports what a passing check's output shows. ran is true when
-// tests executed; nothing is true when the runner said it found none. A
-// Go run that reports "ok" for one package and "[no test files]" for
-// another has exercised something, so the two are not opposites.
-func exercised(out string) (ran, nothing bool) {
-	ran = ranRe.MatchString(out)
-	nothing = !ran && nothingRe.MatchString(out)
-	return ran, nothing
-}
+// exercised reports what a passing check's output shows (the patterns
+// live in internal/evidence, which classifies the same output the same
+// way): ran is true when tests executed; nothing is true when the runner
+// said it found none.
+func exercised(out string) (ran, nothing bool) { return evidence.Exercised(out) }
 
 // refusalPrefixes begin the tool results of calls the harness refused
 // without running them (see authorize and toolGate). A log written before
@@ -511,6 +513,36 @@ type checkRun struct {
 	gate   string // the gate that ran it (session.GateVerify/GateAccept), "" for a model's bash call
 }
 
+// retiredChecks names the red checks in order (the commands in the order
+// each last ran) that a later green check re-ran another way: the model
+// fixed the command, not the code, so the red run never reached it and
+// does not count. failed says whether a command's latest run was red.
+func retiredChecks(order []string, failed func(string) bool, scratch func(string) bool) map[string]bool {
+	retired := map[string]bool{}
+	for i, cmd := range order {
+		if !failed(cmd) {
+			continue
+		}
+		for _, later := range order[i+1:] {
+			if !failed(later) && supersededBy(cmd, later, scratch) {
+				retired[cmd] = true
+				break
+			}
+		}
+	}
+	return retired
+}
+
+// evidenceOptions is how the evidence model reads a session in root:
+// documentation edits need no check, and the harness's own refusal and
+// cancellation messages mark calls that never ran or never finished.
+func evidenceOptions(turn int, root string) evidence.Options {
+	return evidence.Options{
+		Turn: turn, Root: root, Exempt: isDocFile,
+		Refusals: refusalPrefixes, Interrupted: []string{CancelledMessage},
+	}
+}
+
 // FoldOutcomeIn is FoldOutcome for a session working in root: a model's
 // leading `cd <root> &&` is not part of the command, so the same command
 // run by the model and by a gate is recognised as one. Each command is
@@ -571,6 +603,11 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			}
 			continue
 		case e.Type == session.TypeGate:
+			if evidence.GateSkipped(e) {
+				// Never started, or cut short: neither a pass nor a
+				// red run (it is in o.Evidence as not_run/cancelled).
+				continue
+			}
 			cmd := shell.TrimWorkspaceCd(strings.TrimSpace(e.Name), root)
 			if e.Turn != turn {
 				if e.IsError {
@@ -654,19 +691,10 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	}
 	// A red check that a later green check re-ran another way never
 	// reached the code: the model fixed the command, not the code.
-	retired := map[string]bool{}
-	for i, cmd := range order {
-		if !latest[cmd].isErr {
-			continue
-		}
-		for _, later := range order[i+1:] {
-			if !latest[later].isErr && supersededBy(cmd, later, scratch) {
-				retired[cmd] = true
-				break
-			}
-		}
-	}
+	retired := retiredChecks(order, func(c string) bool { return latest[c].isErr }, scratch)
 	order = slices.DeleteFunc(order, func(cmd string) bool { return retired[cmd] })
+	rep := evidence.FromEvents(events, evidenceOptions(turn, root)).Without(retired)
+	o.Evidence = &rep
 	o.LastPassed = len(order) > 0 && !latest[order[len(order)-1]].isErr
 	ranTests, foundNothing, ranTheCode, selfAsserted := false, false, false, false
 	for _, cmd := range order {
@@ -772,6 +800,11 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		o.Verdict = VerdictNotDemonstrated
 		o.Why = fmt.Sprintf("%s edited and %s passed, but no test was exercised — it compiles, which is not the same as working", textfmt.Plural(o.Edited, "file"), textfmt.Plural(o.Passed, "check"))
 	}
+	if o.Verdict == VerdictTestsWritten || o.Verdict == VerdictDryRun {
+		// Red acceptance tests are the phase working, and a dry run
+		// ran nothing: no evidence is owed for either.
+		o.Evidence.Required, o.Evidence.Blocks = false, false
+	}
 	if lastText != "" && claimRe.MatchString(lastText) {
 		if m := claimRe.FindString(lastText); m != "" {
 			o.Claimed = m
@@ -791,7 +824,11 @@ func (o TurnOutcome) Overclaimed() bool {
 	case VerdictUnverified, VerdictCheckFailed, VerdictVacuous:
 		return true
 	}
-	return false
+	// Whatever the verdict, a claim of success needs evidence that is
+	// there, fresh and clean: a check that predates the last edit, one
+	// that was cancelled or was environmental, or a flaky one does not
+	// back it.
+	return o.Evidence != nil && o.Evidence.Blocks
 }
 
 // StaleCheck reports the premature stop the verdict rules cannot see: a
@@ -800,12 +837,28 @@ func (o TurnOutcome) Overclaimed() bool {
 // were exercised — and none of it was run against the tree as it now
 // stands.
 //
-// It is deliberately narrower than Overclaimed: the model must have
-// claimed something, and the turn must actually have checked at some
-// point, because a turn that never ran anything is already
-// VerdictUnverified and already nagged for it.
+// The model must have claimed something, and the turn must actually have
+// checked at some point: a turn that never ran anything is
+// VerdictUnverified. Overclaimed covers this case too (the evidence model
+// marks every check older than the last edit stale), so the turn is sent
+// back by the one overclaim correction; StaleCheck names the case.
 func (o TurnOutcome) StaleCheck() bool {
-	return o.Claimed != "" && o.EditedAfterCheck && o.Ran > 0 && !o.Overclaimed()
+	return o.Claimed != "" && o.EditedAfterCheck && o.Ran > 0
+}
+
+// OverclaimWhy is the reason an overclaim is reported with: the verdict's
+// own, except when only the evidence model objects (a check older than
+// the last edit, a flaky, cancelled or environmental one), where the
+// verdict says "verified" and the evidence says why that is not enough.
+func (o TurnOutcome) OverclaimWhy() string {
+	switch o.Verdict {
+	case VerdictUnverified, VerdictCheckFailed, VerdictVacuous:
+		return o.Why
+	}
+	if o.Evidence != nil && o.Evidence.Blocks {
+		return "the check evidence is " + string(o.Evidence.Status) + ": " + o.Evidence.Why
+	}
+	return o.Why
 }
 
 // StaleCheckNote is what the model is told. Same voice as Correction:
@@ -831,6 +884,12 @@ func (o TurnOutcome) Correction() string {
 		b.WriteString("A check came back red in this turn. Fix the cause and re-run it, or say that it is still failing.")
 	case VerdictVacuous:
 		b.WriteString("The command exited 0 but found no tests to run, so it demonstrates nothing. Run one that actually exercises the change.")
+	default:
+		if o.StaleCheck() {
+			b.WriteString(strings.TrimPrefix(o.StaleCheckNote(), "[harness] "))
+		} else if ev := o.Evidence; ev != nil && ev.Blocks {
+			fmt.Fprintf(&b, "The check evidence is %s: %s. Re-run the check against the code as it now stands and report what it says, or say plainly that the work is unverified.", ev.Status, ev.Why)
+		}
 	}
 	return b.String()
 }

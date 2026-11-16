@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
@@ -166,7 +167,11 @@ type TurnEvidence struct {
 	// anything a check could have shown (internal/agent's
 	// TurnOutcome.Claimed). With no command recorded for the turn it is
 	// an unverified assertion.
-	Claimed   string            `json:"claimed,omitempty"`
+	Claimed string `json:"claimed,omitempty"`
+	// Evidence is the turn's final evidence status (internal/evidence):
+	// passed only when a check ran after the turn's last edit and every
+	// such check passed; not_run, stale or flaky evidence says so.
+	Evidence  string            `json:"evidence,omitempty"`
 	Commands  []CommandEvidence `json:"commands,omitempty"`
 	Approvals []Approval        `json:"approvals,omitempty"`
 }
@@ -181,6 +186,9 @@ type CommandEvidence struct {
 	// Exit is the exit code; ExitUnknownFailure when the run failed and
 	// the record does not say with what.
 	Exit int `json:"exit"`
+	// Status is the run's evidence status (internal/evidence): the exit
+	// code's reading, never a classifier's opinion.
+	Status string `json:"status,omitempty"`
 	// Output is OutputDigest of what it printed, "" when nothing was
 	// kept. OutputPartial says the kept output was cut, so it cannot be
 	// compared byte for byte with a re-run.
@@ -229,15 +237,10 @@ type EvidenceInput struct {
 }
 
 // GateRun is the Extra a turn-end gate writes on its session.TypeGate
-// events (see internal/agent's logGate): the exit code and output digest
-// of one command it ran. A gate event without it — recorded before this
-// existed — still counts, with the exit inferred from IsError and no
-// output to compare.
-type GateRun struct {
-	Exit          int    `json:"exit"`
-	Output        string `json:"out,omitempty"`
-	OutputPartial bool   `json:"partial,omitempty"`
-}
+// events (see internal/agent's logGate): the exit code, output digest
+// and evidence status of one command it ran. It is evidence.GateExtra, so
+// the log, signed evidence and every other reader share one definition.
+type GateRun = evidence.GateExtra
 
 // BuildEvidence assembles the statement for commit (whose tree is tree)
 // from one session's record r — already limited by Build to what landed
@@ -299,6 +302,7 @@ func SessionFromEvents(r Record, in EvidenceInput) SessionEvidence {
 	for _, tn := range turns {
 		te := TurnEvidence{
 			Turn: tn, Verdict: verdicts[tn], Claimed: in.Claims[tn],
+			Evidence:     string(evidence.FromEvents(in.Events, evidence.Options{Turn: tn, Root: in.WorkRoot}).Status),
 			PromptSHA256: promptHash(in.Events, tn),
 			Commands:     foldCommands(in.Events, tn, in.WorkRoot, se.Sandbox.Profile),
 			Approvals:    foldApprovals(in.Events, tn, in.RepoRoot, committed),
@@ -455,6 +459,11 @@ func foldCommands(events []session.Event, turn int, root, sandbox string) []Comm
 		case session.TypeFileChange:
 			lastEdit = e.Seq
 		case session.TypeGate:
+			if evidence.GateSkipped(e) {
+				// Never started, or cut short: nothing a re-run could
+				// be compared with.
+				continue
+			}
 			c := CommandEvidence{
 				Command: shell.TrimWorkspaceCd(strings.TrimSpace(e.Name), root),
 				Source:  e.Source, Sandbox: NoSandbox, Exit: 0,
@@ -470,6 +479,10 @@ func foldCommands(events []session.Event, turn int, root, sandbox string) []Comm
 				if e.Output != "" {
 					c.Output, c.OutputPartial = OutputDigest(e.Output, root)
 				}
+			}
+			c.Status = string(evidence.Classify(c.Exit, e.Output, false))
+			if gr.Status != "" {
+				c.Status = gr.Status
 			}
 			if c.Source == session.GateAccept {
 				// The accept gate's reported name is a label, not the
@@ -495,7 +508,7 @@ func foldCommands(events []session.Event, turn int, root, sandbox string) []Comm
 			if exit == 127 && notFoundRe.MatchString(e.Output) {
 				continue
 			}
-			c := CommandEvidence{Command: cmd, Source: "bash", Exit: exit, Sandbox: sandbox}
+			c := CommandEvidence{Command: cmd, Source: "bash", Exit: exit, Sandbox: sandbox, Status: string(evidence.Classify(exit, e.Output, false))}
 			c.Output, c.OutputPartial = OutputDigest(e.Output, root)
 			put(c, e.Seq)
 		}

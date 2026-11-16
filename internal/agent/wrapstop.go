@@ -162,7 +162,7 @@ func (a *Agent) stopForWrap(ctx context.Context, check string, emit func(Event))
 	a.ReopenCompletedGoal(outcome, emit)
 	a.refreshProofNotes(ctx, emit)
 	if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
-		emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
+		emit(verdictEvent(outcome))
 	}
 	a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "wrapstop"})
 	emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: llm.StopEndTurn})

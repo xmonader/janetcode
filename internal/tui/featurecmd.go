@@ -77,7 +77,7 @@ var featureSwitches = []featureSwitch{
 	{
 		name:  "stale-nudge",
 		key:   "stale_check_nudge",
-		what:  "a turn that edited after its checks passed is sent back once",
+		what:  "superseded: a check older than the last edit never backs a success claim, whatever this says",
 		on:    func(cfg *config.Config) bool { return cfg.StaleCheckNudge },
 		value: func(_ *config.Config, on bool) string { return onOffWord(on) },
 	},

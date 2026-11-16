@@ -190,10 +190,11 @@ type Config struct {
 	// a quantised build, under the requested name (provenance.Take). Off
 	// by default: six small model calls per session.
 	Fingerprint bool `json:"fingerprint,omitempty"`
-	// StaleCheckNudge sends a turn back once when the turn's checks
-	// passed, it edited again afterwards, and it then said it was done:
-	// everything that passed, passed against a tree the turn has since
-	// changed. Off by default, and bounded to one nudge a turn.
+	// StaleCheckNudge was the opt-in for sending a turn back once when
+	// its checks passed, it edited again, and it then said it was done.
+	// That is now always enforced by the evidence model (internal/
+	// evidence: a check older than the last edit cannot back a success
+	// claim), so the key is accepted and has no further effect.
 	StaleCheckNudge bool `json:"stale_check_nudge,omitempty"`
 	// EffortControl lets the harness set each call's reasoning tier from
 	// the turn's signals — low to start, a rung up after a failed edit, a

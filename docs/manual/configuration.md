@@ -655,15 +655,14 @@ session's model (`/model` switches back).
 
 ### Step routing (experimental)
 
-`stale_check_nudge` (default off) covers the one premature stop the
-verdict rules cannot see. A turn that edits, runs the tests, edits again
-and then says it is done has every total green — something ran, it
-passed, tests were exercised — and none of it was run against the tree
-as it now stands. With the key on, such a turn is sent back once, with
-the evidence stated, sharing the same one-correction-a-turn budget as
-the overclaim gate: the expensive mistake here is nagging a finished
-turn into another round of model calls. A turn that never ran anything
-is already `unverified` and already sent back, and is not nudged twice.
+`stale_check_nudge` is superseded and has no effect. A turn that edits,
+runs the tests, edits again and then says it is done has every total
+green and none of it was run against the tree as it now stands; the
+evidence model (see "Verification evidence" in the interface
+chapter) marks such a check stale, and a success claim over stale,
+missing, flaky, cancelled or environmental evidence is sent back once
+by the overclaim gate, sharing its one-correction-a-turn budget. The key
+stays accepted so existing configs keep loading.
 
 `conflict_exit` (default off) offers the model a way out of a task
 whose tests contradict it: one prompt line, and a `CONFLICT: <test id> |

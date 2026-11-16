@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
@@ -58,6 +59,10 @@ type Event struct {
 	// and a headless run reported zero denials for a call a --deny rule
 	// had refused.
 	Denied bool
+	// Evidence is set on EvVerdict: the turn's checks on the one
+	// evidence model (internal/evidence), so every surface renders the
+	// same statuses and the same stale/blocked call as the session log.
+	Evidence *evidence.Report
 }
 
 // serialize makes emit safe to call from tool goroutines.

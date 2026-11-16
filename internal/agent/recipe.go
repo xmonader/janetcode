@@ -100,7 +100,7 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 		outcome := a.Outcome()
 		a.logOutcome(outcome)
 		if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
-			emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
+			emit(verdictEvent(outcome))
 		}
 		a.maybeCompactAfterRecipe(ctx, emit)
 		return strings.TrimRight(text, "\n"), fail, nil
