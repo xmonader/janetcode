@@ -3,7 +3,7 @@
 User-visible changes. Commit-level detail is in `git log`; the reasoning
 and measurements behind each round are in `docs/notes/history.md`.
 
-## Unreleased (since v0.2.0, 2026-09-10)
+## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)
 - Under an egress policy on Linux, bubblewrap now runs bash in its own
