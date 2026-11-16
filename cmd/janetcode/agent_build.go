@@ -605,6 +605,7 @@ func (b *agentBuilder) stepAgentTools() error {
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	ag.Tools.Add(&agent.TodoTool{Parent: ag})
 	ag.Tools.Add(&agent.AskTool{Parent: ag})
+	ag.Tools.Add(&agent.RequestSecretTool{Parent: ag})
 	script := &agent.Script{Parent: ag, Root: b.d.cwd}
 	if !b.off["script"] && script.Available() {
 		b.script = script
