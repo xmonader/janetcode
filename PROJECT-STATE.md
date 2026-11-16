@@ -28,8 +28,11 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does
   the rest). Needs the user's go-ahead.
-- GitHub issues #1-#3, #5-#12 are implemented on master (2026-09-30);
-  closing them on GitHub is outward-facing, so it waits for the user.
+- GitHub issues: #6 and #7 closed (2026-11-16). #1-#3, #5, #8-#12 stay open:
+  checked against their acceptance criteria, parts are missing (no file
+  admission mode #2, no `--doctor security` #10, no extension doctor #8, no
+  evidence-status taxonomy #5, no observers #11, no offline audit replay #12,
+  no dry-run cost estimate #9, partial checkpoints #1 and memory #3).
 - t3code round, live checks: render_html and request_secret against a real
   model; phone approval end to end over tailscale serve (machine needs
   `doas tailscale up`, Tailscale 1.104.7 installed); a real `op read`; the
@@ -46,8 +49,9 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   untested on a Mac; the `workspace` sandbox keeps unix sockets (use
   `strict`); `settingsapply` can write the decisions map a web request's
   config copy shares.
-- GitHub Action, `/pr` and `/pr-comments` tested against a stub `gh` and
-  (action) under nektos/act, never against github.com (needs a push).
+- `/pr` and `/pr-comments` verified live against github.com 2026-11-16
+  (docs/notes/github-live.md). The Action on a hosted runner is not: the
+  account's Actions jobs do not start (billing) and the repo has no secret.
 - t3code round gaps: guest links are bearer links (any browser, 24h), not
   bound to the first browser; delegate cost/usage not added to session
   totals; secrets are memory-only (lost on resume) and not sent to remote
