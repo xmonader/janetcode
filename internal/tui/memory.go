@@ -186,7 +186,7 @@ func (m *model) sleepMemory(loud bool) tea.Cmd {
 // complete enough to be worth reading and cheap enough to be one call.
 func (m *model) maybeSleep() tea.Cmd {
 	sess, ag := m.opts.Session, m.opts.Agent
-	if sess == nil || ag == nil || m.opts.Memory == nil || ag.Off["sleep"] {
+	if sess == nil || ag == nil || m.opts.Memory == nil || !m.opts.AutoMemory || !m.opts.Memory.AutoAllowed() || ag.Off["sleep"] {
 		return nil
 	}
 	gs := agent.FoldGoals(sess.Events())
@@ -271,6 +271,10 @@ func (m *model) memoryCommand(cmd, arg string) {
 		m.note("forgot " + gone.Name + ": " + gone.Description)
 		m.opts.Agent.RefreshExtra()
 	default:
+		if arg == "why" {
+			m.transcript.info(m.opts.Agent.MemoryWhy())
+			return
+		}
 		if out, ok, err := store.ConfirmCommand(arg); ok {
 			if err != nil {
 				m.transcript.errorf("memory: %v", err)

@@ -177,6 +177,10 @@ func (s *server) memory(cmd, arg string) {
 		}
 		s.notice("forgot " + gone.Name)
 	default:
+		if arg == "why" && s.opts.Agent != nil {
+			s.sheet("memory", s.opts.Agent.MemoryWhy())
+			return
+		}
 		if out, ok, err := store.ConfirmCommand(arg); ok {
 			if err != nil {
 				s.errf("memory: %v", err)

@@ -55,6 +55,36 @@ func (a *Agent) EgressSummary() string {
 	return a.EgressPolicy.Describe() + a.egressBashNote() + "\n" + a.TaintSummary() + "\n\n" + body + "\n\nEvery turn's report is in the session log (egress/turn) and in headless JSON (\"egress\")."
 }
 
+// MemoryWhy is /memory why: the memory entries attached to the turn in
+// progress (or, between turns, the last one) with the reason each matched,
+// read from the same ledger as /egress.
+func (a *Agent) MemoryWhy() string {
+	rec := a.EgressRecorder()
+	rep := rec.Current()
+	if !a.running.Load() {
+		last, ok := rec.Last()
+		if !ok {
+			return "no turn has run yet in this session"
+		}
+		rep = last
+	}
+	var sb strings.Builder
+	for _, e := range rep.Entries {
+		if e.Kind != egress.KindMemory {
+			continue
+		}
+		why := e.Why
+		if why == "" {
+			why = "no reason recorded"
+		}
+		fmt.Fprintf(&sb, "  %s: %s\n", e.What, why)
+	}
+	if sb.Len() == 0 {
+		return fmt.Sprintf("turn %d attached no memory: no entry matched the request strongly enough (/memory <words> searches by hand)", rep.Turn)
+	}
+	return fmt.Sprintf("turn %d attached these memories:\n%s/memory show <name> reads one, /memory expire <name> retires one, /forget <name> deletes one", rep.Turn, sb.String())
+}
+
 // egressBashNote says how far the policy reaches bash, "" with no policy.
 func (a *Agent) egressBashNote() string {
 	if !a.EgressPolicy.Active() {

@@ -8,8 +8,36 @@ import (
 
 	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 )
+
+func TestMemoryWhyListsWhatTheTurnAttachedAndWhy(t *testing.T) {
+	mem := memory.Open(t.TempDir(), t.TempDir())
+	mem.Put(memory.Entry{Name: "goose", Description: "Database migrations use goose", Body: "goose up from db/"})
+	a, _ := newAgent(t, &fake{responses: []*llm.Response{text("ok"), text("ok")}}, nil)
+	a.Prepare = skill.TurnPrep(&skill.Injector{}, mem)
+	_, emit := collect()
+	if got := a.MemoryWhy(); !strings.Contains(got, "no turn has run") {
+		t.Fatalf("before any turn: %q", got)
+	}
+	if err := a.Run(context.Background(), "add a database migration", emit); err != nil {
+		t.Fatal(err)
+	}
+	got := a.MemoryWhy()
+	for _, want := range []string{"goose", "matched", "migration", "/memory expire"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("MemoryWhy lacks %q:\n%s", want, got)
+		}
+	}
+	if err := a.Run(context.Background(), "hello there", emit); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.MemoryWhy(); !strings.Contains(got, "attached no memory") {
+		t.Errorf("an unrelated turn: %q", got)
+	}
+}
 
 // hostTool is a non-mutating tool that reaches a host named in its input:
 // a stand-in for web_search or a read-only remote MCP tool.

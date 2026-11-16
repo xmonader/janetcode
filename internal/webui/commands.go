@@ -42,7 +42,7 @@ var webArgs = map[string]string{
 	"/plan":          "[request | review | comment <line> <text> | changes | approve | off]",
 	"/loop":          "[duration] [prompt|off]",
 	"/jobs":          "[kill n | stdin n <text>]",
-	"/memory":        "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off]]",
+	"/memory":        "[query | pending | approve <n|name|all> | reject <n|name|all> | expire <name> | confirm [on|off] | why | auto [on|off] [project]]",
 	"/remember":      "[-g] <fact>",
 	"/permissions":   "[check <command>|why]",
 	"/resume":        "[<n|id> [fork]]",

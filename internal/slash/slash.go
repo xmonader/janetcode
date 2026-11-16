@@ -77,7 +77,7 @@ var Commands = withIdle([]Command{
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
 	{Name: "/checkpoints", Args: "", Help: "the restore points: each turn that changed something, what its checkpoint covers (whole tree or file copies), whether it is complete; enter previews restoring to before it", KeyHelp: " (esc esc opens it too)"},
 	{Name: "/dryrun", Args: "[on|off|show|apply [n,m…]|discard]", Help: "dry run: the model plans and edits a preview, commands that change things are recorded but not run; show reviews it with diffs, apply writes the files (undoable), discard drops them"},
-	{Name: "/memory", Args: "[words | show <name> | about <path> | history <name> | current]", Help: "what janetcode remembers about this project"},
+	{Name: "/memory", Args: "[words | show <name> | about <path> | history <name> | current | why | pending | auto [on|off] [project]]", Help: "what janetcode remembers about this project"},
 	{Name: "/dream", Args: "", Help: "consolidate overlapping auto-memory entries; does not touch what you /remembered"},
 	{Name: "/flush", Args: "", Help: "capture everything useful from this session (decisions, context, debugging routes, fixes) into the memory inbox; /dream folds the inbox into entries. Never touches what you /remembered"},
 	{Name: "/sleep", Args: "", Help: "read this session's record and store what it established, with evidence; runs on its own when a goal finishes"},

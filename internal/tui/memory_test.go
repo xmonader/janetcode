@@ -27,6 +27,27 @@ func TestSleepWithoutAProviderSaysSo(t *testing.T) {
 	}
 }
 
+func TestMemoryAutoAndWhyCommands(t *testing.T) {
+	h := newHarness(t)
+	store := memory.Open(t.TempDir(), h.m.opts.Cwd)
+	h.m.opts.Memory = store
+	h.m.command("/memory auto off project")
+	if store.AutoAllowed() || !store.AutoProjectOff() {
+		t.Fatal("/memory auto off project did not switch the project off")
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "off for this project") {
+		t.Fatalf("no confirmation shown:\n%s", v)
+	}
+	h.m.command("/memory auto on project")
+	if !store.AutoAllowed() {
+		t.Fatal("/memory auto on project did not switch it back on")
+	}
+	h.m.command("/memory why")
+	if v := plain(h.m.View()); !strings.Contains(v, "no turn has run") {
+		t.Fatalf("/memory why before a turn:\n%s", v)
+	}
+}
+
 // "/memory show" with no name searched the memory for the word "show"
 // and answered that nothing matched it.
 func TestMemoryVerbAloneIsAUsageError(t *testing.T) {
