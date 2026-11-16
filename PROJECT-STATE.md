@@ -16,18 +16,19 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   (2026-09-30, docs/notes/anthropic-live.md), not api.anthropic.com itself.
 - Windows: run under wine (tests + a live headless turn, docs/notes/
   windows-wine.md); PowerShell paths need a real Windows run (CI job).
-- Last release tag: v0.2.0; ~1970 commits since.
+- Last release: v0.3.0 (2026-11-16), repo public. Built locally with
+  `make dist` + `gh release create` because Actions jobs do not start on
+  the account (billing); no GHCR image for v0.3.0.
 - Rounds since 2026-09-24 (user expectations, qwengo parity 1-2, novel and
   wild ideas, t3code 2026-11-16): docs/notes/history.md and the CHANGELOG
   sections of the same names. Test broker: ai02
   (OPENAI_BASE_URL=https://api.ai02.ourhero.ai/v1). UI checks: `make
   ui-test ui-turn ui-a11y ui-visual` (UI_CDP_PORT/UI_VISUAL_CDP_PORT for
-  concurrent runs). install.sh/--update need the GitHub repo public.
+  concurrent runs). install.sh verified against the public v0.3.0 release.
 
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
-- Cut v0.3.0: push, make the repo public, push the tag (release.yml does
-  the rest). Needs the user's go-ahead.
+- Fix GitHub Actions billing; then ci/release.yml run again (GHCR image).
 - GitHub issues: #6 and #7 closed (2026-11-16). #1-#3, #5, #8-#12 stay open:
   checked against their acceptance criteria, parts are missing (no file
   admission mode #2, no `--doctor security` #10, no extension doctor #8, no
