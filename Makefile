@@ -231,10 +231,14 @@ dist:
 # cmd/releasepkg, standard library only. Run make dist VERSION=vX.Y.Z first.
 RELPKG := go run ./cmd/releasepkg
 
+# Modules with no recognisable licence file that a person has read and accepted.
+# go-localereader ships no LICENSE file; its README declares MIT.
+LICENSE_ACCEPTED := github.com/mattn/go-localereader
+
 # Provenance, SBOM, licence inventory and checksums, derived from the
 # binaries in dist/. Refuses binaries built from a modified tree.
 release-evidence:
-	$(RELPKG) licenses -dist dist
+	$(RELPKG) licenses -dist dist -allow-unknown $(LICENSE_ACCEPTED)
 	$(RELPKG) provenance -dist dist -version $(VERSION)
 	$(RELPKG) sbom -dist dist -version $(VERSION)
 	$(RELPKG) report -dist dist
