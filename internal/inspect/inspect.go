@@ -157,3 +157,17 @@ func (r *Registry) List() string {
 func (r *Registry) nearest(name string) string {
 	return textfmt.Nearest(name, r.Names())
 }
+
+// DoctorSubject maps what follows /doctor to the subject that answers
+// it, so the terminal and the browser route "/doctor mcp" the same way
+// and show what "/inspect extensions" shows. The request is in the form
+// Registry.Report takes. ok is false for a bare /doctor and for any
+// topic that is not one of these, which keep the ordinary checkup.
+func DoctorSubject(arg string) (request string, ok bool) {
+	topic, rest, _ := strings.Cut(strings.TrimSpace(arg), " ")
+	switch strings.ToLower(topic) {
+	case "mcp", "extensions":
+		return strings.TrimSpace("extensions " + rest), true
+	}
+	return "", false
+}

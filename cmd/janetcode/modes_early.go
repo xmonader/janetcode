@@ -106,6 +106,13 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		ov := config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag}
+		switch topic := strings.ToLower(strings.TrimSpace(strings.Join(fs.Args(), " "))); topic {
+		case "":
+		case "mcp", "extensions":
+			return true, extensionsDoctorMode(ctx, os.Stdout, ov, o.trustLevel, o.outFormat == "json")
+		default:
+			return true, headless.BadInput("unknown --doctor topic %q: want mcp (or nothing for the full checkup)", topic)
+		}
 		if o.outFormat == "json" {
 			return true, doctorJSON(ctx, os.Stdout, ov, o.doctorFix)
 		}

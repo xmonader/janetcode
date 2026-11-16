@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/worktree"
 	"os"
 	"strings"
@@ -288,6 +289,10 @@ var dispatch = map[string]cmdHandler{
 		return nil, false
 	},
 	"/doctor": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		if req, ok := inspect.DoctorSubject(cmdArg(text, fields)); ok {
+			m.inspectCommand(req)
+			return nil, false
+		}
 		return m.doctorCommand(), true
 	},
 	"/title": func(m *model, text string, fields []string) (tea.Cmd, bool) {

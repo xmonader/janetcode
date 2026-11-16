@@ -26,7 +26,7 @@ var briefHelp = []struct{ name, text string }{
 	{"/clear", "start a new session"},
 	{"/resume", "reopen an earlier session"},
 	{"/init", "write the project's instruction file"},
-	{"/mcp", "MCP servers: list, search, add"},
+	{"/mcp", "MCP servers: list, search, add, enable, disable"},
 	{"/doctor", "check the setup"},
 	{"/quit", "exit"},
 }

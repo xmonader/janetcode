@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/worktree"
 	"net/http"
 	"os"
@@ -48,7 +49,8 @@ var webArgs = map[string]string{
 	"/resume":        "[<n|id> [fork]]",
 	"/eval":          "keep [name] [--check cmd]",
 	"/import-claude": "[mcp|permissions|skills|agents ...] | apply <id>",
-	"/mcp":           "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
+	"/mcp":           "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes | enable <name> [connect|read|mutate|all] | disable <name> [capability] | tool <name> <tool> on|off]",
+	"/doctor":        "[mcp [json]]",
 }
 
 var commandSpecs = func() []slash.Command {
@@ -297,6 +299,10 @@ var webDispatch = map[string]webHandler{
 		return false, nil
 	},
 	"/doctor": func(s *server, arg string) (bool, error) {
+		if req, ok := inspect.DoctorSubject(arg); ok {
+			s.inspect(req)
+			return false, nil
+		}
 		s.doctor()
 		return false, nil
 	},
