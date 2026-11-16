@@ -54,15 +54,11 @@ func (s *Sandbox) docker(ctx context.Context, p Profile, root string, extra []st
 	proxyURL := ""
 	switch px := s.egressProxy(); {
 	case p.Network && px != nil:
-		// The egress policy: an internal network has no route out, and
-		// the proxy listening on its gateway is the one way through.
-		gw, err := s.dockerEgressGateway(ctx, bin)
+		// The egress policy: a network with no route out and no host on
+		// it, where the sidecar forwarding to the proxy is the one way through.
+		addr, err := s.dockerEgressSidecar(ctx, bin, px)
 		if err != nil {
 			return nil, fmt.Errorf("egress policy: %w", err)
-		}
-		addr, err := px.ListenOn(gw)
-		if err != nil {
-			return nil, err
 		}
 		proxyURL = "http://" + addr
 		args = append(args, "--network", EgressNetwork)

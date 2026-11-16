@@ -3,8 +3,11 @@ package shell
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
+	"sync"
+	"time"
 )
 
 // EgressProxy is what the sandbox needs from the egress policy's
@@ -80,7 +83,7 @@ func (s *Sandbox) EgressNote() string {
 		}
 		return "bash can connect only to the egress proxy (Landlock allows TCP connect to its port alone; a seccomp filter takes UDP and unix sockets away). The rule is by port: a remote host listening on that same port is reachable too"
 	case BackendDocker:
-		return "bash's container sits on the internal docker network " + EgressNetwork + ", whose only way out is the egress proxy on its gateway; services on the host that listen on every address are reachable from it too"
+		return "bash's container sits on the internal, host-less docker network " + EgressNetwork + ", where the only thing it can reach is a sidecar that forwards to the egress proxy (the sidecar image needs busybox nc, as the default alpine has)"
 	case BackendSeatbelt:
 		return "seatbelt allows network-outbound only to the egress proxy on localhost"
 	}
@@ -112,31 +115,87 @@ func WithProxyEnv(env []string, proxyURL string) []string {
 	return append(out, "NO_PROXY=", "no_proxy=")
 }
 
-// EgressNetwork is the internal docker network a sandboxed container is
-// put on while an egress policy is active: internal, so docker gives it
-// no route out, while the host's own address on its bridge — where the
-// egress proxy listens — stays reachable.
-const EgressNetwork = "janetcode-egress"
+// EgressNetwork is the docker network a sandboxed container is put on
+// while an egress policy is active. It is internal (no route out) and
+// "isolated" (the host has no address on it), so the container cannot
+// reach the host's services, which an ordinary internal network's gateway
+// address still lets it do. The one thing on it is the egress sidecar.
+const EgressNetwork = "janetcode-egress-isolated"
 
-// dockerEgressGateway makes sure the internal network exists and returns
-// its gateway address.
-func (s *Sandbox) dockerEgressGateway(ctx context.Context, bin string) (string, error) {
-	gw := func() (string, error) {
-		out, err := exec.CommandContext(ctx, bin, "network", "inspect", "-f", "{{range .IPAM.Config}}{{.Gateway}} {{end}}", EgressNetwork).Output()
+// egressSidecarPort is the port the sidecar listens on, on EgressNetwork.
+const egressSidecarPort = 3128
+
+var sidecarMu sync.Mutex
+
+func dockerOut(ctx context.Context, bin string, args ...string) (string, error) {
+	out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// dockerEgressSidecar makes sure the isolated network and the sidecar
+// exist and returns the host:port a container on the network reaches the
+// egress proxy at.
+//
+// The sidecar is a container on both the default bridge and the isolated
+// network. It forwards its port to the proxy, listening on the bridge's
+// gateway address, with busybox nc, which the default image has, and it
+// exits (and is removed) once the proxy stops answering, so nothing
+// outlives the session. The command's container sees the sidecar and
+// nothing else.
+func (s *Sandbox) dockerEgressSidecar(ctx context.Context, bin string, px EgressProxy) (string, error) {
+	sidecarMu.Lock()
+	defer sidecarMu.Unlock()
+	if _, err := dockerOut(ctx, bin, "network", "inspect", EgressNetwork); err != nil {
+		if out, err := dockerOut(ctx, bin, "network", "create", "--internal",
+			"-o", "com.docker.network.bridge.gateway_mode_ipv4=isolated", EgressNetwork); err != nil && !strings.Contains(out, "already exists") {
+			return "", fmt.Errorf("docker network create %s: %s (needs Docker 28 or newer)", EgressNetwork, out)
+		}
+	}
+	hostGW, err := dockerOut(ctx, bin, "network", "inspect", "-f", "{{range .IPAM.Config}}{{.Gateway}} {{end}}", "bridge")
+	if err != nil || len(strings.Fields(hostGW)) == 0 {
+		return "", fmt.Errorf("egress policy: docker's bridge network has no gateway: %s", hostGW)
+	}
+	hostGW = strings.Fields(hostGW)[0]
+	proxyAddr, err := px.ListenOn(hostGW)
+	if err != nil {
+		return "", err
+	}
+	_, proxyPort, _ := net.SplitHostPort(proxyAddr)
+	name := "janetcode-egress-" + proxyPort
+	ip := func() string {
+		out, err := dockerOut(ctx, bin, "inspect", "-f",
+			`{{if .State.Running}}{{(index .NetworkSettings.Networks "`+EgressNetwork+`").IPAddress}}{{end}}`, name)
 		if err != nil {
-			return "", err
+			return ""
 		}
-		f := strings.Fields(string(out))
-		if len(f) == 0 {
-			return "", fmt.Errorf("docker network %s has no gateway", EgressNetwork)
+		return out
+	}
+	if a := ip(); a != "" {
+		return net.JoinHostPort(a, fmt.Sprint(egressSidecarPort)), nil
+	}
+	_, _ = dockerOut(ctx, bin, "rm", "-f", name) // a stopped leftover
+	script := fmt.Sprintf(`nc -lk -p %d -e nc %s %s & S=$!; while nc -z -w2 %s %s; do sleep 5; done; kill $S`,
+		egressSidecarPort, hostGW, proxyPort, hostGW, proxyPort)
+	if out, err := dockerOut(ctx, bin, "run", "-d", "--rm", "--name", name, "--network", "bridge", s.Image(), "sh", "-c", script); err != nil {
+		return "", fmt.Errorf("egress sidecar: %s", out)
+	}
+	if out, err := dockerOut(ctx, bin, "network", "connect", EgressNetwork, name); err != nil {
+		_, _ = dockerOut(ctx, bin, "rm", "-f", name)
+		return "", fmt.Errorf("egress sidecar: %s", out)
+	}
+	for i := 0; i < 30; i++ {
+		if _, err := dockerOut(ctx, bin, "exec", name, "nc", "-z", "-w1", "127.0.0.1", fmt.Sprint(egressSidecarPort)); err == nil {
+			if a := ip(); a != "" {
+				return net.JoinHostPort(a, fmt.Sprint(egressSidecarPort)), nil
+			}
 		}
-		return f[0], nil
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
-	if g, err := gw(); err == nil {
-		return g, nil
-	}
-	if out, err := exec.CommandContext(ctx, bin, "network", "create", "--internal", EgressNetwork).CombinedOutput(); err != nil && !strings.Contains(string(out), "already exists") {
-		return "", fmt.Errorf("docker network create %s: %s", EgressNetwork, strings.TrimSpace(string(out)))
-	}
-	return gw()
+	logs, _ := dockerOut(ctx, bin, "logs", name)
+	_, _ = dockerOut(ctx, bin, "rm", "-f", name)
+	return "", fmt.Errorf("egress sidecar did not come up (the image %s needs busybox nc): %s", s.Image(), logs)
 }
