@@ -15,6 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/progress"
 	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -767,7 +768,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err := a.persistenceErr(); err != nil {
 		return "", nil, true, err
 	}
-	out, images, err := a.runSafely(ctx, t, u.Input)
+	out, images, err := a.runSafely(progress.With(ctx, func(line string) { emit(Event{Kind: EvPhase, Text: line}) }), t, u.Input)
 	dur := time.Since(start)
 	if hit := a.proxyCanaryHit(emit); hit != nil {
 		return "", nil, true, hit
