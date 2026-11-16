@@ -58,6 +58,9 @@ type checkpoints struct {
 	// a following "/undo apply" (see undo_intent.go). Not persisted: it
 	// does not survive a resume, the way turn-level undo checkpoints do.
 	pendingUndo *pendingUndo
+	// pendingCommit is what "/checkpoints commit <n>" last previewed, for
+	// "commit apply" (see checkpointcmd.go). Not persisted.
+	pendingCommit *checkpointCommit
 	// blobTemp is blobDir's directory when there is no UndoPath.
 	blobTemp blobTemp
 	// review is which changes the person saw whole, for the
