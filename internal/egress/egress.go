@@ -50,6 +50,9 @@ type Entry struct {
 	What  string `json:"what,omitempty"`
 	Bytes int64  `json:"bytes,omitempty"`
 	Count int    `json:"count"`
+	// Why says what admitted the item to the request, for a recalled
+	// memory entry: the words and fields that matched the turn's text.
+	Why string `json:"why,omitempty"`
 	// Blocked marks a request the policy refused: nothing was sent.
 	Blocked bool `json:"blocked,omitempty"`
 }
@@ -224,6 +227,9 @@ func (rep Report) Text() string {
 		}
 		if e.Count > 1 {
 			line += fmt.Sprintf(" · %d×", e.Count)
+		}
+		if e.Why != "" {
+			line += " · why: " + e.Why
 		}
 		if e.Blocked {
 			line += " · BLOCKED by the egress policy, nothing sent"

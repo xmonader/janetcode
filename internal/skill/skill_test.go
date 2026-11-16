@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 )
@@ -239,6 +240,28 @@ func TestBuiltinGeneralNeedsNoFile(t *testing.T) {
 	}
 	if general == nil || general.Source != "builtin" || general.Body == "" {
 		t.Fatalf("builtin general missing: %+v", ps)
+	}
+}
+
+func TestTurnPrepRecordsWhyEachMemoryMatched(t *testing.T) {
+	mem := memory.Open(t.TempDir(), t.TempDir())
+	mem.Put(memory.Entry{Name: "goose", Description: "Database migrations use goose", Body: "goose up from db/"})
+	rec := &egress.Recorder{}
+	rec.Begin(1)
+	ctx := egress.With(context.Background(), rec)
+	TurnPrep(&Injector{}, mem)(ctx, []llm.Block{{Type: llm.BlockText, Text: "add a database migration for users"}})
+	rep := rec.End(0)
+	var got egress.Entry
+	for _, e := range rep.Entries {
+		if e.Kind == egress.KindMemory {
+			got = e
+		}
+	}
+	if !strings.HasPrefix(got.What, "goose") || !strings.Contains(got.Why, "migration") || !strings.Contains(got.Why, "score") {
+		t.Fatalf("memory entry = %+v", got)
+	}
+	if !strings.Contains(rep.Text(), "why: matched") {
+		t.Fatalf("report text hides the reason:\n%s", rep.Text())
 	}
 }
 

@@ -631,7 +631,7 @@ func TurnPrep(in *Injector, mem *memory.Store) func(context.Context, []llm.Block
 				var ns []string
 				for _, e := range used {
 					ns = append(ns, e.Name)
-					egress.From(ctx).Add(egress.Entry{Kind: egress.KindMemory, What: e.Name + " (" + e.Scope + ")", Bytes: int64(len(e.Body))})
+					egress.From(ctx).Add(egress.Entry{Kind: egress.KindMemory, What: e.Name + " (" + e.Scope + ")", Bytes: int64(len(e.Body)), Why: mem.Why(text, e)})
 				}
 				notes = append(notes, "memory recalled: "+strings.Join(ns, ", "))
 			}
