@@ -15,7 +15,7 @@ type fakeProxy struct{ port int }
 
 func (f fakeProxy) Port() int                          { return f.port }
 func (f fakeProxy) ListenOn(ip string) (string, error) { return fmt.Sprintf("%s:%d", ip, f.port), nil }
-func (f fakeProxy) UnixSocket() (string, error)         { return "", fmt.Errorf("no socket") }
+func (f fakeProxy) UnixSocket() (string, error)        { return "", fmt.Errorf("no socket") }
 
 // listen accepts and says hello on a loopback port.
 func listen(t *testing.T) (int, func()) {
