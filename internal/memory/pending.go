@@ -233,6 +233,9 @@ func (s *Store) ConfirmCommand(arg string) (out string, handled bool, err error)
 			return "", true, err
 		}
 		return "expired " + e.Name + ": it leaves recall and the index, and stays on disk as history", true, nil
+	case "auto":
+		out, err := s.autoCommand(rest)
+		return out, true, err
 	case "confirm":
 		switch rest {
 		case "on":

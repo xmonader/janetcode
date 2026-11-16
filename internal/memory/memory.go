@@ -203,6 +203,9 @@ type Store struct {
 	// Confirm holds what the model and the extractors save as pending
 	// until the user approves it (memory_confirm, /memory confirm).
 	Confirm atomic.Bool
+	// AutoSession is set while automatic extraction and consolidation are
+	// switched off for this session (/memory auto off, see auto.go).
+	AutoSession atomic.Bool
 
 	mu        sync.Mutex
 	embedMu   sync.Mutex

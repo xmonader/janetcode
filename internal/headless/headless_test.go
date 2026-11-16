@@ -145,6 +145,41 @@ func TestAutoMemoryAfterMutatingTurn(t *testing.T) {
 	}
 }
 
+// A project (or session) with automatic memory switched off gets no
+// extraction after a mutating turn: the extractor's reply stays unused and
+// nothing is saved, though AutoMemory is on in the config.
+func TestAutoMemoryOffForProjectOrSessionExtractsNothing(t *testing.T) {
+	for _, mode := range []string{"project", "session"} {
+		root := t.TempDir()
+		f := &fake{responses: []*llm.Response{
+			{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+				{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"x","content":"1"}`)},
+			}}, StopReason: llm.StopToolUse},
+			{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+			{Message: llm.TextMessage(llm.RoleAssistant, "Files under x are generated; edit the templates instead.\nNONE"), StopReason: llm.StopEndTurn},
+		}}
+		ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", AutoApprove: true}
+		store := memory.Open(t.TempDir(), root)
+		if mode == "project" {
+			if err := store.SetAutoProject(false); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			store.AutoSession.Store(true)
+		}
+		var out, errOut bytes.Buffer
+		if err := Run(context.Background(), Options{Agent: ag, Prompt: "write x", Stdout: &out, Stderr: &errOut, Memory: store, AutoMemory: true}); err != nil {
+			t.Fatal(err)
+		}
+		if e := store.Entries(); len(e) != 0 {
+			t.Fatalf("%s off: entries = %+v", mode, e)
+		}
+		if len(f.responses) != 1 {
+			t.Fatalf("%s off: %d responses left, the extractor must not have run", mode, len(f.responses))
+		}
+	}
+}
+
 func TestWatchRerunsOnChangesAndAsksForFixes(t *testing.T) {
 	root := t.TempDir()
 	fix := func(id string) *llm.Response {

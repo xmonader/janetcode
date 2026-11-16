@@ -247,7 +247,7 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 	case agentDoneMsg:
 		m.drainEvents()
 		cmd := m.finishTurn(msg)
-		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && m.opts.Memory.AutoAllowed() && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
 			cmd = tea.Batch(cmd, m.extractMemory())
 		}
 		if msg.err == nil {

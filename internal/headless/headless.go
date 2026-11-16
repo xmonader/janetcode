@@ -448,7 +448,7 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 	} else {
 		err = ag.RunBlocks(ctx, blocks, sink)
 	}
-	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
+	if err == nil && opts.Memory != nil && opts.AutoMemory && opts.Memory.AutoAllowed() && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
 	}
 	if !opts.conversing {
@@ -476,7 +476,7 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 func endSession(ctx context.Context, opts Options, mutated bool) {
 	ag := opts.Agent
 	ag.ClassifySessionOutcome(ctx)
-	if mutated && opts.Memory != nil && opts.AutoMemory && !ag.Off["sleep"] {
+	if mutated && opts.Memory != nil && opts.AutoMemory && opts.Memory.AutoAllowed() && !ag.Off["sleep"] {
 		sleepSession(ctx, opts)
 	}
 }
