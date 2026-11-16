@@ -31,7 +31,7 @@ func TestCriticWarnsOncePerTurn(t *testing.T) {
 	a.Predictor = p
 	var notices []string
 	if err := a.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			notices = append(notices, e.Text)
 		}
 	}); err != nil {
@@ -64,7 +64,7 @@ func TestCriticWarnsOncePerTurn(t *testing.T) {
 	b.AutoApprove, b.Predictor, b.Off = true, p, map[string]bool{"critic": true}
 	n := 0
 	if err := b.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			n++
 		}
 	}); err != nil || n != 0 {

@@ -395,14 +395,16 @@ func (a *Agent) endTurn(ctx context.Context) {
 	// The turn's event sink goes with the turn: emitter() promises a sink
 	// that drops events when no turn is running, and without this it kept
 	// handing out the finished turn's one.
+	emit := a.emitter() // the turn's sink, to say which checkpoint it left
 	a.setEmitter(nil)
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
 	var (
-		snap  *snapshot.Snap // the open checkpoint's snapshot, to manifest
-		files []Snapshot     // and the copies its file tools made
-		want  bool           // it still needs a manifest
+		snap     *snapshot.Snap // the open checkpoint's snapshot, to manifest
+		files    []Snapshot     // and the copies its file tools made
+		want     bool           // it still needs a manifest
+		announce int            // the turn whose checkpoint survived, to name
 	)
 	if a.cp.open {
 		cur := &a.cp.all[len(a.cp.all)-1]
@@ -417,6 +419,7 @@ func (a *Agent) endTurn(ctx context.Context) {
 			}
 		}
 		if a.cp.open {
+			announce = a.cp.all[len(a.cp.all)-1].Turn
 			if cur := &a.cp.all[len(a.cp.all)-1]; !cur.Manifested {
 				want, files = true, cur.Files
 				if repo != nil {
@@ -470,6 +473,29 @@ func (a *Agent) endTurn(ctx context.Context) {
 		if err := a.SaveUndo(); err != nil {
 			a.debugf("save undo: %v", err)
 		}
+	}
+	if announce > 0 {
+		a.announceCheckpoint(emit, announce)
+	}
+}
+
+// announceCheckpoint says, as the turn ends, which checkpoint it left: a
+// turn that changed something is recoverable, and the person should see
+// the identifier without having to ask for the list.
+func (a *Agent) announceCheckpoint(emit func(Event), turn int) {
+	for _, ci := range a.CheckpointList() {
+		if ci.Turn != turn {
+			continue
+		}
+		text := "checkpoint " + ci.ID
+		if ci.Changed >= 0 {
+			text += " · " + plural(ci.Changed, "path") + " changed"
+		}
+		if !ci.Complete {
+			text += " · incomplete"
+		}
+		emit(Event{Kind: EvNotice, Text: text + " · /checkpoints compares, exports or restores it"})
+		return
 	}
 }
 

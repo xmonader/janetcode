@@ -49,7 +49,7 @@ func TestHooksDenyRewriteAnnotateAndContinue(t *testing.T) {
 	}}}
 	var notices []string
 	err := a.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			notices = append(notices, e.Text)
 		}
 	})
@@ -164,7 +164,7 @@ func TestPermissionRulesAllowDenyAndAlways(t *testing.T) {
 	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{hook.PreTool: {{Match: "write_file", Command: `echo '{"decision":"allow"}'`}}}}}
 	var notices []string
 	if err := a.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			notices = append(notices, e.Text)
 		}
 	}); err != nil {
@@ -203,7 +203,7 @@ func TestVerifyGateFeedsFailuresBackThenPasses(t *testing.T) {
 	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"grep -q ok a.txt"}}}
 	var notices []string
 	err := a.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			notices = append(notices, e.Text)
 		}
 	})
@@ -243,7 +243,7 @@ func TestVerifyGateSkipsReadOnlyTurnsAndGivesUp(t *testing.T) {
 	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"false"}}}
 	var last string
 	if err := a.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			last = e.Text
 		}
 	}); err != nil {
@@ -339,7 +339,7 @@ func TestBackgroundJobsAreReportedBetweenCalls(t *testing.T) {
 	a.Tools.Add(tool.JobTool{Jobs: a.Jobs})
 	var notices []string
 	if err := a.Run(context.Background(), "go", func(e Event) {
-		if e.Kind == EvNotice {
+		if e.Kind == EvNotice && !strings.HasPrefix(e.Text, "checkpoint ") {
 			notices = append(notices, e.Text)
 		}
 	}); err != nil {
