@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
@@ -71,6 +72,24 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return true, decisionsAnnotateMode(ctx, o.decisionsAnnotate, o.decisionsAnnotateOut)
+	case o.followID != "":
+		dir, err := session.Dir()
+		if err != nil {
+			return true, err
+		}
+		format, err := headless.ParseFormat(o.outFormat)
+		if err != nil {
+			return true, headless.BadInput("%v", err)
+		}
+		if format == headless.FormatJSON {
+			return true, headless.BadInput("--follow prints text or stream-json, not json")
+		}
+		if o.promptText != "" {
+			return true, headless.BadInput("--follow watches a session, it does not run a prompt; drop -p")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return true, followMode(ctx, os.Stdout, dir, o.followID, format, 200*time.Millisecond)
 	case o.answerID != "":
 		dir, err := session.Dir()
 		if err != nil {
@@ -139,7 +158,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{o.decisionsAnnotate != "" && o.decisionsReplay != "", "--decisions-annotate and --decisions-replay are separate runs"},
 		{o.sessionProfile != "" && o.promptText != "", "--session-profile reads recorded runs, it does not start one; drop -p"},
 		{o.doctorFix && !o.runDoctor, "--fix is --doctor's: run janetcode --doctor --fix"},
-		{format != headless.FormatText && !o.headless() && o.watchCmd == "" && !o.recoverTurn && !o.runDoctor && !o.listModels, "--output-format applies to a headless run (-p, --input-format stream-json, --recover), --doctor or --list-models"},
+		{format != headless.FormatText && !o.headless() && o.watchCmd == "" && !o.recoverTurn && !o.runDoctor && !o.listModels && o.followID == "", "--output-format applies to a headless run (-p, --input-format stream-json, --recover), --doctor, --list-models or --follow"},
 		{o.listModels && format == headless.FormatStreamJSON, "--list-models prints text or json, not stream-json"},
 		{o.inFormat != "" && o.inFormat != string(headless.InputText) && o.inFormat != string(headless.InputStreamJSON), "unknown --input-format " + o.inFormat + ": want text or stream-json"},
 		{o.inFormat == string(headless.InputStreamJSON) && format != headless.FormatStreamJSON, "--input-format stream-json needs --output-format stream-json"},

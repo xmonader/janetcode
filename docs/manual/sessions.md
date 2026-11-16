@@ -57,6 +57,13 @@ refused the same way; `--answer` and `--sessions` read its sidecars and need
 no lease. Within one process the lease is shared, so nothing refuses a
 session the same process already has open.
 
+To watch a session another process runs without taking it, use
+`janetcode --follow <id>`: a read-only observer that prints the session's
+events as the owner appends them and ends when the owner is gone. Several
+browser pages on one `--web` server are told apart too: one controls, the
+others observe or are refused with a conflict that carries the current
+state. [The session protocol](protocol.md) specifies both.
+
 `janetcode --bg "prompt"` starts that prompt in a detached child, prints
 the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`
 jobs are stored on the session and restored when that session is resumed.

@@ -104,6 +104,30 @@ and measurements behind each round are in `docs/notes/history.md`.
   statement carries each turn's evidence status and each command's status.
   Eval results map to evidence statuses (`Result.Evidence`).
 
+### Session protocol: several clients, one session
+- Spec: docs/manual/protocol.md (version 1, `internal/sessionproto`).
+- `--web`: every change now goes through a control lease. The first client
+  to change the session controls it; another client's change is refused
+  with `409` and a JSON conflict (`lease_held`, `stale_lease`,
+  `observer_readonly`, `turn_running`) carrying the current state. The
+  lease lapses 15 s after its holder is last heard from (requests, or its
+  open event stream), so a vanished controller never locks the session.
+  `/api/control` acquires, takes over at a turn boundary, or releases.
+- Observers: `/events?role=observer` (the page with `?observe=1`) follows a
+  session read-only; `/events?since=<seq>` skips what a client has;
+  `control` and `bye` events; `X-Janet-Protocol` on every response. The
+  page shows who controls the session, with Take control.
+- Settings that change how later turns run (`/effort`, `/routing`,
+  `/context-window`, `/config`, `/add-dir`, `/sandbox`, `/dryrun`) sent
+  mid-turn wait in the prompt queue and apply at the turn boundary.
+- `--follow <id>`: a read-only observer of a session another process runs
+  (terminal, `--web`, `--acp`, `--bg`); never takes the lease; ends when the
+  owner is gone; `--output-format stream-json` for the protocol form.
+- ACP: prompts for one session now run strictly in the order sent (they
+  could start in any order before); opening a session another janetcode
+  runs fails with code `-32010` and data naming the holder; `initialize`
+  reports `_meta.janetcode.sessionProtocol`.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)

@@ -20,6 +20,9 @@ against their published schemas, and the stop reasons, permission kinds
 and tool kinds are pinned to that schema so they cannot drift. Cancelling
 mid-turn returns `cancelled` and leaves the session usable; a frame that
 is not JSON is answered with a parse error and the connection carries on.
+Prompts for one session run in the order they were sent. Opening a session
+another janetcode runs fails with a structured error (code `-32010`, the
+holder and the ways on in `data`); see the [session protocol](protocol.md#acp).
 
 ## JetBrains IDEs
 

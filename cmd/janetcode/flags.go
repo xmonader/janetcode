@@ -118,7 +118,9 @@ type options struct {
 	runDoctor    bool
 	backupTo     string
 	answerID     string
-	restoreFrom  string
+	// followID is a session to watch read-only (see follow.go).
+	followID    string
+	restoreFrom string
 	// decisionsReplay is Phase 0's offline calibration driver: a
 	// labeled-state corpus path, see docs/notes/jev-integration-spec.md.
 	decisionsReplay string
@@ -162,7 +164,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "w", "add-dir", "file-mode", "admit", "attach", "theme", "plain", "screen-reader"}},
-	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "follow", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "core-tools", "exclude-tools", "safe-mode", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version", "debug", "list-models"}},
 	{"Advanced", nil},
@@ -366,6 +368,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.IntVar(&o.sessionProfileStale, "session-profile-stale", profileStaleAfter, "with --session-profile: how many model calls old an unreferenced tool result has to be before it counts as stale")
 	fs.StringVar(&o.decisionsReplay, "decisions-replay", "", "calibrate the optional verify-triage decisions model against a labeled state corpus (one JSON per line: name, truth, state) and exit")
 	fs.StringVar(&o.answerID, "answer", "", "answer a --bg run waiting for permission or with an open question: --answer <id> shows it, --answer <id> allow|session|deny settles a permission request, --answer <id> <choice> answers a question (an option number, its label, or your own words), then exit")
+	fs.StringVar(&o.followID, "follow", "", "watch a session another janetcode runs (a terminal, --web, --acp, a --bg run) as a read-only observer: prints who holds it and its events as they are appended, never takes the session's lease, and ends when the holder is gone. With --output-format stream-json each line is a session protocol object (docs/manual/protocol.md)")
 	fs.StringVar(&o.backupTo, "backup", "", "write the config and data directories (config, permission rules, MCP logins, sessions, memory) to one tar.gz readable only by you, then exit")
 	fs.StringVar(&o.restoreFrom, "restore", "", "put a --backup archive back, then exit. The files it replaces are saved to a tar.gz beside it first, so a restore can be undone")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
