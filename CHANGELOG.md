@@ -27,6 +27,9 @@ and measurements behind each round are in `docs/notes/history.md`.
   credential redaction, and never enters the history, session file,
   trajectory, event stream or logs. Declining returns a plain refusal;
   headless, background, ACP and away runs refuse instead of hanging.
+  Commands on ssh and Docker remote workspaces receive it too, without
+  the value ever being on a command line (stdin-staged private file for
+  ssh, `docker exec -e NAME` for Docker).
 - `op://vault/item/field` references are accepted wherever a provider API
   key is configured. They are read with `op read` when the provider is
   built, never written back to the config, and an unreadable reference is

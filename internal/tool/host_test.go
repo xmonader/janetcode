@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/xmonader/janetcode/internal/shell"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,6 +126,7 @@ func TestRetargetDialFailureIsReported(t *testing.T) {
 // injection remoteWords guards against.
 const fakeSSHScript = `#!/bin/sh
 if [ "$FAKE_STAGE" != "remote" ]; then
+	[ -n "$FAKE_ARGLOG" ] && printf '%s\n' "$@" >> "$FAKE_ARGLOG"
 	while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done
 	[ "$1" = "--" ] && shift
 	joined=""
@@ -150,7 +152,7 @@ mkdir) shift; mkdir -p "$2" ;;
 tee) shift; cat > "$1" ;;
 find) shift; find "$@" ;;
 chmod) exit 0 ;;
-sh|bash) shift; [ "$1" = "-lc" ] && shift; eval "$1" ;;
+sh|bash) shift; { [ "$1" = "-lc" ] || [ "$1" = "-c" ]; } && shift; eval "$1" ;;
 *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `
@@ -277,4 +279,93 @@ func TestSSHRemoteWordsShellOpaque(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(out)) != "one two" {
 		t.Fatalf("bash through ssh: %q err=%v", out, err)
 	}
+}
+
+// A secret the user gave at a prompt reaches a command on an ssh
+// workspace, but not through anything a process list or a log shows: the
+// values go over ssh's stdin into a private file the command sources and
+// removes, so the ssh argument vector carries only the file's name.
+func TestSSHCommandReceivesSessionSecrets(t *testing.T) {
+	fs := installFakeSSH(t)
+	argLog := filepath.Join(t.TempDir(), "args")
+	t.Setenv("FAKE_ARGLOG", argLog)
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	const value = "p@ss'w\"o rd$(echo x > pwned)\nline2"
+	shell.ClearSessionSecrets()
+	t.Cleanup(shell.ClearSessionSecrets)
+	shell.SetSessionSecret("JANETCODE_SECRET_TOK", value)
+	h, err := DialSSH("user@host")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := h.Command(context.Background(), `printf %s "$JANETCODE_SECRET_TOK"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil || string(out) != value {
+		t.Fatalf("remote saw %q err=%v, want %q", out, err, value)
+	}
+	args := readTestFile(t, argLog)
+	if strings.Contains(args, "p@ss") || strings.Contains(args, "line2") {
+		t.Fatalf("a secret value is on an ssh argument line:\n%s", args)
+	}
+	if left, _ := filepath.Glob(filepath.Join(tmp, "*")); len(left) != 0 {
+		t.Fatalf("the staged secret file was not removed: %v", left)
+	}
+	if _, err := os.Stat(filepath.Join(fs, "pwned")); err == nil {
+		t.Fatal("the secret value was executed as shell on the remote")
+	}
+
+	// With no secret set there is no staging call, just the one command.
+	shell.ClearSessionSecrets()
+	os.Remove(argLog)
+	cmd, _ = h.Command(context.Background(), "echo plain")
+	if out, err := cmd.CombinedOutput(); err != nil || strings.TrimSpace(string(out)) != "plain" {
+		t.Fatalf("plain command: %q err=%v", out, err)
+	}
+	if strings.Contains(readTestFile(t, argLog), "mktemp") {
+		t.Fatal("staged a secret file with no secrets set")
+	}
+}
+
+// A docker workspace takes the secret by name: docker copies the value
+// from its own environment, so it is not on the command line either.
+func TestDockerCommandReceivesSessionSecretsByName(t *testing.T) {
+	bin := t.TempDir()
+	argLog := filepath.Join(t.TempDir(), "args")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$FAKE_ARGLOG\"\nprintf '%s' \"$JANETCODE_SECRET_TOK\" > \"$FAKE_ARGLOG.env\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_ARGLOG", argLog)
+	shell.ClearSessionSecrets()
+	t.Cleanup(shell.ClearSessionSecrets)
+	shell.SetSessionSecret("JANETCODE_SECRET_TOK", "s3cr3t-value")
+	h := &remoteHost{kind: "docker", target: "box", root: "/work"}
+	cmd, err := h.Command(context.Background(), "true")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	args := readTestFile(t, argLog)
+	if !strings.Contains(args, "-e\nJANETCODE_SECRET_TOK\n") || strings.Contains(args, "s3cr3t-value") {
+		t.Fatalf("docker args = %q", args)
+	}
+	if got := readTestFile(t, argLog+".env"); got != "s3cr3t-value" {
+		t.Fatalf("docker's environment held %q", got)
+	}
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	return string(b)
 }

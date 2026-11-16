@@ -1412,8 +1412,12 @@ the model has to ask again.
 A request is refused with a clear message, and nothing hangs, where no
 one can answer privately: headless `-p`, `--bg` runs, ACP, away mode and
 subagents. Values shorter than four characters are not accepted, since
-they cannot be redacted safely. A command running on a remote workspace
-does not receive the variable. For a credential janetcode itself needs,
+they cannot be redacted safely. On a remote workspace the variable is
+forwarded too: over ssh the values go on ssh's stdin into a private (mode 600)
+file that the command sources and deletes before it starts, so they are on no
+command line or process list; for a Docker workspace the name is passed to
+`docker exec -e NAME` and docker reads the value from its own environment. If
+staging fails the command is not run and the error says so. For a credential janetcode itself needs,
 use an `op://` reference in the config instead (see Configuration).
 
 ### Untrusted content: the tainted session

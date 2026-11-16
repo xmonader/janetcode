@@ -13,7 +13,9 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // remoteHost is an SSH or Docker workspace: file ops and bash go through
@@ -224,17 +226,57 @@ func (h *remoteHost) WalkDir(ctx context.Context, root string, fn fs.WalkDirFunc
 }
 
 func (h *remoteHost) Command(ctx context.Context, command string) (*exec.Cmd, error) {
-	script := "cd " + shQuote(h.root) + " && " + command
+	secrets := shell.SessionSecrets()
 	var cmd *exec.Cmd
 	switch h.kind {
 	case "docker":
-		cmd = exec.CommandContext(ctx, "docker", "exec", "-i", "-w", h.root, h.target, "bash", "-lc", command)
+		args := []string{"exec", "-i", "-w", h.root}
+		// "-e NAME" without a value takes it from docker's own
+		// environment (set below by ScrubEnv), so the value is on no
+		// command line.
+		for _, kv := range secrets {
+			name, _, _ := strings.Cut(kv, "=")
+			args = append(args, "-e", name)
+		}
+		cmd = exec.CommandContext(ctx, "docker", append(args, h.target, "bash", "-lc", command)...)
 	default:
+		script := "cd " + shQuote(h.root) + " && " + command
+		if len(secrets) > 0 {
+			file, err := h.stageSecrets(ctx, secrets)
+			if err != nil {
+				return nil, err
+			}
+			// The file is read and removed before the command starts, so
+			// the values sit on the remote disk (mode 600) only between
+			// the two ssh calls.
+			script = "cd " + shQuote(h.root) + " && { . " + shQuote(file) + "; rm -f " + shQuote(file) + "; true; } && " + command
+		}
 		cmd = exec.CommandContext(ctx, "ssh", append(sshArgs(h.target), h.remoteWords([]string{"bash", "-lc", script})...)...)
 	}
 	cmd.Env = shell.ScrubEnv(os.Environ())
 	shell.SetProcessGroup(cmd)
 	return cmd, nil
+}
+
+// stageSecrets writes the session secrets to a private file on the remote
+// as export lines and returns its path. The values travel on ssh's stdin:
+// not in an argument, so not in a process list or a log, and not in the
+// environment, which ssh forwards only if the server allows it. The
+// command's own stdin is not an option: the bash tool and the jobs
+// registry own it.
+func (h *remoteHost) stageSecrets(ctx context.Context, secrets []string) (string, error) {
+	var sb strings.Builder
+	for _, kv := range secrets {
+		name, value, _ := strings.Cut(kv, "=")
+		sb.WriteString("export " + name + "=" + shQuote(value) + "\n")
+	}
+	out, err := h.argv(ctx, strings.NewReader(sb.String()), "sh", "-c", `umask 077; f=$(mktemp) || exit 1; cat > "$f" || { rm -f "$f"; exit 1; }; printf %s "$f"`)
+	reply := strings.TrimSpace(string(out))
+	if err != nil || reply == "" || strings.ContainsAny(reply, "\n\r") {
+		reply, _ = secret.Redact(reply)
+		return "", fmt.Errorf("forwarding session secrets to %s failed (%v): %s", h.Label(), err, textfmt.Clip(reply, 300))
+	}
+	return reply, nil
 }
 
 func sshArgs(target string) []string {

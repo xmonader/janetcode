@@ -51,10 +51,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - `/pr` and `/pr-comments` verified live against github.com 2026-11-16
   (docs/notes/github-live.md). The Action on a hosted runner is not: the
   account's Actions jobs do not start (billing) and the repo has no secret.
-- t3code round gaps: guest links are bearer links (any browser, 24h), not
-  bound to the first browser; delegate cost/usage not added to session
-  totals; secrets are memory-only (lost on resume) and not sent to remote
-  workspaces; op:// values cached 5 min; --bg runs get no deep link.
+- t3code round gaps: secrets are memory-only (lost on resume); ssh remote
+  secrets sit on the remote disk (0600) between two ssh calls, and an
+  abandoned staging file is not swept; codex delegate cost is unknown
+  (tokens only); op:// values cached 5 min; --bg runs get no deep link.
 - Landlock egress is by port (a remote host on the proxy's port is reachable);
   only used when bwrap (netns + unix-socket bridge) and docker (isolated net +
   sidecar) are both unavailable. Docker sidecar needs busybox nc in the image.
