@@ -58,6 +58,12 @@ func ForkAt(dir string, from *Session, cutSeq int, title string) (*Session, erro
 	// had been editing and, worse, the lock on the acceptance tests —
 	// the tests it was approved against became editable again.
 	ns.Meta.ExtraDirs = append([]string(nil), meta.ExtraDirs...)
+	if meta.Admission != nil {
+		c := *meta.Admission
+		c.Edit = append([]string(nil), c.Edit...)
+		c.Attach = append([]string(nil), c.Attach...)
+		ns.Meta.Admission = &c
+	}
 	ns.Meta.Loops = append([]LoopSpec(nil), meta.Loops...)
 	ns.Meta.Accept = meta.Accept.Clone()
 	if title = strings.TrimSpace(title); title == "" {

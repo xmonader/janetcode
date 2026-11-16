@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/admit"
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -49,6 +50,9 @@ type Meta struct {
 	Loops []LoopSpec `json:"loops,omitempty"`
 	// ExtraDirs are additional local roots file tools may read and edit.
 	ExtraDirs []string `json:"extra_dirs,omitempty"`
+	// Admission is the file admission policy (mode and admitted paths),
+	// restored on resume; nil for a session on the default workspace mode.
+	Admission *admit.State `json:"admission,omitempty"`
 	// Start is the repository state recorded on this session's first user
 	// turn, when its cwd is a git repository. /eval keep reads it to turn
 	// the session into a regression eval that replays the exact tree and
@@ -560,6 +564,21 @@ func (s *Session) SetLoops(loops []LoopSpec) error {
 // SetExtraDirs stores additional file-tool roots and rewrites metadata.
 func (s *Session) SetExtraDirs(dirs []string) error {
 	return s.UpdateMeta(func(m *Meta) { m.ExtraDirs = append([]string(nil), dirs...) })
+}
+
+// SetAdmission stores the file admission policy and rewrites metadata. A
+// default policy clears the record.
+func (s *Session) SetAdmission(st admit.State) error {
+	return s.UpdateMeta(func(m *Meta) {
+		if st.Zero() {
+			m.Admission = nil
+			return
+		}
+		c := st
+		c.Edit = append([]string(nil), st.Edit...)
+		c.Attach = append([]string(nil), st.Attach...)
+		m.Admission = &c
+	})
 }
 
 // SetCwd records the directory the session is rooted at and rewrites the
