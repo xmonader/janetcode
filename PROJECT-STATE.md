@@ -16,68 +16,13 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   (2026-09-30, docs/notes/anthropic-live.md), not api.anthropic.com itself.
 - Windows: run under wine (tests + a live headless turn, docs/notes/
   windows-wine.md); PowerShell paths need a real Windows run (CI job).
-- User-expectation checklist 2026-09-30 (docs/notes/user-expectations.md):
-  every gap except subscription login closed by 11+3 parallel forks, merged
-  on master; CHANGELOG "User-expectation gaps". Test broker: ai02
-  (OPENAI_BASE_URL=https://api.ai02.ourhero.ai/v1), cheap models
-  deepseek/deepseek-v4.1-flash, xiaomi/mimo-v2.6-flash, qwen/qwen3.8-27b.
 - Last release tag: v0.2.0; ~1970 commits since.
-- Earlier rounds (polish/look 09-24/25, deer-flow/trae review, Qwen/Claude
-  parity 09-25): CHANGELOG sections of the same names and
-  docs/notes/history.md. UI checks: `make ui-test ui-turn ui-a11y
-  ui-visual`. install.sh/--update need the GitHub repo public.
-
-- qwengo parity 2026-10-06: `--json-schema`, `--input-format stream-json`,
-  native Gemini + OpenAI Responses providers (shared loop in
-  `internal/llm/httpstream`), `/commit` + `/pr` (`internal/gitship`).
-  Live-verified: json-schema, stream input, Responses (encrypted
-  reasoning replay) and /commit drafting via OpenRouter. Native Gemini is
-  verified only against a fake server (no Gemini key here). Not taken from
-  qwengo: extensions manager, teams/arena tools, ~40 themes, vim input.
-- qwengo parity round 2 (2026-10-06): --max-tool-calls (57),
-  --max-wall-time (56), --core-tools/--exclude-tools (registry gate),
-  .aiignore (internal/ignore), --safe-mode, Tavily/Serper/Exa/SearXNG
-  search, bwrap sandbox (preferred on Linux), --debug, --list-models,
-  update_check notice, ctrl+x $EDITOR, drag-select + copy (OSC 52
-  fallback). Live: Serper, Exa, list-models; bwrap/editor/drag via pty.
-  Not live: Tavily, SearXNG (no key/instance).
-
-- Novel ideas 2026-10-10 (branch feat/novel-ideas, not on master): all 13
-  from reports/Janetcode novel engineering ideas.md built, unit-tested, no
-  live runs. Default on (deterministic): claimcheck, tour, testledger,
-  evidence (--proof verify), taint/honeytoken/depgate. Opt-in: probe_ledger,
-  elide_checks, conflict_exit, localize_failures, effort_control,
-  subagent_merge, --branch-retry, --second-sample. Offline pre-screens:
-  elide 37% (<60% kill), claimcheck 3% (<10%), tour 0.2% mechanical
-  (<20%), second-sample trigger precision 23% (<40%), branch-retry 0
-  branch points; probes 75% of r13 runs, 23/32 with a discriminating one.
-  Impossible-effbench split: docs/benchmarks/effbench/impossible. Next:
-  live A/Bs on ai02. Further ideas: reports/Janetcode wild ideas.md.
-  Dropped on that evidence and their code removed (2026-10-11):
-  elide_checks, --branch-retry, --second-sample.
-
-- Wild ideas 2026-10-10 (same branch): all 25 from reports/Janetcode wild
-  ideas.md built, unit-tested, no live runs. Default on: numclaim, scope,
-  dossier, typosquat. Opt-in: spec_coverage, spec_examples, blind_tester,
-  diff_fuzz, flake_quarantine, fix_cache, speculate, plan_file, hedge_provider,
-  stream_resume, fingerprint, probe_memory, read_blame, observed_purity,
-  preresolve, prefix_kernel, scope_justify; flags --eval-sequential,
-  --ab-replay, --off-peak-by, --session-ref, --why-broke. Weak pre-screens:
-  pattern induction 5.6% (<10%, not wired), speculation proxy 1%, hedging
-  0 rescues, flake flips ~0, fix-cache 0.6%, purity 2.9% prompts saved.
-  Dropped and their code removed (2026-10-11): on those pre-screens,
-  pattern induction, speculate, hedge_provider/stream_resume,
-  flake_quarantine, fix_cache, observed_purity and prefix_kernel; on the
-  live runs (docs/benchmarks/novel/REPORT.md), spec_coverage/spec_examples
-  (19/21 vs 18/21 at +19% wall) and blind_tester (20/21, same as a second
-  baseline, +18% wall). The lists above are what was built, not what is
-  left.
-
-- t3code round 2026-11-16 (ideas from pingdotgg/t3code, on master):
-  request_secret + op:// keys, /share guest links, render_html pages,
-  notification deep links (one-time ticket) + ?prompt= drafts +
-  JANETCODE_WEB_URL, opt-in `delegates` (claude/codex CLIs). Unit + UI
-  tested; none live-tested against a real model.
+- Rounds since 2026-09-24 (user expectations, qwengo parity 1-2, novel and
+  wild ideas, t3code 2026-11-16): docs/notes/history.md and the CHANGELOG
+  sections of the same names. Test broker: ai02
+  (OPENAI_BASE_URL=https://api.ai02.ourhero.ai/v1). UI checks: `make
+  ui-test ui-turn ui-a11y ui-visual` (UI_CDP_PORT/UI_VISUAL_CDP_PORT for
+  concurrent runs). install.sh/--update need the GitHub repo public.
 
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
