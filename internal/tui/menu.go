@@ -23,6 +23,10 @@ func (m *model) completions() []command {
 		var exact, fuzzy []command
 		for _, c := range m.allCommands() {
 			switch {
+			case c.name == v:
+				// Typed in full: it leads, ahead of longer names that
+				// start with it (/pr before /pr-comments).
+				exact = append([]command{c}, exact...)
 			case strings.HasPrefix(c.name, v):
 				exact = append(exact, c)
 			case fuzzyCommand(c.name, v):

@@ -118,6 +118,24 @@ func TestCtrlVPastesClipboardImage(t *testing.T) {
 	}
 }
 
+// TestExactCommandNameLeadsTheMenu: /pr is a prefix of /pr-comments, which
+// the command table lists first. Typing /pr and pressing enter took the
+// highlighted /pr-comments into the box instead of running /pr, so /pr
+// could never be run without an argument or a trailing space. A command
+// typed in full must head the menu.
+func TestExactCommandNameLeadsTheMenu(t *testing.T) {
+	h := newHarness(t)
+	h.keys("/pr")
+	c, idx := h.m.menu()
+	if len(c) < 2 || c[idx].name != "/pr" {
+		names := []string{}
+		for _, r := range c {
+			names = append(names, r.name)
+		}
+		t.Fatalf("menu for /pr is led by %v, want /pr first", names)
+	}
+}
+
 func TestMenuNavigation(t *testing.T) {
 	h := newHarness(t)
 	up := tea.KeyMsg{Type: tea.KeyUp}
