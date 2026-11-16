@@ -1302,6 +1302,59 @@ has only a `description` is Cursor's "agent requested" kind and nothing
 brings it in here, so it is skipped. Only the `.cursor/rules` at the
 project root is searched for glob rules, not those in subdirectories.
 
+### Delegating to Claude Code or Codex: `delegates`
+
+janetcode cannot sign in to a Claude or ChatGPT subscription itself, and
+does not try. What it can do is hand a task to the official CLI you are
+already signed into. The CLI runs on **its own login and under its own
+terms**; janetcode never reads, copies or proxies its credentials, and
+the usage is billed to that CLI's account, not to your janetcode provider.
+It is off by default:
+
+```json
+{"delegates": {"enabled": true}}
+```
+
+With it on, the model gets a `delegate` tool whose `agent` is `claude`
+(Claude Code) or `codex` (OpenAI Codex CLI), and which of them is used is
+the model's choice, so say in your prompt which one you want. The CLI runs
+in the session's current directory and its final answer comes back as the
+tool result, with its cost and token usage when it reports them. Its
+progress shows as the status line while it works.
+
+- **Approval.** A delegate call is put to you like a bash command: the
+  CLI is an agent that runs commands. It is withheld in read-only and plan
+  modes, and a subagent (`task`) cannot use it.
+- **Environment.** The CLI starts with the same scrubbed environment as a
+  bash command, so `*_API_KEY` variables (yours for janetcode's providers)
+  are not passed on. A CLI that signs in with an API key rather than its
+  login therefore has to be run some other way.
+- **Read-only by default.** `claude` runs as
+  `claude -p PROMPT --output-format stream-json --verbose --permission-mode default --no-session-persistence`
+  (headless, where "default" refuses what it would have asked about) and
+  `codex` as `codex exec --sandbox read-only --json --ephemeral PROMPT`.
+  Nothing bypasses permissions. To let one edit files, replace its `args`
+  yourself, for example `"--permission-mode", "acceptEdits"` or
+  `"--sandbox", "workspace-write"`; `{prompt}` marks where the task goes
+  (it is appended when absent).
+- **Limits.** One run is stopped after `timeout_minutes` (default 30); on
+  timeout or cancel the CLI and everything it started are killed.
+
+```json
+{"delegates": {
+  "enabled": true,
+  "timeout_minutes": 15,
+  "agents": {
+    "codex": {"args": ["exec", "--sandbox", "workspace-write", "--json", "--ephemeral", "{prompt}"]},
+    "mycli": {"command": "/opt/bin/mycli", "args": ["run", "{prompt}"], "format": "text"}
+  }
+}}
+```
+
+`format` says how stdout is read: `claude` (stream-json), `codex`
+(`--json` events) or `text` (all of stdout is the answer, the default for
+any other name). An entry replaces only the fields it sets.
+
 ## Themes
 
 The `"theme"` key selects the palette: `auto` (detect the terminal

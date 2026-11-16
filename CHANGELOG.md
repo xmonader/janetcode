@@ -18,6 +18,16 @@ and measurements behind each round are in `docs/notes/history.md`.
   built, never written back to the config, and an unreadable reference is
   named in the error.
 
+### Delegate to Claude Code or Codex (2026-11-16)
+- New opt-in `delegates` setting adds a `delegate` tool that runs a task
+  through an installed `claude` or `codex` CLI, on that CLI's own login
+  and terms (janetcode never touches its credentials). Same approval as a
+  bash command, scrubbed environment, read-only CLI modes by default,
+  timeout, process-group kill on cancel; the answer and the CLI's cost
+  come back as the result and its progress shows on the status line.
+- Tools can now report progress lines to the status line
+  (`tool.Progress`).
+
 ### Loop fixes (2026-11-10)
 - A provider failure that arrives mid-stream (a 5xx or 429 error frame
   after the stream opened) is retried instead of ending the turn.

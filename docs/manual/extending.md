@@ -198,6 +198,14 @@ go run ./examples/sdk -dir ~/src/project "add a test for Parse"
 go run ./examples/sdk -mcp "everything=npx -y @modelcontextprotocol/server-everything" "echo PAPAYA with the echo tool"
 ```
 
+## Delegating to another agent CLI
+
+The `delegate` tool runs a task through an installed Claude Code or Codex
+CLI on that CLI's own login and terms, with the approval a bash command
+needs and none of janetcode's API keys in its environment. It is off by
+default; see "Delegating to Claude Code or Codex" in
+[configuration.md](configuration.md).
+
 ## janetcode as an MCP server
 
 `janetcode --mcp-serve` serves janetcode over MCP on stdio, so any MCP
