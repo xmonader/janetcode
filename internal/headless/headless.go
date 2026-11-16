@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/sleepfold"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Options configures a headless run.
@@ -749,6 +750,14 @@ func printEvent(opts Options, e agent.Event) {
 		tag := "ok"
 		if e.IsError {
 			tag = "error"
+		}
+		// A saved page is a file to open: show its title and path whole,
+		// as the terminal does, not clipped inside the result sentence.
+		if e.Call != nil && e.Call.Name == "render_html" && !e.IsError {
+			if card, ok := tool.PageResultLine(e.Output); ok {
+				fmt.Fprintf(opts.Stderr, "%s\n", safe(card))
+				return
+			}
 		}
 		fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, safeLine(e.Output, 300))
 	case agent.EvCompacted:
