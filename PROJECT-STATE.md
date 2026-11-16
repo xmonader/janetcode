@@ -29,6 +29,8 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Fix GitHub Actions billing; then ci/release.yml run again (GHCR image).
+- #2 (file admission: /admit, /attach, --file-mode/--admit/--attach, internal/admit)
+  implemented on branch, unreleased; see CHANGELOG Unreleased.
 - GitHub issues: #6 and #7 closed (2026-11-16). #1-#3, #5, #8-#12 stay open:
   checked against their acceptance criteria, parts are missing (no file
   admission mode #2, no `--doctor security` #10, no extension doctor #8, no
