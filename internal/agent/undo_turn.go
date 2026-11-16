@@ -53,6 +53,70 @@ type TurnRestore struct {
 	// leave the conversation as it is, which is what "/undo turn" did
 	// before it learned to rewind.
 	FilesOnly bool
+	// Conflicts are the files the restore would overwrite although they
+	// are not as the turns left them: edited by hand, or by anything
+	// else, since. Apply refuses while there are any, unless forced.
+	Conflicts []TurnConflict
+	// Unverified is set when some turn being undone has no manifest (it
+	// predates manifests), so edits made since cannot be told apart from
+	// its own work for the files it touched.
+	Unverified bool
+}
+
+// TurnConflict is one file a turn restore would overwrite although it
+// differs from the state the restored turns left it in, and why.
+type TurnConflict struct {
+	Path string
+	Why  string
+}
+
+// ErrTurnRestoreConflict is returned when applying a previewed turn
+// restore would overwrite files that are not as the turns left them.
+// "/undo apply --force" overwrites them anyway.
+var ErrTurnRestoreConflict = errors.New("refusing to overwrite files that changed after the turns being undone")
+
+// turnConflicts compares the paths a restore to before turn n would
+// write against what the turns from n on left in them, their manifests
+// (later turns win for a path several touched). A path no turn claims
+// differs from the checkpoint for another reason, so it is a conflict
+// too. The checkpoints are read under the lock; the files are not.
+func (a *Agent) turnConflicts(n int, paths []string) (conflicts []TurnConflict, unverified bool) {
+	manifest := map[string]string{}
+	a.cp.mu.Lock()
+	cps := append([]Checkpoint(nil), a.cp.all...)
+	a.cp.mu.Unlock()
+	sort.SliceStable(cps, func(i, j int) bool { return cps[i].Turn < cps[j].Turn })
+	for _, cp := range cps {
+		if cp.Turn < n || cp.Turn <= 0 {
+			continue
+		}
+		if !cp.Manifested {
+			unverified = true
+			continue
+		}
+		for _, tf := range cp.Touched {
+			manifest[tf.Path] = tf.Sum
+		}
+	}
+	if unverified {
+		// Without every manifest the absence of a path from the map
+		// proves nothing, so only check the paths some manifest names.
+		for _, p := range paths {
+			if _, ok := manifest[p]; !ok {
+				continue
+			}
+			if why, foreign := isForeign(manifest, p); foreign {
+				conflicts = append(conflicts, TurnConflict{Path: p, Why: why})
+			}
+		}
+		return conflicts, true
+	}
+	for _, p := range paths {
+		if why, foreign := isForeign(manifest, p); foreign {
+			conflicts = append(conflicts, TurnConflict{Path: p, Why: why})
+		}
+	}
+	return conflicts, false
 }
 
 // RestorableTurns lists the turns whose "before" state is still on hand,
@@ -160,6 +224,7 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (Tur
 		return TurnRestore{}, err
 	}
 	tr.Lines = lines
+	tr.Conflicts, tr.Unverified = a.turnConflicts(n, previewPaths(lines))
 	if !filesOnly {
 		tr.Conversation, tr.NoRewind = a.previewRewind(cp)
 	}
@@ -181,7 +246,7 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (Tur
 // (unlocked, up to a minute of git), drop the checkpoints the restore
 // invalidated (locked), then persist and report (unlocked). fingerprint
 // is the stack as PreviewUndoTurn saw it.
-func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpoint, fingerprint string) (UndoReport, error) {
+func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpoint, fingerprint string, force bool) (UndoReport, error) {
 	a.cp.mu.Lock()
 	stale := a.turnFingerprint() != fingerprint
 	a.cp.mu.Unlock()
@@ -189,6 +254,15 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 		return UndoReport{}, ErrUndoSelectionStale
 	}
 	paths := previewPaths(tr.Lines)
+	// The files may have moved since the preview, so the check is made
+	// again now, against the tree as it is.
+	var overwritten []TurnConflict
+	if conflicts, _ := a.turnConflicts(tr.Turn, paths); len(conflicts) > 0 {
+		if !force {
+			return UndoReport{}, conflictError(a.displayRoot(), conflicts)
+		}
+		overwritten = conflicts
+	}
 	before := make(map[string][]byte, len(paths))
 	existed := make(map[string]bool, len(paths))
 	for _, p := range paths {
@@ -270,6 +344,10 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 		rep.Reverted = append(rep.Reverted, verb+" "+textfmt.RelTo(root, path))
 	}
 	sort.Strings(rep.Reverted)
+	root = a.displayRoot()
+	for _, c := range overwritten {
+		rep.Reverted = append(rep.Reverted, "forced over "+textfmt.RelTo(root, c.Path)+": "+c.Why)
+	}
 	if len(rep.Reverted) == 0 {
 		rep.Reverted = append(rep.Reverted, fmt.Sprintf("the work tree already matched its state before turn %d", tr.Turn))
 	}
@@ -282,6 +360,27 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 	}
 	a.reportChecks(ctx, &rep, Selection{})
 	return rep, nil
+}
+
+// applyTurnRestoreOnce applies the pending turn restore and forgets it,
+// except when it was refused over conflicts: that preview stays so the
+// same "/undo apply --force" can follow without previewing again.
+func (a *Agent) applyTurnRestoreOnce(ctx context.Context, p *pendingUndo, force bool) (UndoReport, error) {
+	rep, err := a.applyTurnRestore(ctx, *p.turn, p.cp, p.fingerprint, force)
+	if !errors.Is(err, ErrTurnRestoreConflict) {
+		a.pendingUndo = nil
+	}
+	return rep, err
+}
+
+// conflictError words a refused restore: every file, why, and the way to
+// overwrite them on purpose.
+func conflictError(root string, conflicts []TurnConflict) error {
+	var sb strings.Builder
+	for _, c := range conflicts {
+		sb.WriteString("\n  " + textfmt.RelTo(root, c.Path) + ": " + c.Why)
+	}
+	return fmt.Errorf("%w (%s):%s\nnothing was changed; /undo apply --force overwrites them anyway", ErrTurnRestoreConflict, textfmt.Plural(len(conflicts), "file"), sb.String())
 }
 
 // dropFromTurn forgets the checkpoints of turn n and everything after
@@ -393,6 +492,15 @@ func FormatTurnRestore(root string, tr TurnRestore) string {
 		fmt.Fprintf(&sb, "\nand rewind this conversation to that point, dropping %s from the model's context\n", tr.Conversation.Line())
 	default:
 		fmt.Fprintf(&sb, "\nthe conversation stays as it is: %s\n", tr.NoRewind)
+	}
+	if len(tr.Conflicts) > 0 {
+		fmt.Fprintf(&sb, "\nCONFLICT: %s differ from how the turns left them (edited since); /undo apply refuses until you pass --force:\n", textfmt.Plural(len(tr.Conflicts), "file"))
+		for _, c := range tr.Conflicts {
+			fmt.Fprintf(&sb, "  %s: %s\n", textfmt.RelTo(root, c.Path), c.Why)
+		}
+	}
+	if tr.Unverified {
+		sb.WriteString("\nnote: a turn here predates change manifests, so edits made since to the files it touched cannot be detected\n")
 	}
 	sb.WriteString("\n/undo apply carries it out; the restore is itself recorded as a change, so /undo <n> takes it back")
 	if !tr.FilesOnly {

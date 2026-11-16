@@ -90,7 +90,8 @@ func (a *Agent) PreviewUndoAbout(ctx context.Context, description string) (Selec
 // Unless force is true, it refuses when a selection has any Mixed change
 // or coupling Warning, leaving the preview in place so the caller can
 // re-run with force rather than having to preview again; a turn restore
-// has neither, so force means nothing to it.
+// has neither, but force overwrites files edited since the turns it undoes
+// (see TurnRestore.Conflicts); without it such a restore is refused.
 func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, error) {
 	p := a.pendingUndo
 	if p == nil {
@@ -108,8 +109,7 @@ func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, e
 			// not the user's mind, so /undo turn can be run again.
 			return UndoReport{}, ErrUndoSelectionStale
 		}
-		a.pendingUndo = nil
-		return a.applyTurnRestore(ctx, *p.turn, p.cp, p.fingerprint)
+		return a.applyTurnRestoreOnce(ctx, p, force)
 	}
 	if undoabout.Fingerprint(a.undoCandidates()) != p.fingerprint {
 		return UndoReport{}, ErrUndoSelectionStale

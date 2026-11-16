@@ -278,7 +278,7 @@ func (s *server) rewindOp(w http.ResponseWriter, b sessionBody) {
 	restored := false
 	if turn, can := s.rewindTurn(n); b.Files && can {
 		if _, err := ag.UndoToTurn(ctx, s.cwd(), turn, false); err == nil {
-			if _, err := ag.ApplyPendingUndo(ctx, true); err != nil {
+			if _, err := ag.ApplyPendingUndo(ctx, false); err != nil {
 				http.Error(w, "restoring files: "+err.Error(), http.StatusConflict)
 				return
 			}

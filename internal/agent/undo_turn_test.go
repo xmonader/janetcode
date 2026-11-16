@@ -274,7 +274,8 @@ func TestRestoreToTurnThatFailsPartWayRecordsWhatItRestored(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := len(a.Changes())
-	if _, err := a.ApplyPendingUndo(context.Background(), false); err == nil {
+	// Forced: swapping y for a directory is itself an edit since the turn.
+	if _, err := a.ApplyPendingUndo(context.Background(), true); err == nil {
 		t.Fatal("the restore could not remove y, so it should report an error")
 	}
 	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
