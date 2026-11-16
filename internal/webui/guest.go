@@ -74,8 +74,11 @@ type guestRequest struct {
 
 // guestPayload is what the owner's page shows about sharing.
 type guestPayload struct {
-	Active   bool           `json:"active"`
-	Expires  time.Time      `json:"expires,omitzero"`
+	Active  bool      `json:"active"`
+	Expires time.Time `json:"expires,omitzero"`
+	// Path is the link's path, for the owner's "copy link": the token is
+	// in it, so this payload goes to the owner's page only.
+	Path     string         `json:"path,omitempty"`
 	Requests []guestRequest `json:"requests"`
 }
 
@@ -194,7 +197,7 @@ func (s *server) guestPayload() guestPayload {
 	defer s.guest.mu.Unlock()
 	p := guestPayload{Requests: append([]guestRequest{}, s.guest.reqs...)}
 	if l := s.guest.link; l != nil && time.Now().Before(l.expires) {
-		p.Active, p.Expires = true, l.expires
+		p.Active, p.Expires, p.Path = true, l.expires, "/guest/"+l.token+"/"
 	}
 	return p
 }

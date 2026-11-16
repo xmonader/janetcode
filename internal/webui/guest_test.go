@@ -571,3 +571,29 @@ func TestShareCommand(t *testing.T) {
 		t.Errorf("link after /share stop = %d", code)
 	}
 }
+
+// The owner's page carries the way to share and to answer a request, and
+// the owner's state, not the guest's stream, is where the link's path is.
+func TestOwnerPageHasShareControls(t *testing.T) {
+	g := guestServer(t)
+	_, body := g.owner("GET", "/", "")
+	for _, want := range []string{`id="share-btn"`, `id="guest-bar"`, `id="guest-reqs"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("owner page missing %s", want)
+		}
+	}
+	path, tok := g.share()
+	if _, st := g.owner("GET", "/api/state", ""); !strings.Contains(st, tok) {
+		t.Error("owner state does not carry the link for Copy link")
+	}
+	sr := g.stream(path)
+	g.s.emitGuest()
+	g.s.add(entry{Kind: "assistant", Text: "marker"})
+	sr.until("marker", func(e envelope) bool {
+		b, _ := json.Marshal(e)
+		if strings.Contains(string(b), tok) {
+			t.Errorf("the guest stream carries its own token back: %s", b)
+		}
+		return e.Type == "entry" && e.Entry.Text == "marker"
+	})
+}

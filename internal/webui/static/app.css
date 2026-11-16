@@ -2801,3 +2801,20 @@ html[data-wrap-code] .codeblock pre { white-space: pre-wrap; overflow-wrap: anyw
 .page-card.full { position: fixed; inset: 0; margin: 0 !important; z-index: 1000; border-radius: 0; display: flex; flex-direction: column; background: var(--bg); }
 .page-card.full .page-frame { flex: 1; height: auto !important; }
 body.page-full-open { overflow: hidden; }
+
+/* Guest links: the sharing bar above the composer. */
+.guest-bar {
+  margin: 0 0 8px;
+  border: 0.5px solid var(--accent-soft-border);
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+}
+.guest-share { display: flex; align-items: center; gap: 8px; color: var(--mute); }
+.guest-share .spacer { flex: 1; }
+.guest-reqs { list-style: none; margin: 0; padding: 0; }
+.guest-reqs li { display: flex; align-items: flex-start; gap: 8px; padding-top: 8px; }
+.guest-reqs .k { color: var(--accent-deep); font-weight: 600; flex: none; }
+.guest-reqs .guest-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+#share-btn.on { color: var(--accent); }

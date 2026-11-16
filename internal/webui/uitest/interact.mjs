@@ -865,6 +865,31 @@ const sessionMenuKeys = await evaljs(`(() => {
 })()`);
 check('conversation actions support arrows, Escape and focus restoration', sessionMenuKeys.present && sessionMenuKeys.expanded === 'true' && sessionMenuKeys.role === 'menu' && sessionMenuKeys.first === 'rename' && sessionMenuKeys.moved === 'archive' && sessionMenuKeys.closed && sessionMenuKeys.restored && sessionMenuKeys.expandedAfter === 'false', JSON.stringify(sessionMenuKeys));
 
+// Guest links: the header button makes a link and the bar shows it; a
+// guest's message appears as a Request with Send and Dismiss; Stop clears it.
+const guestUI = await evaljs(`(async () => {
+  const wait = async (f) => { for (let i = 0; i < 40; i++) { if (f()) return true; await new Promise(r => setTimeout(r, 100)); } return false; };
+  const bar = document.getElementById('guest-bar');
+  document.getElementById('share-btn').click();
+  const shown = await wait(() => !bar.hidden);
+  const pressed = document.getElementById('share-btn').getAttribute('aria-pressed');
+  const link = (await (await fetch('/api/guest')).json());
+  const path = link.path;
+  const say = await fetch(path + 'say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: '<b>hello</b> from a guest' }) });
+  const got = await wait(() => document.querySelectorAll('#guest-reqs li').length === 1);
+  const li = document.querySelector('#guest-reqs li');
+  const text = li ? li.querySelector('.guest-text').textContent : '';
+  const injected = li ? li.querySelector('.guest-text b') !== null : false;
+  const buttons = li ? [...li.querySelectorAll('button')].map(b => b.textContent) : [];
+  if (li) [...li.querySelectorAll('button')].find(b => b.textContent === 'Dismiss').click();
+  const dismissed = await wait(() => document.querySelectorAll('#guest-reqs li').length === 0);
+  document.getElementById('guest-stop').click();
+  const stopped = await wait(() => bar.hidden);
+  const after = (await fetch(path)).status;
+  return { shown, pressed, say: say.status, got, text, injected, buttons, dismissed, stopped, after };
+})()`);
+check('guest link: share, request with Send/Dismiss, stop', guestUI.shown && guestUI.pressed === 'true' && guestUI.say === 200 && guestUI.got && guestUI.text === '<b>hello</b> from a guest' && !guestUI.injected && guestUI.buttons.join() === 'Send,Dismiss' && guestUI.dismissed && guestUI.stopped && guestUI.after === 404, JSON.stringify(guestUI));
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));

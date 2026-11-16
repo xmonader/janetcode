@@ -575,7 +575,6 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/suggest", s.suggestAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
 	mux.HandleFunc("/page/", s.pageAPI)
-
 	mux.HandleFunc("/api/guest", s.guestAPI)
 	return mux
 }

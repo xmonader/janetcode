@@ -120,6 +120,7 @@
         <span id="conn" class="conn" title="Connected" role="status"></span>
         <span class="top-sep" aria-hidden="true"></span>
         <button type="button" id="export-btn" class="icon-btn" title="Export conversation" aria-label="Export conversation"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg></button>
+        <button type="button" id="share-btn" class="icon-btn" title="Share with a guest (read-only link)" aria-label="Share with a guest" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-link"/></svg></button>
         <button type="button" id="help-btn" class="icon-btn" title="Help & shortcuts (?)" aria-label="Help and shortcuts"><svg class="i" aria-hidden="true"><use href="#i-help"/></svg></button>
         <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview"><svg class="i" aria-hidden="true"><use href="#i-app-window"/></svg></button>
         <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel"><svg class="i" aria-hidden="true"><use href="#i-panel-right"/></svg></button>
@@ -223,6 +224,15 @@
           <input id="q-other-text" type="text" placeholder="Other" autocomplete="off">
           <button type="submit">Send</button>
         </form>
+      </div>
+      <div id="guest-bar" class="guest-bar" data-testid="guest-bar" hidden>
+        <div class="guest-share">
+          <span id="guest-state">Sharing with a guest</span>
+          <span class="spacer"></span>
+          <button type="button" id="guest-copy" class="act">Copy link</button>
+          <button type="button" id="guest-stop" class="act">Stop sharing</button>
+        </div>
+        <ul id="guest-reqs" class="guest-reqs" aria-label="Guest requests"></ul>
       </div>
         <p id="status" class="status"></p>
       <p id="steer-hint" class="steer-hint" hidden>Press <kbd>Enter</kbd> to queue · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to steer</p>

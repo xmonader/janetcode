@@ -40,6 +40,15 @@ and measurements behind each round are in `docs/notes/history.md`.
   images referenced by path are embedded as data URIs; paths outside the
   workspace are refused. HTML is capped at 2 MiB (manual: Visual answers).
 
+### Guest links (2026-11-16)
+- `--web` can share the current session as a read-only guest link
+  (`/share`, the header link button, or the command palette). A guest sees
+  the transcript stream, including reasoning and tool output, but no diffs,
+  prompts or other endpoints; the token is separate from the access token,
+  expires after 24 hours, and `/share stop` or a new link revokes it. A
+  guest's messages wait as Requests to send or dismiss. Enforced and tested
+  server-side (internal/webui/guest.go); see "Guest links" in the manual.
+
 ### Loop fixes (2026-11-10)
 - A provider failure that arrives mid-stream (a 5xx or 429 error frame
   after the stream opened) is retried instead of ending the turn.

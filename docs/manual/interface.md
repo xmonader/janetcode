@@ -375,6 +375,43 @@ The URL carries no token; the request needs the same session cookie as every
 other route, so a copied link is useless without a login. Links in a page
 open in a new browser tab.
 
+## Guest links: sharing a session
+
+`janetcode --web` can hand one other person a read-only view of the
+current session, with no account. Use the link button in the page header,
+"Share with guest" in the command palette, or `/share`; it makes a link
+and copies it. The link carries its own random token in the path
+(`/guest/<token>/`), which is not your access token and opens nothing but
+the guest page. It ends after 24 hours, when you choose "Stop sharing" or
+run `/share stop`, when you make a new link (which replaces the last at
+once), or when this window moves to another session (`/new`, `/resume`).
+The terminal interface has no server; `/share` there says to use `--web`.
+
+The guest sees the session's messages, the model's replies, its reasoning,
+and its tool calls with their output, as they stream. They do not see
+diffs, notices, permission prompts or questions, and the link has no
+route to open a file, fork, rewind, change the model or settings, answer a
+prompt, or reach any other session or endpoint. This is enforced by the
+server, which sends the guest an allow-listed copy of each event, and not
+by hiding buttons. Anything the agent read or printed can show, such as a
+value from a file, so share only a session you are comfortable showing.
+
+A guest can type a message. It waits above your composer as a **Request**
+with **Send** and **Dismiss**. Send runs it as a normal turn under your
+current permission mode (queued if a turn is running); the text is sent as
+plain text, so a guest's `/command`, `!shell line` or `@path` is not
+executed or expanded. Dismiss drops it. At most 10 requests wait at once,
+and guests cannot attach files.
+
+The link works wherever the server is reachable, so for a guest on another
+machine you must expose `--web` yourself, for example with `--web-addr` on
+a network address or a tunnel, and the link uses the address you opened
+the page by. Off loopback that traffic is plain http unless you put TLS in
+front of it. A loopback server still answers only to localhost Host names,
+so a tunnel must present one. Check what a guest asks before you press
+Send, as you would text pasted from a chat: a URL in it lets the model
+fetch that host, as it does for anything you type.
+
 ## The screen-reader interface
 
 The full-screen interface redraws itself many times a second: a spinner,
