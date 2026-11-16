@@ -5,6 +5,8 @@
 // left of the old monolith (transcript render, event stream, composer,
 // sessions rail, workspace pane, palette, approvals/questions, guest bar).
 //
+//   connected   writes: app.js applyHello (the hello event)
+//               reads:  app.js model chip/composer send/palette, switchmenu.js
 //   lastReply   writes: app.js transcript render (assistant text)
 //               reads:  notify.js (the body of the "turn finished" popup)
 //
@@ -15,5 +17,7 @@
   "use strict";
   global.JanetState = {
     lastReply: "",
+    // false on a first run with no provider key.
+    connected: true,
   };
 })(window);

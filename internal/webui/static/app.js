@@ -411,15 +411,14 @@
   let modelLabel = "";
   // connected is false on a first run with no key; the header says so and
   // a prompt opens the connect form instead of going nowhere.
-  let connected = true;
   let modelProvider = "";
   function paintModel() {
     const effort = document.getElementById("effort-chip")?.dataset.effort || "";
     const btn = document.getElementById("model");
     // The green dot says the page reaches janetcode; with no model behind
     // it, green next to "Not connected" read as the opposite.
-    document.getElementById("conn")?.classList.toggle("idle", !connected);
-    if (!connected) {
+    document.getElementById("conn")?.classList.toggle("idle", !S.connected);
+    if (!S.connected) {
       btn.textContent = "Not connected";
       btn.title = "Connect a provider";
       btn.classList.add("unconnected");
@@ -488,8 +487,8 @@
     if (window.__janetUIBuild && h.version && window.__janetUIBuild !== h.version) {
       document.getElementById("reload-toast").hidden = false;
     }
-    const wasConnected = connected;
-    connected = h.connected !== false;
+    const wasConnected = S.connected;
+    S.connected = h.connected !== false;
     modelLabel = [h.provider, h.model].filter(Boolean).join(" · ");
     modelProvider = h.provider && h.model ? h.provider : "";
     paintModel();
@@ -503,7 +502,7 @@
     if (leaf) document.getElementById("empty-lead").textContent = "What should we change in " + leaf + "?";
     if ((h.cwd || "") !== suggestedFor) loadSuggestions(h.cwd || "");
     loadSessions();
-    if (!connected && wasConnected) openConnect();
+    if (!S.connected && wasConnected) openConnect();
   }
 
   const reloadBtn = document.getElementById("reload-btn");
@@ -1050,7 +1049,7 @@
     if (!slashEl.hidden) { acceptSlash(); return; }
     const text = composedText();
     if (!text) return;
-    if (!connected && !text.startsWith("/")) {
+    if (!S.connected && !text.startsWith("/")) {
       // Keep what they typed: it sends once a provider is connected.
       openConnect("Connect a provider first. Your message is still in the composer.");
       return;
@@ -1431,7 +1430,7 @@
       act("Actions", "Copy conversation", "copy the chat as Markdown", async () => { try { await navigator.clipboard.writeText(chatMarkdown()); statusEl.textContent = "Conversation copied as Markdown"; } catch (_) {} }),
       act("Actions", "Share with guest", "copy a read-only guest link for this session", shareWithGuest),
       act("Actions", "Stop sharing", "end the guest link now", () => post("/api/guest", { action: "stop" })),
-      act("Actions", "Switch model", "pick another model", () => (connected ? openModelMenu() : openConnect())),
+      act("Actions", "Switch model", "pick another model", () => (S.connected ? openModelMenu() : openConnect())),
       act("Actions", "Set effort", "reasoning tier", () => openEffortMenu()),
       act("Actions", "Permission mode", "ask, auto, plan, read-only…", () => { paintModeMenu(); modeMenuEl.hidden = false; }),
       act("Actions", "Connect a provider", "add or change an API key", () => openConnect()),
@@ -1538,7 +1537,7 @@
     if (ev.key === "Escape" && !inField) {
       const viewer = document.getElementById("viewer");
       if (!viewer.hidden) { ev.preventDefault(); viewer.hidden = true; return; }
-      if (!switchMenu.hidden) { ev.preventDefault(); closeSwitchMenu(); return; }
+      if (!switchMenu.el.hidden) { ev.preventDefault(); closeSwitchMenu(); return; }
       if (!modeMenuEl.hidden) { ev.preventDefault(); hideModeMenu(); return; }
       if (!palette.hidden) return;
       if (narrow.matches) { shell.classList.add("nav-collapsed", "work-collapsed"); }
@@ -1561,199 +1560,9 @@
     await runPaletteItem(palItems[palIdx]);
   });
 
-  // The header's switch menu. The model button opens a searchable picker
-  // fed by /api/models; the effort chip opens the reasoning tiers. One
-  // menu serves both, the way the palette serves every command.
-  const modelBtn = document.getElementById("model");
-  const effortChip = document.getElementById("effort-chip");
-  const switchMenu = document.getElementById("switch-menu");
-  const switchQ = document.getElementById("switch-q");
-  const switchList = document.getElementById("switch-list");
-  const stopBtn = document.getElementById("stop");
-  const EFFORT_TIERS = ["low", "medium", "high", "xhigh", "max"];
-  let switchMode = "model";
-  let modelGroups = [];
-  let switchRows = [];
-  let switchIdx = 0;
-  let switchAnchor = null;
-  let switchGen = 0;
-
-  function closeSwitchMenu(restore = true) {
-    if (switchMenu.hidden) return;
-    switchGen++;
-    switchMenu.hidden = true;
-    modelBtn.setAttribute("aria-expanded", "false");
-    effortChip.setAttribute("aria-expanded", "false");
-    switchQ.setAttribute("aria-expanded", "false");
-    switchQ.removeAttribute("aria-activedescendant");
-    const anchor = switchAnchor;
-    switchAnchor = null;
-    if (restore && anchor) anchor.focus();
-  }
-  function showSwitchMenu(anchor) {
-    closeSwitchMenu(false);
-    switchAnchor = anchor;
-    modelBtn.setAttribute("aria-expanded", anchor === modelBtn ? "true" : "false");
-    effortChip.setAttribute("aria-expanded", anchor === effortChip ? "true" : "false");
-    switchQ.setAttribute("aria-expanded", "true");
-    switchMenu.hidden = false;
-    switchQ.focus();
-  }
-  function placeSwitchMenu(anchor) {
-    const r = anchor.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth - 16);
-    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
-    const below = window.innerHeight - r.bottom;
-    const above = r.top;
-    const up = below < 220 && above > below;
-    switchMenu.classList.toggle("up", up);
-    switchMenu.style.left = left + "px";
-    switchMenu.style.width = width + "px";
-    if (up) {
-      switchMenu.style.top = "auto";
-      switchMenu.style.bottom = (window.innerHeight - r.top + 6) + "px";
-      switchMenu.style.maxHeight = Math.max(160, above - 12) + "px";
-    } else {
-      switchMenu.style.bottom = "auto";
-      switchMenu.style.top = (r.bottom + 6) + "px";
-      switchMenu.style.maxHeight = Math.max(160, below - 12) + "px";
-    }
-  }
-
-  async function openModelMenu() {
-    switchMode = "model";
-    switchQ.value = "";
-    switchQ.placeholder = "Search model or provider…";
-    switchQ.setAttribute("aria-label", "Search models and providers");
-    switchList.innerHTML = `<div class="menu-empty" role="status">Loading…</div>`;
-    placeSwitchMenu(modelBtn);
-    showSwitchMenu(modelBtn);
-    const gen = ++switchGen;
-    let groups = [];
-    try {
-      groups = (await (await fetch("/api/models")).json()).groups || [];
-    } catch (_) {}
-    if (gen !== switchGen || switchMenu.hidden || switchMode !== "model") return;
-    modelGroups = groups;
-    renderSwitchMenu(switchQ.value);
-  }
-
-  function openEffortMenu() {
-    switchMode = "effort";
-    switchQ.value = "";
-    switchQ.placeholder = "Set effort…";
-    switchQ.setAttribute("aria-label", "Search reasoning effort");
-    placeSwitchMenu(effortChip);
-    showSwitchMenu(effortChip);
-    renderSwitchMenu("");
-  }
-
-  // contextSize is a window as people say it: "128k context", "1M context".
-  function contextSize(n) {
-    if (!n) return "";
-    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M context";
-    return Math.round(n / 1000) + "k context";
-  }
-
-  function rowHTML(i, main, sub) {
-    return `<div id="switch-option-${i}" class="menu-row" role="option" aria-selected="false" data-i="${i}"><span>${esc(main)}</span>` + (sub ? `<span class="menu-sub">${esc(sub)}</span>` : "") + `</div>`;
-  }
-
-  function paintSwitchRows() {
-    let active = null;
-    switchList.querySelectorAll(".menu-row").forEach((el) => {
-      const on = Number(el.dataset.i) === switchIdx;
-      el.classList.toggle("on", on);
-      el.setAttribute("aria-selected", on ? "true" : "false");
-      if (on) active = el;
-    });
-    if (active) {
-      switchQ.setAttribute("aria-activedescendant", active.id);
-      active.scrollIntoView({ block: "nearest" });
-    } else switchQ.removeAttribute("aria-activedescendant");
-  }
-
-  function renderSwitchMenu(q) {
-    q = q.trim().toLowerCase();
-    switchRows = [];
-    let html = "";
-    if (switchMode === "model") {
-      for (const g of modelGroups) {
-        // The model in use leads its group, so the menu opens on it
-        // rather than on whatever sorts first ("aion-labs/…").
-        const words = q.split(/\s+/).filter(Boolean);
-        const rows = g.models.filter((m) => words.every((word) =>
-          [g.provider, g.label, m.model].filter(Boolean).join(" ").toLowerCase().includes(word)))
-          .sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
-        if (!rows.length) continue;
-        html += `<div class="menu-group" role="presentation">${esc(g.label || g.provider)} · ${rows.length}</div>`;
-        for (const m of rows) {
-          switchRows.push({ cmd: "/model " + g.provider + " " + m.model, current: m.current });
-          const provider = g.label && g.label !== g.provider ? `${g.label} (${g.provider})` : g.provider;
-          html += rowHTML(switchRows.length - 1, m.model + (m.current ? " ✓" : ""),
-            [provider, contextSize(m.context)].filter(Boolean).join(" · "));
-        }
-      }
-      // A name nobody listed is still switchable: /model routes it by
-      // family or prefix, and remembers it.
-      if (q && !switchRows.length && !modelGroups.some((g) => g.models.some((m) => m.model.toLowerCase() === q))) {
-        switchRows.push({ cmd: "/model " + q });
-        html = rowHTML(0, `switch to “${q}”`, "not listed; use it by name") + html;
-      }
-    } else {
-      const cur = effortChip.dataset.effort || "";
-      for (const t of EFFORT_TIERS) {
-        if (q && !t.includes(q)) continue;
-        switchRows.push({ cmd: "/effort " + t });
-        html += rowHTML(switchRows.length - 1, t + (cur === t ? " ✓" : ""), "");
-      }
-    }
-    switchList.innerHTML = html || `<div class="menu-empty">Nothing matches</div>`;
-    const current = switchRows.findIndex((r) => r.current);
-    switchIdx = current >= 0 ? current : 0;
-    paintSwitchRows();
-  }
-
-  function chooseSwitch(i) {
-    const r = switchRows[i];
-    if (!r) return;
-    closeSwitchMenu();
-    post("/api/command", { text: r.cmd });
-  }
-
-  modelBtn.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    if (!connected) { openConnect(); return; }
-    if (switchMenu.hidden || switchMode !== "model") openModelMenu();
-    else closeSwitchMenu();
-  });
-  effortChip.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    if (switchMenu.hidden || switchMode !== "effort") openEffortMenu();
-    else closeSwitchMenu();
-  });
-  switchQ.addEventListener("input", () => renderSwitchMenu(switchQ.value));
-  switchQ.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape") { ev.preventDefault(); closeSwitchMenu(); return; }
-    if (ev.key === "Tab") { closeSwitchMenu(); return; }
-    if (!switchRows.length) return;
-    if (ev.key === "ArrowDown") { ev.preventDefault(); switchIdx = (switchIdx + 1) % switchRows.length; paintSwitchRows(); return; }
-    if (ev.key === "ArrowUp") { ev.preventDefault(); switchIdx = (switchIdx - 1 + switchRows.length) % switchRows.length; paintSwitchRows(); return; }
-    if (ev.key === "Home") { ev.preventDefault(); switchIdx = 0; paintSwitchRows(); return; }
-    if (ev.key === "End") { ev.preventDefault(); switchIdx = switchRows.length - 1; paintSwitchRows(); return; }
-    if (ev.key === "Enter") { ev.preventDefault(); chooseSwitch(switchIdx); }
-  });
-  switchList.addEventListener("click", (ev) => {
-    const row = ev.target.closest("[data-i]");
-    if (row) chooseSwitch(Number(row.dataset.i));
-  });
-  document.addEventListener("click", (ev) => {
-    if (switchMenu.hidden) return;
-    if (!ev.target.closest("#switch-menu") && !ev.target.closest("#model") && !ev.target.closest("#effort-chip")) closeSwitchMenu(false);
-  });
-  stopBtn.addEventListener("click", async () => {
-    await post("/api/cancel", {});
-  });
+  // The model/effort switch menu lives in switchmenu.js.
+  const switchMenu = JanetSwitchMenu({ S, esc, post, openConnect });
+  const { openModelMenu, openEffortMenu, closeSwitchMenu } = switchMenu;
 
   // A small count on a workbench tab: how many jobs run, how many
   // subagents are live, how many files changed.
