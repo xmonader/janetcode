@@ -335,8 +335,11 @@ func (r *root) wireProject() error {
 	registerFeatureSubject(subjects, catalog)
 	registerThemeSubject(subjects, cfg)
 	registerTrustSubject(subjects, r.gate, r.built.cd.Dir)
-	registerExtensionsSubject(subjects, extensionEnv{cfg: cfg, cfgPath: cfgPath, cfgDir: r.cfgDir, cwd: r.built.cd.Dir,
-		gate: r.gate, ts: ts, safe: o.safeMode, mgr: servers})
+	extEnv := extensionEnv{cfg: cfg, cfgPath: cfgPath, cfgDir: r.cfgDir, cwd: r.built.cd.Dir,
+		gate: r.gate, ts: ts, safe: o.safeMode, mgr: servers}
+	registerExtensionsSubject(subjects, extEnv)
+	registerSecuritySubject(subjects, securityEnv{cfg: cfg, cfgPath: cfgPath, cfgDir: r.cfgDir, sandboxFlag: o.sandboxOn,
+		sandbox: ag.Sandbox, ext: extEnv})
 	registerEgressSubject(subjects, ag)
 	// Deferred: the model gets the schema only after asking for it, so a
 	// session that never wonders about the harness never pays for it.

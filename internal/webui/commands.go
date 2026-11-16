@@ -50,7 +50,7 @@ var webArgs = map[string]string{
 	"/eval":          "keep [name] [--check cmd]",
 	"/import-claude": "[mcp|permissions|skills|agents ...] | apply <id>",
 	"/mcp":           "[search <words> | add <name> <command|url> | add --from <repo> --yes | remove <name> --yes | enable <name> [connect|read|mutate|all] | disable <name> [capability] | tool <name> <tool> on|off]",
-	"/doctor":        "[mcp [json]]",
+	"/doctor":        "[mcp|security [json]]",
 }
 
 var commandSpecs = func() []slash.Command {

@@ -36,7 +36,7 @@ func TestNoCredentialIsEverPrinted(t *testing.T) {
 	}
 	cfg := &config.Config{Provider: "main", Model: "m",
 		Providers: map[string]config.Provider{
-			"main": {Type: "openai", BaseURL: "https://user:URLPASSWORD123@api.example.test/v1?api_key=QUERYSECRET456&mode=x", APIKey: "sk-LITERALKEYSECRET1234567890", APIKeys: []string{"SECONDKEYSECRET7890abcdef"}},
+			"main":  {Type: "openai", BaseURL: "https://user:URLPASSWORD123@api.example.test/v1?api_key=QUERYSECRET456&mode=x", APIKey: "sk-LITERALKEYSECRET1234567890", APIKeys: []string{"SECONDKEYSECRET7890abcdef"}},
 			"viaop": {Type: "openai", BaseURL: "https://op.example.test/v1", APIKey: "op://vault/item/SECRETFIELD"},
 		},
 		Search:    cfgSearch("SEARCHKEYSECRET123"),
@@ -304,7 +304,7 @@ func TestTextAndJSON(t *testing.T) {
 		t.Fatalf("round trip lost data: %+v", back)
 	}
 	text := rep.Text()
-	for _, want := range []string{"Binary", "Sandbox", "Providers", "Mcp", "Privacy", "no security check failed"} {
+	for _, want := range []string{"Binary", "Sandbox", "Providers", "MCP and hooks", "Privacy", "no security check failed"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text lacks %q:\n%s", want, text)
 		}

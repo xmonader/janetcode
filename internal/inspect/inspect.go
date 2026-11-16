@@ -168,6 +168,8 @@ func DoctorSubject(arg string) (request string, ok bool) {
 	switch strings.ToLower(topic) {
 	case "mcp", "extensions":
 		return strings.TrimSpace("extensions " + rest), true
+	case "security":
+		return strings.TrimSpace("security " + rest), true
 	}
 	return "", false
 }

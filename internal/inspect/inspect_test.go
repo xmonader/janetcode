@@ -101,3 +101,23 @@ func TestToolReportsThroughTheRegistry(t *testing.T) {
 		t.Fatal("a tool with no registry should say so")
 	}
 }
+
+func TestDoctorSubject(t *testing.T) {
+	for in, want := range map[string]string{
+		"mcp":           "extensions",
+		"MCP json":      "extensions json",
+		" extensions ":  "extensions",
+		"security":      "security",
+		"security json": "security json",
+	} {
+		got, ok := DoctorSubject(in)
+		if !ok || got != want {
+			t.Errorf("DoctorSubject(%q) = %q, %v; want %q", in, got, ok, want)
+		}
+	}
+	for _, in := range []string{"", "  ", "fix", "mcpx", "securities"} {
+		if got, ok := DoctorSubject(in); ok {
+			t.Errorf("DoctorSubject(%q) = %q; a bare or unknown topic keeps the ordinary checkup", in, got)
+		}
+	}
+}

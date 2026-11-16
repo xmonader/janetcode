@@ -103,6 +103,9 @@ type Inputs struct {
 	// Sandbox is probed for capabilities; SandboxFlag is --sandbox.
 	Sandbox     *shell.Sandbox
 	SandboxFlag bool
+	// SandboxOn is a live session's sandbox switch, which /sandbox may
+	// have turned on after the config and flags were read.
+	SandboxOn bool
 	// Extensions is the extension report, summarised here.
 	Extensions extension.Report
 	// TrustStore is the project-approval file (mcp-trust.json).
@@ -189,7 +192,7 @@ func (b *builder) binary() {
 	if bin.CGO != "" {
 		build += " · CGO_ENABLED=" + bin.CGO
 	}
-	b.add("binary", "build", Info, build+fmt.Sprintf(" · %s module dependencies", textfmt.Plural(bin.Deps, "")[2:]))
+	b.add("binary", "build", Info, build+fmt.Sprintf(" · %d module dependencies", bin.Deps))
 	if bin.SHA256 != "" {
 		b.add("binary", "sha256", Info, bin.SHA256+"  "+bin.Path+" (compare with SHA256SUMS)")
 	}
@@ -236,8 +239,11 @@ func (b *builder) sandbox() {
 	if profile == "off" {
 		profile = ""
 	}
-	if in.SandboxFlag && profile == "" {
+	if (in.SandboxFlag || in.SandboxOn) && profile == "" {
 		profile = "workspace"
+		if in.SandboxOn {
+			profile = sb.ProfileName()
+		}
 	}
 	s.Requested, s.Profile = profile != "", profile
 	supported := auto != ""
@@ -449,8 +455,9 @@ func (b *builder) provider(name string, p config.Provider, selected bool, envSet
 		status = Warn
 		detail += " · plain http to a remote host"
 	}
-	if len(keys) > 0 && p.KeysFromEnv() == false && !strings.HasPrefix(firstKey(keys), "op://") && p.KeyEnv == "" {
+	if len(keys) > 0 && !p.KeysFromEnv() && !strings.HasPrefix(firstKey(keys), "op://") && p.KeyEnv == "" {
 		detail += " · stored in the config file in clear text; key_env or an op:// reference keeps it out"
+		status = worse(status, Warn)
 	}
 	if b.in.CfgPath != "" && len(keys) > 0 && !p.KeysFromEnv() {
 		if info, err := os.Stat(b.in.CfgPath); err == nil && info.Mode().Perm()&0o044 != 0 {
@@ -603,7 +610,11 @@ func (r Report) Text() string {
 				sb.WriteString("\n")
 			}
 			area = c.Area
-			fmt.Fprintf(&sb, "%s\n", strings.ToUpper(area[:1])+area[1:])
+			title := strings.ToUpper(area[:1]) + area[1:]
+			if area == "mcp" {
+				title = "MCP and hooks"
+			}
+			fmt.Fprintf(&sb, "%s\n", title)
 		}
 		mark := map[string]string{OK: "ok  ", Warn: "warn", Fail: "FAIL", Info: "info"}[c.Status]
 		fmt.Fprintf(&sb, "  %s  %-26s %s\n", mark, c.Name, c.Detail)

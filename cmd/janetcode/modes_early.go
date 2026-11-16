@@ -110,8 +110,10 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 		case "":
 		case "mcp", "extensions":
 			return true, extensionsDoctorMode(ctx, os.Stdout, ov, o.trustLevel, o.outFormat == "json")
+		case "security":
+			return true, securityDoctorMode(ctx, os.Stdout, ov, o.trustLevel, o.sandboxOn, o.outFormat == "json")
 		default:
-			return true, headless.BadInput("unknown --doctor topic %q: want mcp (or nothing for the full checkup)", topic)
+			return true, headless.BadInput("unknown --doctor topic %q: want mcp or security (or nothing for the full checkup)", topic)
 		}
 		if o.outFormat == "json" {
 			return true, doctorJSON(ctx, os.Stdout, ov, o.doctorFix)
