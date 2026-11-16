@@ -129,6 +129,10 @@ func ScrubEnv(env []string) []string {
 			out = append(out, kv)
 		}
 	}
+	// Secrets the user handed over at a prompt go after the scrub: a name
+	// like JANETCODE_SECRET_API_KEY would otherwise be dropped as a
+	// credential, and it is exactly what the user chose to give.
+	out = append(out, SessionSecrets()...)
 	return out
 }
 

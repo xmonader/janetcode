@@ -112,6 +112,11 @@ func (s *Sandbox) docker(ctx context.Context, p Profile, root string, extra []st
 			args = append(args, "-e", kv)
 		}
 	}
+	// Names only: docker reads the value from its own environment
+	// (ScrubEnv, below), so it never shows in the process list.
+	for _, n := range SessionSecretNames() {
+		args = append(args, "-e", n)
+	}
 	args = append(args, s.Image(), "sh", "-c", command)
 	cmd := exec.CommandContext(ctx, bin, args...)
 	// The container process must not inherit the agent's credentials: a

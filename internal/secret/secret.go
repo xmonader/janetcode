@@ -164,7 +164,12 @@ func Redact(text string) (string, int) {
 // makes "Scan finds nothing" and "Redact changes nothing"
 // the same statement rather than two lists that drift apart.
 func redactSecrets(text string) (string, int, string) {
+	// Values the user supplied at a secret prompt (see Register) go
+	// first, so no pattern ever sees half of one.
 	n, what := 0, ""
+	if out, c := redactRegistered(text); c > 0 {
+		text, n, what = out, c, "a secret you provided"
+	}
 	for _, p := range secretPatterns {
 		text = p.re.ReplaceAllStringFunc(text, func(string) string {
 			n++
