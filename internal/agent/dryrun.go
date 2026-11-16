@@ -70,6 +70,9 @@ type dryRun struct {
 	overlay *tool.Overlay
 	actions []DryAction
 	seq     int
+	// usageBase is the session's per-model usage when the dry run began:
+	// what the estimate subtracts to get the dry run's own calls.
+	usageBase map[string]ModelUsage
 }
 
 const dryRunSystem = "\n\n# Dry run\nThis session is a dry run. Plan and carry out the change as you normally would, but know what happens to each call: write_file and edit_file write to a preview the user reviews, and read_file, grep and glob see that preview, so continue editing on top of your own changes. Shell commands run only when they merely read (ls, cat, grep, git status/diff/log …), and they read the disk, not the preview; any other command, MCP tool or background job is recorded for the user and not run, and its result says so — do not retry it, and do not claim it succeeded or report output it never produced. When the change is complete, stop and summarise what the preview contains and which commands you would run to verify it. The user applies the preview with /dryrun apply."
@@ -162,6 +165,13 @@ func (a *Agent) SetDryRun(on bool) (discarded int) {
 		return 0
 	}
 	d.on = on
+	d.usageBase = nil
+	if on {
+		d.usageBase = map[string]ModelUsage{}
+		for _, m := range a.UsageByModel() {
+			d.usageBase[m.Model] = m
+		}
+	}
 	discarded = len(d.actions)
 	d.actions, d.seq = nil, 0
 	d.overlay = nil
@@ -419,12 +429,9 @@ func (a *Agent) DryRunReport(full bool) string {
 	acts := a.DryRunActions()
 	root := a.displayRoot()
 	fmt.Fprintf(&sb, "dry run · nothing has been changed on disk\n")
-	s := a.Settings()
-	sandbox := "off"
-	if a.Sandbox.Enabled() {
-		sandbox = a.Sandbox.ProfileName()
-	}
-	fmt.Fprintf(&sb, "mode %s · sandbox %s\n", s.ModeName(), sandbox)
+	plan := a.DryRunPlan()
+	fmt.Fprintf(&sb, "mode %s · sandbox %s\n", plan.Mode, plan.Sandbox)
+	sb.WriteString(plan.Estimate.describe() + "\n")
 	if len(files) == 0 && len(acts) == 0 {
 		sb.WriteString("\nnothing previewed yet\n")
 		return sb.String()
@@ -650,8 +657,16 @@ func (a *Agent) DryRunCommand(ctx context.Context, arg string) (cmdresult.Result
 		if !a.DryRunOn() {
 			return cmdresult.Result{}, ErrDryRunOff
 		}
+		d := a.dryState()
+		d.mu.Lock()
+		base := d.usageBase
+		d.mu.Unlock()
 		n := a.SetDryRun(false)
 		a.SetDryRun(true)
+		// The calls that made the discarded preview were still spent.
+		d.mu.Lock()
+		d.usageBase = base
+		d.mu.Unlock()
 		a.appendHarnessText("[harness] The user discarded the dry-run preview: none of the previewed changes exist any more, and the files are as they are on disk. The session is still a dry run.")
 		return cmdresult.Result{Notes: []string{fmt.Sprintf("preview discarded (%d action(s)) · still a dry run", n)}}, nil
 	case "apply":
