@@ -200,6 +200,18 @@
           <button type="button" class="ghost" data-d="cancel">Stop</button>
         </div>
       </div>
+      <form id="secret-card" class="ask" data-testid="secret-card" autocomplete="off" hidden>
+        <p id="secret-title"></p>
+        <p id="secret-why" class="empty-sub"></p>
+        <p id="secret-use" class="empty-sub"></p>
+        <p id="secret-env" class="empty-sub"></p>
+        <p class="empty-sub">The model never sees the value, and it is not written to the session.</p>
+        <input id="secret-input" type="password" autocomplete="new-password" spellcheck="false" aria-label="Secret value" placeholder="Secret value" data-testid="secret-input">
+        <div class="ask-actions">
+          <button type="submit" class="primary" data-testid="secret-save">Save securely</button>
+          <button type="button" id="secret-decline" class="deny" data-testid="secret-decline">Decline</button>
+        </div>
+      </form>
       <div id="questions" class="ask" hidden>
         <p id="q-prompt"></p>
         <p id="q-detail" class="empty-sub" hidden></p>

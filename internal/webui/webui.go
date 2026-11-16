@@ -257,6 +257,8 @@ type server struct {
 	// concurrent approvals queue instead of replacing one another.
 	approveSlot chan struct{}
 	asking      *askReq
+	secreting   *secretReq    // the open secret request, if any
+	secretSlot  chan struct{} // one secret card at a time
 	askSlot     chan struct{} // the same, for the ask tool's questions
 	status      string
 	verbose     bool
@@ -354,6 +356,8 @@ type envelope struct {
 	Notice    string           `json:"notice,omitempty"`
 	Error     string           `json:"error,omitempty"`
 	Questions []agent.Question `json:"questions,omitempty"`
+	// Secret is an open secret request (see secretPayload); absent clears it.
+	Secret *secretPayload `json:"secret,omitempty"`
 	// Compose is a draft for the composer: /commit and /pr put the
 	// command that commits or pushes there for the user to edit and send.
 	Compose string `json:"compose,omitempty"`
@@ -452,6 +456,7 @@ func newServer(life context.Context, opts Options) *server {
 
 		approveSlot: make(chan struct{}, 1),
 		askSlot:     make(chan struct{}, 1),
+		secretSlot:  make(chan struct{}, 1),
 	}
 	// Stamp the binary's build into the page. The value lands inside a
 	// JS string literal, so quote it like one — a version containing a
@@ -527,6 +532,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/cancel", s.doCancel)
 	mux.HandleFunc("/api/permission", s.permission)
 	mux.HandleFunc("/api/question", s.questionAPI)
+	mux.HandleFunc("/api/secret", s.secretAPI)
 	mux.HandleFunc("/api/command", s.command)
 	mux.HandleFunc("/api/commands", s.commandsAPI)
 	mux.HandleFunc("/api/models", s.modelsAPI)
@@ -616,11 +622,13 @@ func (s *server) snapshot() (helloPayload, []entry, *permPayload, []agent.Questi
 
 func (s *server) state(w http.ResponseWriter, r *http.Request) {
 	hello, ents, p, qs, st := s.snapshot()
+	secretNow := s.secretPending()
 	writeJSON(w, map[string]any{
 		"hello":      hello,
 		"entries":    ents,
 		"permission": p,
 		"questions":  qs,
+		"secret":     secretNow,
 		"status":     st,
 	})
 }

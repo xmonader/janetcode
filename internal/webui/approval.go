@@ -41,8 +41,8 @@ func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	p, a := s.pending, s.asking
-	s.pending, s.asking = nil, nil
+	p, a, sec := s.pending, s.asking, s.secreting
+	s.pending, s.asking, s.secreting = nil, nil, nil
 	s.mu.Unlock()
 	// The page is told to clear before the callers are answered: a prompt
 	// waiting behind this one (a subagent outside the turn) can come up
@@ -50,6 +50,13 @@ func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
 	// down with nothing left on the page to answer it.
 	s.emit(envelope{Type: "permission"}) // clear
 	s.emit(envelope{Type: "question"})
+	s.emit(envelope{Type: "secret"})
+	if sec != nil {
+		select {
+		case sec.reply <- agent.SecretReply{Declined: true}:
+		default:
+		}
+	}
 	if p != nil {
 		select {
 		case p.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:

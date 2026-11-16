@@ -789,6 +789,30 @@
     showQuestions([]);
   }
 
+  const secretCard = document.getElementById("secret-card");
+  const secretInput = document.getElementById("secret-input");
+  // showSecret draws the private card for a request_secret call. The page
+  // is only ever told the model's words; the value lives in this password
+  // field until it is posted and is blanked straight after.
+  function showSecret(s) {
+    secretInput.value = "";
+    secretCard.hidden = !s;
+    if (!s) return;
+    document.getElementById("secret-title").textContent = "Secret requested: " + (s.name || "");
+    document.getElementById("secret-why").textContent = "Why: " + (s.purpose || "");
+    document.getElementById("secret-use").textContent = "Use: " + (s.usage || "");
+    document.getElementById("secret-env").textContent = "Available to commands as $" + (s.env_var || "") + " for this session only.";
+    secretInput.focus();
+  }
+  async function answerSecret(declined) {
+    const value = declined ? "" : secretInput.value;
+    secretInput.value = "";
+    if (!declined && !value) return;
+    if (await post("/api/secret", { value, declined })) showSecret(null);
+  }
+  secretCard.addEventListener("submit", (ev) => { ev.preventDefault(); answerSecret(false); });
+  document.getElementById("secret-decline").addEventListener("click", () => answerSecret(true));
+
   function handle(msg) {
     switch (msg.type) {
       case "hello": applyHello(msg.hello); break;
@@ -796,6 +820,7 @@
       case "status": applyStatus(msg.status); break;
       case "permission": showAsk(msg.permission); break;
       case "question": showQuestions(msg.questions); break;
+      case "secret": showSecret(msg.secret); break;
       case "reset":
         log.innerHTML = "";
         nodes.clear();
@@ -2048,6 +2073,7 @@
     applyStatus(st.status);
     (st.entries || []).forEach(render);
     showAsk(st.permission);
+    showSecret(st.secret);
     refreshWorkspace();
     restoreDraft();
   }).catch((err) => { console.error("BOOT FAILED", err); });
