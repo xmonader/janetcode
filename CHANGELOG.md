@@ -50,6 +50,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   server-side (internal/webui/guest.go); see "Guest links" in the manual.
 
 ### Approve from your phone (2026-11-16)
+- Prompt links: `/?prompt=<urlencoded>` on a `--web` URL prefills the
+  composer as a draft. It never sends, reads no other parameter (mode and
+  model cannot be set), treats the text as plain text, cuts it at 8000
+  characters and keeps an existing draft.
 - `notification` hooks get a `url` when a `--web` server runs in the
   process: a link with a one-time login ticket (30 minutes, never the
   access token) that opens the page on the pending approval, focused over

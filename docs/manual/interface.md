@@ -4102,6 +4102,38 @@ mode is not offered. Under ACP the editor can only choose, so text fields
 are limited to their default or left empty; with no front-end asking
 (`-p` runs) the request is declined.
 
+### Prompt links
+
+`/?prompt=<urlencoded text>` on a `--web` URL opens the page with that
+text in the composer, as a draft: a bookmark, a script or a teammate's
+message can hand you a prompt to read and send. The link does that and
+nothing else.
+
+- It never sends. You read the text and press Enter yourself; the status
+  line says the prompt came from a link. (A prompt that starts with `/`
+  or `!` is a draft too, until you send it.)
+- It cannot change the permission mode, the model or any session setting:
+  no other parameter is read, and `?mode=yolo` or `?model=...` do
+  nothing.
+- It is plain text. It is put in the composer's value, never parsed as
+  HTML or markdown, so `<img onerror=...>` is just those characters.
+  Control characters other than tab and newline, and bidi override
+  marks, are dropped.
+- It is cut at 8000 characters, and the status line says so. The sign-in
+  redirect carries at most 32 KiB of it.
+- It does not replace a draft you already have; the status line says the
+  link was ignored.
+- The page takes `prompt` out of the address bar after reading it, so a
+  reload does not offer it again.
+
+It works with the sign-in link too, as `/?token=...&prompt=...`, and a
+page that has to ask for the token keeps nothing: open the link again
+after signing in. Encode the text, for example
+`python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' 'fix the flaky test'`.
+A prompt link puts text in front of you, not in front of the model, but
+it is still a link anyone can write: read what it says before you send
+it.
+
 ### Approve from your phone
 
 A session that waits on you can send a link that opens it on the pending

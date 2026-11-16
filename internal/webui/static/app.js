@@ -679,6 +679,54 @@
       }, 20000);
     }
   } catch (_) {}
+  // A prompt link (?prompt=<text>) opens the page with the text in the
+  // composer as a draft, and nothing else: it is never sent, and it
+  // touches no mode, model or session setting (no other parameter is
+  // read). It is assigned to .value, so it is text, never markup. It is
+  // cut at PROMPT_LINK_MAX characters, and an existing draft is kept
+  // rather than replaced, since the link has no business discarding
+  // what you typed.
+  const PROMPT_LINK_MAX = 8000;
+  let linkPrompt = "";
+  let linkPromptCut = false;
+  try {
+    const qs = new URLSearchParams(location.search);
+    if (qs.has("prompt")) {
+      // Control characters other than tab and newline have no place in a
+      // draft (a link can carry NUL, escapes, bidi marks).
+      let t = qs.get("prompt").replace(/[\u0000-\u0008\u000b-\u001f\u007f‪-‮⁦-⁩]/g, "");
+      if (t.length > PROMPT_LINK_MAX) { t = t.slice(0, PROMPT_LINK_MAX); linkPromptCut = true; }
+      linkPrompt = t;
+      qs.delete("prompt");
+      const rest = qs.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    }
+  } catch (_) {}
+  function applyPromptLink() {
+    if (!linkPrompt.trim()) return;
+    const t = linkPrompt;
+    linkPrompt = "";
+    if (input.value.trim()) {
+      linkNote("A link offered a prompt, but the composer already has a draft: it was not replaced.");
+      return;
+    }
+    input.value = t;
+    saveDraft();
+    resize();
+    if (!pending) {
+      input.focus();
+      input.setSelectionRange(t.length, t.length);
+    }
+    linkNote("Prompt from a link, not sent: read it before you press Enter." + (linkPromptCut ? " It was cut at " + PROMPT_LINK_MAX + " characters." : ""));
+  }
+  // The note sits above the composer until you type or send; the status
+  // line is rewritten by every status event and would lose it.
+  const linkNoteEl = document.getElementById("link-note");
+  function linkNote(text) {
+    linkNoteEl.textContent = text;
+    linkNoteEl.hidden = !text;
+  }
+  input.addEventListener("input", () => linkNote(""));
   function showAsk(p) {
     const was = ask.hidden ? null : pending;
     pending = p && p.name ? p : null;
@@ -2174,6 +2222,7 @@
     applyGuest(st.guest);
     refreshWorkspace();
     restoreDraft();
+    applyPromptLink();
   }).catch((err) => { console.error("BOOT FAILED", err); });
   const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");

@@ -924,6 +924,42 @@ const calm = await evaljs(`(async () => {
 check('a prompt without the link leaves a typing user alone', calm.onInput, JSON.stringify(calm));
 await cmd('Emulation.clearDeviceMetricsOverride');
 
+// A prompt link (?prompt=) fills the composer as a draft and does nothing
+// else: markup stays text, nothing is sent, settings do not move, the
+// parameter leaves the address bar, an existing draft is kept, and a
+// huge prompt is cut.
+const modeText = `(document.getElementById('mode-chip') || document.querySelector('[data-testid="mode-chip"]') || { textContent: '' }).textContent`;
+const clearDrafts = () => evaljs(`(() => { Object.keys(localStorage).filter((k) => k.startsWith('janetcode-draft')).forEach((k) => localStorage.removeItem(k)); return 1; })()`);
+await clearDrafts();
+const modeBefore = await evaljs(modeText);
+const evil = '<img src=x onerror="window.__pwned=1"> & <b>bold</b>\nsecond line';
+await cmd('Page.navigate', { url: new URL('/?mode=yolo&model=nonesuch&prompt=' + encodeURIComponent(evil), APP).href });
+await sleep(2500);
+const pl = await evaljs(`(async () => {
+  const input = document.getElementById('input');
+  const st = await (await fetch('/api/state')).json();
+  return { value: input.value, search: location.search, focused: document.activeElement === input,
+    injected: document.querySelectorAll('#composer img, #composer b').length, pwned: !!window.__pwned,
+    sent: (st.entries || []).filter((e) => e.kind === 'user').length, running: !!(st.status && st.status.running),
+    mode: ${modeText} };
+})()`);
+check('a prompt link fills the composer with the text verbatim', pl.value === evil && pl.focused, JSON.stringify(pl));
+check('a prompt link is text, not markup', pl.injected === 0 && !pl.pwned, JSON.stringify(pl));
+check('a prompt link never sends and leaves the address bar clean', pl.sent === 0 && !pl.running && !pl.search.includes('prompt'), JSON.stringify(pl));
+check('a prompt link cannot change the mode', pl.mode === modeBefore, JSON.stringify({ before: modeBefore, after: pl.mode }));
+await clearDrafts();
+await cmd('Page.navigate', { url: new URL('/?prompt=' + encodeURIComponent('x'.repeat(20000)), APP).href });
+await sleep(2500);
+const cut = await evaljs(`({ n: document.getElementById('input').value.length, note: document.getElementById('link-note').textContent })`);
+check('a prompt link is cut at 8000 characters and says so', cut.n === 8000 && /cut at 8000/.test(cut.note), JSON.stringify(cut));
+await clearDrafts();
+await evaljs(`(() => { localStorage.setItem('janetcode-draft', 'my own draft'); return 1; })()`);
+await cmd('Page.navigate', { url: new URL('/?prompt=' + encodeURIComponent('from a link'), APP).href });
+await sleep(2500);
+const keptDraft = await evaljs(`({ v: document.getElementById('input').value })`);
+check('a prompt link does not replace a draft', keptDraft.v === 'my own draft', JSON.stringify(keptDraft));
+await clearDrafts();
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));

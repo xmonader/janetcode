@@ -127,3 +127,34 @@ func TestPublicHostPassesTheLoopbackGuard(t *testing.T) {
 		t.Fatalf("another host = %d", c)
 	}
 }
+
+// A prompt link survives the sign-in redirect, encoded, and is clipped so
+// a hostile link cannot make the server echo megabytes.
+func TestPromptLinkSurvivesSignInClipped(t *testing.T) {
+	s := newServer(context.Background(), Options{Addr: "10.1.2.3:8787", Token: "s3cret"})
+	h := s.handler()
+	get := func(target string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", target, nil)
+		r.Host = "10.1.2.3:8787"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	want := "fix <b>the</b> bug & more\nline 2 é"
+	w := get("/?token=s3cret&mode=yolo&model=x&prompt=" + url.QueryEscape(want))
+	loc, err := url.Parse(w.Header().Get("Location"))
+	if w.Code != http.StatusSeeOther || err != nil {
+		t.Fatalf("redirect = %d %q", w.Code, w.Header().Get("Location"))
+	}
+	if got := loc.Query().Get("prompt"); got != want {
+		t.Fatalf("prompt = %q, want %q", got, want)
+	}
+	if loc.Query().Has("mode") || loc.Query().Has("model") || loc.Query().Has("token") {
+		t.Fatalf("redirect carried more than it should: %q", loc)
+	}
+	w = get("/?token=s3cret&prompt=" + strings.Repeat("%C3%A9", maxPromptParam))
+	loc, _ = url.Parse(w.Header().Get("Location"))
+	if n := len(loc.Query().Get("prompt")); n == 0 || n > maxPromptParam {
+		t.Fatalf("clipped prompt is %d bytes, cap %d", n, maxPromptParam)
+	}
+}

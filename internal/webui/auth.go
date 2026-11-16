@@ -93,8 +93,8 @@ func (s *server) requireToken(w http.ResponseWriter, r *http.Request) bool {
 
 // signIn trades a good token or ticket for the cookie and redirects to
 // the page without either in its URL. What the link was for survives the
-// redirect: approve focuses the pending approval (the page reads it and
-// takes it out of the address bar).
+// redirect: approve focuses the pending approval, and prompt prefills the
+// composer; the page reads both and takes them out of the address bar.
 func (s *server) signIn(w http.ResponseWriter, r *http.Request) {
 	c := &http.Cookie{
 		Name: cookieName(s.opts.Token), Value: s.opts.Token, Path: "/",
@@ -112,16 +112,30 @@ func (s *server) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, c)
 	keep := url.Values{}
-	for _, k := range []string{"approve"} {
-		if r.URL.Query().Has(k) {
-			keep.Set(k, r.URL.Query().Get(k))
-		}
+	q := r.URL.Query()
+	if q.Has("approve") {
+		keep.Set("approve", q.Get("approve"))
+	}
+	if q.Has("prompt") {
+		keep.Set("prompt", clipPromptParam(q.Get("prompt")))
 	}
 	to := "/"
 	if len(keep) > 0 {
 		to += "?" + keep.Encode()
 	}
 	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
+// maxPromptParam bounds the prompt a redirect carries; the page cuts it
+// shorter and says so. It only keeps a hostile link from making the
+// server echo megabytes back in a Location header.
+const maxPromptParam = 32 << 10
+
+func clipPromptParam(v string) string {
+	if len(v) <= maxPromptParam {
+		return v
+	}
+	return strings.ToValidUTF8(v[:maxPromptParam], "")
 }
 
 // embedded reports whether the page was asked for to be framed by an
