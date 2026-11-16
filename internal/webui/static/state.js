@@ -7,6 +7,8 @@
 //
 //   connected   writes: app.js applyHello (the hello event)
 //               reads:  app.js model chip/composer send/palette, switchmenu.js
+//   lastWorkspace writes: app.js refreshWorkspace
+//               reads:  app.js turn file cards, workspace pane, modemenu.js
 //   lastReply   writes: app.js transcript render (assistant text)
 //               reads:  notify.js (the body of the "turn finished" popup)
 //
@@ -17,6 +19,8 @@
   "use strict";
   global.JanetState = {
     lastReply: "",
+    // the last /api/workspace payload (files, git, switches), or null.
+    lastWorkspace: null,
     // false on a first run with no provider key.
     connected: true,
   };
