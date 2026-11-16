@@ -4,7 +4,8 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build install test race lint check clean dist run eval eval-baseline eval-train cross harness-bench harness-bench-large \
-	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-smoke ui-visual ui-shot vscode-test action-test
+	md-test ui-a11y build-treesitter test-treesitter ui-test ui-firstrun ui-turn ui-smoke ui-visual ui-shot vscode-test action-test \
+	release-evidence repro-check verify-dist release-sign release-gates release-meta
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -225,6 +226,53 @@ dist:
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$out ./cmd/$(BIN); \
 	done
 	cd dist && sha256sum $(BIN)-* > SHA256SUMS
+
+# Release evidence (all local; see docs/manual/security.md). The tool is
+# cmd/releasepkg, standard library only. Run make dist VERSION=vX.Y.Z first.
+RELPKG := go run ./cmd/releasepkg
+
+# Provenance, SBOM, licence inventory and checksums, derived from the
+# binaries in dist/. Refuses binaries built from a modified tree.
+release-evidence:
+	$(RELPKG) licenses -dist dist
+	$(RELPKG) provenance -dist dist -version $(VERSION)
+	$(RELPKG) sbom -dist dist -version $(VERSION)
+	$(RELPKG) report -dist dist
+	$(RELPKG) sums -dist dist
+
+# Check dist/ as a user would: sums, provenance against the embedded build
+# info, and the signature when there is one. SIGNER pins the key.
+verify-dist:
+	$(RELPKG) verify -dist dist $(if $(SIGNER),-require-signature -fingerprint $(SIGNER))
+
+# Detached signature over SHA256SUMS. GPG_KEY names the key.
+release-sign:
+	@test -n "$(GPG_KEY)" || { echo "set GPG_KEY=<key id or fingerprint>"; exit 1; }
+	gpg --batch --yes --local-user $(GPG_KEY) --armor --detach-sign -o dist/SHA256SUMS.asc dist/SHA256SUMS
+
+# Run every gate in the table in cmd/releasepkg/gates.go and record the
+# commit and result of each in dist/gates.json.
+release-gates:
+	$(RELPKG) gates -out dist/gates.json
+
+# Build the release binaries twice, here and from a fresh clone at another
+# path with an empty build cache, and require identical bytes. The tree
+# must be clean: uncommitted changes are not in the clone.
+REPRO_DIR := $(or $(TMPDIR),/tmp)/janetcode-repro
+repro-check:
+	@test -z "$$(git status --porcelain)" || { echo "repro-check needs a clean tree (uncommitted changes are not in the clone)"; git status --short | head; exit 1; }
+	$(MAKE) dist VERSION=$(VERSION)
+	rm -rf $(REPRO_DIR) && git clone -q --local . $(REPRO_DIR)
+	cd $(REPRO_DIR) && GOCACHE=$$(mktemp -d) $(MAKE) dist VERSION=$(VERSION)
+	@set -e; for f in dist/$(BIN)-*; do \
+		b=$$(basename $$f); \
+		a=$$(sha256sum $$f | cut -d' ' -f1); c=$$(sha256sum $(REPRO_DIR)/dist/$$b | cut -d' ' -f1); \
+		if [ "$$a" = "$$c" ]; then echo "  same  $$b"; else echo "  DIFFERENT  $$b"; fail=1; fi; \
+	done; rm -rf $(REPRO_DIR); test -z "$$fail"
+
+# Fails when docs/manual/security.md has drifted from the implementation.
+release-meta:
+	go test ./cmd/releasepkg -count=1
 
 run: build
 	./bin/$(BIN)
