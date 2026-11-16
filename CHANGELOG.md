@@ -155,7 +155,9 @@ and measurements behind each round are in `docs/notes/history.md`.
   and tools, prompts and resources. Nothing is called or run to build it.
 - MCP servers have `connect`, `read` and `mutate` capabilities. A server
   added with `/mcp add` starts restricted (read-only tools only);
-  `/mcp enable`, `/mcp disable` and `/mcp tool` change that, and disabling
+  `/mcp enable`, `/mcp disable` and `/mcp tool` change that, a server taken
+  from a repository with `/mcp add --from` is installed disabled and not
+  started until enabled, and disabling
   stops the process and refuses later calls. Grants are kept in
   `extensions.json`, which the model cannot edit.
 

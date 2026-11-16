@@ -4266,8 +4266,12 @@ capabilities:
 A server you wrote in your own config file has all three (trusted by
 authorship). A server in a project's `.mcp.json` has all three once the
 file is approved (`/mcp trust` or `/trust full`). A server installed with
-`/mcp add` (including `--from`) starts with `connect` and `read` only;
-re-adding it with a different command or URL puts it back there. Grants
+`/mcp add` starts with `connect` and `read` only (you typed the command, so
+it runs, but nothing it does not mark read-only is callable); re-adding it
+with a different command or URL puts it back there. A server that
+`/mcp add --from` takes out of a repository starts with nothing: it is
+written to `.mcp.json` but not started, not even for a handshake, until you
+have read what it runs and `/mcp enable` it. Grants
 live in `extensions.json` next to the config file, a protected path the
 model cannot edit; an unreadable file refuses every server that has a grant
 rather than allowing it.

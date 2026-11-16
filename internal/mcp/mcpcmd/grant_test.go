@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/extension"
+	"github.com/xmonader/janetcode/internal/mcp"
 )
 
 // stagedHarness is newHarness with the staged-trust store and the policy
@@ -171,5 +172,54 @@ func TestReAddKeepsGrantOnlyWhenUnchanged(t *testing.T) {
 	g, _, _ = h.env.Extensions.Get(extension.ProjectKey(h.cwd, "fake"))
 	if g.Has(extension.Mutate) {
 		t.Fatalf("a changed entry kept mutate: %+v", g)
+	}
+}
+
+// What a repository declares is installed disabled: nothing of it runs,
+// not even a handshake, until /mcp enable.
+func TestInstallFromARepositoryIsDisabledUntilEnabled(t *testing.T) {
+	h := stagedHarness(t)
+	ctx := context.Background()
+	body, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"repo": fake()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	man, err := Fetch(ctx, h.env, repo(t, "mcp.json", string(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Install(ctx, h.env, man)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(res.Tips, "\n"), "installed disabled") {
+		t.Fatalf("tips: %v", res.Tips)
+	}
+	if _, up := h.mgr.Client("repo"); up {
+		t.Fatal("an installed-disabled server was started")
+	}
+	if len(h.mgr.Status()) != 0 {
+		t.Fatalf("manager saw it: %+v", h.mgr.Status())
+	}
+	g, ok, _ := h.env.Extensions.Get(extension.ProjectKey(h.cwd, "repo"))
+	if !ok || len(g.Scopes) != 0 {
+		t.Fatalf("grant = %+v", g)
+	}
+	// Started by hand it is still refused: the policy is the manager's.
+	done := make(chan error, 1)
+	h.mgr.Start(ctx, "repo", fake(), func(_ string, _ *mcp.Client, err error) { done <- err })
+	if err := <-done; err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("start of a disabled server: %v", err)
+	}
+	h.mgr.Stop("repo")
+
+	if _, err := GrantCommand(ctx, h.env, "enable", "repo", []string{"read"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := h.reg.Get("mcp__repo__echo"); !ok {
+		t.Fatal("enable did not start the server")
+	}
+	if _, err := call(t, h, "mcp__repo__fail", `{}`); err == nil || !strings.Contains(err.Error(), "restricted") {
+		t.Fatalf("mutating tool after enabling read only: %v", err)
 	}
 }

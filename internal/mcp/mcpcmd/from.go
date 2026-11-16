@@ -176,11 +176,14 @@ func Install(ctx context.Context, env Env, man *Manifest) (cmdresult.Result, err
 		res.Notes = append(res.Notes, "cloned into "+man.Dir)
 	}
 	for _, name := range man.Names {
-		stage(env, before, name, man.Servers[name], &res)
+		stageAs(env, before, name, man.Servers[name], true, &res)
 	}
 	applyTrust(env, servers, hash, &res)
 	var sheets []string
 	for _, name := range man.Names {
+		if env.Extensions.Path != "" {
+			continue // installed disabled: nothing of it runs until /mcp enable
+		}
 		if sheet := start(ctx, env, name, man.Servers[name], &res); sheet != "" {
 			sheets = append(sheets, name+"\n"+sheet)
 		}

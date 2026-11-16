@@ -50,6 +50,13 @@ func current(env Env, key string) (extension.Grant, error) {
 // A new server, or one whose entry changed (different code to run), is
 // restricted; one re-added unchanged keeps what the user already allowed.
 func stage(env Env, before map[string]mcp.ServerConfig, name string, cfg mcp.ServerConfig, res *cmdresult.Result) {
+	stageAs(env, before, name, cfg, false, res)
+}
+
+// stageAs is stage with the choice of how far to restrict. disabled is
+// for code the user did not type: what a repository declares runs
+// nothing, not even a handshake, until /mcp enable.
+func stageAs(env Env, before map[string]mcp.ServerConfig, name string, cfg mcp.ServerConfig, disabled bool, res *cmdresult.Result) {
 	if env.Extensions.Path == "" {
 		return
 	}
@@ -59,8 +66,16 @@ func stage(env Env, before map[string]mcp.ServerConfig, name string, cfg mcp.Ser
 			return
 		}
 	}
-	if err := env.Extensions.Set(key, extension.Restricted("installed with /mcp add: connect and read-only tools until you enable mutate")); err != nil {
+	g := extension.Restricted("installed with /mcp add: connect and read-only tools until you enable mutate")
+	if disabled {
+		g = extension.Grant{Scopes: []extension.Scope{}, Reason: "installed with /mcp add --from: disabled until you review what it runs and enable it", Updated: g.Updated}
+	}
+	if err := env.Extensions.Set(key, g); err != nil {
 		res.Tips = append(res.Tips, "could not record the restricted grant for "+name+": "+err.Error()+" (it keeps whatever access it had)")
+		return
+	}
+	if disabled {
+		res.Tips = append(res.Tips, fmt.Sprintf("%s is installed disabled and was not started: read what it runs in %s, then /mcp enable %s", name, mcp.ProjectFile, name))
 		return
 	}
 	res.Tips = append(res.Tips, fmt.Sprintf("%s is installed restricted: its read-only tools work; the rest are blocked until /mcp enable %s mutate", name, name))
