@@ -42,6 +42,10 @@ const (
 	KindImage    = "image"    // an image sent with the request
 	KindRedacted = "redacted" // secret-shaped values scrubbed before they were sent
 	KindRegistry = "registry" // a package registry asked whether an added dependency exists
+	// KindMemoryCall is a request the memory extractor, the sleep
+	// consolidation or /dream made after a turn: the conversation (or the
+	// session's record) sent to the model again.
+	KindMemoryCall = "memory-call"
 )
 
 // Entry is one destination (or one item of content) for the turn, with
@@ -61,7 +65,10 @@ type Entry struct {
 
 // Report is one turn's egress.
 type Report struct {
-	Turn    int     `json:"turn"`
+	Turn int `json:"turn"`
+	// Phase is set on a report that is not the turn's own: "memory
+	// extraction" for the model call made after the turn, about it.
+	Phase   string  `json:"phase,omitempty"`
 	Entries []Entry `json:"entries"`
 	// CostUSD is what the turn's model calls cost, when known.
 	CostUSD float64 `json:"cost_usd,omitempty"`
@@ -174,7 +181,7 @@ func (r *Recorder) Last() (Report, bool) {
 	return r.last, r.has
 }
 
-var kinds = []string{KindModel, KindMCP, KindFetch, KindSearch, KindRegistry, KindCommand, KindFile, KindImage, KindMemory, KindSkill, KindTool, KindRedacted}
+var kinds = []string{KindModel, KindMCP, KindFetch, KindSearch, KindRegistry, KindMemoryCall, KindCommand, KindFile, KindImage, KindMemory, KindSkill, KindTool, KindRedacted}
 
 func kindOrder(k string) int {
 	for i, x := range kinds {
@@ -201,10 +208,10 @@ func (rep Report) Hosts() []string {
 // Text renders the report for a person.
 func (rep Report) Text() string {
 	if len(rep.Entries) == 0 {
-		return fmt.Sprintf("turn %d sent nothing off this machine", rep.Turn)
+		return fmt.Sprintf("%s sent nothing off this machine", rep.label())
 	}
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "turn %d sent data to %d host(s): %s\n", rep.Turn, len(rep.Hosts()), strings.Join(rep.Hosts(), ", "))
+	fmt.Fprintf(&sb, "%s sent data to %d host(s): %s\n", rep.label(), len(rep.Hosts()), strings.Join(rep.Hosts(), ", "))
 	section := ""
 	for _, e := range rep.Entries {
 		title := map[string]string{
@@ -212,6 +219,7 @@ func (rep Report) Text() string {
 			KindCommand: "shell commands that reach a host", KindFile: "files whose contents were sent", KindImage: "images",
 			KindMemory: "memory entries attached", KindSkill: "skills attached", KindTool: "tool output sent back to the model",
 			KindRedacted: "secret-shaped values redacted before sending", KindRegistry: "package registries (dependency check)",
+			KindMemoryCall: "memory model calls (the conversation sent again after the turn)",
 		}[e.Kind]
 		if title == "" {
 			title = e.Kind
@@ -246,6 +254,14 @@ func (rep Report) Text() string {
 		fmt.Fprintf(&sb, "model cost this turn: $%.4f\n", rep.CostUSD)
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// label names the report: "turn 3", or "after turn 3: memory extraction".
+func (rep Report) label() string {
+	if rep.Phase != "" {
+		return fmt.Sprintf("after turn %d: %s", rep.Turn, rep.Phase)
+	}
+	return fmt.Sprintf("turn %d", rep.Turn)
 }
 
 // JSON is the report as one JSON object, for the session log.

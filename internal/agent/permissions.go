@@ -84,6 +84,7 @@ type permissions struct {
 
 	egressMu  sync.Mutex
 	egressRec *egress.Recorder
+	egressAux []egress.Report // after-turn memory calls (RecordMemoryCall)
 
 	// allowed are the tools the user allowed for the rest of the session
 	// (Decision AllowSession). allowedMu guards it: a turn writes it while

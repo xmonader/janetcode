@@ -336,7 +336,11 @@ func remember(ctx context.Context, opts Options) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	ag := opts.Agent
-	xs, err := memory.Extract(ctx, ag.Provider, ag.Model, ag.Messages, opts.Memory.Entries())
+	var xs []memory.Extracted
+	err := ag.RecordMemoryCall(ctx, ag.EgressTurn(), "memory extraction", func(ctx context.Context) (err error) {
+		xs, err = memory.Extract(ctx, ag.Provider, ag.Model, ag.Messages, opts.Memory.Entries())
+		return err
+	})
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] extraction failed: %v\n", err)
 		return
@@ -370,7 +374,14 @@ func sleepSession(ctx context.Context, opts Options) {
 	defer cancel()
 	in := sleepfold.Fold(sess.Events())
 	in.SessionID = sess.Meta.ID
-	xs, dropped, err := memory.SleepD(ctx, opts.Agent.Provider, opts.Agent.Model, in, opts.Memory.Entries())
+	var (
+		xs      []memory.Extracted
+		dropped int
+	)
+	err := opts.Agent.RecordMemoryCall(ctx, opts.Agent.EgressTurn(), "memory consolidation (sleep)", func(ctx context.Context) (err error) {
+		xs, dropped, err = memory.SleepD(ctx, opts.Agent.Provider, opts.Agent.Model, in, opts.Memory.Entries())
+		return err
+	})
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] sleep failed: %v\n", err)
 		return

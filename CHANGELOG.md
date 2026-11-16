@@ -28,6 +28,13 @@ and measurements behind each round are in `docs/notes/history.md`.
   and `/memory pending` says when the source turn is unknown.
 - The egress report scrubs secret-shaped values from hosts, paths and
   reasons, and the memory extractor's request is scrubbed too.
+- The extractor's and the sleep consolidation's model calls run after the
+  turn ends, and used to be missing from the egress report. Each is now its
+  own report, "after turn N: memory extraction" (or "memory consolidation
+  (sleep)"): provider host, request size, message and entry counts, scrubbed
+  like the rest. It is in `/egress` (terminal and web), the session log
+  (`egress/turn`, with a `phase`) and headless JSON `egress`. With
+  `/memory auto off` no call is made and nothing is recorded.
 
 ### Model-visible session auditing (#12)
 - Every model call logs a `model/request` event: the model and provider,

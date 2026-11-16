@@ -103,6 +103,7 @@ func Extract(ctx context.Context, p llm.Provider, model string, msgs []llm.Messa
 	}
 	ask.WriteString("\nWrite the JSON lines for new or corrected knowledge now, or NONE.")
 	slim = append(slim, llm.TextMessage(llm.RoleUser, ask.String()))
+	noteCall(ctx, fmt.Sprintf("extraction: %s, %s", plural(len(slim), "message"), plural(len(existing), "existing entry")), extractSystem, slim)
 	resp, err := p.Stream(ctx, llm.Request{Model: model, System: extractSystem, Messages: slim, MaxTokens: 800}, nil)
 	if err != nil {
 		return nil, err

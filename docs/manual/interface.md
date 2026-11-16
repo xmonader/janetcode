@@ -1417,6 +1417,17 @@ how many secret-shaped values were redacted before sending. `/egress`
 session log as `egress/turn`, and `-p --output-format json` carries them
 under `"egress"`.
 
+The automatic memory extractor and the sleep consolidation send the
+conversation (or the session's record) to the model again after the turn
+ends. Each call is its own report, "after turn N: memory extraction" or
+"memory consolidation (sleep)", with the provider host, request size, and
+how many messages and existing memory entries went (scrubbed like the
+rest). `/egress` lists the most recent ones after the turn's own report; all
+of them are in the session log as `egress/turn` events with a `phase`
+field, and in headless JSON `"egress"` (the headless run writes its result
+after extraction and the session-end consolidation, so both are included).
+`/memory auto off` means no call, so no report.
+
 The `egress` config key restricts where data may go:
 
 ```json

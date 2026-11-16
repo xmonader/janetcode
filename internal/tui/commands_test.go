@@ -620,6 +620,16 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "remembered: hand-maintained (project): The x file is hand-maintained.") {
 		t.Fatalf("view:\n%s", v)
 	}
+	// The extractor sent the conversation to the model again after the
+	// turn: /egress says so, and the session log has the entry.
+	if sum := h.m.opts.Agent.EgressSummary(); !strings.Contains(sum, "after turn 1: memory extraction") || !strings.Contains(sum, "extraction: ") || !strings.Contains(sum, "memory model calls") {
+		t.Fatalf("/egress does not show the extraction call:\n%s", sum)
+	}
+	h.keys("/egress")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "after turn 1: memory extraction") {
+		t.Fatalf("/egress view:\n%s", v)
+	}
 	h.keys("/forget hand-maintained")
 	h.enter()
 	if _, ok := store.Get("hand-maintained"); ok {

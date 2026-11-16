@@ -52,7 +52,52 @@ func (a *Agent) EgressSummary() string {
 	} else {
 		body = "no turn has run yet in this session"
 	}
+	for _, rep := range a.egressAuxReports() {
+		body += "\n\n" + rep.Text()
+	}
 	return a.EgressPolicy.Describe() + a.egressBashNote() + "\n" + a.TaintSummary() + "\n\n" + body + "\n\nEvery turn's report is in the session log (egress/turn) and in headless JSON (\"egress\")."
+}
+
+// maxAuxReports bounds the after-turn reports /egress keeps in memory;
+// the session log keeps every one.
+const maxAuxReports = 8
+
+func (a *Agent) egressAuxReports() []egress.Report {
+	a.egressMu.Lock()
+	defer a.egressMu.Unlock()
+	return append([]egress.Report(nil), a.egressAux...)
+}
+
+// EgressTurn is the number of the last turn that began: what a memory
+// call made after it is attributed to.
+func (a *Agent) EgressTurn() int { return a.turnN }
+
+// RecordMemoryCall runs fn, a model call made after a turn for memory
+// (extraction, sleep consolidation, /dream), under a ledger of its own so
+// the request that sends the conversation again is not invisible: what
+// fn's requests record lands in a report "after turn N: <phase>", written
+// to the session log (egress/turn, with the phase), shown by /egress and
+// returned in headless JSON. turn is the turn the call is about. fn must
+// not be called when the feature is off: nothing is recorded for a call
+// that was not made.
+func (a *Agent) RecordMemoryCall(ctx context.Context, turn int, phase string, fn func(ctx context.Context) error) error {
+	rec := &egress.Recorder{}
+	rec.Begin(turn)
+	cctx := egress.With(ctx, rec)
+	if p := a.EgressPolicy; p.Active() {
+		cctx = egress.WithPolicy(cctx, p)
+	}
+	err := fn(cctx)
+	rep := rec.End(0)
+	rep.Phase = phase
+	a.egressMu.Lock()
+	a.egressAux = append(a.egressAux, rep)
+	if len(a.egressAux) > maxAuxReports {
+		a.egressAux = a.egressAux[len(a.egressAux)-maxAuxReports:]
+	}
+	a.egressMu.Unlock()
+	a.logEvent(session.Event{Type: session.TypeEgress, Turn: rep.Turn, Output: rep.JSON()})
+	return err
 }
 
 // MemoryWhy is /memory why: the memory entries attached to the turn in

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/egress"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
@@ -506,5 +509,114 @@ func TestMaxWallTimeStopsAWatch(t *testing.T) {
 		Watch: "true", WatchInterval: 10 * time.Millisecond, MaxWallTime: 100 * time.Millisecond})
 	if !errors.Is(err, ErrWallTime) || ExitCode(err) != ExitWallTime {
 		t.Fatalf("err = %v (exit %d), want the wall-time limit (exit %d)\n%s", err, ExitCode(err), ExitWallTime, errOut.String())
+	}
+}
+
+// httpFake answers from a script but sends every request over HTTP through
+// the egress transport, as a real provider does, so the recorder on the
+// call's context sees a host and a byte count.
+type httpFake struct {
+	fake
+	client *http.Client
+	url    string
+}
+
+func (h *httpFake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	body, _ := json.Marshal(req)
+	hr, _ := http.NewRequestWithContext(ctx, "POST", h.url, bytes.NewReader(body))
+	resp, err := h.client.Do(hr)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body.Close()
+	return h.fake.Stream(ctx, req, emit)
+}
+
+func memoryEgressRun(t *testing.T, autoOff bool) (CLIResult, *session.Session) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(srv.Close)
+	root := t.TempDir()
+	f := &httpFake{client: &http.Client{Transport: egress.Transport(nil, egress.KindModel)}, url: srv.URL}
+	f.responses = []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"x","content":"1"}`)},
+		}}, StopReason: llm.StopToolUse},
+		{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		{Message: llm.TextMessage(llm.RoleAssistant, "Files under x are generated; edit the templates instead.\nNONE"), StopReason: llm.StopEndTurn},
+		{Message: llm.TextMessage(llm.RoleAssistant, "NONE"), StopReason: llm.StopEndTurn}, // sleep at the session's end
+	}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", AutoApprove: true}
+	store := memory.Open(t.TempDir(), root)
+	if autoOff {
+		store.AutoSession.Store(true)
+	}
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if err := Run(context.Background(), Options{Agent: ag, Session: sess, Prompt: "write x", Stdout: &out, Stderr: &errOut, Memory: store, AutoMemory: true, Format: FormatJSON}); err != nil {
+		t.Fatalf("%v\n%s", err, errOut.String())
+	}
+	var res CLIResult
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatalf("result: %v\n%s", err, out.String())
+	}
+	return res, sess
+}
+
+// The extractor sends the conversation to the model again after the turn;
+// that request is in the egress record: the headless result and the
+// session log carry an "after turn 1: memory extraction" report naming the
+// provider host and what was sent.
+func TestMemoryExtractionIsInTheEgressRecord(t *testing.T) {
+	res, sess := memoryEgressRun(t, false)
+	var rep *egress.Report
+	for i := range res.Egress {
+		if res.Egress[i].Phase == "memory extraction" {
+			rep = &res.Egress[i]
+		}
+	}
+	if rep == nil {
+		t.Fatalf("no memory extraction report in result egress: %+v", res.Egress)
+	}
+	txt := rep.Text()
+	for _, want := range []string{"after turn 1: memory extraction", "127.0.0.1", "extraction: ", "existing entries", "model requests"} {
+		if !strings.Contains(txt, want) {
+			t.Errorf("report lacks %q:\n%s", want, txt)
+		}
+	}
+	var sleep *egress.Report
+	for i := range res.Egress {
+		if strings.HasPrefix(res.Egress[i].Phase, "memory consolidation") {
+			sleep = &res.Egress[i]
+		}
+	}
+	if sleep == nil || !strings.Contains(sleep.Text(), "sleep consolidation") || !strings.Contains(sleep.Text(), "127.0.0.1") {
+		t.Errorf("no sleep report naming the host: %+v", res.Egress)
+	}
+	if rep.Turn != 1 {
+		t.Errorf("turn = %d", rep.Turn)
+	}
+	found := false
+	for _, e := range sess.Events() {
+		if e.Type == session.TypeEgress && strings.Contains(e.Output, `"phase":"memory extraction"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("session log has no egress event for the extraction")
+	}
+}
+
+// With automatic memory off for the session there is no extractor call and
+// so no extraction entry.
+func TestMemoryAutoOffLeavesNoExtractionEgress(t *testing.T) {
+	res, _ := memoryEgressRun(t, true)
+	for _, r := range res.Egress {
+		if r.Phase != "" {
+			t.Fatalf("a memory call was recorded though none was made: %+v", r)
+		}
 	}
 }

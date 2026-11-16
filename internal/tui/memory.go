@@ -28,10 +28,15 @@ func (m *model) extractMemory() tea.Cmd {
 			ref = fmt.Sprintf("%s#~%d", s.Meta.ID, ev[len(ev)-1].Seq)
 		}
 	}
+	turn := ag.EgressTurn()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
-		xs, err := memory.Extract(ctx, ag.Settings().Provider, ag.Settings().Model, msgs, store.Entries())
+		var xs []memory.Extracted
+		err := ag.RecordMemoryCall(ctx, turn, "memory extraction", func(ctx context.Context) (err error) {
+			xs, err = memory.Extract(ctx, ag.Settings().Provider, ag.Settings().Model, msgs, store.Entries())
+			return err
+		})
 		if err != nil {
 			return memoryMsg{err: err}
 		}
@@ -160,10 +165,15 @@ func (m *model) sleepMemory(loud bool) tea.Cmd {
 	if loud {
 		m.note("reading the session's record…")
 	}
+	turn := ag.EgressTurn()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
-		xs, err := memory.Sleep(ctx, ag.Settings().Provider, ag.Settings().Model, in, store.Entries())
+		var xs []memory.Extracted
+		err := ag.RecordMemoryCall(ctx, turn, "memory consolidation (sleep)", func(ctx context.Context) (err error) {
+			xs, err = memory.Sleep(ctx, ag.Settings().Provider, ag.Settings().Model, in, store.Entries())
+			return err
+		})
 		if err != nil {
 			return memoryMsg{err: err}
 		}

@@ -102,9 +102,11 @@ func SleepD(ctx context.Context, p llm.Provider, model string, in SleepInput, ex
 		fmt.Fprintf(&rec, "- %s (%s): %s\n", e.Name, e.Type, e.Description)
 	}
 	rec.WriteString("\nWrite the JSON lines for new or corrected knowledge now, or NONE.")
+	sleepMsgs := []llm.Message{llm.TextMessage(llm.RoleUser, rec.String())}
+	noteCall(ctx, fmt.Sprintf("sleep consolidation: %s from the session record, %s", plural(len(in.Facts), "fact"), plural(len(existing), "existing entry")), sleepSystem, sleepMsgs)
 	resp, err := p.Stream(ctx, llm.Request{
 		Model: model, System: sleepSystem, MaxTokens: 900,
-		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, rec.String())},
+		Messages: sleepMsgs,
 	}, nil)
 	if err != nil {
 		return nil, 0, err
