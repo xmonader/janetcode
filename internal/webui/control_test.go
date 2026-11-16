@@ -440,6 +440,74 @@ func TestSessionChangeStalesEveryLease(t *testing.T) {
 	e.waitIdle()
 }
 
+// Resume and fork move every client to another session: only the
+// controller may do it, and afterwards a lease from before is stale.
+func TestResumeAndForkMoveTheLeaseToANewEpoch(t *testing.T) {
+	data := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("HOME", data)
+	dir, err := session.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	here := t.TempDir()
+	old, err := session.New(dir, here, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := llm.TextMessage(llm.RoleUser, "the old question")
+	if _, err := old.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Turn: 1, Message: &q}); err != nil {
+		t.Fatal(err)
+	}
+	cur, err := session.New(dir, here, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prov := &gateProv{started: make(chan struct{}, 16)}
+	ag := &agent.Agent{Provider: prov, Tools: tool.NewRegistry(), Model: "m", Log: cur, Root: here}
+	cd := agent.NewCD(here)
+	cd.Bind(tool.NewLocal(here), ag, cur)
+	s := newServer(context.Background(), Options{Agent: ag, Session: cur, Provider: "fake", Cwd: here, CD: cd, ControlTTL: time.Minute})
+	ts := httptest.NewServer(s.handler())
+	defer ts.Close()
+	e := &ctlEnv{t: t, s: s, ts: ts, prov: prov, sess: cur}
+
+	if code, body, _ := e.call("alice", "POST", "/api/control", `{"action":"acquire"}`); code != 200 {
+		t.Fatal(code, body)
+	}
+	epoch0 := s.controlView("alice").Epoch
+	// bob cannot move the session out from under alice.
+	if code, body := e.prompt("bob", "/resume 1"); conflictOf(t, code, body).Code != sessionproto.CodeLeaseHeld || s.sess().Meta.ID != cur.Meta.ID {
+		t.Fatalf("bob moved the session: now on %s", s.sess().Meta.ID)
+	}
+
+	if code, body := e.prompt("alice", "/resume 1"); code != 200 {
+		t.Fatalf("/resume: %d %s", code, body)
+	}
+	if s.sess().Meta.ID != old.Meta.ID {
+		t.Fatalf("on %s, want the resumed %s", s.sess().Meta.ID, old.Meta.ID)
+	}
+	epoch1 := s.controlView("alice").Epoch
+	if epoch1 <= epoch0 {
+		t.Fatalf("epoch %d did not advance past %d on resume", epoch1, epoch0)
+	}
+	code, body := e.prompt("alice", "x", epochHeader, strconv.FormatUint(epoch0, 10))
+	if c := conflictOf(t, code, body); c.Code != sessionproto.CodeStaleLease {
+		t.Fatalf("pre-resume epoch: %+v", c)
+	}
+
+	// Fork continues in a copy: another move, another epoch.
+	if code, body := e.prompt("alice", "/fork", epochHeader, strconv.FormatUint(epoch1, 10)); code != 200 {
+		t.Fatalf("/fork: %d %s", code, body)
+	}
+	if id := s.sess().Meta.ID; id == old.Meta.ID || id == cur.Meta.ID {
+		t.Fatalf("/fork stayed on %s", id)
+	}
+	if epoch2 := s.controlView("alice").Epoch; epoch2 <= epoch1 {
+		t.Fatalf("epoch %d did not advance past %d on fork", epoch2, epoch1)
+	}
+}
+
 func TestShutdownTellsObservers(t *testing.T) {
 	e := newCtlEnv(t, time.Minute)
 	obs := e.open("watcher", "observer")

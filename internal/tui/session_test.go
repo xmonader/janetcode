@@ -77,6 +77,35 @@ func TestQueuedPromptSendsAfterTurn(t *testing.T) {
 	}
 }
 
+// Several prompts typed during a turn run one by one in the order typed,
+// the same order the web page and the ACP adapter keep.
+func TestQueuedPromptsRunInTheOrderTyped(t *testing.T) {
+	var responses []*llm.Response
+	for _, a := range []string{"a1", "a2", "a3", "a4"} {
+		responses = append(responses, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, a), StopReason: llm.StopEndTurn})
+	}
+	h := newHarness(t, responses...)
+	for _, p := range []string{"p1", "p2", "p3", "p4"} {
+		h.keys(p)
+		h.enter()
+	}
+	if got := h.m.turn.queued; len(got) != 3 || got[0] != "p2" || got[1] != "p3" || got[2] != "p4" {
+		t.Fatalf("queued = %v, want p2 p3 p4", got)
+	}
+	h.pump(func() bool {
+		return !h.m.turn.running && len(h.m.turn.queued) == 0 && len(h.m.opts.Agent.Messages) == 8
+	})
+	var users []string
+	for _, m := range h.m.opts.Agent.Messages {
+		if m.Role == llm.RoleUser {
+			users = append(users, m.Text())
+		}
+	}
+	if strings.Join(users, ",") != "p1,p2,p3,p4" {
+		t.Fatalf("turns ran for %v, want p1,p2,p3,p4", users)
+	}
+}
+
 func TestQueuedPromptRestoredOnCancel(t *testing.T) {
 	b := &blocking{started: make(chan struct{})}
 	h := newHarness(t)
