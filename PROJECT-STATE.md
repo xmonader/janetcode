@@ -41,9 +41,14 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 - Eval Wilson CI pools repeated runs as iid.
 - Mid-turn Jev consumer rejected twice on measurements (docs/notes/jev.md);
   revisit only with a harness-side "did the state change" check.
-- Open UI questions: shared view model for TUI/web. app.js is now ~2,800
-  lines: the transcript, composer, sessions rail and workspace pane share
-  mutable state and were left together.
+- Open UI questions: shared view model for TUI/web. app.js was split from
+  2,821 to ~1,190 lines: one file per area (find, settings, panels, notify,
+  switchmenu, modemenu, sessionsrail, workspacepane, approvals, composer,
+  palette, guest) over a shared `JanetState` (state.js holds the state map).
+  What stays in app.js is the transcript render, event stream and header
+  chips: render() writes the DOM caches (nodes, open* sets) that the event
+  stream, find and markdown export read, so they cannot move without a
+  render/stream interface.
 - Left open from the deep review: seatbelt mach-lookup allowlist is
   untested on a Mac; the `workspace` sandbox keeps unix sockets (use
   `strict`); `settingsapply` can write the decisions map a web request's

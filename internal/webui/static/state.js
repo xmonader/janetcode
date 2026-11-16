@@ -1,29 +1,36 @@
 // The page's shared view model: the one object the areas of the web UI read
 // and write instead of closing over each other's variables.
 //
-// STATE MAP (who writes, who reads). Areas are files; "app.js" is what is
-// left of the old monolith (transcript render, event stream, composer,
-// sessions rail, workspace pane, palette, approvals/questions, guest bar).
+// AREAS (files, load order in index.html; each is JanetX({S, ...deps})):
+//   app.js           transcript render, event stream (handle/EventSource),
+//                    header/status/model chips, mermaid, turn file cards
+//   find.js          Ctrl+F in the thread        settings.js  theme, dialog, ding
+//   panels.js        rails, preview drawer, drag-resize
+//   notify.js        desktop notifications       switchmenu.js model/effort menu
+//   modemenu.js      permission-mode menu        sessionsrail.js sessions rail
+//   workspacepane.js Changes/Jobs/Agents/Plan    approvals.js ask/questions/secret
+//   composer.js      send, history, @-complete, drafts, slash menu
+//   palette.js       Ctrl+K palette              guest.js     guest links
 //
-//   connected   writes: app.js applyHello (the hello event)
-//               reads:  app.js model chip/composer send/palette, switchmenu.js
-//   lastWorkspace writes: app.js refreshWorkspace
-//               reads:  app.js turn file cards, workspace pane, modemenu.js
-//   firstUserText writes: app.js event stream (user entries, reset)
-//               reads:  app.js header title, sessionsrail.js (live row label)
-//   localNote   writes: app.js status, sessionsrail.js (resume failed)
-//               reads:  app.js finishStatus
-//   latest      writes: app.js render/event stream (set, delete, clear on reset)
-//               reads:  app.js (tool groups, find, markdown export, copy/edit
-//               buttons), workspacepane.js (has the user spoken yet)
-//   pending     writes: approvals.js showAsk
-//               reads:  app.js composer shortcuts, applyPromptLink, queue counter
-//   lastReply   writes: app.js transcript render (assistant text)
-//               reads:  notify.js (the body of the "turn finished" popup)
+// STATE MAP, fields of S (W = writes, R = reads):
+//   connected     W app.js applyHello          R app.js, composer.js, switchmenu.js
+//   running       W app.js applyStatus         R app.js (send/stop buttons), composer.js
+//   pageSession   W app.js applyHello          R app.js (reset, JanetApp), composer.js (draft key)
+//   commands      W app.js (/api/commands)     R composer.js (slash menu), palette.js
+//   lastPrompt    W app.js reset, composer.js  R app.js (retry buttons)
+//   pending       W approvals.js showAsk       R app.js, composer.js (y/a/r/n/c)
+//   latest        W app.js render/reset        R app.js, workspacepane.js, approvals.js
+//   firstUserText W app.js stream/reset        R app.js (title), sessionsrail.js
+//   localNote     W app.js, sessionsrail.js    R app.js applyStatus
+//   lastWorkspace W workspacepane.js           R app.js, modemenu.js, workspacepane.js
+//   lastReply     W app.js render              R notify.js
 //
-// Fields move here only when a second file needs them; a field that one
-// area owns stays a local of that area. The remaining module-level state of
-// app.js, and why it is still local there, is listed in PROJECT-STATE.md.
+// STILL LOCAL TO app.js (one area owns them, or they are render caches):
+//   nodes/open* sets/lastCreated  transcript DOM caches, written by render()
+//   curTitle lastUserText lastFlavor suggestedFor   header + empty-page
+//   modelLabel modelProvider unseen lastServerStatus   header/status chips
+//   linkPrompt* (?prompt= link)  pinned (scroll tail)  currentView  dragDepth  lost
+// Rule: a field moves into S only when a second file needs it.
 (function (global) {
   "use strict";
   global.JanetState = {
