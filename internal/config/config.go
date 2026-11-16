@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/delegate"
 	"io"
 	"net/url"
 	"os"
@@ -322,6 +323,9 @@ type Config struct {
 	// format, a contract of inputs and outputs), selected with the task
 	// tool's persona parameter. Files in .janetcode/personas/ add to them.
 	Personas map[string]persona.Persona `json:"personas,omitempty"`
+	// Delegates lets the model hand a task to an installed official agent
+	// CLI (claude, codex) that runs on its own login. Off by default.
+	Delegates delegate.Config `json:"delegates,omitempty"`
 	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
 	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
 	ComputerUse *bool `json:"computer_use,omitempty"`

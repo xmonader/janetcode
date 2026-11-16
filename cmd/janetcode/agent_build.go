@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/delegate"
 	"os"
 	"path/filepath"
 	"strings"
@@ -614,6 +615,9 @@ func (b *agentBuilder) stepAgentTools() error {
 		ag.Tools.Add(&agent.RunCode{Parent: ag})
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
+	if b.d.cfg.Delegates.Enabled {
+		ag.Tools.Add(&delegate.Tool{Config: b.d.cfg.Delegates, Dir: b.cd.Dir})
+	}
 	ag.Tools.Add(&agent.CronTool{Cron: b.cron})
 	ag.Tools.Add(&memory.Tool{Store: b.d.mem, NoArchive: b.off["memarchive"]})
 	return nil
