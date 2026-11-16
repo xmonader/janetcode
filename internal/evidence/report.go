@@ -162,7 +162,7 @@ func (r Report) Line() string {
 	if len(r.Checks) == 0 && !r.Required {
 		return ""
 	}
-	s := fmt.Sprintf("evidence %s %s", r.Status.Mark(), r.Status)
+	s := fmt.Sprintf("%s evidence: %s", r.Status.Mark(), r.Status)
 	if r.Stale {
 		s += " (stale)"
 	}

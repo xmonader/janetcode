@@ -90,6 +90,13 @@ func FromEvents(events []session.Event, o Options) Report {
 	}
 	var edits []edit
 	var runs []run
+	// moves counts the bash calls that may have changed the tree without
+	// a file/change record (the audit only sees git work trees): a
+	// command that is not a check and not plainly read-only. Together
+	// with the edits it says whether two runs of one command saw the
+	// same tree, which is what makes a differing outcome flaky.
+	moves := 0
+	epoch := func() int { return len(edits) + moves }
 	type advice struct {
 		idx  int
 		turn int
@@ -101,7 +108,7 @@ func FromEvents(events []session.Event, o Options) Report {
 		case session.TypeFileChange:
 			edits = append(edits, edit{path: e.Name, idx: i, turn: e.Turn, exempt: exempt(e.Name)})
 		case session.TypeGate:
-			runs = append(runs, run{Check: gateCheck(e, i, o.Root), epoch: len(edits)})
+			runs = append(runs, run{Check: gateCheck(e, i, o.Root), epoch: epoch()})
 		case session.TypeDecision:
 			if a, ok := adviceOf(e); ok {
 				advices = append(advices, advice{i, e.Turn, a})
@@ -121,7 +128,9 @@ func FromEvents(events []session.Event, o Options) Report {
 				continue
 			}
 			if c, ok := bashCheck(e, i, o); ok {
-				runs = append(runs, run{Check: c, epoch: len(edits)})
+				runs = append(runs, run{Check: c, epoch: epoch()})
+			} else if cmd := shell.TrimWorkspaceCd(shell.CommandOf(e.Arguments), o.Root); !shell.IsCheck(cmd) && !shell.SafeRead(cmd) {
+				moves++
 			}
 		}
 	}
@@ -212,6 +221,21 @@ func FromEvents(events []session.Event, o Options) Report {
 	}
 	rep.assess()
 	return rep
+}
+
+// GateSkipped reports whether a TypeGate event records a command that did
+// not finish or never started (status cancelled or not_run). It is
+// neither a pass nor a failure, so a reader counting checks as ran,
+// passed and failed must leave it out.
+func GateSkipped(e session.Event) bool {
+	if e.Type != session.TypeGate || len(e.Extra) == 0 {
+		return false
+	}
+	var ex GateExtra
+	if json.Unmarshal(e.Extra, &ex) != nil {
+		return false
+	}
+	return ex.Status == string(NotRun) || ex.Status == string(Cancelled)
 }
 
 // gateCheck reads one TypeGate event.
