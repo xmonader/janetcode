@@ -93,6 +93,28 @@ func TestMemoryToolSaysHeld(t *testing.T) {
 	}
 }
 
+// What the model saves is held with the session record it was saved at,
+// so /memory pending can say which turn it came from; an entry with no
+// record says that too instead of saying nothing.
+func TestHeldModelEntryNamesItsSourceTurn(t *testing.T) {
+	s := confirmStore(t)
+	save := func(name string, origin func() string) {
+		in, _ := json.Marshal(map[string]string{"action": "remember", "name": name, "description": "fact " + name, "body": "fact " + name})
+		if _, err := (&Tool{Store: s, Origin: origin}).Run(context.Background(), in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save("with-origin", func() string { return "sess-1#~42" })
+	save("without-origin", nil)
+	listing := RenderPending(s.Pending())
+	if !strings.Contains(listing, "learned at sess-1#~42") {
+		t.Errorf("the source turn is not shown:\n%s", listing)
+	}
+	if !strings.Contains(listing, "source turn: not recorded") {
+		t.Errorf("a missing source is not said:\n%s", listing)
+	}
+}
+
 func TestConfirmCommand(t *testing.T) {
 	s := &Store{Root: t.TempDir(), Key: "proj"}
 	if out, ok, _ := s.ConfirmCommand("confirm on"); !ok || !s.Confirm.Load() || !strings.Contains(out, "on") {

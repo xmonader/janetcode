@@ -623,7 +623,16 @@ func (b *agentBuilder) stepAgentTools() error {
 			}})
 	}
 	ag.Tools.Add(&agent.CronTool{Cron: b.cron})
-	ag.Tools.Add(&memory.Tool{Store: b.d.mem, NoArchive: b.off["memarchive"]})
+	sess := b.sess
+	ag.Tools.Add(&memory.Tool{Store: b.d.mem, NoArchive: b.off["memarchive"], Origin: func() string {
+		// The record the model is at: what /memory pending shows as where
+		// the entry was learned.
+		ev := sess.Events()
+		if len(ev) == 0 {
+			return ""
+		}
+		return fmt.Sprintf("%s#~%d", sess.Meta.ID, ev[len(ev)-1].Seq)
+	}})
 	return nil
 }
 

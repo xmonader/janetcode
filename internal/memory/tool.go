@@ -16,6 +16,10 @@ type Tool struct {
 	// NoArchive withdraws archive and restore (JANETCODE_OFF=memarchive),
 	// leaving forget the only way to drop an entry.
 	NoArchive bool
+	// Origin names the session record the call is made at, as
+	// "<session-id>#~<seq>", so a held entry can say which turn it came
+	// from (see Entry.Evidence). Nil or "" records none.
+	Origin func() string
 }
 
 func (*Tool) Name() string { return "memory" }
@@ -87,7 +91,13 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	case "remember":
 		// The model never writes global memory: a rule every project
 		// inherits is the user's call (/remember -g), not an inference.
-		e, status, err := t.Store.Put(Entry{Name: in.Name, Description: in.Description, Body: in.Body, Type: in.Type, Scope: "project", Source: "model", Tainted: taint.From(ctx).Tainted()})
+		var evidence []string
+		if t.Origin != nil {
+			if ref := t.Origin(); ref != "" {
+				evidence = []string{ref}
+			}
+		}
+		e, status, err := t.Store.Put(Entry{Name: in.Name, Description: in.Description, Body: in.Body, Type: in.Type, Scope: "project", Source: "model", Evidence: evidence, Tainted: taint.From(ctx).Tainted()})
 		if err != nil {
 			return "", err
 		}

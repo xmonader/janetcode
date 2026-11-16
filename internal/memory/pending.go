@@ -265,6 +265,8 @@ func RenderPending(es []Entry) string {
 		fmt.Fprintf(&sb, "%d. %s (%s, %s, from %s): %s\n", i+1, e.Name, e.Type, e.Scope, e.Source, e.Description)
 		if len(e.Evidence) > 0 {
 			fmt.Fprintf(&sb, "   learned at %s\n", strings.Join(e.Evidence, ", "))
+		} else {
+			sb.WriteString("   source turn: not recorded\n")
 		}
 		switch {
 		case e.Replaces != "":
