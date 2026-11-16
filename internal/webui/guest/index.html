@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>janetcode · guest view</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <strong>janetcode</strong>
+  <span id="title" class="mute"></span>
+  <span class="grow"></span>
+  <span id="model" class="mute"></span>
+  <span id="state" class="pill" role="status" aria-live="polite">connecting</span>
+</header>
+<main id="log" aria-live="polite" aria-label="Session transcript"></main>
+<p id="ended" class="ended" hidden>This guest link has ended. Ask the owner for a new one.</p>
+<form id="form" autocomplete="off">
+  <textarea id="text" rows="2" maxlength="8000" aria-label="Message for the owner" placeholder="Ask something. The owner sees it and chooses whether to send it."></textarea>
+  <button id="send" type="submit">Send</button>
+</form>
+<p id="note" class="mute note" role="status"></p>
+<script src="app.js"></script>
+</body>
+</html>

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -302,6 +303,12 @@ type server struct {
 	// remove record from runBusy's goroutine while a plain /mcp, which
 	// runs outside it, lists them.
 	mcpMu sync.Mutex
+
+	// guest is the guest link and the messages guests left (guest.go).
+	guest guestShare
+	// base is the scheme and host the owner last reached the server by,
+	// the front of a guest link.
+	base atomic.Pointer[string]
 }
 
 // sess is the session this server is logging to, or nil.
@@ -316,6 +323,8 @@ func (s *server) setSession(v *session.Session) {
 	s.sessMu.Lock()
 	s.opts.Session = v
 	s.sessMu.Unlock()
+	// A guest link follows one session: leaving it ends the link.
+	s.guestSessionChanged(v)
 }
 
 // provider is the name of the provider the session talks to.
@@ -361,6 +370,9 @@ type envelope struct {
 	// Compose is a draft for the composer: /commit and /pr put the
 	// command that commits or pushes there for the user to edit and send.
 	Compose string `json:"compose,omitempty"`
+	// Guest is the state of guest-link sharing, sent to the owner's page
+	// only: the guest stream never carries it.
+	Guest *guestPayload `json:"guest,omitempty"`
 }
 
 type helloPayload struct {
@@ -563,6 +575,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/suggest", s.suggestAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
 	mux.HandleFunc("/page/", s.pageAPI)
+
+	mux.HandleFunc("/api/guest", s.guestAPI)
 	return mux
 }
 
@@ -631,6 +645,7 @@ func (s *server) state(w http.ResponseWriter, r *http.Request) {
 		"questions":  qs,
 		"secret":     secretNow,
 		"status":     st,
+		"guest":      s.guestPayload(),
 	})
 }
 
@@ -764,6 +779,13 @@ func (s *server) submit(text string) error {
 		s.runShell(strings.TrimSpace(text[1:]))
 		return nil
 	}
+	return s.submitPlain(text)
+}
+
+// submitPlain sends text to the model as a prompt, whatever it starts
+// with: no slash command or shell line is looked for. It queues behind a
+// running turn.
+func (s *server) submitPlain(text string) error {
 	if !s.connected() {
 		// Nothing to send it to yet. The prompt stays in the composer
 		// (the page keeps it on an error) and the connect form opens.

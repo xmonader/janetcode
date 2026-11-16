@@ -120,6 +120,7 @@ var Commands = withIdle([]Command{
 	{Name: "/features", Args: "[name [on|off]]", Help: "the extra models janetcode can call on (a cheaper one for simple steps, a stronger one when stuck, a reviewer) and the features that use them; a name and on|off switches one and saves it"},
 	{Name: "/jev", Args: "[on|off|model|provider|triage|intake|route|outcome [on|off]]", Help: "the optional Jev decision service, which judges failed checks and routes simple requests: its settings, what it has cost, and which of its uses are on; on|off switches it, model and provider open a list"},
 	{Name: "/voice", Args: "[stop]", Help: "record a prompt from the microphone and put its transcript in the input; /voice again stops and transcribes. Needs arecord, sox or ffmpeg, and an OpenAI-compatible /audio/transcriptions endpoint (the voice.* config keys)"},
+	{Name: "/share", Args: "[stop]", Help: "in the browser page: make a read-only guest link for this session that expires in 24 hours (a new one replaces the last); their messages wait for you to send or dismiss them; stop ends it now"},
 	{Name: "/quit", Args: "", Help: "exit"},
 })
 

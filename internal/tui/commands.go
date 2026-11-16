@@ -222,6 +222,10 @@ var dispatch = map[string]cmdHandler{
 		}
 		return nil, false
 	},
+	"/share": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.transcript.info("guest links are made in the web UI: run janetcode --web, then /share")
+		return nil, false
+	},
 	"/egress": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.info(m.opts.Agent.EgressSummary())
 		return nil, false

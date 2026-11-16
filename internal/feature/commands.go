@@ -16,6 +16,7 @@ var commandWhen = map[string]string{
 	"/resume":          "you want to pick up a session from yesterday, in this directory or any other",
 	"/open":            "an error names a file and a line and you want to see it without leaving the session",
 	"/diff":            "before committing, or to throw away one hunk the model wrote",
+	"/share":           "a teammate should follow this session live in a browser and ask questions, without an account or any access beyond reading it (web UI)",
 	"/fork":            "the conversation is worth keeping but you want to try a second direction from here (/fork stay lists the copy and stays)",
 	"/add-dir":         "a sibling tree or generated directory the file tools should be allowed to touch",
 	"/btw":             "a question about the current work that should not become a turn in the log",

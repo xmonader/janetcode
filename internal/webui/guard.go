@@ -31,6 +31,14 @@ func (s *server) guard(next http.Handler) http.Handler {
 			http.Error(w, "forbidden: this server answers only to localhost", http.StatusForbidden)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/guest/") {
+			// A guest link is its own credential, checked by its own
+			// handler, which answers a short fixed list of routes. It is
+			// decided before the owner-token check and never falls
+			// through to the owner's routes.
+			s.guestHandler(w, r)
+			return
+		}
 		if (strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/events") && crossSite(r) {
 			http.Error(w, "forbidden: cross-site request", http.StatusForbidden)
 			return
@@ -39,8 +47,30 @@ func (s *server) guard(next http.Handler) http.Handler {
 		if s.requireToken(w, r) {
 			return
 		}
+		s.noteBase(r)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// noteBase remembers the scheme and host the owner reached the server by,
+// which is where a guest link they make should point.
+func (s *server) noteBase(r *http.Request) {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	b := scheme + "://" + r.Host
+	if cur := s.base.Load(); cur == nil || *cur != b {
+		s.base.Store(&b)
+	}
+}
+
+// ownerBase is the front of a guest link: the address the owner last used.
+func (s *server) ownerBase() string {
+	if b := s.base.Load(); b != nil {
+		return *b
+	}
+	return "http://" + s.opts.Addr
 }
 
 // frameHeaders says who may frame a response. The editor embed

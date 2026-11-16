@@ -31,7 +31,7 @@ var webCommands = []string{
 	"/stats", "/perf", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/connect", "/model", "/routing", "/effort", "/context-window", "/fork", "/add-dir", "/btw", "/recap", "/copy", "/config", "/doctor",
 	"/settle", "/resume", "/goal", "/why", "/trajectory", "/agents", "/cd", "/worktree", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp", "/import-claude", "/personas", "/plugin", "/cua", "/trust", "/egress", "/share",
 }
 
 var webArgs = map[string]string{
@@ -135,6 +135,7 @@ var webDispatch = map[string]webHandler{
 		s.loop(arg)
 		return false, nil
 	},
+	"/share":    func(s *server, arg string) (bool, error) { return s.cmdShare(arg) },
 	"/edits":    (*server).cmdEdits,
 	"/readonly": (*server).cmdReadonly,
 	"/dryrun": func(s *server, arg string) (bool, error) {
