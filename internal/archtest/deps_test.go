@@ -167,7 +167,7 @@ func TestDependencyDirection(t *testing.T) {
 // import nothing from janetcode, so they can never be part of a cycle.
 func TestLeaves(t *testing.T) {
 	g := load(t)
-	for _, pat := range []string{"textfmt", "fsutil", "gitx", "xdg", "slash/args", "weburl", "trust", "terms", "jev"} {
+	for _, pat := range []string{"textfmt", "fsutil", "gitx", "xdg", "slash/args", "weburl", "trust", "terms", "jev", "sessionproto"} {
 		for _, p := range g.expand(t, pat) {
 			if d := g.deps[p]; len(d) > 0 {
 				t.Errorf("%s is meant to be a leaf but depends on %v", p, d)
