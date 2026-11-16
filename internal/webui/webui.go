@@ -313,6 +313,12 @@ type server struct {
 	// runs outside it, lists them.
 	mcpMu sync.Mutex
 
+	// taskMu guards taskCtx, the context of the current session's
+	// background subagents (cmd_agents.go).
+	taskMu   sync.Mutex
+	taskCtx  context.Context
+	taskStop context.CancelFunc
+
 	// ctl is which client controls the session (control.go).
 	ctl *sessionproto.Table
 
@@ -335,6 +341,8 @@ func (s *server) setSession(v *session.Session) {
 	s.sessMu.Lock()
 	s.opts.Session = v
 	s.sessMu.Unlock()
+	// Its subagents end with the session they were started in.
+	s.endTasks()
 	// A control lease is for one session: every client's old lease is
 	// stale once the server moves to another.
 	s.ctl.Reset()

@@ -508,6 +508,198 @@ func TestResumeAndForkMoveTheLeaseToANewEpoch(t *testing.T) {
 	}
 }
 
+// switchEnv is a server on session A with a second session B to move to,
+// whose agent has a task tool so subagents can run.
+type switchEnv struct {
+	*ctlEnv
+	a, b *session.Session
+}
+
+func newSwitchEnv(t *testing.T, prov llm.Provider) *switchEnv {
+	t.Helper()
+	data := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("HOME", data)
+	dir, err := session.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	here := t.TempDir()
+	b, err := session.New(dir, here, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := llm.TextMessage(llm.RoleUser, "session B's question")
+	if _, err := b.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Turn: 1, Message: &q}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := session.New(dir, here, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.EnsureWritten(); err != nil {
+		t.Fatal(err)
+	}
+	ag := &agent.Agent{Provider: prov, Model: "m", Log: a, Root: here, AutoApprove: true}
+	ag.Tools = tool.NewRegistry(tool.ReadFile{Root: here}, &agent.Task{Parent: ag})
+	cd := agent.NewCD(here)
+	cd.Bind(tool.NewLocal(here), ag, a)
+	life, kill := context.WithCancel(context.Background())
+	s := newServer(life, Options{Agent: ag, Session: a, Provider: "fake", Cwd: here, CD: cd, ControlTTL: time.Minute})
+	ts := httptest.NewServer(s.handler())
+	t.Cleanup(func() { kill(); ts.Close() })
+	return &switchEnv{ctlEnv: &ctlEnv{t: t, s: s, ts: ts, sess: a, kill: kill}, a: a, b: b}
+}
+
+// holdProv answers every call "report" once release is closed, ignoring
+// cancellation: a model call that was already in flight when its session
+// was left, and finishes afterwards.
+type holdProv struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (h *holdProv) Name() string { return "fake" }
+func (h *holdProv) Stream(_ context.Context, _ llm.Request, _ func(llm.Event)) (*llm.Response, error) {
+	select {
+	case h.started <- struct{}{}:
+	default:
+	}
+	<-h.release
+	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "report"), StopReason: llm.StopEndTurn}, nil
+}
+
+// A subagent started in session A that ends after the server moved to B
+// reports to A's log, and neither B's event stream, B's page state nor B's
+// history hears of it.
+func TestSubagentFinishingAfterTheSessionMovedReportsToItsOwnSession(t *testing.T) {
+	prov := &holdProv{started: make(chan struct{}, 4), release: make(chan struct{})}
+	e := newSwitchEnv(t, prov)
+	t.Cleanup(func() {
+		select {
+		case <-prov.release:
+		default:
+			close(prov.release)
+		}
+	})
+
+	if code, body := e.prompt("alice", "/agents new count the files"); code != 200 {
+		t.Fatalf("/agents new: %d %s", code, body)
+	}
+	select {
+	case <-prov.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the subagent never reached the model")
+	}
+	if code, body := e.prompt("alice", "/resume 1"); code != 200 || e.s.sess().Meta.ID != e.b.Meta.ID {
+		t.Fatalf("/resume 1: %d %s, now on %s", code, body, e.s.sess().Meta.ID)
+	}
+	bBefore := len(e.b.Events())
+	obs := e.open("watcher", "observer") // attaches to B
+
+	close(prov.release) // the subagent finishes, in A's past
+	deadline := time.Now().Add(5 * time.Second)
+	var aLog []session.Event
+	for ; time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		aLog = e.a.Events()
+		if hasSubagentNotice(aLog) {
+			break
+		}
+	}
+	if !hasSubagentNotice(aLog) {
+		t.Fatalf("session A's log never got the subagent's outcome: %d events", len(aLog))
+	}
+	time.Sleep(200 * time.Millisecond)
+	if got := e.b.Events(); len(got) != bBefore {
+		t.Fatalf("session B's log grew from %d to %d events with A's subagent", bBefore, len(got))
+	}
+	if hasSubagentNotice(e.b.Events()) {
+		t.Fatal("A's subagent outcome is in B's log")
+	}
+	// Nothing about it on the page of B: not in the replayed stream, not in the entries.
+	obs.cancel()
+	for env := range obs.events {
+		if env.Type == "entry" && env.Entry != nil && strings.Contains(env.Entry.Text, "count the files") && env.Entry.Kind != "user" {
+			t.Fatalf("B's stream carried A's subagent: %+v", env.Entry)
+		}
+	}
+	e.s.mu.Lock()
+	for _, en := range e.s.entries {
+		if strings.Contains(en.Text, "count the files") {
+			e.s.mu.Unlock()
+			t.Fatalf("B's page state holds A's subagent: %+v", en)
+		}
+	}
+	e.s.mu.Unlock()
+}
+
+func hasSubagentNotice(evs []session.Event) bool {
+	for _, ev := range evs {
+		if ev.Type == session.TypeNotice && strings.HasPrefix(ev.Name, "subagent/") && strings.Contains(ev.Output, "count the files") {
+			return true
+		}
+	}
+	return false
+}
+
+// An approval, an undo or a cancel made under session A's lease is refused
+// once the server is on B: it must not answer B's prompt, undo B's work or
+// stop B's turn.
+func TestStaleLeaseCannotApproveUndoOrCancelInTheNewSession(t *testing.T) {
+	prov := &gateProv{started: make(chan struct{}, 4)}
+	e := newSwitchEnv(t, prov)
+	e.prov = prov
+	if code, body, _ := e.call("alice", "POST", "/api/control", `{"action":"acquire"}`); code != 200 {
+		t.Fatal(code, body)
+	}
+	epochA := e.s.controlView("alice").Epoch
+	if code, body := e.prompt("alice", "/resume 1"); code != 200 {
+		t.Fatalf("/resume 1: %d %s", code, body)
+	}
+
+	// B has a prompt waiting on a person and a turn in flight.
+	pend := &permReq{call: agent.ToolCall{ID: "b-call", Name: "bash"}, reply: make(chan verdict, 1)}
+	e.s.mu.Lock()
+	e.s.pending = pend
+	e.s.mu.Unlock()
+	prov.hold()
+	t.Cleanup(func() {
+		prov.open()
+		e.waitIdle()
+		time.Sleep(200 * time.Millisecond) // the finished turn titles the session
+	})
+	if code, body := e.prompt("alice", "work in B", epochHeader, strconv.FormatUint(e.s.controlView("alice").Epoch, 10)); code != 200 {
+		t.Fatalf("B's own turn: %d %s", code, body)
+	}
+	e.waitStarted()
+
+	stale := epochHeader
+	epoch := strconv.FormatUint(epochA, 10)
+	for _, req := range []struct{ name, path, body string }{
+		{"approval", "/api/permission", `{"decision":"allow","id":"b-call"}`},
+		{"undo", "/api/command", `{"text":"/undo"}`},
+		{"cancel", "/api/cancel", `{}`},
+		{"prompt", "/api/prompt", `{"text":"from A"}`},
+	} {
+		code, body, _ := e.call("alice", "POST", req.path, req.body, stale, epoch)
+		if c := conflictOf(t, code, body); c.Code != sessionproto.CodeStaleLease || c.State.Epoch <= epochA {
+			t.Fatalf("%s under A's epoch: %+v", req.name, c)
+		}
+	}
+	e.s.mu.Lock()
+	still := e.s.pending == pend
+	e.s.mu.Unlock()
+	if !still || len(pend.reply) != 0 {
+		t.Fatal("a stale approval reached B's pending prompt")
+	}
+	if busy, _ := e.s.busyQueued(); !busy {
+		t.Fatal("a stale cancel stopped B's turn")
+	}
+	if e.s.sess().Meta.ID != e.b.Meta.ID {
+		t.Fatal("the session moved")
+	}
+}
+
 func TestShutdownTellsObservers(t *testing.T) {
 	e := newCtlEnv(t, time.Minute)
 	obs := e.open("watcher", "observer")

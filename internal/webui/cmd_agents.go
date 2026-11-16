@@ -8,6 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cron"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -107,15 +108,51 @@ func (s *server) goalRound() {
 }
 
 // startTask runs a subagent in the background and reports when it ends.
+// The subagent belongs to the session it was started in. It runs under a
+// context the next session switch cancels, and its outcome is reported to
+// that session: on the page while it is still the one shown, otherwise in
+// that session's log only, never on the page or in the history of the
+// session that replaced it.
 func (s *server) startTask(task *agent.Task, kind string, in agent.TaskInput) {
+	origin := s.sess()
+	ctx := s.taskContext()
 	go func() {
-		_, runErr := task.Start(s.life, in)
+		_, runErr := task.Start(ctx, in)
+		msg, failed := kind+" finished · "+in.Description+" · /agents to read it", false
 		if runErr != nil {
-			s.errf("%s %s: %v", kind, in.Description, runErr)
+			msg, failed = fmt.Sprintf("%s %s: %v", kind, in.Description, runErr), true
+		}
+		if origin != nil && s.sess() != origin {
+			_, _ = origin.Append(session.Event{Type: session.TypeNotice, Name: "subagent/" + kind, Output: msg, IsError: failed})
 			return
 		}
-		s.notice(kind + " finished · " + in.Description + " · /agents to read it")
+		if failed {
+			s.errf("%s", msg)
+			return
+		}
+		s.notice(msg)
 	}()
+}
+
+// taskContext is the context subagents started now run under; it ends
+// when the server moves to another session.
+func (s *server) taskContext() context.Context {
+	s.taskMu.Lock()
+	defer s.taskMu.Unlock()
+	if s.taskCtx == nil {
+		s.taskCtx, s.taskStop = context.WithCancel(s.life)
+	}
+	return s.taskCtx
+}
+
+// endTasks cancels the subagents of the session being left.
+func (s *server) endTasks() {
+	s.taskMu.Lock()
+	if s.taskStop != nil {
+		s.taskStop()
+	}
+	s.taskCtx, s.taskStop = nil, nil
+	s.taskMu.Unlock()
 }
 
 func (s *server) review(arg string) {
