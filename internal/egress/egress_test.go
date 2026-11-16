@@ -9,6 +9,27 @@ import (
 	"testing"
 )
 
+// A credential that a URL path, a file name or a reason carries is
+// scrubbed as the entry is recorded, so the report, its JSON and the
+// session log never hold it.
+func TestRecorderScrubsSecretShapedValues(t *testing.T) {
+	const key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+	var r Recorder
+	r.Begin(1)
+	r.Add(Entry{Kind: KindFetch, Host: "api.example.com", What: "GET /v1/" + key})
+	r.Add(Entry{Kind: KindFile, What: "notes-" + key + ".txt"})
+	r.Add(Entry{Kind: KindMemory, What: "m (project)", Why: "matched body: " + key})
+	rep := r.End(0)
+	for name, s := range map[string]string{"text": rep.Text(), "json": rep.JSON()} {
+		if strings.Contains(s, "abcdefghijklmnopqrstuvwxyz") {
+			t.Errorf("%s carries the key:\n%s", name, s)
+		}
+	}
+	if !strings.Contains(rep.Text(), "api.example.com") || !strings.Contains(rep.Text(), "GET /v1/") {
+		t.Errorf("scrubbing removed the useful part:\n%s", rep.Text())
+	}
+}
+
 func TestRecorderMergesAndRolls(t *testing.T) {
 	var r Recorder
 	r.Begin(1)

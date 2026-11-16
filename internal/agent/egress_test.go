@@ -80,6 +80,14 @@ func TestEgressReportCoversTheTurn(t *testing.T) {
 			t.Errorf("report lacks %q:\n%s", want, txt)
 		}
 	}
+	// The tool answered with an API key. It must reach neither the report,
+	// its JSON, the summary nor the session log's egress record.
+	const key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+	for name, s := range map[string]string{"text": txt, "json": rep.JSON(), "summary": a.EgressSummary()} {
+		if strings.Contains(s, key) || strings.Contains(s, "abcdefghijklmnopqrstuvwxyz") {
+			t.Errorf("the %s of the egress report carries the key:\n%s", name, s)
+		}
+	}
 	if !strings.Contains(a.EgressSummary(), "every host allowed") {
 		t.Errorf("summary = %s", a.EgressSummary())
 	}

@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/xmonader/janetcode/internal/secret"
 )
 
 // Kinds of egress.
@@ -110,7 +112,11 @@ func (r *Recorder) Add(e Entry) {
 	if r == nil {
 		return
 	}
-	e.Host = strings.ToLower(e.Host)
+	// The report is shown, logged and exported: nothing it says may carry
+	// a credential, even one a URL path or a file name happened to hold.
+	e.Host, _ = secret.Redact(strings.ToLower(e.Host))
+	e.What, _ = secret.Redact(e.What)
+	e.Why, _ = secret.Redact(e.Why)
 	if e.Count == 0 {
 		e.Count = 1
 	}
