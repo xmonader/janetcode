@@ -88,6 +88,10 @@ func TestAgentToolResults(t *testing.T) {
 	if len(got.Images) != 1 || got.Images[0].Type != "image" || got.Images[0].Data != "AAAA" {
 		t.Fatalf("images = %+v", got.Images)
 	}
+	var data map[string]string
+	if err := json.Unmarshal(got.Data, &data); err != nil || len(data) != 1 || data["text"] != "pic" {
+		t.Fatalf("structured content lost: %s (%v)", got.Data, err)
+	}
 	fail := AgentTools(c)[2]
 	if _, err := fail.Run(context.Background(), nil); err == nil || !strings.Contains(err.Error(), "it broke") {
 		t.Fatalf("fail err = %v", err)

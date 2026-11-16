@@ -84,6 +84,31 @@ func TestCallToolResults(t *testing.T) {
 	}
 }
 
+func TestCallToolPreservesStructuredContent(t *testing.T) {
+	c := startFake(t)
+	for _, only := range []bool{false, true} {
+		args, err := json.Marshal(map[string]any{"text": "a\tb: c", "StructuredOnly": only})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := c.CallTool(context.Background(), "echo", args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var data map[string]string
+		if err := json.Unmarshal(r.StructuredContent, &data); err != nil || len(data) != 1 || data["text"] != "a\tb: c" {
+			t.Fatalf("structured content=%s err=%v", r.StructuredContent, err)
+		}
+		if only {
+			if r.Text != string(r.StructuredContent) || len(r.Images) != 0 {
+				t.Fatalf("structured-only fallback=%+v", r)
+			}
+		} else if r.Text != "echo: a\tb: c\n[image image/png attached]" || len(r.Images) != 1 {
+			t.Fatalf("display content=%+v", r)
+		}
+	}
+}
+
 // TestStdioServerEnvIsScrubbed is the credential-leak fix: an MCP server
 // is project-supplied, often fetched and run sight unseen, so it must not
 // inherit the agent's API keys through the ambient environment. The probe

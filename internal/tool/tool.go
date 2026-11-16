@@ -17,15 +17,16 @@ import (
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
-// Result is what a tool may return besides text: screenshots a vision
-// model should see. Tools that only implement Run still work; Rich is
-// optional.
+// Result holds display text, images, and optional machine-readable JSON.
+// Data is for programmatic callers; it is not additional model-visible text.
+// Tools that only implement Run still work; Rich is optional.
 type Result struct {
 	Text   string
 	Images []llm.Block
+	Data   json.RawMessage
 }
 
-// Rich is a tool that can return images with its text.
+// Rich is a tool that can return images or structured data with its text.
 type Rich interface {
 	RunRich(ctx context.Context, input json.RawMessage) (Result, error)
 }

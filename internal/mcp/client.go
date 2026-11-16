@@ -563,6 +563,9 @@ type CallResult struct {
 	Text    string
 	Images  []Image
 	IsError bool
+	// StructuredContent preserves the server's data even when display text
+	// is also present. It remains untrusted server output.
+	StructuredContent json.RawMessage
 }
 
 // CallTool invokes a tool; ctx cancellation abandons the call.
@@ -622,7 +625,7 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 	if sb.Len() == 0 && len(out.StructuredContent) > 0 {
 		sb.Write(out.StructuredContent)
 	}
-	return CallResult{Text: strings.TrimRight(sb.String(), "\n"), Images: images, IsError: out.IsError}, nil
+	return CallResult{Text: strings.TrimRight(sb.String(), "\n"), Images: images, IsError: out.IsError, StructuredContent: out.StructuredContent}, nil
 }
 
 // Close stops the server or connection. It is safe to call more than once.

@@ -44,6 +44,17 @@ func (Glob) Schema() json.RawMessage {
 const maxGlobResults = 1000
 
 func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
+	return t.run(ctx, input, nil)
+}
+
+func (t Glob) RunRich(ctx context.Context, input json.RawMessage) (Result, error) {
+	var r Result
+	var err error
+	r.Text, err = t.run(ctx, input, &r.Data)
+	return r, err
+}
+
+func (t Glob) run(ctx context.Context, input json.RawMessage, dataOut *json.RawMessage) (string, error) {
 	var in struct {
 		Pattern string `json:"pattern"`
 		Path    string `json:"path"`
@@ -84,7 +95,7 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	sort.SliceStable(hits, func(i, j int) bool { return hits[i].mod > hits[j].mod })
 	if len(hits) == 0 {
-		return "No files matched.", nil
+		return "No files matched.", setResultData(dataOut, GlobData{Path: in.Path, Paths: []string{}})
 	}
 	truncated := false
 	if len(hits) > maxGlobResults {
@@ -92,14 +103,21 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		truncated = true
 	}
 	var sb strings.Builder
+	var paths []string
+	if dataOut != nil {
+		paths = make([]string, 0, len(hits))
+	}
 	for _, h := range hits {
+		if dataOut != nil {
+			paths = append(paths, h.path)
+		}
 		sb.WriteString(h.path)
 		sb.WriteByte('\n')
 	}
 	if truncated {
 		fmt.Fprintf(&sb, "(showing first %d matches; narrow the pattern)\n", maxGlobResults)
 	}
-	return textfmt.Truncate(sb.String()), nil
+	return textfmt.Truncate(sb.String()), setResultData(dataOut, GlobData{Path: in.Path, Paths: paths, Truncated: truncated})
 }
 
 // walkOn visits every entry under dir, skipping skipDirs and what the
@@ -227,6 +245,17 @@ const (
 )
 
 func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
+	return t.run(ctx, input, nil)
+}
+
+func (t Grep) RunRich(ctx context.Context, input json.RawMessage) (Result, error) {
+	var r Result
+	var err error
+	r.Text, err = t.run(ctx, input, &r.Data)
+	return r, err
+}
+
+func (t Grep) run(ctx context.Context, input json.RawMessage, dataOut *json.RawMessage) (string, error) {
 	var in struct {
 		Pattern         string `json:"pattern"`
 		Path            string `json:"path"`
@@ -270,6 +299,10 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		return "", err
 	}
 	var sb, long strings.Builder
+	var matches []GrepMatch
+	if dataOut != nil {
+		matches = make([]GrepMatch, 0)
+	}
 	count, longLines := 0, 0
 	head := make([]byte, 8000)
 	br := bufio.NewReaderSize(nil, 64<<10)
@@ -315,7 +348,11 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			// search of a large tree allocated (1 GB for one identifier
 			// across kubernetes), and only a matching line needs one.
 			if re.Match(raw) {
-				fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, textfmt.ClipBytes(string(raw), maxGrepLine))
+				text := textfmt.ClipBytes(string(raw), maxGrepLine)
+				fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, text)
+				if dataOut != nil {
+					matches = append(matches, GrepMatch{Path: display, Line: ln, Text: text, Truncated: clipped || text != string(raw)})
+				}
 				count++
 				if count >= maxGrepResults {
 					return errLimit
@@ -342,21 +379,22 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if longLines > maxLongNotes {
 		fmt.Fprintf(&long, "(%d more lines longer than %d MiB were searched only in part)\n", longLines-maxLongNotes, maxScanLine>>20)
 	}
+	resultData := GrepData{Path: in.Path, Matches: matches, Truncated: err == errLimit, PartiallySearchedLines: longLines}
 	if count == 0 {
 		msg := "No matches."
 		if hint := t.probeEmpty(ctx, in.Pattern, in.CaseInsensitive, re, fileRe, target, st.IsDir()); hint != "" {
 			msg += " " + hint
 		}
 		if long.Len() > 0 {
-			return msg + "\n" + long.String(), nil
+			return msg + "\n" + long.String(), setResultData(dataOut, resultData)
 		}
-		return msg, nil
+		return msg, setResultData(dataOut, resultData)
 	}
 	if err == errLimit {
 		fmt.Fprintf(&sb, "(stopped at %d matches; narrow the pattern)\n", maxGrepResults)
 	}
 	sb.WriteString(long.String())
-	return textfmt.Truncate(sb.String()), nil
+	return textfmt.Truncate(sb.String()), setResultData(dataOut, resultData)
 }
 
 var errLimit = fmt.Errorf("limit reached")

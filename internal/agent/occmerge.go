@@ -97,6 +97,20 @@ func (r rangeRead) Run(ctx context.Context, input json.RawMessage) (string, erro
 	return out, err
 }
 
+func (r rangeRead) RunRich(ctx context.Context, input json.RawMessage) (tool.Result, error) {
+	var out tool.Result
+	var err error
+	if rich, ok := r.Tool.(tool.Rich); ok {
+		out, err = rich.RunRich(ctx, input)
+	} else {
+		out.Text, err = r.Tool.Run(ctx, input)
+	}
+	if err == nil {
+		r.log.add(r.Tool.Name(), input)
+	}
+	return out, err
+}
+
 // baseOf is what the subagent's edits to rel are measured against: the
 // content the merge-back last brought it to, else the checkout's base.
 func (w *worktree) baseOf(ctx context.Context, rel string) occ.Version {

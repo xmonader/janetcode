@@ -57,6 +57,17 @@ func (t ReadFile) Schema() json.RawMessage {
 }
 
 func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error) {
+	return t.run(ctx, input, nil)
+}
+
+func (t ReadFile) RunRich(ctx context.Context, input json.RawMessage) (Result, error) {
+	var r Result
+	var err error
+	r.Text, err = t.run(ctx, input, &r.Data)
+	return r, err
+}
+
+func (t ReadFile) run(ctx context.Context, input json.RawMessage, dataOut *json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`
 		Offset  int    `json:"offset"`
@@ -133,7 +144,7 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 		in.Limit = 2000
 	}
 	if in.Offset > len(lines) {
-		return fmt.Sprintf("(file has %d lines; offset %d is past the end)", len(lines), in.Offset), nil
+		return fmt.Sprintf("(file has %d lines; offset %d is past the end)", len(lines), in.Offset), setResultData(dataOut, ReadFileData{Path: in.Path, Offset: in.Offset, Lines: []string{}, TotalLines: len(lines)})
 	}
 	end := in.Offset - 1 + in.Limit
 	if end > len(lines) {
@@ -156,7 +167,7 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if note := shape.Note(); note != "" {
 		out += "[" + note + "]\n"
 	}
-	return out, nil
+	return out, setResultData(dataOut, ReadFileData{Path: in.Path, Offset: in.Offset, Lines: lines[in.Offset-1 : end], TotalLines: len(lines), Truncated: end < len(lines)})
 }
 
 // isBinary reports whether the file cannot be handled as text: a NUL byte

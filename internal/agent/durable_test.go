@@ -36,6 +36,11 @@ func (c countedRead) Run(ctx context.Context, in json.RawMessage) (string, error
 	return c.ReadFile.Run(ctx, in)
 }
 
+func (c countedRead) RunRich(ctx context.Context, in json.RawMessage) (tool.Result, error) {
+	c.runs.Add(1)
+	return c.ReadFile.RunRich(ctx, in)
+}
+
 // stepCalls is one model reply asking for a read and a write together.
 func stepCalls() *llm.Response {
 	return &llm.Response{

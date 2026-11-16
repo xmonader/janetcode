@@ -145,11 +145,19 @@ func FakeServer() {
 			json.Unmarshal(msg.Params, &p)
 			switch p.Name {
 			case "echo":
-				var a struct{ Text string }
+				var a struct {
+					Text           string
+					StructuredOnly bool
+				}
 				json.Unmarshal(p.Arguments, &a)
-				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{
-					"content": []map[string]any{{"type": "text", "text": "echo: " + a.Text}, {"type": "image", "mimeType": "image/png", "data": "AAAA"}},
-				}})
+				result := map[string]any{
+					"content":           []map[string]any{{"type": "text", "text": "echo: " + a.Text}, {"type": "image", "mimeType": "image/png", "data": "AAAA"}},
+					"structuredContent": map[string]any{"text": a.Text},
+				}
+				if a.StructuredOnly {
+					delete(result, "content")
+				}
+				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": result})
 				if a.Text == "grow" && !grown {
 					grown = true
 					send(map[string]any{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
