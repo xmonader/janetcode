@@ -101,14 +101,26 @@ type Result struct {
 	// and redacted output: what signed evidence (internal/proof) hashes.
 	// Passed, Failed and Output stay the summary the gate reports.
 	Runs []Run
+	// NotRun is every command the run never started because an earlier
+	// one failed or the run was cancelled, as reported (Display
+	// applies). A required check that did not run is evidence of a kind
+	// (internal/evidence: not_run), not an absence.
+	NotRun []string
+	// Cancelled is true when the run was interrupted by its context
+	// rather than finishing; the last Run is the interrupted command.
+	Cancelled bool
 }
 
 // Run is one command a verification run ran. Name is as reported
 // (Runner.Display applies).
 type Run struct {
-	Name   string
-	Exit   int
-	Output string
+	Name     string
+	Exit     int
+	Output   string
+	Duration time.Duration
+	// Cancelled marks a command cut short by the run's context (not by
+	// its own timeout): its exit code says nothing about the code.
+	Cancelled bool
 }
 
 // OK reports whether every command passed and no mutant survived.
@@ -219,14 +231,22 @@ func (r *Runner) Run(ctx context.Context) Result {
 	start := time.Now()
 	res := Result{}
 	timeout := r.timeout()
-	for _, command := range r.Config.Commands {
+	for i, command := range r.Config.Commands {
+		began := time.Now()
 		ok, exit, output := r.runOne(ctx, command, timeout)
-		res.Runs = append(res.Runs, Run{Name: r.name(command), Exit: exit, Output: output})
+		// Interrupted by the caller, not by its own deadline: the
+		// command did not finish, so it neither passed nor failed.
+		cancelled := !ok && ctx.Err() != nil
+		res.Runs = append(res.Runs, Run{Name: r.name(command), Exit: exit, Output: output, Duration: time.Since(began), Cancelled: cancelled})
 		if ok {
 			res.Passed = append(res.Passed, r.name(command))
 			continue
 		}
 		res.Failed, res.Exit, res.Output = r.name(command), exit, output
+		res.Cancelled = cancelled
+		for _, rest := range r.Config.Commands[i+1:] {
+			res.NotRun = append(res.NotRun, r.name(rest))
+		}
 		break
 	}
 	if res.Failed == "" && strings.TrimSpace(r.Config.Mutate) != "" && ctx.Err() == nil {

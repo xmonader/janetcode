@@ -33,12 +33,18 @@ type CommandResult struct {
 	// printed is what the command printed, redacted, pass or fail: kept
 	// for Result's Runs (signed evidence hashes it), never serialised.
 	printed string
+	// Duration is how long the command ran; Cancelled that the run's
+	// context cut it short.
+	Duration  time.Duration
+	Cancelled bool
 }
 
 // Report is a full run: every command, not only up to the first failure.
 type Report struct {
 	Commands []CommandResult
 	Duration time.Duration
+	// NotRun are the commands never started because the context ended.
+	NotRun []string
 }
 
 // OK reports whether every command passed.
@@ -56,12 +62,19 @@ func (rep Report) OK() bool {
 func (rep Report) Result() Result {
 	res := Result{Duration: rep.Duration}
 	for _, c := range rep.Commands {
-		res.Runs = append(res.Runs, Run{Name: c.Name, Exit: c.Exit, Output: c.printed})
+		res.Runs = append(res.Runs, Run{Name: c.Name, Exit: c.Exit, Output: c.printed, Duration: c.Duration, Cancelled: c.Cancelled})
+		if c.Cancelled {
+			res.Cancelled = true
+		}
 		if c.OK {
 			res.Passed = append(res.Passed, c.Name)
 		} else if res.Failed == "" {
 			res.Failed, res.Exit, res.Output = c.Name, c.Exit, c.Output
 		}
+	}
+	res.NotRun = rep.NotRun
+	if len(rep.NotRun) > 0 {
+		res.Cancelled = true
 	}
 	return res
 }
@@ -73,12 +86,16 @@ func (r *Runner) RunEach(ctx context.Context) Report {
 	start := time.Now()
 	var rep Report
 	timeout := r.timeout()
-	for _, command := range r.Config.Commands {
+	for i, command := range r.Config.Commands {
 		if ctx.Err() != nil {
+			for _, rest := range r.Config.Commands[i:] {
+				rep.NotRun = append(rep.NotRun, r.name(rest))
+			}
 			break
 		}
+		began := time.Now()
 		ok, exit, output := r.runOne(ctx, command, timeout)
-		c := CommandResult{Name: r.name(command), OK: ok, Exit: exit, printed: output}
+		c := CommandResult{Name: r.name(command), OK: ok, Exit: exit, printed: output, Duration: time.Since(began), Cancelled: !ok && ctx.Err() != nil}
 		if !ok {
 			c.Output = output
 			c.Failures, c.Parsed = ParseFailures(output)
