@@ -88,7 +88,10 @@ func TestResolveIsCachedUntilTheTTL(t *testing.T) {
 	Forget()
 	clock := time.Unix(1000, 0)
 	now = func() time.Time { return clock }
-	read = func(string) (string, error) { calls.Add(1); return "value-" + string(rune('0'+calls.Load())) + "\n", nil }
+	read = func(string) (string, error) {
+		calls.Add(1)
+		return "value-" + string(rune('0'+calls.Load())) + "\n", nil
+	}
 	a, _ := Resolve("op://v/i/f")
 	b, _ := Resolve("op://v/i/f")
 	if a != b || calls.Load() != 1 {

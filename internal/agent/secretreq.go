@@ -131,6 +131,6 @@ func (t *RequestSecretTool) Run(ctx context.Context, input json.RawMessage) (str
 }
 
 var (
-	_ tool.Tool = (*RequestSecretTool)(nil)
+	_ tool.Tool  = (*RequestSecretTool)(nil)
 	_ ParentOnly = (*RequestSecretTool)(nil)
 )
