@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"context"
+	"time"
+
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
@@ -27,6 +30,7 @@ func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error 
 	if err := a.moveLease(sess); err != nil {
 		return err
 	}
+	a.retireSubagents()
 	a.switchSessionHooks(history)
 	a.setMessages(history)
 	a.retaint(history)
@@ -55,11 +59,34 @@ func (a *Agent) ForkSession(ns *session.Session) error {
 	if err := a.moveLease(ns); err != nil {
 		return err
 	}
+	a.retireSubagents()
 	a.SetLog(ns)
 	a.acceptMode().SetOnChange(func(am *session.AcceptMeta) { _ = ns.SetAccept(am) })
 	a.Cron.SetOnChange(func(specs []session.LoopSpec) { _ = ns.SetLoops(specs) })
 	a.UndoPath = ns.UndoPath()
 	return a.SaveUndo()
+}
+
+// retireSubagentsWait bounds how long a session switch waits for the
+// subagents of the session it leaves to stop.
+const retireSubagentsWait = 10 * time.Second
+
+// retireSubagents ends the background subagents of the session being left,
+// before its log is swapped for the next one's. A subagent belongs to the
+// conversation that started it: left running, it would finish into the new
+// session — its end, its attempt record, its merge notice and its token
+// bill written into a history it was never part of. Cancelled and waited
+// for here, while the log still points at the old session, its end is
+// recorded there (attempt outcome "cancelled"), and its continuable
+// children go with the conversation they were for.
+func (a *Agent) retireSubagents() {
+	t := a.TaskTool()
+	if t == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), retireSubagentsWait)
+	defer cancel()
+	t.Close(ctx)
 }
 
 // moveLease takes to's lease and releases the current session's, when
