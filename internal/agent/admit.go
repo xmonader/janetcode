@@ -13,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -110,6 +111,11 @@ func (a *Agent) admitSystem() string {
 type admitSnap struct {
 	repoOwner *Agent
 	before    bashAuditState
+	// shadow and snap are set instead of the two above outside a git
+	// repository: the whole tree as it was just before the call, from the
+	// store that backs /undo there.
+	shadow *snapshot.Repo
+	snap   snapshot.Snap
 }
 
 // admitBefore reads the work tree before a shell call, when the session
@@ -127,7 +133,7 @@ func (a *Agent) admitBefore(ctx context.Context, u llm.Block) *admitSnap {
 	}
 	repo := owner.userRepo()
 	if repo == nil {
-		return nil
+		return a.admitBeforeShadow(ctx, owner)
 	}
 	ctx, cancel := context.WithTimeout(ctx, bashAuditTimeout)
 	defer cancel()
@@ -150,6 +156,9 @@ func (a *Agent) admitBefore(ctx context.Context, u llm.Block) *admitSnap {
 func (a *Agent) admitAfter(ctx context.Context, snap *admitSnap) string {
 	if snap == nil {
 		return ""
+	}
+	if snap.shadow != nil {
+		return a.admitAfterShadow(ctx, snap)
 	}
 	repo := snap.repoOwner.userRepo()
 	if repo == nil {
@@ -210,6 +219,12 @@ func (a *Agent) admitAfter(ctx context.Context, snap *admitSnap) string {
 		}
 		restored = append(restored, name)
 	}
+	return admitNote(restored, stuck, "they held uncommitted edits before the command")
+}
+
+// admitNote is the note the model reads about what a watched command
+// changed that is not admitted, or "".
+func admitNote(restored, stuck []string, whyStuck string) string {
 	if len(restored) == 0 && len(stuck) == 0 {
 		return ""
 	}
@@ -219,10 +234,69 @@ func (a *Agent) admitAfter(ctx context.Context, snap *admitSnap) string {
 		b.WriteString(" Put back: " + strings.Join(restored, ", ") + ".")
 	}
 	if len(stuck) > 0 {
-		b.WriteString(" Could not put back (they held uncommitted edits before the command): " + strings.Join(stuck, ", ") + "; tell the user.")
+		b.WriteString(" Could not put back (" + whyStuck + "): " + strings.Join(stuck, ", ") + "; tell the user.")
 	}
 	b.WriteString(" The user can admit a path with `/admit <path>` (headless: --admit <path>); do not run the command again until they have.]")
 	return b.String()
+}
+
+// admitBeforeShadow snapshots the work tree before a shell call outside a
+// git repository, where there is no index to put a file back from. The
+// call goes unwatched when there is no snapshot store or the directory is
+// too large to snapshot.
+func (a *Agent) admitBeforeShadow(ctx context.Context, owner *Agent) *admitSnap {
+	shadow := owner.Snapshots
+	if shadow == nil || !shadow.Shadow() {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, bashAuditTimeout)
+	defer cancel()
+	snap, err := shadow.Take(ctx, "file admission watch")
+	if err != nil {
+		return nil
+	}
+	return &admitSnap{shadow: shadow, snap: snap}
+}
+
+// admitAfterShadow is admitAfter outside a git repository: a non-admitted
+// file the call changed is put back from the snapshot taken just before
+// it, or removed when the call created it. The snapshot is the call's
+// own, so edits the user made earlier are already in it and survive; only
+// what changed since it (the call's work) is undone.
+func (a *Agent) admitAfterShadow(ctx context.Context, snap *admitSnap) string {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bashAuditTimeout)
+	defer cancel()
+	defer snap.shadow.Drop(ctx, snap.snap)
+	lines, err := snap.shadow.Diff(ctx, snap.snap)
+	if err != nil {
+		return "\n\n[file mode explicit: could not check what this command changed (" + err.Error() + ")]"
+	}
+	root := a.Workspace.Root()
+	var restored, stuck []string
+	for _, l := range lines {
+		if len(l) < 3 {
+			continue
+		}
+		p := l[2:]
+		name := displayRel(root, p)
+		if a.Workspace.AdmitCheck(p, name) == nil {
+			continue
+		}
+		data, existed, err := snap.shadow.ContentAt(ctx, snap.snap, p)
+		if err == nil && existed {
+			err = writeBack(p, data)
+		} else if err == nil {
+			if err = os.Remove(p); os.IsNotExist(err) {
+				err = nil
+			}
+		}
+		if err != nil {
+			stuck = append(stuck, name)
+			continue
+		}
+		restored = append(restored, name)
+	}
+	return admitNote(restored, stuck, "the write-back failed")
 }
 
 func writeBack(p string, data []byte) error {

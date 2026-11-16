@@ -61,8 +61,8 @@ and measurements behind each round are in `docs/notes/history.md`.
   refuse a non-admitted path (after confinement and `.aiignore`, never in
   place of them) with a message naming the `/admit` command; a shell
   command that visibly writes one is refused before it runs; a script whose
-  writes are not in its text has its non-admitted changes put back (git
-  repositories); merge-back of an editing subagent refuses non-admitted
+  writes are not in its text has its non-admitted changes put back (from
+  the git index, or outside git from a snapshot taken just before the call); merge-back of an editing subagent refuses non-admitted
   files. A link is judged by the file it leads to. A `terminal` send gets
   the same pre-run refusal as bash (from the directory the shell stands
   in); the after-the-call watch now also covers `terminal` (it was keyed

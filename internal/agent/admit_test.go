@@ -427,3 +427,64 @@ func TestExplicitModeOpaqueTerminalSendIsPutBack(t *testing.T) {
 		t.Errorf("result = %q", res)
 	}
 }
+
+// Outside a git repository there is no index to put a file back from; the
+// snapshot taken just before the call is used instead. A user's earlier
+// uncommitted edit is in that snapshot, so it survives a script that
+// rewrites the file.
+func TestExplicitModeOpaqueBashChangesArePutBackOutsideGit(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c1", "bash", `{"command":"sh gen.sh"}`),
+		text("done"),
+	}}
+	root := t.TempDir()
+	for p, c := range map[string]string{
+		"gen.sh":       "echo made > made.txt\necho changed > tracked.txt\necho script >> edited.txt\nrm doomed.txt\necho again > admitted.txt\n",
+		"tracked.txt":  "original\n",
+		"edited.txt":   "user edit\n",
+		"doomed.txt":   "keep me\n",
+		"admitted.txt": "first\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, p), []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, ".git")); err == nil {
+		t.Fatal("test dir is a git repository")
+	}
+	ws := tool.NewLocal(root)
+	ws.Admission().SetMode(admit.Explicit)
+	if _, err := ws.Admit("admitted.txt", false); err != nil {
+		t.Fatal(err)
+	}
+	shadow, err := snapshot.OpenShadow(context.Background(), root, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &Agent{
+		Provider: f, Model: "m", System: "sys", AutoApprove: true,
+		Tools:     tool.NewRegistry(tool.Bash{Root: root, WS: ws}),
+		Workspace: ws, Root: root, checkpoints: checkpoints{Snapshots: shadow},
+	}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"tracked.txt": "original\n", "edited.txt": "user edit\n",
+		"doomed.txt": "keep me\n", "admitted.txt": "again\n",
+	}
+	for p, c := range want {
+		if b, _ := os.ReadFile(filepath.Join(root, p)); string(b) != c {
+			t.Errorf("%s = %q, want %q", p, b, c)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); err == nil {
+		t.Error("a file the script created outside the admitted set was left behind")
+	}
+	res := toolResults(a)[0]
+	for _, w := range []string{"file mode explicit", "made.txt", "tracked.txt", "doomed.txt", "/admit"} {
+		if !strings.Contains(res, w) {
+			t.Errorf("result lacks %q:\n%s", w, res)
+		}
+	}
+}

@@ -44,3 +44,21 @@ func (r *Repo) IndexContent(ctx context.Context, path string) (data []byte, ok b
 	}
 	return b, true, nil
 }
+
+// ContentAt is path's content in snapshot s; ok is false when the
+// snapshot holds no such file (it did not exist when the snapshot was
+// taken, or it was ignored).
+func (r *Repo) ContentAt(ctx context.Context, s Snap, path string) (data []byte, ok bool, err error) {
+	rel, inside := r.rel(path)
+	if !inside {
+		return nil, false, nil
+	}
+	b, err := gitx.RunBytes(ctx, r.Root, r.env, "cat-file", "blob", s.Commit+":"+rel)
+	if err != nil {
+		if gitx.ExitCode(err) == 128 {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return b, true, nil
+}
