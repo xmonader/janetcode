@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +53,20 @@ func (a *Agent) admitGate(t tool.Tool, input []byte) string {
 	switch t.Name() {
 	case "bash", "monitor":
 		return a.admitCommandDenial(shell.CommandOf(string(input)))
+	case "terminal":
+		// What a send types is a command line run in a shell, so it is
+		// read as bash's is, from the directory the terminal stands in.
+		if ts, ok := t.(interface {
+			SentCommand(json.RawMessage) (string, string, bool)
+		}); ok {
+			if text, cwd, ok := ts.SentCommand(input); ok {
+				root := a.Workspace.Root()
+				if cwd != "" && cwd != root {
+					text = "cd '" + strings.ReplaceAll(cwd, "'", `'\''`) + "'; " + text
+				}
+				return a.admitCommandDenial(text)
+			}
+		}
 	}
 	return ""
 }
@@ -100,7 +115,7 @@ type admitSnap struct {
 // admitBefore reads the work tree before a shell call, when the session
 // is in explicit mode and the call is one that can write opaquely.
 func (a *Agent) admitBefore(ctx context.Context, u llm.Block) *admitSnap {
-	if u.Name != "bash" && u.Name != "term" {
+	if u.Name != "bash" && u.Name != "terminal" {
 		return nil
 	}
 	if !a.admitPolicy().Explicit() {

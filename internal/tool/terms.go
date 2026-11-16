@@ -426,6 +426,22 @@ func sentCommand(input json.RawMessage) (id int, text string, ok bool) {
 	return in.ID, in.Text, true
 }
 
+// SentCommand is the command line a terminal send types and the
+// directory that terminal's shell is believed to stand in, or ok false
+// for any other action. File admission reads it as it reads a bash
+// command.
+func (t TermTool) SentCommand(input json.RawMessage) (text, cwd string, ok bool) {
+	id, text, ok := sentCommand(input)
+	if !ok {
+		return "", "", false
+	}
+	cwd, known := t.Terms.cwdOf(id, rootOf(t.Root, t.WS))
+	if !known {
+		cwd = ""
+	}
+	return text, cwd, true
+}
+
 // Guard implements Guard with bash's rules for what is sent: a command
 // that writes outside the workspace, or one the classifier cannot read,
 // asks under auto-approve whichever shell it is typed into. It is judged

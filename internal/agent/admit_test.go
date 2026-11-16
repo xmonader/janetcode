@@ -369,3 +369,61 @@ func TestForkInheritsTheWorkspaceAdmission(t *testing.T) {
 		t.Fatalf("fork gate = %q, %v", reason, denied)
 	}
 }
+
+// What a terminal send types is a command line, so it gets bash's
+// pre-run refusal in explicit mode, judged from the directory earlier
+// sends left the shell in.
+func TestExplicitModeTerminalSendsAreRefusedBeforeRunning(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c0", "terminal", `{"action":"open"}`),
+		toolCall("c1", "terminal", `{"action":"send","id":1,"text":"echo hi > made.txt"}`),
+		toolCall("c2", "terminal", `{"action":"send","id":1,"text":"cd sub"}`),
+		toolCall("c3", "terminal", `{"action":"send","id":1,"text":"echo hi > deep.txt"}`),
+		toolCall("c4", "terminal", `{"action":"send","id":1,"text":"echo ok > ../allowed.txt"}`),
+		text("done"),
+	}}
+	a, ws, root := admitAgent(t, f, map[string]string{"sub/keep.txt": "k\n"}, "allowed.txt")
+	terms := &tool.Terms{}
+	a.Tools = tool.NewRegistry(tool.TermTool{Terms: terms, Root: root, WS: ws})
+	defer terms.CloseAll()
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	res := toolResults(a)
+	if !strings.Contains(res[1], "/admit made.txt") {
+		t.Errorf("send redirect result = %q", res[1])
+	}
+	if !strings.Contains(res[3], "sub/deep.txt") || !strings.Contains(res[3], "not admitted") {
+		t.Errorf("send from a cd'd directory result = %q", res[3])
+	}
+	if strings.Contains(res[4], "not admitted") {
+		t.Errorf("a send writing an admitted file was refused: %q", res[4])
+	}
+	for _, p := range []string{"made.txt", "sub/deep.txt"} {
+		if _, err := os.Stat(filepath.Join(root, p)); err == nil {
+			t.Errorf("%s was created by a refused send", p)
+		}
+	}
+}
+
+// An opaque write typed into a terminal is watched like bash's.
+func TestExplicitModeOpaqueTerminalSendIsPutBack(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c0", "terminal", `{"action":"open"}`),
+		toolCall("c1", "terminal", `{"action":"send","id":1,"text":"sh gen.sh; echo done-marker"}`),
+		text("done"),
+	}}
+	a, ws, root := admitAgent(t, f, map[string]string{"gen.sh": "echo made > made.txt\n"})
+	terms := &tool.Terms{}
+	a.Tools = tool.NewRegistry(tool.TermTool{Terms: terms, Root: root, WS: ws})
+	defer terms.CloseAll()
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); err == nil {
+		t.Error("a file a terminal script created outside the admitted set was left behind")
+	}
+	if res := toolResults(a)[1]; !strings.Contains(res, "made.txt") || !strings.Contains(res, "file mode explicit") {
+		t.Errorf("result = %q", res)
+	}
+}

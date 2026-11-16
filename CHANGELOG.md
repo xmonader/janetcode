@@ -63,7 +63,10 @@ and measurements behind each round are in `docs/notes/history.md`.
   command that visibly writes one is refused before it runs; a script whose
   writes are not in its text has its non-admitted changes put back (git
   repositories); merge-back of an editing subagent refuses non-admitted
-  files. A link is judged by the file it leads to.
+  files. A link is judged by the file it leads to. A `terminal` send gets
+  the same pre-run refusal as bash (from the directory the shell stands
+  in); the after-the-call watch now also covers `terminal` (it was keyed
+  on a tool name that does not exist).
 - The mode and list are on the status line (`files:explicit(n)`), in the
   web header (files chip), in `/admit`, in the model's system prompt, and
   in the session record, so `--resume`, `/fork` and worktree sessions keep
