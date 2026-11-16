@@ -340,6 +340,41 @@ The header shows the git branch and the session's `+N −M`. Settings
 (the gear in the rail) sets Moon bright, Moon dark or System, the font
 size, and a sound when a turn finishes in a background tab.
 
+### Visual answers: `render_html`
+
+Ask for a chart, a table, a diagram or a mockup ("show this as a chart")
+and the model calls `render_html` with a title and one self-contained HTML
+document. The page is saved beside the session, so it survives a resume,
+a reload and `/fork`, and it is deleted with the session.
+
+- **In `--web`** the page appears in the thread above the written reply, in
+  a frame with an expand button (Escape closes it). It follows the light or
+  dark theme, including a switch while it is open: the page gets
+  `html[data-theme="light|dark"]` and a matching CSS `color-scheme`.
+- **In the terminal and in `-p`** you get a one-line card,
+  `▣ Revenue by quarter · /…/sessions/<id>.page-1.html`, and open that file
+  in a browser yourself.
+- **Local images** the page names by path (`src="charts/a.png"`,
+  `url(shot.png)`) are embedded as data URIs when the page is saved, so it
+  keeps working after the files move. Only png, jpg, gif, webp, svg, avif,
+  bmp and ico inside the workspace (or an `/add-dir` root) are embedded; any
+  other path, including one outside the workspace or through a symlink, makes
+  the call fail so the model can fix it.
+- **Size:** the HTML the model writes is capped at 2 MiB, each embedded
+  image at 4 MiB and all of them at 8 MiB; the error names the limit.
+
+The page is model-written code, so the web page treats it as untrusted. It
+runs in an `<iframe sandbox="allow-scripts allow-popups
+allow-popups-to-escape-sandbox">` with no `allow-same-origin`: its origin is
+opaque, so its scripts cannot read the janetcode page, the cookie, the token
+or the API. It is served from `/page/<session>/<n>` with a CSP that sets the
+same sandbox (so opening that URL on its own is safe too), allows inline
+script and `https:` resources such as a charting library from a CDN, and
+forbids `fetch`/XHR/WebSocket (`connect-src 'none'`), forms and `<base>`.
+The URL carries no token; the request needs the same session cookie as every
+other route, so a copied link is useless without a login. Links in a page
+open in a new browser tab.
+
 ## The screen-reader interface
 
 The full-screen interface redraws itself many times a second: a spinner,

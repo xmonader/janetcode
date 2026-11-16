@@ -28,6 +28,18 @@ and measurements behind each round are in `docs/notes/history.md`.
 - Tools can now report progress lines to the status line
   (`tool.Progress`).
 
+### Visual answers (2026-11-16)
+- New `render_html` tool: the model attaches a self-contained HTML page
+  (chart, table, diagram, mockup) to its answer. `--web` shows it above the
+  reply in a sandboxed frame (scripts allowed, no same-origin access to the
+  app, cookie or API; CSP forbids network calls; links open in a new tab)
+  with an expand button and live light/dark sync. The terminal and `-p` show
+  a one-line card with the saved file's path.
+- Pages are stored beside the session (`<id>.page-<n>.html`), replay on
+  resume, travel with `/fork` and go when the session is deleted. Workspace
+  images referenced by path are embedded as data URIs; paths outside the
+  workspace are refused. HTML is capped at 2 MiB (manual: Visual answers).
+
 ### Loop fixes (2026-11-10)
 - A provider failure that arrives mid-stream (a 5xx or 429 error frame
   after the stream opened) is retried instead of ending the turn.
