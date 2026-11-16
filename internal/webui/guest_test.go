@@ -56,6 +56,19 @@ func guestServer(t *testing.T) *guestEnv {
 	s := newServer(context.Background(), Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Addr: "0.0.0.0:8787", Token: ownerToken})
 	ts := httptest.NewServer(s.handler())
 	t.Cleanup(ts.Close)
+	// A turn clears running and then titles the session, writing into the
+	// temp dir; let that finish before the temp dirs are removed, or their
+	// cleanup races the write ("directory not empty").
+	t.Cleanup(func() {
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			s.mu.Lock()
+			running := s.running
+			s.mu.Unlock()
+			if !running && (len(ag.MessagesSnapshot()) == 0 || sess.Label() != sess.Meta.ID) {
+				return
+			}
+		}
+	})
 	return &guestEnv{t: t, s: s, ts: ts, prov: prov, cookies: map[string]string{}}
 }
 
