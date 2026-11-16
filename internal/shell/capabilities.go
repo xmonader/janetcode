@@ -58,3 +58,11 @@ func (s *Sandbox) cloneFor(backend string) *Sandbox {
 
 // HostOS is the operating system the capabilities were probed on.
 func HostOS() string { return runtime.GOOS + "/" + runtime.GOARCH }
+
+// ProbeSandbox is a sandbox whose probes are replaced: look stands in
+// for finding a program on PATH and abi for the kernel's Landlock ABI.
+// Reports and their tests use it to ask "what would this machine say"
+// without being that machine.
+func ProbeSandbox(look func(string) (string, error), abi func() int) *Sandbox {
+	return &Sandbox{look: look, abi: abi}
+}
