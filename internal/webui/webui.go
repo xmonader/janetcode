@@ -313,6 +313,13 @@ type server struct {
 	// runs outside it, lists them.
 	mcpMu sync.Mutex
 
+	// switchMu is held for writing while the server moves to another
+	// session and for reading by anything that must act on the session it
+	// checked is still current (reportTask). beforeTaskReport is a test
+	// seam between that check's lock and the check.
+	switchMu         sync.RWMutex
+	beforeTaskReport func()
+
 	// taskMu guards taskCtx, the context of the current session's
 	// background subagents (cmd_agents.go).
 	taskMu   sync.Mutex
@@ -338,6 +345,8 @@ func (s *server) sess() *session.Session {
 
 // setSession points the server at another session (/new, /load, /fork).
 func (s *server) setSession(v *session.Session) {
+	s.switchMu.Lock()
+	defer s.switchMu.Unlock()
 	s.sessMu.Lock()
 	s.opts.Session = v
 	s.sessMu.Unlock()

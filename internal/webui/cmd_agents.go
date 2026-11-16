@@ -122,16 +122,30 @@ func (s *server) startTask(task *agent.Task, kind string, in agent.TaskInput) {
 		if runErr != nil {
 			msg, failed = fmt.Sprintf("%s %s: %v", kind, in.Description, runErr), true
 		}
-		if origin != nil && s.sess() != origin {
-			_, _ = origin.Append(session.Event{Type: session.TypeNotice, Name: "subagent/" + kind, Output: msg, IsError: failed})
-			return
-		}
-		if failed {
-			s.errf("%s", msg)
-			return
-		}
-		s.notice(msg)
+		s.reportTask(origin, kind, msg, failed)
 	}()
+}
+
+// reportTask delivers a subagent's outcome. The check that the page is
+// still on the subagent's session and the delivery to the page happen
+// under switchMu's read side, which setSession takes for writing, so a
+// switch cannot land between them and put the notice on the new session's
+// page.
+func (s *server) reportTask(origin *session.Session, kind, msg string, failed bool) {
+	s.switchMu.RLock()
+	defer s.switchMu.RUnlock()
+	if origin != nil && s.sess() != origin {
+		_, _ = origin.Append(session.Event{Type: session.TypeNotice, Name: "subagent/" + kind, Output: msg, IsError: failed})
+		return
+	}
+	if s.beforeTaskReport != nil {
+		s.beforeTaskReport()
+	}
+	if failed {
+		s.errf("%s", msg)
+		return
+	}
+	s.notice(msg)
 }
 
 // taskContext is the context subagents started now run under; it ends
