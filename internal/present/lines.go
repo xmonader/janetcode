@@ -1,6 +1,10 @@
 package present
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/evidence"
+)
 
 // Tone is how a verdict line is coloured: it passed, it is a caution, or
 // it failed. The front-ends pick the colours; the reading is here.
@@ -23,6 +27,21 @@ func VerdictTone(text string) Tone {
 		return ToneBad
 	}
 	return ToneWarn
+}
+
+// Evidence is the evidence model's line under a verdict (the report's
+// own Line, the same text every front end shows), with paths shortened
+// like the verdict's. ok is false when there is nothing to say. The line
+// starts with the status mark, so VerdictTone reads its colour.
+func Evidence(cwd string, r *evidence.Report) (text string, ok bool) {
+	if r == nil {
+		return "", false
+	}
+	line := r.Line()
+	if line == "" {
+		return "", false
+	}
+	return ShortenPaths(cwd, line), true
 }
 
 // Verdict is the verdict line as shown: paths inside the project are

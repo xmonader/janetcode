@@ -312,6 +312,11 @@ func (t *transcript) apply(ev agent.Event) {
 		// dropped here for a long time while headless mode printed it.
 		t.closeOpen()
 		t.add(&entry{kind: entryVerdict, text: present.Verdict(t.cwd, ev.Text), isError: ev.IsError})
+		// What the checks themselves say, on the same evidence model as
+		// /status, the web UI and the headless result.
+		if line, ok := present.Evidence(t.cwd, ev.Evidence); ok {
+			t.add(&entry{kind: entryVerdict, text: line, isError: ev.Evidence.Blocks})
+		}
 	case agent.EvRetry:
 		// The status line that counted the retry down is gone the moment
 		// the call lands, so a turn that cost four attempts read exactly

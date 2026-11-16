@@ -41,6 +41,7 @@ var Commands = withIdle([]Command{
 	{Name: "/title", Args: "<text>", Help: "name this session (titles are generated after the first turn)"},
 	{Name: "/history", Args: "<words>", Help: "find earlier sessions in any directory whose conversation mentions the words"},
 	{Name: "/find", Args: "<text>", Help: "jump to the next line matching text; repeat to continue"},
+	{Name: "/status", Args: "", Help: "is the work verified right now: every check the session ran with its status (passed, failed, not_run, cancelled, environmental, flaky, inconclusive), exit code, timing and whether it still counts or predates the latest edit, and the final status that decides whether a success claim is backed"},
 	{Name: "/stats", Args: "", Help: "session statistics: turns, model calls, tool calls per tool, tokens, cost"},
 	{Name: "/perf", Args: "", Help: "where the time went: model, tools, waiting on you, the harness itself"},
 	{Name: "/undo", Args: "[preview | n | turn <n> [--files-only] | about <description> | apply [--force]]", Help: "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; turn <n> previews putting the whole work tree back to before that turn and rewinding the conversation with it (--files-only keeps the conversation); about <description> previews only the changes matching it; apply carries out the last preview (--force if it has mixed changes or a coupling warning)"},

@@ -15,6 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/dossier"
 	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -321,6 +322,9 @@ type streamEvent struct {
 	// whether it finished and its report (or error) clipped.
 	OK     *bool  `json:"ok,omitempty"`
 	Report string `json:"report,omitempty"`
+	// Evidence is on a verdict event: the turn's checks on the evidence
+	// model (internal/evidence), the same object the result carries.
+	Evidence *evidence.Report `json:"evidence,omitempty"`
 }
 
 func (r *recorder) emit(e streamEvent) {
@@ -404,7 +408,7 @@ func (r *recorder) event(e agent.Event) (sep string) {
 		r.emit(streamEvent{Type: "compacted", Text: e.Text})
 	case agent.EvVerdict:
 		r.verdict = e.Text
-		r.emit(streamEvent{Type: "verdict", Text: e.Text, IsError: e.IsError})
+		r.emit(streamEvent{Type: "verdict", Text: e.Text, IsError: e.IsError, Evidence: e.Evidence})
 	case agent.EvTurnDone:
 		r.turns++
 		r.usage.Add(e.Usage)
@@ -468,6 +472,12 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		StructuredOutput:  r.structured,
 	}
 	if ag != nil {
+		// The session's verification evidence now, on the one status
+		// model; additive, so the verdict field and exit code stand as
+		// they were. Omitted when nothing was edited or checked.
+		if ev := ag.EvidenceReport(); len(ev.Checks) > 0 || ev.Required {
+			res.Evidence = &ev
+		}
 		// The recorder tallies usage from EvTurnDone, which a turn that
 		// ended early -- on the budget, on a cancellation, on an error --
 		// never sends: the run would report zero tokens for calls it

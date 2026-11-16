@@ -346,6 +346,10 @@ var dispatch = map[string]cmdHandler{
 	"/compact":      (*model).cmdCompact,
 	"/compact-fast": (*model).cmdCompactFast, "/compress-fast": (*model).cmdCompactFast,
 	"/export": (*model).cmdExport,
+	"/status": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.transcript.code(m.opts.Agent.EvidenceReport().Text())
+		return nil, false
+	},
 	"/stats": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.statsCommand()
 		return nil, false

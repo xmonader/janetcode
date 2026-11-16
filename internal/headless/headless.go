@@ -767,6 +767,11 @@ func printEvent(opts Options, e agent.Event) {
 		// run at all, so it goes to stderr beside the tool activity
 		// rather than being dropped as the TUI-only line it was.
 		fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", safe(e.Text))
+		if e.Evidence != nil {
+			if line := e.Evidence.Line(); line != "" {
+				fmt.Fprintf(opts.Stderr, "[%s]\n", safe(line))
+			}
+		}
 	case agent.EvRetry:
 		fmt.Fprintf(opts.Stderr, "[retry] %s\n", safe(e.Text))
 	case agent.EvDiscard:

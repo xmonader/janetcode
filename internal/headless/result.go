@@ -6,6 +6,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/dossier"
 	"github.com/xmonader/janetcode/internal/egress"
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/scope"
@@ -55,6 +56,13 @@ type CLIResult struct {
 	// Verdict is what the turn demonstrated, computed from what the
 	// harness watched rather than from what the model claimed.
 	Verdict string `json:"verdict,omitempty"`
+	// Evidence is the session's verification evidence on the one status
+	// model (internal/evidence): every check with its status, exit code,
+	// timing and freshness against the latest edit, and the final status
+	// that says whether a success claim is backed. It never changes the
+	// exit code, which stays authoritative. Omitted when nothing was
+	// edited or checked.
+	Evidence *evidence.Report `json:"evidence,omitempty"`
 	// Conflict is the CONFLICT the last turn ended on (conflict_exit):
 	// the cited test, the task's words, why, and whether the harness
 	// confirmed the test exists and fails. Only a confirmed one sets

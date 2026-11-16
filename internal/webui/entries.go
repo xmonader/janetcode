@@ -213,6 +213,11 @@ func (s *server) apply(ev agent.Event) {
 	case agent.EvVerdict:
 		s.closeOpen()
 		s.add(entry{Kind: "verdict", Text: present.Verdict(s.cwd(), ev.Text), Tone: present.VerdictTone(ev.Text), Error: ev.IsError})
+		// What the checks themselves say, on the same evidence model as
+		// /status, the terminal and the headless result.
+		if line, ok := present.Evidence(s.cwd(), ev.Evidence); ok {
+			s.add(entry{Kind: "verdict", Text: line, Tone: present.VerdictTone(line), Error: ev.Evidence.Blocks})
+		}
 	case agent.EvRetry:
 		s.closeOpen()
 		s.add(entry{Kind: "notice", Text: "↻ " + ev.Text})

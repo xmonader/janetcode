@@ -344,6 +344,11 @@ func (p *spoken) event(e agent.Event) {
 	case agent.EvVerdict:
 		p.flush()
 		p.line(i18n.Tf("Outcome: %s", safeLine(e.Text, 300)))
+		if e.Evidence != nil {
+			if line := e.Evidence.Line(); line != "" {
+				p.line(i18n.Tf("Evidence: %s", safeLine(line, 300)))
+			}
+		}
 	case agent.EvRetry:
 		p.line(i18n.Tf("Retrying: %s", safeLine(e.Text, 200)))
 	case agent.EvDiscard:
