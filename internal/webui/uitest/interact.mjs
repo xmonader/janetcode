@@ -677,6 +677,26 @@ check('no context chip before the first message', await ctxChip() === true, 'sho
 await evaljs(`(() => { window.__es.onmessage({ data: JSON.stringify({ type: 'entry', entry: { id: 'u-ctx', kind: 'user', text: 'hi' } }) }); return 1; })()`);
 check('the context chip shows once there is a turn', await ctxChip() === false, 'hidden');
 
+// The file card of a turn tags each file with the tool call that wrote it
+// and lists the checks the turn ran, each with its verdict and the call
+// it followed (the files and checks of /api/workspace).
+const fileCard = await evaljs(`(() => new Promise((done) => {
+  const rf = window.fetch;
+  const ws = { files: [{ seq: 1, turn: 1, path: 'pkg/a.go', add: 3, del: 1, call: 'c7' }],
+    checks: [{ turn: 1, command: 'go test ./pkg', failed: true, calls: ['c8'] }, { turn: 1, command: 'go vet ./...', failed: false, calls: [] }] };
+  window.fetch = (u, o) => String(u).includes('/api/workspace') ? Promise.resolve(new Response(JSON.stringify(ws))) : rf(u, o);
+  window.__es.onmessage({ data: JSON.stringify({ type: 'status', status: { running: false, mode: 'ask' } }) });
+  setTimeout(() => {
+    window.fetch = rf;
+    const card = document.querySelector('.turn-files[data-turn-files="1"]');
+    const rows = card ? [...card.querySelectorAll('[data-testid="turn-check"]')].map((r) => r.textContent.replace(/\\s+/g, ' ').trim()) : [];
+    const tag = card && card.querySelector('[data-testid="file-call"]');
+    done({ card: !!card, tag: tag ? tag.textContent : '', rows, header: card ? card.querySelector('header').textContent : '' });
+  }, 500);
+}))()`);
+check('the file card tags the file with its tool call', fileCard.card && fileCard.tag === 'call c7', JSON.stringify(fileCard));
+check('the file card lists each check with its verdict and call', fileCard.rows.length === 2 && fileCard.rows[0] === 'check go test ./pkg after call c8failed' && fileCard.rows[1] === 'check go vet ./...passed', JSON.stringify(fileCard));
+
 // On a phone the Session panel does not reopen over the thread because it
 // was left open on a desktop, and the two drawers never stack.
 await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
