@@ -123,6 +123,10 @@ and measurements behind each round are in `docs/notes/history.md`.
 - `--follow <id>`: a read-only observer of a session another process runs
   (terminal, `--web`, `--acp`, `--bg`); never takes the lease; ends when the
   owner is gone; `--output-format stream-json` for the protocol form.
+- A session switch (`/new`, `/resume`, `/fork`) now ends the old session's
+  background subagents instead of letting them finish into the new one; a
+  web subagent that ends after the switch reports to its own session's log
+  only. A stale-epoch approval, undo or cancel is refused after a switch.
 - ACP: prompts for one session now run strictly in the order sent (they
   could start in any order before); opening a session another janetcode
   runs fails with code `-32010` and data naming the holder; `initialize`

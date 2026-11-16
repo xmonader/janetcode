@@ -73,6 +73,85 @@ func TestPromptsRunInTheOrderTheyWereSent(t *testing.T) {
 	}
 }
 
+// speakRunner says text on its turn, after release closes.
+type speakRunner struct {
+	text    string
+	started chan struct{}
+	release chan struct{}
+}
+
+func (r *speakRunner) RunBlocks(ctx context.Context, _ []llm.Block, emit func(agent.Event)) error {
+	close(r.started)
+	select {
+	case <-r.release:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	emit(agent.Event{Kind: agent.EvText, Text: r.text})
+	return nil
+}
+func (r *speakRunner) MessagesSnapshot() []llm.Message { return nil }
+func (r *speakRunner) SetApprover(agent.Approver)      {}
+
+// A turn running in session A when the editor opens session B on the same
+// connection finishes into A: every update it makes carries A's id, and
+// B's turns never receive it.
+func TestTurnOfAnEarlierSessionStaysInItsSession(t *testing.T) {
+	a := &speakRunner{text: "from-A", started: make(chan struct{}), release: make(chan struct{})}
+	b := &speakRunner{text: "from-B", started: make(chan struct{}), release: make(chan struct{})}
+	close(b.release)
+	runners := []*speakRunner{a, b}
+	dir, cwd := t.TempDir(), t.TempDir()
+	var n int
+	c, stop := newClient(t, Options{Version: "test", NewAgent: func(_, _ string) (TurnRunner, *session.Session, error) {
+		r := runners[n]
+		n++
+		s, err := session.New(dir, cwd, "fake", "m")
+		return r, s, err
+	}})
+	defer stop()
+	idA := newSessionID(t, c)
+	c.call("session/prompt", promptParams{SessionID: idA, Prompt: []contentBlock{{Type: "text", Text: "in A"}}})
+	<-a.started
+
+	c.call("session/new", newSessionParams{Cwd: t.TempDir()})
+	m, _ := c.readUntil(func(m message) bool { return m.Result != nil && strings.Contains(string(m.Result), "sessionId") })
+	var ns newSessionResult
+	if err := json.Unmarshal(m.Result, &ns); err != nil {
+		t.Fatal(err)
+	}
+	idB := ns.SessionID
+	if idB == idA {
+		t.Fatal("session/new returned the first session's id")
+	}
+	c.call("session/prompt", promptParams{SessionID: idB, Prompt: []contentBlock{{Type: "text", Text: "in B"}}})
+	close(a.release) // A's turn ends after the editor moved on
+
+	seen := map[string]string{} // text -> session id it was sent to
+	for responses := 0; responses < 2; {
+		fr := c.read()
+		if fr.Method == "session/update" {
+			var p struct {
+				SessionID string `json:"sessionId"`
+				Update    struct {
+					Content struct{ Text string } `json:"content"`
+				} `json:"update"`
+			}
+			if err := json.Unmarshal(fr.Params, &p); err != nil {
+				t.Fatal(err)
+			}
+			if p.Update.Content.Text != "" {
+				seen[p.Update.Content.Text] = p.SessionID
+			}
+		} else if fr.Result != nil {
+			responses++
+		}
+	}
+	if seen["from-A"] != idA || seen["from-B"] != idB {
+		t.Fatalf("updates went to %v, want from-A to %s and from-B to %s", seen, idA, idB)
+	}
+}
+
 func TestInitializeSaysWhichSessionProtocolItSpeaks(t *testing.T) {
 	opts, _ := testOptions(t)
 	c, stop := newClient(t, opts)

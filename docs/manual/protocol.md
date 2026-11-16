@@ -23,6 +23,17 @@ session; it can continue in a copy (`--fork`), or watch it read-only
 (`--follow`, below). The rest of this page is the control lease inside the
 process that serves several clients: today the web server.
 
+## The terminal interface is not a lease client
+
+The TUI is one user at one keyboard in one process, so it has no control
+lease and no observers: it needs no arbitration inside its own process.
+What protects its session is the process lease alone: while the terminal
+holds a session, `--web`, `--acp`, `--resume` and a second terminal are
+refused with the holder named, and `--follow` can watch it read-only.
+`--web` is the process that serves several clients and so is the one that
+runs this page's control lease. Its own prompt queue keeps the same
+first-in first-out order as the others.
+
 ## Roles
 
 - **controller**: may change the session. At most one at a time.
@@ -173,9 +184,17 @@ requests (they cannot answer them).
 - **Cancel, approvals, questions and secrets** act on the session's single
   running turn and are changes, so only the controller makes them.
 - **A new, loaded, resumed or forked session** ends the control lease: the
-  epoch advances and every client's old lease is stale. Undo, approvals and
-  subagent results belong to the session they were made in, which the
-  process never runs two of at a time.
+  epoch advances and every client's old lease is stale. An approval, an
+  undo, a cancel or a prompt sent under the old epoch is refused with
+  `stale_lease` and reaches nothing of the new session.
+- **Subagents belong to the session that started them.** Moving to another
+  session cancels the old session's background subagents (their attempt
+  records say `cancelled`, in the old session) and forgets its continuable
+  children. A subagent that still ends afterwards, because its model call
+  could not be interrupted, reports to the old session's log only: never to
+  the new session's history, event stream or page. Over ACP each session
+  has its own agent, and every update a turn makes carries its own session's
+  id, however many sessions the connection has opened since.
 
 ## ACP
 

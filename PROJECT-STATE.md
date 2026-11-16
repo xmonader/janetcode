@@ -42,9 +42,8 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
 ## Known Gaps (verify before relying on)
 - Issue #11 (unreleased): docs/manual/protocol.md. Web control lease +
   observers (internal/sessionproto, webui/control.go), `--follow`, ACP
-  ordering/conflict. Not covered: the TUI is not a lease client (one
-  process per session via the flock lease), and subagent completion is
-  only tied to its session by the process running one session at a time.
+  ordering/conflict, subagents retired on a session switch. The TUI is
+  deliberately not a lease client (flock process lease only; protocol.md).
 - Eval Wilson CI pools repeated runs as iid.
 - Mid-turn Jev consumer rejected twice on measurements (docs/notes/jev.md);
   revisit only with a harness-side "did the state change" check.
