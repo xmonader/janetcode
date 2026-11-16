@@ -619,7 +619,9 @@
 
   function handle(msg) {
     switch (msg.type) {
-      case "hello": applyHello(msg.hello); break;
+      case "hello": applyHello(msg.hello); control.apply(msg.control); break;
+      case "control": control.apply(msg.control); break;
+      case "bye": statusEl.textContent = S.localNote = msg.notice || "The server is shutting down."; break;
       case "entry": if (msg.entry) render(msg.entry); break;
       case "status": applyStatus(msg.status); break;
       case "permission": showAsk(msg.permission); break;
@@ -682,6 +684,7 @@
   }
 
   // Guest links live in guest.js.
+  const control = JanetControl();
   const guest = JanetGuest({ post, statusEl });
   const applyGuest = guest.apply, shareWithGuest = guest.share;
 
@@ -697,7 +700,7 @@
       statusEl.textContent = S.localNote = "Cannot reach janetcode. Is it still running?";
       return false;
     }
-    if (!r.ok) statusEl.textContent = (await r.text()) || r.statusText;
+    if (!r.ok) statusEl.textContent = control.explain(await r.text()) || r.statusText;
     return r.ok;
   }
 
@@ -1175,7 +1178,7 @@
   if (window.JanetExtras && window.JanetExtras.ready) window.JanetExtras.ready();
 
   const conn = document.getElementById("conn");
-  const es = new EventSource("/events");
+  const es = new EventSource(control.eventsURL);
   window.__es = es;
   let lost = false;
   es.onopen = () => {

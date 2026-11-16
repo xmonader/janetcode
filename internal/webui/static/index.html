@@ -225,6 +225,11 @@
           <button type="submit">Send</button>
         </form>
       </div>
+      <div id="control-bar" class="control-bar" data-testid="control-bar" role="status" hidden>
+        <span id="control-state"></span>
+        <span class="spacer"></span>
+        <button type="button" id="control-take" class="act">Take control</button>
+      </div>
       <div id="guest-bar" class="guest-bar" data-testid="guest-bar" hidden>
         <div class="guest-share">
           <span id="guest-state">Sharing with a guest</span>
@@ -508,6 +513,7 @@
 <script src="/static/composer.js"></script>
 <script src="/static/palette.js"></script>
 <script src="/static/guest.js"></script>
+<script src="/static/control.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/extras.js"></script>
 <script src="/static/voice.js"></script>

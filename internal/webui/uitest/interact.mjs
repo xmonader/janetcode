@@ -974,6 +974,31 @@ const keptDraft = await evaljs(`({ v: document.getElementById('input').value })`
 check('a prompt link does not replace a draft', keptDraft.v === 'my own draft', JSON.stringify(keptDraft));
 await clearDrafts();
 
+// Session control: a page alone on the session shows no bar; when another
+// client takes control the bar says who and offers to take it back at a
+// turn boundary; a page opened with ?observe=1 follows read-only.
+await cmd('Page.navigate', { url: new URL('/', APP).href });
+await sleep(2500);
+const ctlBar = `(() => { const b = document.getElementById('control-bar'); return { hidden: b.hidden, text: document.getElementById('control-state').textContent }; })()`;
+const ctl0 = await evaljs(ctlBar);
+check('control bar is hidden for the only client', ctl0.hidden === true, JSON.stringify(ctl0));
+const otherTook = await evaljs(`(async () => { const r = await fetch('/api/control', { method: 'POST', headers: { 'content-type': 'application/json', 'X-Janet-Client': 'other-device', 'X-Janet-Client-Name': 'the phone' }, body: JSON.stringify({ action: 'take' }) }); return r.status; })()`);
+check('another client can take control from an idle page', otherTook === 200, String(otherTook));
+await sleep(1500); // the stream re-reads the control state every 500ms
+const ctl1 = await evaljs(ctlBar);
+check('control bar names who controls the session', ctl1.hidden === false && ctl1.text.includes('the phone'), JSON.stringify(ctl1));
+const refused = await evaljs(`(async () => { const r = await fetch('/api/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'hello' }) }); const j = await r.json(); return { status: r.status, code: j.conflict && j.conflict.code, holder: j.conflict && j.conflict.state.holder.client }; })()`);
+check('a change from the page is refused with a conflict', refused.status === 409 && refused.code === 'lease_held' && refused.holder === 'other-device', JSON.stringify(refused));
+await evaljs(`document.getElementById('control-take').click()`);
+await sleep(1500);
+const ctl2 = await evaljs(ctlBar);
+check('Take control hands the session to this page', ctl2.hidden === true, JSON.stringify(ctl2));
+await cmd('Page.navigate', { url: new URL('/?observe=1', APP).href });
+await sleep(2500);
+const ctl3 = await evaljs(ctlBar);
+check('?observe=1 follows read-only', ctl3.hidden === false && ctl3.text.startsWith('Watching read-only'), JSON.stringify(ctl3));
+await evaljs(`fetch('/api/control', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'release' }) }).then(() => 1)`);
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));
