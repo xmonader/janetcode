@@ -16,6 +16,8 @@
 //   latest      writes: app.js render/event stream (set, delete, clear on reset)
 //               reads:  app.js (tool groups, find, markdown export, copy/edit
 //               buttons), workspacepane.js (has the user spoken yet)
+//   pending     writes: approvals.js showAsk
+//               reads:  app.js composer shortcuts, applyPromptLink, queue counter
 //   lastReply   writes: app.js transcript render (assistant text)
 //               reads:  notify.js (the body of the "turn finished" popup)
 //
@@ -26,6 +28,8 @@
   "use strict";
   global.JanetState = {
     lastReply: "",
+    // the permission request on the approval card, or null.
+    pending: null,
     // every transcript entry by id, newest version of each.
     latest: new Map(),
     // the conversation's first prompt: it names the conversation until the
