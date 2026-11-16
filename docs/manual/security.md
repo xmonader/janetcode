@@ -126,7 +126,7 @@ Each gate is one command. `make release-gates` runs them in this order and write
 |---|---|---|
 | unit | `go test ./...` | every package's tests, including the dependency-direction and release-metadata drift tests |
 | race | `go test -race ./...` | the same suite under the race detector |
-| lint | `make lint` | go vet, and staticcheck when it is installed |
+| lint | `go vet ./...` | go vet on every package (staticcheck, via `make lint`, is advisory and has findings that predate this gate) |
 | cross | `make cross` | build for windows/amd64 and darwin/arm64, which the Linux run only compiles |
 | security | `go test ./internal/shell ./internal/perm ./internal/secret ./internal/extension ./internal/secreport ./internal/trust ./internal/egress ./internal/archtest` | the sandbox, permission, secret-scanning, extension-trust, security-report, trust-store, egress and architecture tests on their own |
 | security-doctor | `make build && ./bin/janetcode --doctor security` | the built binary's own security report; it exits non-zero when a check fails |

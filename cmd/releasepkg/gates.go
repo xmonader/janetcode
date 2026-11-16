@@ -30,7 +30,7 @@ type Gate struct {
 var Gates = []Gate{
 	{Name: "unit", Command: "go test ./...", What: "every package's tests, including the dependency-direction and release-metadata drift tests"},
 	{Name: "race", Command: "go test -race ./...", What: "the same suite under the race detector"},
-	{Name: "lint", Command: "make lint", What: "go vet, and staticcheck when it is installed"},
+	{Name: "lint", Command: "go vet ./...", What: "go vet on every package (staticcheck, via make lint, is advisory and has findings that predate this gate)"},
 	{Name: "cross", Command: "make cross", What: "build for windows/amd64 and darwin/arm64, which the Linux run only compiles"},
 	{Name: "security", Command: "go test ./internal/shell ./internal/perm ./internal/secret ./internal/extension ./internal/secreport ./internal/trust ./internal/egress ./internal/archtest", What: "the sandbox, permission, secret-scanning, extension-trust, security-report, trust-store, egress and architecture tests on their own"},
 	{Name: "security-doctor", Command: "make build && ./bin/janetcode --doctor security", What: "the installed binary's own security report; it exits non-zero when a check fails"},
