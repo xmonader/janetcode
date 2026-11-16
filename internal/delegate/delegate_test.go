@@ -23,9 +23,15 @@ func fakeCLIs(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake CLIs are shell scripts")
 	}
-	bin, err := filepath.Abs("testdata/bin")
+	bin, err := filepath.Abs("testdata/fakebin")
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Without the fakes the real, signed-in CLIs on PATH would run (and bill).
+	for _, name := range []string{"claude", "codex"} {
+		if fi, err := os.Stat(filepath.Join(bin, name)); err != nil || fi.Mode()&0o111 == 0 {
+			t.Fatalf("fake %s missing or not executable in %s: %v", name, bin, err)
+		}
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }

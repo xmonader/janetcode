@@ -1,0 +1,29 @@
+#!/bin/sh
+# Fake claude for delegate tests: behaviour is chosen by the prompt (the
+# value after -p). It records its arguments, environment and cwd to the
+# files named by DELEGATE_*OUT so tests can inspect what the child saw.
+prompt="$2"
+[ -n "$DELEGATE_ARGSOUT" ] && printf '%s\n' "$@" > "$DELEGATE_ARGSOUT"
+[ -n "$DELEGATE_ENVOUT" ] && env > "$DELEGATE_ENVOUT"
+[ -n "$DELEGATE_CWDOUT" ] && pwd > "$DELEGATE_CWDOUT"
+case "$prompt" in
+ok)
+  echo '{"type":"system","subtype":"init"}'
+  echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"a.go"}}]}}'
+  echo '{"type":"assistant","message":{"content":[{"type":"text","text":"found it"}]}}'
+  echo '{"type":"result","subtype":"success","is_error":false,"result":"the answer is 42","total_cost_usd":0.0123,"usage":{"input_tokens":10,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,"output_tokens":7}}'
+  ;;
+error-result)
+  echo '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"not logged in"}'
+  ;;
+fail)
+  echo "boom: something broke" >&2
+  exit 3
+  ;;
+hang)
+  sleep 300 &
+  echo $! > "$DELEGATE_PIDFILE"
+  echo $$ >> "$DELEGATE_PIDFILE"
+  wait
+  ;;
+esac
