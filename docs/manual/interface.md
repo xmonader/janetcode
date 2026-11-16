@@ -3816,7 +3816,7 @@ Each hook gets the event as JSON on stdin: `event`, `cwd`,
 auto_edits, plan, yolo, read_only), and what the event is about — `tool`
 and `input`, for `post_tool` the `output`/`is_error`, for `stop` the
 model's `text`, `prompt`, `source`, `reason`, `trigger`, `tokens`,
-`summary`, `notification_type` and `message`, `error_type` and `error`
+`summary`, `notification_type`, `message` and `url` (a link to the waiting session, when a `--web` server runs in the process: see Approve from your phone), `error_type` and `error`
 (`loop_detected`, `max_turns`, `rate_limit`, `authentication_failed`,
 `billing_error`, `server_error`, `invalid_request`, `unknown`), `agent`
 and `agent_id`. `JANETCODE_EVENT`, `JANETCODE_TOOL` and `JANETCODE_CWD`
@@ -4101,6 +4101,67 @@ Forms are limited to 32 flat fields and 64 KiB, as the spec intends. URL
 mode is not offered. Under ACP the editor can only choose, so text fields
 are limited to their default or left empty; with no front-end asking
 (`-p` runs) the request is declined.
+
+### Approve from your phone
+
+A session that waits on you can send a link that opens it on the pending
+approval. Run the web UI where your phone can reach it, and give the
+`notification` hook a command that forwards the link.
+
+The `notification` hook's stdin JSON carries `url` whenever a `--web`
+server runs in the same process: for a `permission_prompt` it opens the
+page on the waiting card (the card scrolls into view and takes focus, even
+over a half-typed draft); for an `idle_prompt` it opens the session. The
+card fits a 390px screen with its Allow and Deny buttons in view.
+
+```sh
+# the phone reaches janetcode over your tailnet
+export JANETCODE_WEB_URL=https://<machine>.<tailnet>.ts.net
+janetcode --web --web-addr 127.0.0.1:8787
+tailscale serve --bg 8787          # in another shell
+```
+
+`JANETCODE_WEB_URL` does two things: links are built from it, and a server bound to
+loopback accepts that one Host name besides `localhost`, which is the Host a proxy
+normally forwards (unverified for tailscale serve, see below). Without it, links use the address the server
+bound (a `0.0.0.0` bind becomes the machine's first private IPv4
+address), and `tailscale serve` is refused as an unknown Host. Binding the
+tailnet address directly (`--web-addr $(tailscale ip -4):8787`) also
+works, without `serve` and without HTTPS; WireGuard encrypts the hop.
+
+The hook, with [ntfy](https://ntfy.sh) (`Click` makes the notification
+open the link when tapped; use your own topic, and a self-hosted ntfy if
+the link should not pass through ntfy.sh):
+
+```json
+"hooks": {
+  "notification": [{"match": "permission_prompt",
+    "command": "u=$(jq -r .url); curl -s -H \"Title: janetcode needs approval\" -H \"Click: $u\" -d \"$(basename \"$PWD\"): open to approve\" https://ntfy.sh/YOUR-PRIVATE-TOPIC"}]
+}
+```
+
+The `Click` header is metadata, not message text, so most ntfy clients
+show a tap target, not the URL.
+
+Security tradeoff. The link has to log the phone in, but it goes through
+a third party (the push service, your chat), so it never carries the
+access token. It carries a ticket: valid for one login, for 30 minutes,
+with at most 64 outstanding (the oldest dropped first). Opening it sets
+the same cookie the printed link sets, which lasts 30 days, and the page
+removes `approve` from the address bar. Whoever opens the link first is
+signed in, so treat the push channel as a secret (a private topic, not a
+guessable one). A previewer that fetches links before you do (some chat
+apps) uses the ticket up; the next notification carries a fresh one, and
+a used or expired link shows the sign-in page. Without TLS (a plain
+`http://` link over a LAN) the ticket and cookie cross the network in the
+clear: use `tailscale serve`, a tailnet bind, or a TLS proxy. A
+`--bg` run has no web server of its own: it notifies through
+`JANETCODE_NOTIFY` (see Sessions) with no link, and its question is
+answered from the Dashboard of a `--web` server on the same machine.
+
+`tailscale serve --bg 8787` is the syntax of current Tailscale clients
+as documented upstream; it was not run when this section was written.
+Check `tailscale serve --help` on your version.
 
 ### The agent dashboard (web)
 

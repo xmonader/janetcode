@@ -520,6 +520,10 @@ type Agent struct {
 	// Hooks, when set, runs user commands around tool calls, compaction
 	// and turn end (see package hook). Nil means no hooks.
 	Hooks *hook.Runner
+	// NotifyLink, when set, makes a link to this session in a web UI for
+	// notification hooks; approval says it should open on the pending
+	// approval. It returns "" when no link can be made.
+	NotifyLink func(approval bool) string
 	// Cron is the session-scoped scheduler; jobs die when the session ends.
 	Cron *Cron
 	// accept is the /accept mode (see package accept and acceptgate.go),

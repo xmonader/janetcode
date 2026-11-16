@@ -179,6 +179,9 @@ func Run(ctx context.Context, opts Options) error {
 	// the guard took it for every interface and let a rebound DNS name in.
 	opts.Addr = ln.Addr().String()
 	s := newServer(ctx, opts)
+	if opts.Agent != nil {
+		opts.Agent.NotifyLink = s.notifyLink
+	}
 	s.askTrust()
 	if opts.MCP != nil && opts.MCP.Manager != nil {
 		opts.MCP.Manager.SetNotify(s.notice)
@@ -237,6 +240,8 @@ type server struct {
 	// shutting the server down stops them rather than leaving them
 	// running against a server nobody can reach.
 	life context.Context
+	// tickets are the one-time logins notification links carry.
+	tickets *tickets
 
 	mu      sync.Mutex
 	seq     int
@@ -462,6 +467,7 @@ func newServer(life context.Context, opts Options) *server {
 	s := &server{
 		opts:     opts,
 		life:     life,
+		tickets:  newTickets(),
 		dir:      opts.Cwd,
 		subs:     map[chan envelope]struct{}{},
 		openedAt: time.Now(),

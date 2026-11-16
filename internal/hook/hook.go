@@ -387,6 +387,11 @@ type Input struct {
 	Kind string `json:"notification_type,omitempty"`
 	// Message is the notification's text (notification).
 	Message string `json:"message,omitempty"`
+	// URL is a link that opens the waiting session in its web UI, when a
+	// --web server runs in this process (notification). A
+	// permission_prompt's link also focuses the pending approval. It
+	// carries a one-time login ticket, so treat it as a secret.
+	URL string `json:"url,omitempty"`
 	// ErrorType classifies a failed turn: rate_limit,
 	// authentication_failed, billing_error, invalid_request,
 	// server_error, max_output_tokens, loop_detected or unknown

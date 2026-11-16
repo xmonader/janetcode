@@ -258,6 +258,9 @@ func (a *Agent) notifyHook(kind, msg string) {
 	}
 	in := a.hookInput(hook.Notification)
 	in.Kind, in.Message = kind, msg
+	if a.NotifyLink != nil {
+		in.URL = a.NotifyLink(kind == "permission_prompt")
+	}
 	a.fireHook(in)
 }
 

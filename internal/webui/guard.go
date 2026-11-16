@@ -19,7 +19,8 @@ import (
 //   - DNS rebinding. A hostile name that re-resolves to 127.0.0.1 makes
 //     the attacker's page same-origin with the server, so the origin
 //     check alone passes it. When the server listens on loopback only,
-//     the Host must be a loopback name, which a rebound name is not.
+//     the Host must be a loopback name, which a rebound name is not, or
+//     the one name JANETCODE_WEB_URL gives (tailscale serve, a proxy).
 //
 // The page itself (/, /static/) stays reachable from a link: opening it
 // is not an action, and it can only act through the API, which is
@@ -27,7 +28,7 @@ import (
 func (s *server) guard(next http.Handler) http.Handler {
 	loopback := loopbackAddr(s.opts.Addr)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if loopback && !loopbackHost(r.Host) {
+		if loopback && !hostAllowed(r.Host) {
 			http.Error(w, "forbidden: this server answers only to localhost", http.StatusForbidden)
 			return
 		}

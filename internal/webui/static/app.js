@@ -651,6 +651,34 @@
     askQueue.hidden = more === 0;
     askQueue.textContent = more + " more waiting";
   }
+  // A notification's link (?approve=1) opens on the prompt that is
+  // waiting: the card scrolls into view and takes focus even when a draft
+  // is half-typed, since the phone was picked up to answer it. The prompt
+  // may come up a moment after the page does (the hook fires just before
+  // the card), so the request stays armed for a while. The parameter is
+  // taken out of the address bar so a reload does not repeat it.
+  let wantApprove = false;
+  function focusApproval() {
+    if (!wantApprove || !pending) return false;
+    wantApprove = false;
+    ask.scrollIntoView({ block: "center" });
+    ask.focus();
+    return true;
+  }
+  try {
+    const qs = new URLSearchParams(location.search);
+    if (qs.get("approve")) {
+      wantApprove = true;
+      qs.delete("approve");
+      const rest = qs.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+      setTimeout(() => {
+        if (!wantApprove) return;
+        wantApprove = false;
+        statusEl.textContent = "Nothing is waiting for approval now: it may already have been answered.";
+      }, 20000);
+    }
+  } catch (_) {}
   function showAsk(p) {
     const was = ask.hidden ? null : pending;
     pending = p && p.name ? p : null;
@@ -668,7 +696,9 @@
       // Focus goes to the card, not to Allow: a stray Enter must not
       // approve a command. It stays put while the user is typing.
       const typing = document.activeElement === input && input.value.trim() !== "";
-      if (!typing) ask.focus();
+      if (!focusApproval() && !typing) ask.focus();
+    } else {
+      focusApproval();
     }
     showRungs(p);
     // The rung picker already names the rule; a "rule:" line above it

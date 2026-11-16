@@ -49,6 +49,15 @@ and measurements behind each round are in `docs/notes/history.md`.
   guest's messages wait as Requests to send or dismiss. Enforced and tested
   server-side (internal/webui/guest.go); see "Guest links" in the manual.
 
+### Approve from your phone (2026-11-16)
+- `notification` hooks get a `url` when a `--web` server runs in the
+  process: a link with a one-time login ticket (30 minutes, never the
+  access token) that opens the page on the pending approval, focused over
+  any draft and fitting a 390px screen.
+- `JANETCODE_WEB_URL` names the address clients reach the server at
+  (tailscale serve, a proxy): links use it and a loopback-bound server
+  accepts that one Host. Docs: "Approve from your phone", with an ntfy hook.
+
 ### Loop fixes (2026-11-10)
 - A provider failure that arrives mid-stream (a 5xx or 429 error frame
   after the stream opened) is retried instead of ending the turn.

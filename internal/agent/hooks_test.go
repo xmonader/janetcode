@@ -260,6 +260,34 @@ func TestNotificationHooksHearWhenTheUserIsNeeded(t *testing.T) {
 	}
 }
 
+// A web UI in the same process gives notifications a link: the approval
+// prompt's opens on the approval, the idle prompt's only on the session.
+func TestNotificationHooksGetTheWebLink(t *testing.T) {
+	f := &fake{responses: []*llm.Response{toolCall("t1", "write_file", `{"path":"x","content":"x"}`), text("done")}}
+	a, root := newAgent(t, f, &seesApprover{decision: Allow})
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	a.NotifyLink = func(approval bool) string {
+		if approval {
+			return "http://host:1/?ticket=t&approve=1"
+		}
+		return "http://host:1/?ticket=t"
+	}
+	logCmd, logged := hookLog(t)
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
+		hook.Notification: {{Command: logCmd}},
+	}}}
+	if err := a.Run(context.Background(), "go", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	urls := map[string]string{}
+	for _, m := range eventually(t, logged, 2) {
+		urls[str(m["notification_type"])] = str(m["url"])
+	}
+	if urls["permission_prompt"] != "http://host:1/?ticket=t&approve=1" || urls["idle_prompt"] != "http://host:1/?ticket=t" {
+		t.Fatalf("urls = %v", urls)
+	}
+}
+
 func TestStopFailureSaysWhyATurnFailed(t *testing.T) {
 	f := &fake{responses: []*llm.Response{toolCall("t1", "read_file", `{"path":"a"}`), toolCall("t2", "read_file", `{"path":"b"}`)}}
 	a, root := newAgent(t, f, nil)

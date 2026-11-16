@@ -890,6 +890,40 @@ const guestUI = await evaljs(`(async () => {
 })()`);
 check('guest link: share, request with Send/Dismiss, stop', guestUI.shown && guestUI.pressed === 'true' && guestUI.say === 200 && guestUI.got && guestUI.text === '<b>hello</b> from a guest' && !guestUI.injected && guestUI.buttons.join() === 'Send,Dismiss' && guestUI.dismissed && guestUI.stopped && guestUI.after === 404, JSON.stringify(guestUI));
 
+// A notification's link (?approve=1) on a phone: the page opens, the
+// permission card that arrives takes focus although a draft is half
+// typed, is on screen with its buttons reachable, and the parameter is
+// gone from the address bar so a reload does not repeat it.
+await cmd('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+await cmd('Page.navigate', { url: new URL('/?approve=1', APP).href });
+await sleep(2500);
+const deep = await evaljs(`(async () => {
+  const input = document.getElementById('input');
+  input.focus(); input.value = 'half a thought';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: { id: 'p-deep', name: 'bash', summary: 'make deploy', preview: 'make deploy' } }) });
+  await new Promise((r) => setTimeout(r, 300));
+  const ask = document.getElementById('ask'), r = ask.getBoundingClientRect();
+  const allow = ask.querySelector('button[data-d="allow"]'), ar = allow ? allow.getBoundingClientRect() : null;
+  return { search: location.search, focused: document.activeElement === ask, shown: !ask.hidden,
+    inView: r.top >= 0 && r.bottom <= innerHeight, allowReachable: !!ar && ar.width > 0 && ar.bottom <= innerHeight, draft: input.value, w: innerWidth, h: r.height };
+})()`);
+check('an approval link focuses the pending prompt over a draft', deep.focused && deep.shown && deep.draft === 'half a thought', JSON.stringify(deep));
+check('an approval link leaves the address bar clean', deep.search === '', JSON.stringify(deep));
+check('the prompt and its Allow button fit a 390px screen', deep.w === 390 && deep.inView && deep.allowReachable, JSON.stringify(deep));
+// Without ?approve the prompt does not steal focus from a draft.
+await cmd('Page.navigate', { url: new URL('/', APP).href });
+await sleep(2500);
+const calm = await evaljs(`(async () => {
+  const input = document.getElementById('input');
+  input.focus(); input.value = 'still typing';
+  window.__es.onmessage({ data: JSON.stringify({ type: 'permission', permission: { id: 'p-calm', name: 'bash', summary: 'make deploy', preview: 'make deploy' } }) });
+  await new Promise((r) => setTimeout(r, 200));
+  return { onInput: document.activeElement === input };
+})()`);
+check('a prompt without the link leaves a typing user alone', calm.onInput, JSON.stringify(calm));
+await cmd('Emulation.clearDeviceMetricsOverride');
+
 check('no uncaught exceptions in the page', pageErrors.length === 0, pageErrors.join(' | '));
 
 console.log(results.join('\n'));
