@@ -2,7 +2,6 @@ package perm
 
 import (
 	"encoding/json"
-	"github.com/xmonader/janetcode/internal/extension"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -81,7 +80,7 @@ func NewProtected(extra []string) *Protected {
 		}
 	}
 	if dir, err := xdg.ConfigDir(os.Getenv); err == nil && dir != "" {
-		p.patterns = append(p.patterns, filepath.Join(dir, "mcp-trust.json"), filepath.Join(dir, extension.FileName))
+		p.patterns = append(p.patterns, filepath.Join(dir, "mcp-trust.json"), filepath.Join(dir, "extensions.json"))
 	}
 	if exe, err := os.Executable(); err == nil && exe != "" {
 		if abs, err := filepath.Abs(exe); err == nil {

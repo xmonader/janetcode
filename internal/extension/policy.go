@@ -304,6 +304,14 @@ func (p Policy) CheckCall(server, tool string, mutating bool) error {
 		return fmt.Errorf("extension store unreadable, so %s is refused: %w", server, err)
 	case !found:
 		return nil
+	}
+	return g.Allows(server, tool, mutating)
+}
+
+// Allows says whether the grant covers one use, and if not why not, in
+// words that name the command that would allow it.
+func (g Grant) Allows(server, tool string, mutating bool) error {
+	switch {
 	case !g.Has(Connect):
 		return fmt.Errorf("%s is disabled; nothing of it can be called (/mcp enable %s)", server, server)
 	case tool != "" && g.ToolDisabled(tool):
