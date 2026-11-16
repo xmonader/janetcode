@@ -77,5 +77,10 @@ func ForkAt(dir string, from *Session, cutSeq int, title string) (*Session, erro
 	if err := ns.rewrite(); err != nil {
 		return nil, err
 	}
+	// The copied conversation still points at the parent's pages by
+	// number; carry them over so they show in the fork too.
+	if err := copyPages(from.path, ns.path); err != nil {
+		return nil, err
+	}
 	return ns, nil
 }

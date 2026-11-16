@@ -86,6 +86,30 @@ func SavePage(sessionPath, title string, html []byte) (Page, error) {
 	return p, nil
 }
 
+// copyPages gives the session at to its own copy of every page of the
+// session at from, under the same numbers.
+func copyPages(from, to string) error {
+	pages, err := ListPages(from)
+	if err != nil {
+		return err
+	}
+	for _, p := range pages {
+		for _, ext := range []string{".html", ".json"} {
+			data, err := os.ReadFile(pageBase(from, p.N) + ext)
+			if err != nil {
+				if ext == ".json" && errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				return fmt.Errorf("copy page %d: %w", p.N, err)
+			}
+			if err := fsutil.AtomicWriteMode(pageBase(to, p.N)+ext, data, fsutil.PrivateFileMode); err != nil {
+				return fmt.Errorf("copy page %d: %w", p.N, err)
+			}
+		}
+	}
+	return nil
+}
+
 // LoadPage reads page n of the session at sessionPath.
 func LoadPage(sessionPath string, n int) (Page, []byte, error) {
 	html, err := os.ReadFile(PagePath(sessionPath, n))

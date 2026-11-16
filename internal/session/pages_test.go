@@ -62,6 +62,35 @@ func TestSavePageLimits(t *testing.T) {
 	}
 }
 
+func TestForkCarriesPages(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, t.TempDir(), "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnsureWritten(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SavePage(s.Path(), "Chart", []byte("<h1>c</h1>")); err != nil {
+		t.Fatal(err)
+	}
+	f, err := Fork(dir, s, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, html, err := LoadPage(f.Path(), 1)
+	if err != nil || p.Title != "Chart" || string(html) != "<h1>c</h1>" {
+		t.Fatalf("fork page = %+v %q %v", p, html, err)
+	}
+	// Removing the fork leaves the parent's page alone.
+	if err := Delete(dir, f.Meta.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadPage(s.Path(), 1); err != nil {
+		t.Errorf("parent lost its page: %v", err)
+	}
+}
+
 func TestListPagesNone(t *testing.T) {
 	p, err := ListPages(filepath.Join(t.TempDir(), "none.jsonl"))
 	if err != nil || len(p) != 0 {
