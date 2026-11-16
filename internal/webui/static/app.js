@@ -10,9 +10,6 @@
   const input = document.getElementById("input");
   const form = document.getElementById("composer");
   const statusEl = document.getElementById("status");
-  const palette = document.getElementById("palette");
-  const paletteQ = document.getElementById("palette-q");
-  const paletteList = document.getElementById("palette-list");
   let curTitle = "";
 
   const nodes = new Map();
@@ -21,8 +18,6 @@
   const openAnswers = new Set();
   const openRuns = new Set();
   const openFileCards = new Set();
-  let palIdx = 0;
-  let palItems = [];
   let lastUserText = "";
   // The conversation's first prompt names it until the server titles it,
   // as the rail does; the latest prompt renamed the header every turn.
@@ -792,7 +787,7 @@
     if (ev.shiftKey && ev.key === "?") {
       const el = document.activeElement;
       if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable)) return;
-      if (!palette.hidden) return;
+      if (!palette.el.hidden) return;
       ev.preventDefault();
       openHelp();
     }
@@ -839,96 +834,43 @@
     input.focus();
   });
 
-  function openPalette() {
-    palette.hidden = false;
-    paletteQ.value = "";
-    palIdx = 0;
-    drawPalette("");
-    paletteQ.focus();
-  }
-  function closePalette() { palette.hidden = true; input.focus(); }
+  // The command palette lives in palette.js; app.js says what it can do.
+  const palette = JanetPalette({ S, esc, post, input, resize, appActions: (act) => {
+    const tab = (pane, label) => act("Workbench", label, "open the " + label.toLowerCase() + " tab", () => openWorkTab(pane));
+    return [
+        act("Actions", "New session", "start a fresh conversation", () => document.getElementById("new-chat").click(), "Ctrl Shift O"),
+        act("Actions", "Find in conversation", "search the thread", () => openFind(), "Ctrl F"),
+        act("Actions", "Export conversation", "save the chat as Markdown", exportChat),
+        act("Actions", "Copy conversation", "copy the chat as Markdown", async () => { try { await navigator.clipboard.writeText(chatMarkdown()); statusEl.textContent = "Conversation copied as Markdown"; } catch (_) {} }),
+        act("Actions", "Share with guest", "copy a read-only guest link for this session", shareWithGuest),
+        act("Actions", "Stop sharing", "end the guest link now", () => post("/api/guest", { action: "stop" })),
+        act("Actions", "Switch model", "pick another model", () => (S.connected ? openModelMenu() : openConnect())),
+        act("Actions", "Set effort", "reasoning tier", () => openEffortMenu()),
+        act("Actions", "Permission mode", "ask, auto, plan, read-only…", () => { modeMenu.paint(); modeMenu.el.hidden = false; }),
+        act("Actions", "Connect a provider", "add or change an API key", () => openConnect()),
+        act("Actions", "Keyboard shortcuts", "the help sheet", () => openHelp(), "?"),
+        act("Actions", "Toggle sidebar", "conversations rail", () => navToggle.click()),
+        act("Actions", "Toggle workbench", "plan, changes, jobs…", () => workToggle.click()),
+        act("Actions", "Toggle web preview", "preview a running app", () => pvToggle.click()),
+        act("Views", "Chat", "the conversation", () => setView("chat")),
+        act("Views", "Trajectory", "the session as a timeline", () => setView("trajectory")),
+        act("Views", "Terminal", "a shell in the project", () => setView("terminal")),
+        tab("plan", "Plan"), tab("files", "Changes"), tab("jobs", "Jobs"), tab("agents", "Agents"), tab("ptc", "Scripts"), tab("session", "Session"),
+        act("Settings", "Theme: light", "", () => applyThemeChoice("light")),
+        act("Settings", "Theme: dark", "", () => applyThemeChoice("dark")),
+        act("Settings", "Theme: system", "", () => applyThemeChoice("system")),
+        act("Settings", "Density: comfortable", "", () => setDensity("comfortable")),
+        act("Settings", "Density: compact", "tighter rows", () => setDensity("compact")),
+        act("Settings", "Font size: small", "", () => setFontScale("small")),
+        act("Settings", "Font size: medium", "", () => setFontScale("medium")),
+        act("Settings", "Font size: large", "", () => setFontScale("large")),
+        act("Settings", "Open settings", "appearance, sound, notifications", () => openSettings()),
+    ];
+  } });
+  const { open: openPalette, close: closePalette } = palette;
 
   // The /connect dialog lives in connect.js.
   const { open: openConnect } = JanetConnect({ closePalette, composer: input, status: statusEl });
-  // The palette merges everything the page can do: actions, views, the
-  // workbench tabs, settings, and the server's slash commands. Each item
-  // carries its own run(); a slash command that takes arguments fills the
-  // composer instead of running.
-  function paletteActions() {
-    const act = (group, name, help, run, key) => ({ group, name, help, run, key });
-    const mdFor = (c) => act("Commands", c.name, c.help || "", async () => {
-      if (c.args) { input.value = c.name + " "; resize(); input.focus(); } else await post("/api/command", { text: c.name });
-    });
-    const tab = (pane, label) => act("Workbench", label, "open the " + label.toLowerCase() + " tab", () => openWorkTab(pane));
-    return [
-      act("Actions", "New session", "start a fresh conversation", () => document.getElementById("new-chat").click(), "Ctrl Shift O"),
-      act("Actions", "Find in conversation", "search the thread", () => openFind(), "Ctrl F"),
-      act("Actions", "Export conversation", "save the chat as Markdown", exportChat),
-      act("Actions", "Copy conversation", "copy the chat as Markdown", async () => { try { await navigator.clipboard.writeText(chatMarkdown()); statusEl.textContent = "Conversation copied as Markdown"; } catch (_) {} }),
-      act("Actions", "Share with guest", "copy a read-only guest link for this session", shareWithGuest),
-      act("Actions", "Stop sharing", "end the guest link now", () => post("/api/guest", { action: "stop" })),
-      act("Actions", "Switch model", "pick another model", () => (S.connected ? openModelMenu() : openConnect())),
-      act("Actions", "Set effort", "reasoning tier", () => openEffortMenu()),
-      act("Actions", "Permission mode", "ask, auto, plan, read-only…", () => { modeMenu.paint(); modeMenu.el.hidden = false; }),
-      act("Actions", "Connect a provider", "add or change an API key", () => openConnect()),
-      act("Actions", "Keyboard shortcuts", "the help sheet", () => openHelp(), "?"),
-      act("Actions", "Toggle sidebar", "conversations rail", () => navToggle.click()),
-      act("Actions", "Toggle workbench", "plan, changes, jobs…", () => workToggle.click()),
-      act("Actions", "Toggle web preview", "preview a running app", () => pvToggle.click()),
-      act("Views", "Chat", "the conversation", () => setView("chat")),
-      act("Views", "Trajectory", "the session as a timeline", () => setView("trajectory")),
-      act("Views", "Terminal", "a shell in the project", () => setView("terminal")),
-      tab("plan", "Plan"), tab("files", "Changes"), tab("jobs", "Jobs"), tab("agents", "Agents"), tab("ptc", "Scripts"), tab("session", "Session"),
-      act("Settings", "Theme: light", "", () => applyThemeChoice("light")),
-      act("Settings", "Theme: dark", "", () => applyThemeChoice("dark")),
-      act("Settings", "Theme: system", "", () => applyThemeChoice("system")),
-      act("Settings", "Density: comfortable", "", () => setDensity("comfortable")),
-      act("Settings", "Density: compact", "tighter rows", () => setDensity("compact")),
-      act("Settings", "Font size: small", "", () => setFontScale("small")),
-      act("Settings", "Font size: medium", "", () => setFontScale("medium")),
-      act("Settings", "Font size: large", "", () => setFontScale("large")),
-      act("Settings", "Open settings", "appearance, sound, notifications", () => openSettings()),
-    ].concat(window.JanetExtras && window.JanetExtras.actions ? window.JanetExtras.actions(act) : [], S.commands.map(mdFor));
-  }
-  function drawPalette(q) {
-    q = q.toLowerCase().replace(/^\//, "");
-    const fuzzy = (n) => {
-      let i = 0;
-      for (const ch of n) if (ch === q[i] && ++i === q.length) return true;
-      return false;
-    };
-    palItems = paletteActions().filter((c) => {
-      if (!q) return c.group !== "Commands" && c.group !== "Settings" && c.group !== "Workbench";
-      const n = c.name.toLowerCase().replace(/^\//, "");
-      return n.includes(q) || fuzzy(n) || (c.help || "").toLowerCase().includes(q);
-    });
-    // Best matches first: a name that starts with the query beats a
-    // scattered one.
-    if (q) palItems.sort((x, y) => (y.name.toLowerCase().replace(/^\//, "").startsWith(q) ? 1 : 0) - (x.name.toLowerCase().replace(/^\//, "").startsWith(q) ? 1 : 0));
-    palItems = palItems.slice(0, q ? 14 : 24);
-    palIdx = Math.min(palIdx, Math.max(palItems.length - 1, 0));
-    let last = "";
-    paletteList.innerHTML = palItems.length
-      ? palItems.map((c, i) => {
-        const head = !q && c.group !== last ? `<div class="pal-group">${esc(c.group)}</div>` : "";
-        last = c.group;
-        return head + `<div id="pal-option-${i}" role="option" aria-selected="${i === palIdx}" class="${i === palIdx ? "on" : ""}" data-i="${i}"><span class="name">${esc(c.name)}</span><span>${esc(c.help || "")}</span>${c.key ? `<kbd class="pal-key">${esc(c.key)}</kbd>` : ""}</div>`;
-      }).join("")
-      : `<div class="empty-pal">Nothing matches</div>`;
-    const on = paletteList.querySelector(".on");
-    if (on) {
-      paletteQ.setAttribute("aria-activedescendant", on.id);
-      on.scrollIntoView({ block: "nearest" });
-    } else paletteQ.removeAttribute("aria-activedescendant");
-  }
-  async function runPaletteItem(c) {
-    closePalette();
-    if (!c) return;
-    // Actions that open a menu or field take focus themselves; give the
-    // palette's close a tick to finish first.
-    await new Promise((r) => setTimeout(r, 0));
-    await c.run();
-  }
   document.getElementById("search-btn").addEventListener("click", openPalette);
   const attachInput = document.getElementById("attach-file");
   // uploadFiles is defined with the paste and drop handling further down;
@@ -938,12 +880,6 @@
   document.addEventListener("click", (ev) => {
     if (!slashEl.hidden && !ev.target.closest("#composer")) hideSlash();
   });
-  document.addEventListener("keydown", (ev) => {
-    if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
-      ev.preventDefault();
-      if (palette.hidden) openPalette(); else closePalette();
-    }
-  });
   // Vi-style scrolling when the keyboard is not in a field: j/k step,
   // g/G jump. The trajectory view answers with its own ledger when that
   // is what overflows. Every key still belongs to whatever field is
@@ -952,7 +888,7 @@
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const el = document.activeElement;
     if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable)) return;
-    if (!palette.hidden) return;
+    if (!palette.el.hidden) return;
     const ledger = document.getElementById("traj-ledger");
     const thread = currentView === "trajectory" && ledger.scrollHeight > ledger.clientHeight ? ledger : scroller();
     if (ev.key === "j") thread.scrollBy({ top: 72, behavior: "smooth" });
@@ -966,7 +902,7 @@
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const el = document.activeElement;
     const inField = el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable || el.tagName === "SELECT");
-    if (ev.key === "/" && !inField && currentView === "chat" && palette.hidden && helpEl.hidden && settingsEl.hidden) {
+    if (ev.key === "/" && !inField && currentView === "chat" && palette.el.hidden && helpEl.hidden && settingsEl.hidden) {
       ev.preventDefault();
       input.focus();
       return;
@@ -976,25 +912,9 @@
       if (!viewer.hidden) { ev.preventDefault(); viewer.hidden = true; return; }
       if (!switchMenu.el.hidden) { ev.preventDefault(); closeSwitchMenu(); return; }
       if (!modeMenu.el.hidden) { ev.preventDefault(); modeMenu.hide(); return; }
-      if (!palette.hidden) return;
+      if (!palette.el.hidden) return;
       if (narrow.matches) { shell.classList.add("nav-collapsed", "work-collapsed"); }
     }
-  });
-  paletteQ.addEventListener("input", () => { palIdx = 0; drawPalette(paletteQ.value); });
-  paletteQ.addEventListener("keydown", async (ev) => {
-    if (ev.key === "Escape") { ev.preventDefault(); closePalette(); }
-    if (ev.key === "ArrowDown") { ev.preventDefault(); palIdx = Math.min(palIdx + 1, palItems.length - 1); drawPalette(paletteQ.value); }
-    if (ev.key === "ArrowUp") { ev.preventDefault(); palIdx = Math.max(palIdx - 1, 0); drawPalette(paletteQ.value); }
-    if (ev.key === "Enter") {
-      ev.preventDefault();
-      await runPaletteItem(palItems[palIdx]);
-    }
-  });
-  paletteList.addEventListener("click", async (ev) => {
-    const row = ev.target.closest("[data-i]");
-    if (!row) return;
-    palIdx = Number(row.dataset.i);
-    await runPaletteItem(palItems[palIdx]);
   });
 
   // The model/effort switch menu lives in switchmenu.js.
