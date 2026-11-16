@@ -13,6 +13,9 @@
 //               reads:  app.js header title, sessionsrail.js (live row label)
 //   localNote   writes: app.js status, sessionsrail.js (resume failed)
 //               reads:  app.js finishStatus
+//   latest      writes: app.js render/event stream (set, delete, clear on reset)
+//               reads:  app.js (tool groups, find, markdown export, copy/edit
+//               buttons), workspacepane.js (has the user spoken yet)
 //   lastReply   writes: app.js transcript render (assistant text)
 //               reads:  notify.js (the body of the "turn finished" popup)
 //
@@ -23,6 +26,8 @@
   "use strict";
   global.JanetState = {
     lastReply: "",
+    // every transcript entry by id, newest version of each.
+    latest: new Map(),
     // the conversation's first prompt: it names the conversation until the
     // server titles it.
     firstUserText: "",

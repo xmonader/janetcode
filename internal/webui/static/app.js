@@ -40,13 +40,11 @@
   let lastPrompt = "";
 
   const nodes = new Map();
-  const latest = new Map();
   const openTools = new Set();
   const openThoughts = new Set();
   const openAnswers = new Set();
   const openRuns = new Set();
   const openFileCards = new Set();
-  let selectedAgent = "";
   let running = false;
   let pending = null;
   let commands = [];
@@ -88,9 +86,9 @@
   function toolSetOpen(e, want) {
     if (toolIsOpen(e) === want) return;
     if (openTools.has(e.id)) openTools.delete(e.id); else openTools.add(e.id);
-    render(latest.get(e.id));
+    render(S.latest.get(e.id));
   }
-  const groups = JanetToolGroups({ log, entry: (id) => latest.get(id), isOpen: toolIsOpen, setOpen: toolSetOpen, icon });
+  const groups = JanetToolGroups({ log, entry: (id) => S.latest.get(id), isOpen: toolIsOpen, setOpen: toolSetOpen, icon });
 
   let lastCreated = 0;
   function render(e) {
@@ -100,10 +98,10 @@
       const g = nodes.get(e.id);
       if (g) { groups.release(g); g.remove(); }
       nodes.delete(e.id);
-      latest.delete(e.id);
+      S.latest.delete(e.id);
       return;
     }
-    latest.set(e.id, e);
+    S.latest.set(e.id, e);
     empty.hidden = true;
     let n = nodes.get(e.id);
     const was = stick();
@@ -207,7 +205,7 @@
       if (head && expandable) head.onclick = () => {
         if (openTools.has(e.id)) openTools.delete(e.id);
         else openTools.add(e.id);
-        render(latest.get(e.id));
+        render(S.latest.get(e.id));
       };
       groups.refresh(n);
       if (pending) paintAskQueue();
@@ -330,21 +328,21 @@
     const more = ev.target.closest("[data-more]");
     if (more) {
       openAnswers.add(more.dataset.more);
-      render(latest.get(more.dataset.more));
+      render(S.latest.get(more.dataset.more));
       return;
     }
     const runBtn = ev.target.closest("[data-run]");
     if (runBtn) {
       const id = runBtn.dataset.run;
       if (openRuns.has(id)) openRuns.delete(id); else openRuns.add(id);
-      latest.forEach((e) => { if (e.run === id) render(e); });
+      S.latest.forEach((e) => { if (e.run === id) render(e); });
       return;
     }
     const thought = ev.target.closest("[data-thought]");
-    if (thought && latest.get(thought.dataset.thought)?.done) {
+    if (thought && S.latest.get(thought.dataset.thought)?.done) {
       const id = thought.dataset.thought;
       if (openThoughts.has(id)) openThoughts.delete(id); else openThoughts.add(id);
-      render(latest.get(id));
+      render(S.latest.get(id));
       return;
     }
     const filesMore = ev.target.closest("[data-files]");
@@ -548,7 +546,7 @@
 
   function relabelThinking() {
     if (!lastFlavor) return;
-    latest.forEach((e, id) => {
+    S.latest.forEach((e, id) => {
       if (e.kind !== "thinking" || e.done || (e.text || "").trim()) return;
       const n = nodes.get(id);
       if (n) n.innerHTML = `<span class="lbl">${esc(lastFlavor)}</span>`;
@@ -643,7 +641,7 @@
   function paintAskQueue() {
     if (!pending) { askQueue.hidden = true; return; }
     let more = 0;
-    latest.forEach((e) => { if (e.kind === "tool" && !e.done && !e.running && !e.denied && !e.error) more++; });
+    S.latest.forEach((e) => { if (e.kind === "tool" && !e.done && !e.running && !e.denied && !e.error) more++; });
     more = Math.max(0, more - 1);
     askQueue.hidden = more === 0;
     askQueue.textContent = more + " more waiting";
@@ -902,7 +900,7 @@
       case "reset":
         log.innerHTML = "";
         nodes.clear();
-        latest.clear();
+        S.latest.clear();
         openTools.clear();
         openThoughts.clear();
         openAnswers.clear();
@@ -1562,156 +1560,13 @@
   const switchMenu = JanetSwitchMenu({ S, esc, post, openConnect });
   const { openModelMenu, openEffortMenu, closeSwitchMenu } = switchMenu;
 
-  // A small count on a workbench tab: how many jobs run, how many
-  // subagents are live, how many files changed.
-  function tabCount(pane, n) {
-    const el = document.getElementById("tab-n-" + pane);
-    if (!el) return;
-    el.hidden = !n;
-    el.textContent = n ? String(n) : "";
-  }
-  // The Changes tab: one row per change with an M/A/D/U badge, the path
-  // with its name emphasised, and a unified diff that opens in place.
-  const openFileRows = new Set();
-  const diffCache = new Map();
-  function fileBadge(f) {
-    if (!f.add && !f.del) return "U";
-    if (/^(write_file|write|create_file)$/.test(f.tool || "") && !f.del) return "A";
-    if (f.del && !f.add) return "D";
-    return "M";
-  }
-  function paintFiles(files) {
-    const el = document.getElementById("files");
-    const sum = document.getElementById("files-sum");
-    tabCount("files", files.length);
-    if (!files.length) {
-      el.innerHTML = `<li class="quiet">No files changed</li>`;
-      sum.hidden = true;
-      return;
-    }
-    let add = 0, del = 0;
-    for (const f of files) { add += f.add || 0; del += f.del || 0; }
-    sum.hidden = false;
-    sum.innerHTML = `${files.length} change${files.length === 1 ? "" : "s"} <span class="add">+${add}</span> <span class="del">−${del}</span>`;
-    el.innerHTML = files.map((f) => {
-      const slash = f.path.lastIndexOf("/");
-      const dir = slash >= 0 ? f.path.slice(0, slash + 1) : "";
-      const open = openFileRows.has(f.seq);
-      const b = fileBadge(f);
-      return `<li class="frow${open ? " open" : ""}" data-seq="${f.seq}"><div class="frow-h" title="${esc(f.path)}"><span class="fbadge b-${b}">${b}</span>` +
-        `<span class="fpath"><span class="fdir">${esc(dir)}</span><b>${esc(f.path.slice(slash + 1))}</b></span>` +
-        `<span class="fstat"><span class="add">+${f.add || 0}</span> <span class="del">−${f.del || 0}</span></span></div>` +
-        (open ? `<pre class="diff fdiff">${diffCache.has(f.seq) ? diffHTML(diffCache.get(f.seq)) : "Loading…"}</pre>` : "") + `</li>`;
-    }).join("");
-  }
-  async function refreshWorkspace() {
-    try {
-      const ws = await (await fetch("/api/workspace")).json();
-      const todos = document.getElementById("todos");
-      if (!ws.todos || !ws.todos.length) todos.innerHTML = `<li class="quiet">No plan yet. When the model breaks a task into steps, they show here.</li>`;
-      else todos.innerHTML = ws.todos.map((t) => {
-        const cls = t.status === "completed" || t.status === "done" ? "done" : t.status === "in_progress" ? "doing" : "";
-        return `<li class="${cls}">${esc(t.text)}</li>`;
-      }).join("");
-      paintFiles(ws.files || []);
-      document.getElementById("undo-btn").hidden = !ws.can_undo;
-      tabCount("jobs", (ws.jobs || []).length);
-      tabCount("agents", (ws.agents || []).filter((a) => !a.done).length);
-      const jobsEl = document.getElementById("jobs");
-      if (ws.jobs && ws.jobs.length) {
-        jobsEl.innerHTML = ws.jobs.map((j) => `<li data-job="${j.id}" title="Open log">${esc(j.summary || j.command)}</li>`).join("");
-      } else jobsEl.innerHTML = `<li class="quiet">No jobs running</li>`;
-      const agentsEl = document.getElementById("agents");
-      if (ws.agents && ws.agents.length) {
-        agentsEl.innerHTML = ws.agents.map((a) =>
-          `<li class="agent ${a.done ? "done" : "running"}${a.id === selectedAgent ? " on" : ""}" data-agent="${esc(a.id)}" title="Open transcript"><span class="a-id">${esc(a.id)}</span> ${esc(a.desc || "")}` +
-          (!a.done && a.last ? `<span class="a-last">${esc(a.last)}</span>` : "") + `</li>`
-        ).join("");
-      } else agentsEl.innerHTML = `<li class="quiet">No subagents yet</li>`;
-      const ptcEl = document.getElementById("ptc");
-      if (ptcEl) {
-        if (ws.ptc && ws.ptc.length) {
-          ptcEl.innerHTML = ws.ptc.map((p) =>
-            `<li data-ptc="${p.n}" title="Open run">${esc(p.tool)} ${p.n} · ${esc(p.summary || "")}</li>`
-          ).join("");
-        } else ptcEl.innerHTML = `<li class="quiet">No scripts this session</li>`;
-      }
-      document.getElementById("ctx-line").textContent = ws.ctx_label ? "Context " + ws.ctx_label + " (" + ws.ctx_pct + "%)" : "Context —";
-      const chip = document.getElementById("ctx-chip");
-      // Before the first message the percentage is only the system
-      // prompt and tools, which read as something already used up.
-      const talked = [...latest.values()].some((e) => e.kind === "user");
-      if (ws.ctx_pct && talked) {
-        chip.hidden = false;
-        chip.innerHTML = `<span class="ring" style="--p:${Math.min(100, Math.max(0, ws.ctx_pct))}"></span>${ws.ctx_pct}%`;
-        chip.title = "Context window " + ws.ctx_pct + "% used" + (ws.ctx_label ? " (" + ws.ctx_label + ")" : "");
-        chip.classList.toggle("hot", ws.ctx_pct >= 80);
-      } else {
-        chip.hidden = true;
-      }
-      document.getElementById("cost-line").textContent = ws.cost ? "Spend " + ws.cost : "";
-      document.getElementById("mode-yolo").classList.toggle("on", !!ws.yolo);
-      document.getElementById("mode-away").classList.toggle("on", !!ws.away);
-      document.getElementById("mode-auto").classList.toggle("on", !!ws.auto);
-      document.getElementById("mode-edits").classList.toggle("on", !!ws.edits);
-      document.getElementById("mode-plan").classList.toggle("on", !!ws.plan);
-      document.getElementById("mode-ro").classList.toggle("on", !!ws.readonly);
-      document.getElementById("mode-dry").classList.toggle("on", !!ws.dry_run);
-      setModeChip(ws.mode, ws.dry_run);
-      S.lastWorkspace = ws;
-      paintGit(ws);
-      paintTurnFiles(ws.files);
-    } catch (_) {}
-  }
+  // The workspace pane and /api/workspace refresh live in workspacepane.js.
+  const { refreshWorkspace, showDetail } = JanetWorkspacePane({ S, esc, diffHTML, post, setModeChip, paintGit, paintTurnFiles });
 
   // The sessions rail lives in sessionsrail.js.
   const { loadSessions } = JanetSessionsRail({ S, esc, icon, post, cleanTitle, clipLine, statusEl, input, refreshWorkspace,
     shell: document.querySelector(".shell"), setCollapsed: (...a) => setCollapsed(...a) });
 
-  document.getElementById("files").addEventListener("click", async (ev) => {
-    const li = ev.target.closest("li[data-seq]");
-    if (!li || ev.target.closest(".fdiff")) return;
-    const seq = Number(li.dataset.seq);
-    if (openFileRows.has(seq)) openFileRows.delete(seq); else openFileRows.add(seq);
-    if (openFileRows.has(seq) && !diffCache.has(seq)) {
-      try {
-        const data = await (await fetch("/api/change?n=" + seq)).json();
-        diffCache.set(seq, data.diff || "(no diff)");
-      } catch (_) {
-        openFileRows.delete(seq);
-      }
-    }
-    if (S.lastWorkspace) paintFiles(S.lastWorkspace.files || []);
-  });
-  document.getElementById("jobs").addEventListener("click", async (ev) => {
-    const li = ev.target.closest("li[data-job]");
-    if (!li) return;
-    const data = await (await fetch("/api/job?id=" + li.dataset.job)).json();
-    showDetail("job " + data.id + " · " + (data.command || ""), data.output || "(no output)", false);
-  });
-  document.getElementById("agents").addEventListener("click", async (ev) => {
-    const li = ev.target.closest("li[data-agent]");
-    if (!li) return;
-    selectedAgent = li.dataset.agent;
-    document.querySelectorAll("#agents li[data-agent]").forEach((row) => row.classList.toggle("on", row.dataset.agent === selectedAgent));
-    const data = await (await fetch("/api/agent?id=" + encodeURIComponent(li.dataset.agent))).json();
-    showDetail(data.id + " · " + (data.desc || ""), data.text || "", false);
-  });
-  document.getElementById("ptc").addEventListener("click", async (ev) => {
-    const li = ev.target.closest("li[data-ptc]");
-    if (!li) return;
-    const data = await (await fetch("/api/ptc?n=" + li.dataset.ptc)).json();
-    showDetail((data.tool || "ptc") + " " + data.n, data.text || "", false);
-  });
-  function showDetail(title, text, asDiff) {
-    document.getElementById("viewer-path").textContent = title;
-    const el = document.getElementById("viewer-diff");
-    el.innerHTML = asDiff ? diffHTML(text) : esc(text);
-    document.getElementById("viewer").hidden = false;
-  }
-  document.getElementById("viewer-close").addEventListener("click", () => {
-    document.getElementById("viewer").hidden = true;
-  });
   document.getElementById("undo-btn").addEventListener("click", () => post("/api/command", { text: "/undo" }).then(refreshWorkspace));
   document.getElementById("new-chat").addEventListener("click", async () => {
     // As with a resumed conversation, the "reset" on /events clears
@@ -1755,10 +1610,10 @@
     if (i < 0) return "";
     let from = i;
     while (from > 0 && !arts[from].classList.contains("you")) from--;
-    return arts.slice(from, i + 1).map((a) => entryMarkdown(latest.get(a.dataset.id))).filter(Boolean).join("\n\n");
+    return arts.slice(from, i + 1).map((a) => entryMarkdown(S.latest.get(a.dataset.id))).filter(Boolean).join("\n\n");
   }
   function chatMarkdown(o) {
-    return [...log.querySelectorAll("article.turn")].map((a) => entryMarkdown(latest.get(a.dataset.id), o)).filter(Boolean).join("\n\n");
+    return [...log.querySelectorAll("article.turn")].map((a) => entryMarkdown(S.latest.get(a.dataset.id), o)).filter(Boolean).join("\n\n");
   }
   function exportChat() {
     // extras.js asks what to include first; without it, save everything as before.
@@ -1882,7 +1737,7 @@
     }
     const editBtn = ev.target.closest("[data-edit]");
     if (editBtn) {
-      const src = latest.get(editBtn.dataset.edit);
+      const src = S.latest.get(editBtn.dataset.edit);
       // A true rewind: the server cuts the history back to before this
       // message. Without sessions_ui.js it only refills the composer.
       if (src && window.sessionsUI && (await window.sessionsUI.edit(editBtn.dataset.edit, src))) return;
@@ -1908,7 +1763,7 @@
     }
     const copy = ev.target.closest(".copy-btn");
     if (copy) {
-      const src = latest.get(copy.dataset.copy);
+      const src = S.latest.get(copy.dataset.copy);
       if (src) {
         try {
           await navigator.clipboard.writeText(src.text || "");
@@ -1986,7 +1841,7 @@
   // The small surface extras.js (quick prompts, previews, gallery, export,
   // settings) reaches the page through.
   window.JanetApp = {
-    entries: () => [...log.querySelectorAll("article.turn")].map((a) => latest.get(a.dataset.id)).filter(Boolean),
+    entries: () => [...log.querySelectorAll("article.turn")].map((a) => S.latest.get(a.dataset.id)).filter(Boolean),
     chatMarkdown, downloadMarkdown, openFind, openConnect, openHelp, openPalette,
     setComposer: (t) => { input.value = t; resize(); input.dispatchEvent(new Event("input")); input.focus(); },
     insertComposer: (t) => {
@@ -1995,7 +1850,7 @@
       input.selectionStart = input.selectionEnd = a + t.length;
       resize(); input.dispatchEvent(new Event("input")); input.focus();
     },
-    rerenderTools: () => { openTools.clear(); latest.forEach((e) => { if (e.kind === "tool") render(e); }); },
+    rerenderTools: () => { openTools.clear(); S.latest.forEach((e) => { if (e.kind === "tool") render(e); }); },
     session: () => pageSession,
     title: () => cleanTitle(curTitle),
   };
