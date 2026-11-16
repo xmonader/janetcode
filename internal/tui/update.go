@@ -234,6 +234,12 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		m.term.announce("janetcode", "a question for you")
 		return nil, true
 
+	case secretMsg:
+		m.drainEvents()
+		m.openSecret(msg)
+		m.term.announce("janetcode", "a secret is requested")
+		return nil, true
+
 	case askTimedOutMsg:
 		m.askTimedOut()
 		return nil, true

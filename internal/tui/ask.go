@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,7 +53,11 @@ func (a *tuiAsker) AskTimedOut([]agent.Question, []agent.Answer) {
 	}
 }
 
-type tuiAsker struct{ send func(tea.Msg) }
+type tuiAsker struct {
+	send     func(tea.Msg)
+	slot     chan struct{}
+	slotOnce sync.Once
+}
 
 func (a *tuiAsker) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, error) {
 	if a == nil || a.send == nil {

@@ -42,7 +42,8 @@ type model struct {
 	approver        *tuiApprover
 	asker           *tuiAsker
 	asking          *askState
-	waitingAsks     []askMsg // questions that arrived while others were up, in order
+	secreting       *secretState // the private prompt for a secret the model asked for
+	waitingAsks     []askMsg     // questions that arrived while others were up, in order
 	// send delivers messages from background goroutines into the loop.
 	send func(tea.Msg)
 	// titleGen invalidates generated titles once the user set one.
@@ -404,6 +405,8 @@ func (m *model) view() string {
 		switch mode {
 		case modeAsk:
 			body = m.askView(bodyH)
+		case modeSecret:
+			body = m.secretView(bodyH)
 		case modePicker:
 			body = m.pickerView(bodyH)
 		case modeConnect:

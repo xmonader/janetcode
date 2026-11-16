@@ -148,6 +148,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 // says so, because a mode with no entry would panic on the next press.
 var modeKeys = map[uiMode]keyAction{
 	modeAsk:     (*model).handleAskKey,
+	modeSecret:  (*model).handleSecretKey,
 	modeOverlay: (*model).handleOverlayKey,
 	modePicker:  (*model).handlePickerKey,
 	modeConnect: (*model).handleConnectKey,

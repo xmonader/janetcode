@@ -29,6 +29,8 @@ const (
 	modePrompt uiMode = iota
 	// modeAsk is the model asking the user a question (the ask tool).
 	modeAsk
+	// modeSecret is the private prompt for a secret (request_secret).
+	modeSecret
 	// modeOverlay is a live panel drawn over the transcript.
 	modeOverlay
 	// modePicker is the searchable list.
@@ -54,6 +56,8 @@ func (k uiMode) String() string {
 		return "prompt"
 	case modeAsk:
 		return "ask"
+	case modeSecret:
+		return "secret"
 	case modeOverlay:
 		return "overlay"
 	case modePicker:
@@ -81,6 +85,8 @@ func (k uiMode) String() string {
 // innermost modal takes the keys.
 func (m *model) mode() uiMode {
 	switch {
+	case m.secreting != nil:
+		return modeSecret
 	case m.asking != nil:
 		return modeAsk
 	case m.picker != nil:
@@ -106,7 +112,7 @@ func (m *model) mode() uiMode {
 // drawn into the ordinary window, over the composer.
 func (k uiMode) modal() bool {
 	switch k {
-	case modeAsk, modeOverlay, modePicker, modeConnect, modeWizard:
+	case modeAsk, modeSecret, modeOverlay, modePicker, modeConnect, modeWizard:
 		return true
 	}
 	return false

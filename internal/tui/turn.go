@@ -284,6 +284,10 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	// without it, and the agent is still listening for a late answer,
 	// which it hands the model with the next message. It stays up until
 	// it is answered or dismissed, as its own line says.
+	// A secret prompt left up over an ended turn answers nobody: decline.
+	if m.secreting != nil {
+		m.finishSecret("", true)
+	}
 	if m.asking != nil && !m.asking.proceeded {
 		m.finishAsk()
 	}

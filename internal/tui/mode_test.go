@@ -12,7 +12,7 @@ import (
 
 // allModes is every mode, so a new one added to the enum without a test
 // entry here shows up as a failure rather than as silence.
-var allModes = []uiMode{modePrompt, modeAsk, modeOverlay, modePicker, modeConnect, modeWizard, modeApprove, modeDeny, modeSearch}
+var allModes = []uiMode{modePrompt, modeAsk, modeSecret, modeOverlay, modePicker, modeConnect, modeWizard, modeApprove, modeDeny, modeSearch}
 
 // TestEveryModeHasAKeyHandler: handleKey indexes modeKeys with mode(),
 // so a mode with no entry is a nil call on the next key press.
@@ -80,6 +80,7 @@ func TestModeTransitions(t *testing.T) {
 		{modePicker, func() { m.picker = &picker{} }, func() { m.picker = nil }},
 		{modeOverlay, func() { m.ov.kind = overlayJobs }, func() { m.ov.kind = "" }},
 		{modeAsk, func() { m.asking = &askState{} }, func() { m.asking = nil }},
+		{modeSecret, func() { m.secreting = &secretState{} }, func() { m.secreting = nil }},
 	} {
 		tc.open()
 		if got := m.mode(); got != tc.want {
