@@ -55,7 +55,7 @@ func (t WriteFile) Run(ctx context.Context, input json.RawMessage) (string, erro
 	if err := checkWriteSize("content", len(in.Content), "write the head with write_file and append the rest with edit_file"); err != nil {
 		return "", err
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
@@ -123,7 +123,7 @@ func (t WriteFile) Result(ctx context.Context, input json.RawMessage) (path, bef
 	if err := decode(input, &in); err != nil {
 		return "", "", "", err
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -143,7 +143,7 @@ func (t WriteFile) Preview(ctx context.Context, input json.RawMessage) (string, 
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
@@ -188,7 +188,7 @@ func touchedPathOn(ws *Workspace, root string, input json.RawMessage) ([]string,
 	if err := json.Unmarshal(input, &in); err != nil {
 		return nil, err
 	}
-	p, err := resolveOn(ws, root, in.Path)
+	p, err := resolveWriteOn(ws, root, in.Path)
 	if err != nil {
 		return nil, err
 	}

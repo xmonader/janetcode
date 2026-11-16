@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/admit"
 	"io"
 	"io/fs"
 	"os"
@@ -61,6 +62,8 @@ type Workspace struct {
 	// overlay, while set, catches the file tools' writes (a dry run; see
 	// Overlay). Host hands it out wrapped around the real host.
 	overlay *Overlay
+	// admission is the file admission policy; see Admission.
+	admission *admit.Policy
 }
 
 // SetOverlay starts (o != nil) or ends (nil) a dry run's overlay: from

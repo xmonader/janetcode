@@ -173,7 +173,7 @@ func (t AstEdit) checkSeen(ctx context.Context, input json.RawMessage) error {
 	if json.Unmarshal(input, &in) != nil || strings.TrimSpace(in.Path) == "" {
 		return nil
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return nil
 	}
@@ -194,7 +194,7 @@ func (t AstEdit) plan(ctx context.Context, input json.RawMessage) (*editPlan, er
 	if in.Symbol == "" && in.NewSource != nil {
 		return nil, fmt.Errorf("new_source needs symbol, the name of the definition it replaces")
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return nil, err
 	}

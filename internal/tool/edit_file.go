@@ -269,7 +269,7 @@ func (t EditFile) checkSeen(ctx context.Context, input json.RawMessage) error {
 	if json.Unmarshal(input, &in) != nil || strings.TrimSpace(in.Path) == "" {
 		return nil // the plan will report what is wrong with the input
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return nil
 	}
@@ -306,7 +306,7 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 	if len(edits) == 0 {
 		return nil, fmt.Errorf("no edits: give old_string and new_string, or from_line and to_line, or a list in edits")
 	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return nil, err
 	}

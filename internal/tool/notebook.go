@@ -384,7 +384,7 @@ func (t NotebookEdit) plan(ctx context.Context, input json.RawMessage) (e nbEdit
 		err = fmt.Errorf("%s is not a notebook (.ipynb); use edit_file", e.Path)
 		return
 	}
-	if path, err = resolveOn(t.WS, t.Root, e.Path); err != nil {
+	if path, err = resolveWriteOn(t.WS, t.Root, e.Path); err != nil {
 		return
 	}
 	before, err = readFileOf(ctx, t.WS, path)
@@ -412,7 +412,7 @@ func (t NotebookEdit) Run(ctx context.Context, input json.RawMessage) (string, e
 	if err := decode(input, &peek); err != nil {
 		return "", err
 	}
-	p, err := resolveOn(t.WS, t.Root, peek.Path)
+	p, err := resolveWriteOn(t.WS, t.Root, peek.Path)
 	if err != nil {
 		return "", err
 	}
