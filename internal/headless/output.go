@@ -548,13 +548,8 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		res.CostSource = r.usage.CostSource(r.price)
 	}
 	if ag != nil && ag.DryRunOn() {
-		res.DryRun = &CLIDryRun{Files: ag.DryRunFiles(), Actions: ag.DryRunActions()}
-		if res.DryRun.Files == nil {
-			res.DryRun.Files = []agent.DryFile{}
-		}
-		if res.DryRun.Actions == nil {
-			res.DryRun.Actions = []agent.DryAction{}
-		}
+		plan := ag.DryRunPlan()
+		res.DryRun = &plan
 	}
 	if ag != nil {
 		res.Conflict = ag.Conflict()

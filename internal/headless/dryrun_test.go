@@ -47,6 +47,16 @@ func TestJSONResultCarriesTheDryRunPreview(t *testing.T) {
 	if f := res.DryRun.Files[0]; !strings.Contains(f.Diff, "-old") || !strings.Contains(f.Diff, "+new") {
 		t.Fatalf("file diff = %q", f.Diff)
 	}
+	// The rest of what the terminal's report shows: profile, hosts hold
+	// an empty list rather than null, and the estimate states its basis.
+	if res.DryRun.Mode == "" || res.DryRun.Sandbox == "" || res.DryRun.Hosts == nil || res.DryRun.Estimate.Basis == "" {
+		t.Fatalf("dry_run lacks the profile or the estimate: %+v", res.DryRun)
+	}
+	for _, key := range []string{`"estimate"`, `"spent_calls"`, `"follow_calls_high"`, `"basis"`, `"sandbox"`, `"hosts"`} {
+		if !strings.Contains(out.String(), key) {
+			t.Errorf("result JSON lacks %s", key)
+		}
+	}
 }
 
 // TestTextDryRunPrintsThePreview: in text mode the preview goes to

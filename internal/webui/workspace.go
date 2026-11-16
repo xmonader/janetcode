@@ -22,27 +22,31 @@ import (
 )
 
 type workspace struct {
-	Todos     []todoItem  `json:"todos"`
-	Files     []fileItem  `json:"files"`
-	Jobs      []jobItem   `json:"jobs"`
-	Agents    []agentItem `json:"agents"`
-	Memory    []memItem   `json:"memory"`
-	CanUndo   bool        `json:"can_undo"`
-	CanRedo   bool        `json:"can_redo"`
-	Cost      string      `json:"cost"`
-	CtxPct    int         `json:"ctx_pct"`
-	CtxLabel  string      `json:"ctx_label"`
-	Yolo      bool        `json:"yolo"`
-	Away      bool        `json:"away"`
-	Auto      bool        `json:"auto"`
-	Edits     bool        `json:"edits"`
-	Plan      bool        `json:"plan"`
-	ReadOnly  bool        `json:"readonly"`
-	DryRun    bool        `json:"dry_run"`
-	Mode      string      `json:"mode"`
-	Terminals []termItem  `json:"terminals,omitempty"`
-	Ptc       []ptcItem   `json:"ptc,omitempty"`
-	Branch    string      `json:"branch,omitempty"`
+	Todos    []todoItem  `json:"todos"`
+	Files    []fileItem  `json:"files"`
+	Jobs     []jobItem   `json:"jobs"`
+	Agents   []agentItem `json:"agents"`
+	Memory   []memItem   `json:"memory"`
+	CanUndo  bool        `json:"can_undo"`
+	CanRedo  bool        `json:"can_redo"`
+	Cost     string      `json:"cost"`
+	CtxPct   int         `json:"ctx_pct"`
+	CtxLabel string      `json:"ctx_label"`
+	Yolo     bool        `json:"yolo"`
+	Away     bool        `json:"away"`
+	Auto     bool        `json:"auto"`
+	Edits    bool        `json:"edits"`
+	Plan     bool        `json:"plan"`
+	ReadOnly bool        `json:"readonly"`
+	DryRun   bool        `json:"dry_run"`
+	// DryPlan is the dry run's preview as data (files, calls not made, hosts,
+	// estimate), present while the session is a dry run: the same content
+	// /dryrun show and the headless result object carry.
+	DryPlan   *agent.DryPlan `json:"dry_plan,omitempty"`
+	Mode      string         `json:"mode"`
+	Terminals []termItem     `json:"terminals,omitempty"`
+	Ptc       []ptcItem      `json:"ptc,omitempty"`
+	Branch    string         `json:"branch,omitempty"`
 	// Ctx feeds the context-meter popover on the ctx chip.
 	Ctx *ctxMeter `json:"ctx,omitempty"`
 }
@@ -198,6 +202,10 @@ func (s *server) workspace() workspace {
 	ws.Plan = modes.PlanMode
 	ws.ReadOnly = modes.ReadOnly
 	ws.DryRun = ag.DryRunOn()
+	if ws.DryRun {
+		plan := ag.DryRunPlan()
+		ws.DryPlan = &plan
+	}
 	ws.Mode = sessionMode(ag)
 	if terms := termsOf(ag); terms != nil {
 		for _, x := range terms.List() {

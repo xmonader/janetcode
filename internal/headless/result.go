@@ -112,10 +112,9 @@ type CLIResult struct {
 
 // CLIDryRun is a dry run's preview in the result object: the same content
 // /dryrun show gives in the terminal.
-type CLIDryRun struct {
-	Files   []agent.DryFile   `json:"files"`
-	Actions []agent.DryAction `json:"actions"`
-}
+// plus the mode, sandbox, hosts, verify commands and the model-call and
+// cost estimate with its basis (agent.DryPlan).
+type CLIDryRun = agent.DryPlan
 
 // CLIRoute is one model call served away from the session's own model.
 // Route is the kind of detour: "route" for a cheap step, "escalate" for
