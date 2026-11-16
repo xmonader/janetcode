@@ -61,6 +61,9 @@ func (a *Agent) runHook(ctx context.Context, in hook.Input, emit func(Event)) ho
 	if !h.Has(in.Event) {
 		return hook.Result{Input: in.Input}
 	}
+	if a.dryHookSkipped(in.Event) {
+		return hook.Result{Input: in.Input}
+	}
 	res := h.Run(ctx, in)
 	// Notes, a denial's reason and a stop hook's continue text are read
 	// by the model, and a hook that cats a config or a log can print a
@@ -91,7 +94,7 @@ const observeTimeout = 30 * time.Second
 // hooks only observe: nothing they print changes what happens.
 func (a *Agent) fireHook(in hook.Input) {
 	h := a.HookRunner()
-	if !h.Has(in.Event) {
+	if !h.Has(in.Event) || a.dryHookSkipped(in.Event) {
 		return
 	}
 	go func() {

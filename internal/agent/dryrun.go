@@ -34,6 +34,7 @@ import (
 //   - an MCP tool the server does not mark read-only, a job's stdin or
 //     kill, a script, an editing subagent, the terminal and the computer
 //     are recorded, never called;
+//   - hooks never run: each event's hooks are recorded as not run;
 //   - fetch_url and web_search run (they read) and their hosts are listed.
 //
 // Nothing that is recorded asks for approval: a preview is not an
@@ -310,6 +311,29 @@ func dryReadOnlyCommand(input json.RawMessage) bool {
 	return shell.SafeRead(in.Command)
 }
 
+// dryHookSkipped reports whether an event's hooks must not run because
+// the session is a dry run. A hook is an arbitrary shell command (a
+// formatter after an edit, a notifier, a deploy script), so it is exactly
+// the side door a dry run has to close: it is recorded, once per event,
+// as a call that was not made, and the call it would have wrapped goes on
+// without it.
+func (a *Agent) dryHookSkipped(event string) bool {
+	if !a.DryRunOn() {
+		return false
+	}
+	for _, x := range a.DryRunActions() {
+		if x.Kind == "hook" && x.Tool == event {
+			return true
+		}
+	}
+	var cmds []string
+	for _, h := range a.HookRunner().Config.For(event) {
+		cmds = append(cmds, h.Command)
+	}
+	a.recordDry(DryAction{Tool: event, Kind: "hook", Summary: textfmt.Clip(strings.Join(cmds, "; "), 160)})
+	return true
+}
+
 // dryHost is the host a fetch_url call reaches, or the query of a search.
 func dryHost(input json.RawMessage) string {
 	var in struct {
@@ -444,6 +468,7 @@ func (a *Agent) DryRunReport(full bool) string {
 	section("command", "commands not run")
 	section("mcp", "MCP tools not called")
 	section("subagent", "editing subagents not started")
+	section("hook", "hooks not run")
 	section("other", "other calls not made")
 	section("network", "network reads that ran")
 	if a.Verify.Enabled() {
@@ -537,7 +562,7 @@ func (a *Agent) ApplyDryRun(ctx context.Context, pick []int) (cmdresult.Result, 
 	}
 	var notRun []string
 	for _, x := range commands {
-		if x.Kind != "file" && x.Kind != "network" {
+		if x.Kind != "file" && x.Kind != "network" && x.Kind != "hook" {
 			notRun = append(notRun, x.Tool+": "+x.Summary)
 		}
 	}
