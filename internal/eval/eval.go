@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/evidence"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -315,6 +316,25 @@ func (r Result) Outcome() string {
 		return "PASS"
 	}
 	return "FAIL"
+}
+
+// Evidence is the run's outcome as an evidence status
+// (internal/evidence), so the held-out check an eval task runs reads on
+// the same model as every other check: PASS is passed, FAIL is failed
+// (the hidden check's exit code decided it), INFRA is environmental (it
+// never reached the model, so nothing was checked), and a mismatched or
+// polluted run is inconclusive: its result says nothing about the model
+// that was asked for.
+func (r Result) Evidence() evidence.Status {
+	switch r.Outcome() {
+	case "PASS":
+		return evidence.Passed
+	case "FAIL":
+		return evidence.Failed
+	case "INFRA":
+		return evidence.Environmental
+	}
+	return evidence.Inconclusive
 }
 
 // DecisionStats is one run's use of the decision provider.

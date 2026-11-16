@@ -33,8 +33,7 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   implemented on branch, unreleased; see CHANGELOG Unreleased.
 - GitHub issues: #6 and #7 closed (2026-11-16). #1-#3, #5, #8-#12 stay open:
   checked against their acceptance criteria, parts are missing (no file
-  admission mode #2, no `--doctor security` #10, no extension doctor #8, no
-  evidence-status taxonomy #5, no observers #11, no offline audit replay #12,
+  admission mode #2, no `--doctor security` #10, no extension doctor #8, no observers #11, no offline audit replay #12,
   no dry-run cost estimate #9, partial checkpoints #1 and memory #3).
 - t3code round, live checks left: phone approval end to end over tailscale serve (machine needs
   `doas tailscale up`, Tailscale 1.104.7 installed); a real `op read`; the

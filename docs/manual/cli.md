@@ -144,6 +144,15 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   API-equivalent estimate, not money spent — and `unpriced` when neither
   is available. `verdict` is what the turn demonstrated, computed from
   what the harness watched rather than from what the model claimed.
+  `evidence` is the session's verification evidence on the one status
+  model: `status` (`passed`, `failed`, `not_run`, `cancelled`,
+  `environmental`, `flaky` or `inconclusive`), `required` (code was
+  edited), `blocks` (a success claim is not backed), `stale` (every check
+  predates the last edit), `why`, and `checks[]` with each command's
+  status, exit code, start and end time, output summary, files, `fresh`
+  and any `advisory` from the decision service. It never changes the exit
+  code, which stays authoritative. It is omitted when nothing was edited
+  or checked.
   `recoveries` is the harness's repair work: `prose_tool_calls` were
   written as text and read back as calls, `watchdog_kills` are streams
   that stopped producing and were ended, `model_fallbacks` are calls that

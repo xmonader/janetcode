@@ -3295,6 +3295,57 @@ verified and raised 13 false accusations; measured again it recognises
 42% of turns as verified, with none. The commit history has what the
 first version got wrong and how it was fixed.
 
+### Verification evidence: one status for every check
+
+The verdict says what the turn demonstrated. Underneath it, every check
+the session ran (the turn-end verify and `/accept` gates and the model's
+own test, build and lint commands) is recorded on one evidence model, and
+the TUI, the web UI, `/status`, `janetcode -p` JSON, the session log and
+`/proof` all read that same record. A check has its command, start and
+end time, exit code, a one-line output summary, the files that had been
+edited when it ran, and whether it is still **fresh**: nothing that needs
+a check was edited after it ran. Its status is one of:
+
+| status | meaning |
+|---|---|
+| `passed` | exited 0 and ran something |
+| `failed` | exited non-zero |
+| `not_run` | required and never started: an earlier gate command failed, or edited code has no check at all |
+| `cancelled` | interrupted before it finished (esc, a cancelled gate) |
+| `environmental` | the machine ended it: command or tool not found (126/127), no such host, connection refused, disk full |
+| `flaky` | the same command passed and failed on an unchanged tree |
+| `inconclusive` | it exited, but nothing was shown to be checked: no tests found, timed out, still running in the background |
+
+The final status is the worst status among the fresh checks, and `passed`
+only when every fresh check passed. **A check that ran before the latest
+edit is stale and never counts**: if all checks are stale, or there are
+none for edited code, the final status is `not_run` and success claims
+are blocked. Documentation-only edits (markdown, text, licences) owe no
+check and do not make one stale. "Latest edit" includes edits made by
+bash when the work tree is a git repository.
+
+A blocked claim is handled by the same once-per-turn correction as any
+other overclaim: if the model writes "the tests pass" over stale, missing,
+flaky, cancelled or environmental evidence, it is told which and asked to
+re-run the check or say the work is unverified. This replaces the opt-in
+`stale_check_nudge`. Nothing else changes: the verdict line, headless
+exit codes and the existing `verdict` field of the JSON result are as
+they were, and the evidence is additional.
+
+The exit code is authoritative. The optional decision service ([Jev
+triage](configuration.md)) may classify a failure as environmental,
+flaky or unrelated; that answer is recorded as an *advisory* on the
+check, including when the service errored, timed out or was paused, and
+it never changes the check's status or exit code (it may still skip a
+repair round, as before).
+
+`/status` prints the session's evidence now, across all turns. In JSON
+results from `janetcode -p --output-format json` it is the `evidence`
+object (`status`, `required`, `blocks`, `stale`, `why`, `checks[]`); the
+stream-json `verdict` event carries the same object, and the proof
+note's turns and the signed evidence statement carry each turn's
+`evidence` status and each command's `status`.
+
 ### Plan mode and read-only mode
 
 `/plan add rate limiting to the API` puts the session in plan mode: the

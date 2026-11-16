@@ -74,6 +74,36 @@ and measurements behind each round are in `docs/notes/history.md`.
   first. The web card gets Compare, Export and Commit buttons and a
   separate forced-apply button.
 
+### Verification evidence (github issue #5)
+- One evidence model (`internal/evidence`) for every check the session ran:
+  command, start and end time, exit code, a one-line output summary, the
+  files edited before it ran, and whether it is still fresh. Statuses:
+  `passed`, `failed`, `not_run`, `cancelled`, `environmental`, `flaky`,
+  `inconclusive`. The verdict fold, the turn-end gates, the proof notes,
+  the signed evidence, the headless result, `/status` and the TUI and web
+  turn line all read it instead of keeping their own idea of "passed".
+- New `/status` (terminal and web): the session's evidence now, with each
+  check's status, freshness and any advisory.
+- A check that ran before the latest edit is stale and never backs a
+  success claim. A claim over stale, missing, flaky, cancelled or
+  environmental evidence is sent back once by the overclaim gate. This
+  replaces the opt-in `stale_check_nudge`, which is now accepted and does
+  nothing. Documentation-only edits owe no check. Behaviour change: the
+  correction is no longer limited to risky turns or to turns that opted in.
+- A gate run that is cancelled is now logged (as `cancelled`, with the
+  commands it never reached as `not_run`) instead of vanishing from the
+  log; neither counts as a pass or a failure in the verdict.
+- The decision service's classification of a failure (including its
+  errors, timeouts and paused circuit) is recorded as an advisory beside
+  the check. It never changes the check's status or exit code.
+- Headless: the JSON result gains an `evidence` object and the stream-json
+  `verdict` event carries one; text mode prints an `evidence:` line on
+  stderr after `[verdict]`. The `verdict` string, `exit_code` and the exit
+  status are unchanged.
+- Proof notes: each turn carries its evidence report and the signed
+  statement carries each turn's evidence status and each command's status.
+  Eval results map to evidence statuses (`Result.Evidence`).
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)
