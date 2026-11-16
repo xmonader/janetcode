@@ -1499,6 +1499,27 @@ it and `/memory reject` drops it. `/memory expire <name>` retires an
 entry, which stays on disk as history. What you write with `/remember`
 is saved at once.
 
+`/memory why` lists the memory entries attached to the last turn (or the
+one running) with the reason each matched: the request words found in its
+name or description, in its body, or in the paths it concerns, with the
+score recall ranked it by, or "similar in meaning" for an entry found by
+embeddings. The same reason is on the entry's line in `/egress`, in the
+session log and in headless JSON. `/memory expire <name>` or `/forget
+<name>` then retires or deletes the one that should not have come. A
+held entry shows the session record it was saved at (`learned at
+<session>#~<seq>`), or says its source turn was not recorded.
+
+Automatic memory (extraction after a turn, consolidation after a goal) can
+be switched off where it should not run. `/memory auto off` stops it for
+the session; `/memory auto off project` writes a marker in the project's
+memory directory that keeps it off in every later session and front end
+until `/memory auto on project`. Either switch stops it; `memory: false`
+in the config remains the switch for everything. Entries you write with
+`/remember` and the model's own `memory` calls are not automatic memory:
+`memory_confirm` governs those. Secret-shaped values are scrubbed from
+every host, path and reason the egress report records, and from the
+conversation the extractor is sent.
+
 ### Project trust
 
 A repository can ship more than code: skills and agent profiles the

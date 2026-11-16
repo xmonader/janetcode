@@ -17,6 +17,18 @@ and measurements behind each round are in `docs/notes/history.md`.
   payload (`dry_plan`) carry the same plan: files, calls not made, hosts,
   mode, sandbox, verify commands, estimate.
 
+### Memory control and egress (issue 3)
+- `/memory why` shows which memory entries went into the last turn and why
+  each matched (words, fields, score, or meaning); the reason is also in
+  `/egress`, the session log and headless JSON.
+- `/memory auto off [project]` switches automatic memory off for the
+  session, or for the project in every later session. Extraction and
+  consolidation both honor it, in the terminal and in headless runs.
+- A memory the model saves now records the session record it came from,
+  and `/memory pending` says when the source turn is unknown.
+- The egress report scrubs secret-shaped values from hosts, paths and
+  reasons, and the memory extractor's request is scrubbed too.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)
