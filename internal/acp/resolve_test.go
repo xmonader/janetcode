@@ -24,7 +24,7 @@ func TestADuplicateResponseDoesNotStallTheReadLoop(t *testing.T) {
 	handled := make(chan string, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- c.readLoop(context.Background(), in, func(_ context.Context, m message) { handled <- m.Method })
+		done <- c.readLoop(context.Background(), in, nil, func(_ context.Context, m message) { handled <- m.Method })
 	}()
 	select {
 	case got := <-handled:

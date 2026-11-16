@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/sessionproto"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -97,6 +98,14 @@ type acpSession struct {
 	// them and the first's cleanup then cleared the second's.
 	turn chan struct{}
 
+	// queue is the read order (message.seq) of the prompts waiting for
+	// their turn, oldest first; changed is closed and replaced whenever
+	// it changes. The turn semaphore alone admitted waiters in whatever
+	// order their goroutines happened to reach it, so prompts sent one
+	// after another could run out of order. Guarded by mu.
+	queue   []uint64
+	changed chan struct{}
+
 	// mu guards cancelled and msgN.
 	mu sync.Mutex
 	// cancelled is closed by session/cancel and replaced by a fresh one,
@@ -126,7 +135,7 @@ func New(o Options) *Server {
 
 // Serve reads frames until the input ends or ctx is cancelled.
 func (s *Server) Serve(ctx context.Context) error {
-	return s.c.readLoop(ctx, s.opts.In, s.dispatch)
+	return s.c.readLoop(ctx, s.opts.In, s.reserve, s.dispatch)
 }
 
 func (s *Server) logf(format string, args ...any) {
@@ -145,9 +154,10 @@ func (s *Server) dispatch(ctx context.Context, m message) {
 	}
 	if err != nil {
 		code := codeInternal
+		var data any
 		var re *rpcError
 		if errors.As(err, &re) {
-			code = re.Code
+			code, data = re.Code, re.Data
 		}
 		if errors.Is(err, errUnknownMethod) {
 			code = codeMethodNotFound
@@ -155,7 +165,7 @@ func (s *Server) dispatch(ctx context.Context, m message) {
 		if errors.Is(err, errBadParams) {
 			code = codeInvalidParams
 		}
-		_ = s.c.replyError(m.ID, code, err.Error())
+		_ = s.c.replyErrorData(m.ID, code, err.Error(), data)
 		return
 	}
 	_ = s.c.reply(m.ID, result)
@@ -214,6 +224,7 @@ func (s *Server) initialize(raw json.RawMessage) (any, error) {
 		},
 		AgentInfo:   implInfo{Name: "janetcode", Title: "janetcode", Version: s.opts.Version},
 		AuthMethods: []authMethod{},
+		Meta:        map[string]any{"janetcode": map[string]any{"sessionProtocol": sessionproto.Version}},
 	}, nil
 }
 
@@ -231,7 +242,7 @@ func (s *Server) newSession(raw json.RawMessage) (any, error) {
 	}
 	as, err := s.open(p.Cwd, "", servers)
 	if err != nil {
-		return nil, err
+		return nil, leaseConflict(err)
 	}
 	return newSessionResult{SessionID: as.id}, nil
 }
@@ -249,7 +260,7 @@ func (s *Server) loadSession(raw json.RawMessage) (any, error) {
 	}
 	as, err := s.open(p.Cwd, p.SessionID, servers)
 	if err != nil {
-		return nil, err
+		return nil, leaseConflict(err)
 	}
 	for _, m := range as.agent.MessagesSnapshot() {
 		kind := "agent_message_chunk"
@@ -296,6 +307,24 @@ func (s *Server) open(cwd, resume string, servers map[string]mcp.ServerConfig) (
 	return as, nil
 }
 
+// leaseConflict turns the refusal to open a session another janetcode
+// runs into a structured error: a client can tell it apart from a failure
+// and offer to continue in a copy or to follow the session read-only
+// (janetcode --follow), from the data alone.
+func leaseConflict(err error) error {
+	var le *session.LeasedError
+	if !errors.As(err, &le) {
+		return err
+	}
+	return &rpcError{Code: codeSessionLeased, Message: le.Error(), Data: map[string]any{
+		"protocol": sessionproto.Version,
+		"code":     "session_leased",
+		"session":  le.ID,
+		"holder":   le.Info,
+		"options":  []string{"fork", "follow"},
+	}}
+}
+
 func (s *Server) session(id string) (*acpSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -310,6 +339,82 @@ func (s *Server) session(id string) (*acpSession, error) {
 func (s *Server) update(sessionID string, u any) {
 	if err := s.c.notify("session/update", sessionNotification{SessionID: sessionID, Update: u}); err != nil {
 		s.logf("update: %v", err)
+	}
+}
+
+// reserve is called for every request as it is read, in order, and gives a
+// session/prompt its place in the session's queue before its handler runs.
+func (s *Server) reserve(m message) {
+	if m.Method != "session/prompt" {
+		return
+	}
+	var p promptParams
+	if json.Unmarshal(m.Params, &p) != nil {
+		return
+	}
+	if as, err := s.session(p.SessionID); err == nil {
+		as.enqueue(m.seq)
+	}
+}
+
+// enqueue puts the prompt read as seq at the back of the queue.
+func (as *acpSession) enqueue(seq uint64) {
+	as.mu.Lock()
+	as.queue = append(as.queue, seq)
+	as.wakeLocked()
+	as.mu.Unlock()
+}
+
+// enqueueNext queues a prompt that has no read order, behind all that do.
+func (as *acpSession) enqueueNext() uint64 {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	seq := uint64(1) << 62
+	if n := len(as.queue); n > 0 && as.queue[n-1] >= seq {
+		seq = as.queue[n-1] + 1
+	}
+	as.queue = append(as.queue, seq)
+	as.wakeLocked()
+	return seq
+}
+
+func (as *acpSession) dequeue(seq uint64) {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	for i, q := range as.queue {
+		if q == seq {
+			as.queue = append(as.queue[:i], as.queue[i+1:]...)
+			as.wakeLocked()
+			return
+		}
+	}
+}
+
+func (as *acpSession) wakeLocked() {
+	if as.changed != nil {
+		close(as.changed)
+	}
+	as.changed = make(chan struct{})
+}
+
+// waitOldest blocks until seq is the oldest waiting prompt, or ctx ends.
+func (as *acpSession) waitOldest(ctx context.Context, seq uint64) bool {
+	for {
+		as.mu.Lock()
+		if len(as.queue) == 0 || as.queue[0] == seq {
+			as.mu.Unlock()
+			return true
+		}
+		if as.changed == nil {
+			as.changed = make(chan struct{})
+		}
+		changed := as.changed
+		as.mu.Unlock()
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return false
+		}
 	}
 }
 
@@ -344,6 +449,13 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage, seq uint64) (a
 	if err != nil {
 		return nil, err
 	}
+	// Whatever way this prompt ends, it is no longer waiting. A prompt
+	// that did not come through the read loop has no place in the order
+	// yet: it joins the back.
+	if seq == 0 {
+		seq = as.enqueueNext()
+	}
+	defer as.dequeue(seq)
 	blocks := toBlocks(p.Prompt)
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("%w: empty prompt", errBadParams)
@@ -372,9 +484,15 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage, seq uint64) (a
 	}()
 
 	// One turn at a time per session: a second prompt waits for the first
-	// rather than interleaving into the same history.
+	// rather than interleaving into the same history, and prompts take
+	// their turns in the order they were read. Only the oldest waiting
+	// prompt contends for the turn, so the order cannot be lost there.
+	if !as.waitOldest(turnCtx, seq) {
+		return promptResult{StopReason: stopCancelled}, nil
+	}
 	select {
 	case as.turn <- struct{}{}:
+		as.dequeue(seq)
 	case <-turnCtx.Done():
 		return promptResult{StopReason: stopCancelled}, nil
 	}

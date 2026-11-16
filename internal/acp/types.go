@@ -33,6 +33,9 @@ type initializeResult struct {
 	AgentCapabilities agentCapabilities `json:"agentCapabilities"`
 	AgentInfo         implInfo          `json:"agentInfo"`
 	AuthMethods       []authMethod      `json:"authMethods"`
+	// Meta says which session protocol this adapter speaks (the _meta
+	// extension point of ACP): docs/manual/protocol.md.
+	Meta map[string]any `json:"_meta,omitempty"`
 }
 
 type agentCapabilities struct {

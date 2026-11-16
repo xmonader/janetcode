@@ -21,6 +21,9 @@ const (
 	codeMethodNotFound = -32601
 	codeInvalidParams  = -32602
 	codeInternal       = -32603
+	// codeSessionLeased: the session is run by another janetcode process
+	// (an implementation-defined server error, in -32000..-32099).
+	codeSessionLeased = -32010
 )
 
 // message is one JSON-RPC frame in either direction. A request has Method
@@ -179,7 +182,11 @@ func (c *conn) reply(id json.RawMessage, result any) error {
 }
 
 func (c *conn) replyError(id json.RawMessage, code int, msg string) error {
-	return c.send(message{ID: id, Error: &rpcError{Code: code, Message: msg}})
+	return c.replyErrorData(id, code, msg, nil)
+}
+
+func (c *conn) replyErrorData(id json.RawMessage, code int, msg string, data any) error {
+	return c.send(message{ID: id, Error: &rpcError{Code: code, Message: msg, Data: data}})
 }
 
 // readLoop reads frames until the stream ends or ctx does, handing
@@ -195,7 +202,7 @@ func (c *conn) replyError(id json.RawMessage, code int, msg string) error {
 // cancelled ctx (SIGTERM) was never noticed until the editor happened to
 // close the pipe, and the adapter outlived the signal meant to stop it.
 // The handlers see the same ctx, so they end promptly too.
-func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.Context, message)) error {
+func (c *conn) readLoop(ctx context.Context, in io.Reader, read func(message), handle func(context.Context, message)) error {
 	var wg sync.WaitGroup
 	// Deferred first, so it runs last: the handlers still in flight are
 	// woken by stop before anything waits for them.
@@ -250,6 +257,12 @@ func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.C
 		}
 		seq++
 		m.seq = seq
+		if read != nil {
+			// In read order, before the handler's goroutine exists: what
+			// has to know the order requests arrived in cannot learn it
+			// from goroutines the scheduler starts in any order.
+			read(m)
+		}
 		wg.Add(1)
 		go func(m message) {
 			defer wg.Done()
