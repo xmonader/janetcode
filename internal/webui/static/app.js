@@ -1,4 +1,5 @@
 (() => {
+  const S = window.JanetState; // the shared view model (state.js)
   const { icon, esc, diffHTML, perfCardHTML, usageCardHTML, linkCards } = window.JanetRender;
   // The terminal's number formats (format.js, checked against Go's).
   const fmtTok = JanetFmt.tokens;
@@ -51,7 +52,6 @@
   let commands = [];
   let palIdx = 0;
   let palItems = [];
-  let lastReply = "";
   let lastUserText = "";
   // The conversation's first prompt names it until the server titles it,
   // as the rail does; the latest prompt renamed the header every turn.
@@ -147,7 +147,7 @@
       const more = clipped ? `<button type="button" class="continue" data-more="${e.id}">Show full reply</button>` : "";
       n.innerHTML = `<div class="md${clipped ? " clip" : ""}">${JanetMD.render(e.text || "", e.done)}${e.done ? "" : '<span class="caret">▍</span>'}</div>${more}${metaRow}${e.done ? linkCards(e.text) : ""}`;
       if (e.done) {
-        lastReply = (e.text || "").slice(0, 200);
+        S.lastReply = (e.text || "").slice(0, 200);
         drawMermaid(n);
       }
     } else if (e.kind === "thinking") {
@@ -2386,46 +2386,8 @@
     uploadFiles([...(ev.dataTransfer?.files || [])]);
   });
 
-  const notifBtn = document.getElementById("notif-btn");
-  const notifSupported = "Notification" in window;
-  let notifyOn = notifSupported && localStorage.getItem("janetcode-notify") === "1" && Notification.permission === "granted";
-  function drawNotif() {
-    notifBtn.textContent = !notifSupported ? "Notifications unsupported"
-      : notifyOn ? "Notifications on" : "Notifications off";
-    notifBtn.classList.toggle("on", notifyOn);
-  }
-  notifBtn.addEventListener("click", async () => {
-    if (!notifSupported) return;
-    if (notifyOn) {
-      notifyOn = false;
-      localStorage.setItem("janetcode-notify", "");
-    } else {
-      const perm = await Notification.requestPermission();
-      notifyOn = perm === "granted";
-      localStorage.setItem("janetcode-notify", notifyOn ? "1" : "");
-    }
-    drawNotif();
-  });
-  drawNotif();
-  function maybeNotify(prevRunning, st) {
-    if (!prevRunning || st.running || !document.hidden) return;
-    markUnseen();
-    if (settings.soundOn()) ding();
-    if (!notifyOn || quiet()) return;
-    const title = document.getElementById("title").textContent || "janetcode";
-    const body = lastReply ? lastReply.split("\n")[0].slice(0, 120) : (st.status || "Turn finished");
-    try { new Notification("janetcode · " + title, { body }); } catch (_) {}
-  }
-
-  // A turn waiting on an approval in a tab you are not looking at looks
-  // idle; the terminal UI rings for it, and so does the page. One tag, so
-  // a second request replaces the first instead of stacking.
-  function notifyAsk(line) {
-    if (!document.hidden) return;
-    if (settings.soundOn()) ding();
-    if (!notifyOn || quiet()) return;
-    try { new Notification("janetcode · approval needed", { body: line, tag: "janetcode-ask" }); } catch (_) {}
-  }
+  // Desktop notifications live in notify.js.
+  const { maybeNotify, notifyAsk } = JanetNotify({ S, settings, markUnseen });
 
   // The small surface extras.js (quick prompts, previews, gallery, export,
   // settings) reaches the page through.
