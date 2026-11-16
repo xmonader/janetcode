@@ -147,6 +147,18 @@ and measurements behind each round are in `docs/notes/history.md`.
   runs fails with code `-32010` and data naming the holder; `initialize`
   reports `_meta.janetcode.sessionProtocol`.
 
+### Extension doctor and staged capability trust (issue #8)
+- `/doctor mcp`, `/inspect extensions` and `janetcode --doctor mcp` (also
+  `--output-format json`) report every MCP server, hook and skill: scope
+  (user-global or project-local), source, transport, executable or URL,
+  authentication state without any credential, trust and why, capabilities,
+  and tools, prompts and resources. Nothing is called or run to build it.
+- MCP servers have `connect`, `read` and `mutate` capabilities. A server
+  added with `/mcp add` starts restricted (read-only tools only);
+  `/mcp enable`, `/mcp disable` and `/mcp tool` change that, and disabling
+  stops the process and refuses later calls. Grants are kept in
+  `extensions.json`, which the model cannot edit.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)

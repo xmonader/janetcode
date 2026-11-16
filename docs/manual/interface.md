@@ -4245,8 +4245,57 @@ dropped is gone.
 remote HTTP/SSE URL), the command or URL, any environment variables or
 request headers, and a confirmation. On confirm the entry is written into
 the project's `.mcp.json` — created if absent, and otherwise left as it
-was, other keys, server order and indentation included — marked trusted
-(you wrote it yourself), started, and its tools listed.
+was, other keys, server order and indentation included — the file marked
+approved (you wrote it yourself), the server started, and its tools
+listed. The server itself is installed *restricted*: see "Staged trust"
+below.
+
+#### Staged trust, and the extension report
+
+A server's trust is not one switch. Each server holds up to three
+capabilities:
+
+- `connect`: its process may start, or the connection to a remote one may
+  open. Without it nothing of the server runs or is contacted.
+- `read`: the model may call the tools the server marks read-only, list and
+  read its resources, and use its prompts.
+- `mutate`: the model may call every other tool. A tool the server does not
+  mark read-only may write files, run commands or reach the network, and
+  the harness cannot tell which, so it is blocked until you allow it.
+
+A server you wrote in your own config file has all three (trusted by
+authorship). A server in a project's `.mcp.json` has all three once the
+file is approved (`/mcp trust` or `/trust full`). A server installed with
+`/mcp add` (including `--from`) starts with `connect` and `read` only;
+re-adding it with a different command or URL puts it back there. Grants
+live in `extensions.json` next to the config file, a protected path the
+model cannot edit; an unreadable file refuses every server that has a grant
+rather than allowing it.
+
+```
+/mcp enable <server> [connect|read|mutate|all]   allow more (all when none given); starts it if needed
+/mcp disable <server> [connect|read|mutate]      take away; connect (the default) stops the process
+/mcp tool <server> <tool> on|off                 switch one tool, whatever its scope
+```
+
+Disabling stops the process and removes its tools, a start is refused
+while it is off, and a call through a tool object a turn already holds is
+refused too: the check runs on every call. `/mcp remove` forgets the grant.
+
+`/doctor mcp` (the same text as `/inspect extensions`, in the terminal and
+the web UI) and `janetcode --doctor mcp` list every MCP server, hook and
+skill: the scope (user-global or project-local, kept apart), where it is
+declared, transport, executable or URL, how it authenticates (header and
+environment variable names, the OAuth login and when its token expires,
+never a value), whether it is trusted and why, the capabilities in force,
+and for a server its tools (read-only or not, deferred or not, blocked or
+callable), prompts and resources. `/inspect "extensions json"` and
+`janetcode --doctor mcp --output-format json` print the same report as one
+JSON object. Building it never calls a tool or runs a hook: a running
+session is described from what its servers already said, and a bare
+`--doctor mcp` probes a server that is not running with the handshake and
+the list requests, then stops it (`JANETCODE_DOCTOR_NO_PROBE=1` skips
+that). Command arguments, URLs and hook commands are redacted.
 
 `/mcp search <words>` looks servers up in the official MCP registry
 (registry.modelcontextprotocol.io; `JANETCODE_MCP_REGISTRY` points it at
