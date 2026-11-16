@@ -61,10 +61,25 @@ func DigestJSON(v any) string {
 // DigestMessages names a message list the way a request event does; a nil
 // and an empty list digest alike.
 func DigestMessages(msgs []llm.Message) string {
-	if len(msgs) == 0 {
-		return DigestJSON([]llm.Message{})
+	// Hashed one message at a time: the bytes are exactly json.Marshal of
+	// the whole slice ("[" + elements joined by "," + "]"), so digests match
+	// earlier recordings, but no buffer the size of the whole history is
+	// built on every model call (encoding/json pools those, and a long
+	// session held several of them).
+	h := sha256.New()
+	h.Write([]byte{'['})
+	for i, m := range msgs {
+		b, err := json.Marshal(m)
+		if err != nil {
+			return "unencodable"
+		}
+		if i > 0 {
+			h.Write([]byte{','})
+		}
+		h.Write(b)
 	}
-	return DigestJSON(msgs)
+	h.Write([]byte{']'})
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // DigestTools names a tool list the way a request event does.

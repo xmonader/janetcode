@@ -121,8 +121,12 @@ func (a *Agent) logRequest(prov llm.Provider, model, system string, defs []llm.T
 	if prov != nil {
 		r.Provider = prov.Name()
 	}
-	if s := session.DigestMessages(sent); s != r.MessagesSHA {
-		r.SentSHA = s
+	// bridgeImages hands back the history itself when it changed nothing;
+	// digest the sent copy only when it is a different slice.
+	if !sameMessages(sent, messages) {
+		if s := session.DigestMessages(sent); s != r.MessagesSHA {
+			r.SentSHA = s
+		}
 	}
 	a.usageMu.Lock()
 	if r.SystemSHA != a.loggedSystem {
@@ -191,4 +195,10 @@ func FormatTurnChecks(checks []TurnCheck) string {
 		sb.WriteString("\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// sameMessages reports whether a and b are the same slice (same backing
+// array and length), not merely equal contents.
+func sameMessages(a, b []llm.Message) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
