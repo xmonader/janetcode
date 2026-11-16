@@ -165,6 +165,7 @@ func plural(n int, what string) string {
 // Install writes a fetched manifest's servers into the project file,
 // trusts it and starts them.
 func Install(ctx context.Context, env Env, man *Manifest) (cmdresult.Result, error) {
+	before, _, _ := mcp.LoadProject(env.Cwd)
 	servers, hash, err := mcp.AddProjectServers(env.Cwd, man.Servers, man.Names)
 	if err != nil {
 		return cmdresult.Result{}, err
@@ -173,6 +174,9 @@ func Install(ctx context.Context, env Env, man *Manifest) (cmdresult.Result, err
 		plural(len(man.Names), "server"), man.Source, mcp.ProjectFile)}}
 	if man.Cloned {
 		res.Notes = append(res.Notes, "cloned into "+man.Dir)
+	}
+	for _, name := range man.Names {
+		stage(env, before, name, man.Servers[name], &res)
 	}
 	applyTrust(env, servers, hash, &res)
 	var sheets []string

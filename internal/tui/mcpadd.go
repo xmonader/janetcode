@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/extension"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -55,6 +56,7 @@ func (m *model) mcpEnv() (mcpcmd.Env, bool) {
 	}
 	if m.opts.ConfigDir != "" {
 		env.InstallDir = filepath.Join(m.opts.ConfigDir, "mcp-servers")
+		env.Extensions = extension.Store{Path: extension.StorePath(m.opts.ConfigDir)}
 	}
 	return env, true
 }

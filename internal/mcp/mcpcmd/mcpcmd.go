@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/cmdresult"
+	"github.com/xmonader/janetcode/internal/extension"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/trust"
@@ -40,6 +41,9 @@ type Env struct {
 	// InstallDir is where "--from <git url>" clones a repository; the
 	// servers it declares run from there. Empty disables cloning.
 	InstallDir string
+	// Extensions holds the staged-trust grants: a server installed here
+	// starts restricted. Empty Path means no staging.
+	Extensions extension.Store
 }
 
 // DefaultWait is how long /mcp add waits for a new server before saying
@@ -62,11 +66,13 @@ func Add(ctx context.Context, env Env, name string, cfg mcp.ServerConfig) (cmdre
 	if cfg.Command == "" && cfg.URL == "" {
 		return cmdresult.Result{}, fmt.Errorf("mcp %s: give a command to run or a URL", name)
 	}
+	before, _, _ := mcp.LoadProject(env.Cwd)
 	servers, hash, err := mcp.AddProjectServer(env.Cwd, name, cfg)
 	if err != nil {
 		return cmdresult.Result{}, err
 	}
 	res := cmdresult.Result{Notes: []string{fmt.Sprintf("added %s to %s · %s", name, mcp.ProjectFile, mcp.Describe(cfg))}}
+	stage(env, before, name, cfg, &res)
 	applyTrust(env, servers, hash, &res)
 	if _, shadowed := env.Global[name]; shadowed {
 		res.Tips = append(res.Tips, fmt.Sprintf("the config file also has an MCP server called %s; its settings are the ones that run", name))
@@ -82,6 +88,13 @@ func Remove(ctx context.Context, env Env, name string) (cmdresult.Result, error)
 	servers, hash, err := mcp.RemoveProjectServer(env.Cwd, name)
 	if err != nil {
 		return cmdresult.Result{}, err
+	}
+	if env.Extensions.Path != "" {
+		// The grant goes with the entry: a server added again later is
+		// new and starts restricted again.
+		if gerr := env.Extensions.Delete(extension.ProjectKey(env.Cwd, name)); gerr != nil {
+			return cmdresult.Result{}, fmt.Errorf("removed %s but could not forget its grant: %w", name, gerr)
+		}
 	}
 	if env.Manager != nil {
 		env.Manager.Stop(name)

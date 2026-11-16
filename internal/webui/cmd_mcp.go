@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/extension"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -31,7 +32,7 @@ type MCPOptions struct {
 	Trust       trust.Store
 }
 
-const mcpUsage = "usage: /mcp [search <words> | reconnect [name] | add <name> <command|url> [--env K=V] [--header 'Name: value'] | add --from <repo> --yes | remove <name> --yes]"
+var mcpUsage = "usage: /mcp [search <words> | reconnect [name] | add <name> <command|url> [--env K=V] [--header 'Name: value'] | add --from <repo> --yes | remove <name> --yes | " + mcpcmd.Usage + "]"
 
 // mcpCommand answers /mcp. Everything that writes or starts anything runs
 // through runBusy, which serialises it against turns and against another
@@ -64,6 +65,8 @@ func (s *server) mcpCommand(arg string) {
 		s.mcpRemove(strings.Fields(rest))
 	case "reconnect":
 		s.mcpReconnect(strings.Fields(rest))
+	case "enable", "disable", "tool":
+		s.mcpGrant(verb, strings.Fields(rest))
 	default:
 		s.errf("%s", mcpUsage)
 	}
@@ -123,6 +126,7 @@ func (s *server) mcpEnv() mcpcmd.Env {
 	}
 	if s.opts.ConfigDir != "" {
 		env.InstallDir = filepath.Join(s.opts.ConfigDir, "mcp-servers")
+		env.Extensions = extension.Store{Path: extension.StorePath(s.opts.ConfigDir)}
 	}
 	return env
 }
@@ -229,4 +233,17 @@ func (s *server) mcpReconnect(names []string) {
 		}
 		s.notice("mcp " + name + ": reconnecting")
 	}
+}
+
+// mcpGrant answers /mcp enable, disable and tool: the staged-trust
+// controls. They run busy because enabling may start a server.
+func (s *server) mcpGrant(verb string, args []string) {
+	if len(args) == 0 {
+		s.errf("%s", mcpUsage)
+		return
+	}
+	name, rest := args[0], args[1:]
+	s.runBusy("mcp "+verb+" "+name, func(ctx context.Context) {
+		s.showResult(mcpcmd.GrantCommand(ctx, s.mcpEnv(), verb, name, rest))
+	})
 }
