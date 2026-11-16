@@ -40,6 +40,11 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   ntfy hook against a real topic.
 
 ## Known Gaps (verify before relying on)
+- Issue #11 (unreleased): docs/manual/protocol.md. Web control lease +
+  observers (internal/sessionproto, webui/control.go), `--follow`, ACP
+  ordering/conflict. Not covered: the TUI is not a lease client (one
+  process per session via the flock lease), and subagent completion is
+  only tied to its session by the process running one session at a time.
 - Eval Wilson CI pools repeated runs as iid.
 - Mid-turn Jev consumer rejected twice on measurements (docs/notes/jev.md);
   revisit only with a harness-side "did the state change" check.
