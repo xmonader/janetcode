@@ -114,6 +114,11 @@ harness-bench-large: build
 # drag-resize, drawer stacking. Needs node >= 22 (global WebSocket) and
 # a chrome binary (CHROME=/path/to/chrome if not on PATH).
 UI_PORT ?= 18991
+# Chrome's debug port for ui-test, ui-visual and ui-shot; give each
+# concurrent run (another worktree) its own.
+UI_CDP_PORT ?= 9223
+export UI_CDP_PORT
+UI_VISUAL_CDP_PORT ?= 9224
 # The web UI requires its access token; the ui-* runs fix it so the
 # browser can be pointed at the link.
 UI_TOKEN := uitest-token
@@ -124,7 +129,7 @@ ui-test: build
 	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_PORT) >/dev/null 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_PORT)/ && break; sleep 0.5; done; \
-	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=$(UI_CDP_PORT) --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
 	node internal/webui/uitest/interact.mjs http://127.0.0.1:$(UI_PORT)/?token=$(UI_TOKEN) $$tmp/janetcode/sessions; \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; exit $$rc
@@ -188,10 +193,10 @@ ui-visual: build
 	XDG_CONFIG_HOME=$$tmp XDG_DATA_HOME=$$tmp JANETCODE_WEB_TOKEN=$(UI_TOKEN) ./bin/janetcode --web --web-addr 127.0.0.1:$(UI_VISUAL_PORT) >/dev/null 2>&1 & \
 	srv=$$!; \
 	for i in $$(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$(UI_VISUAL_PORT)/ && break; sleep 0.5; done; \
-	$(CHROME) --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1440,900 --remote-debugging-port=9224 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1440,900 --remote-debugging-port=$(UI_VISUAL_CDP_PORT) --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
-	node internal/webui/uitest/shot.mjs http://127.0.0.1:$(UI_VISUAL_PORT)/?token=$(UI_TOKEN) $$tmp/shots 9224 >/dev/null && \
-	node internal/webui/uitest/shotdiff.mjs 9224 $$tmp/shots internal/webui/uitest/baseline $(if $(UPDATE),--update); \
+	node internal/webui/uitest/shot.mjs http://127.0.0.1:$(UI_VISUAL_PORT)/?token=$(UI_TOKEN) $$tmp/shots $(UI_VISUAL_CDP_PORT) >/dev/null && \
+	node internal/webui/uitest/shotdiff.mjs $(UI_VISUAL_CDP_PORT) $$tmp/shots internal/webui/uitest/baseline $(if $(UPDATE),--update); \
 	rc=$$?; kill $$srv $$chr 2>/dev/null; wait $$srv $$chr 2>/dev/null; \
 	if [ $$rc -ne 0 ]; then mkdir -p ui-shots && cp $$tmp/shots/* ui-shots/ && echo "new shots and diffs copied to ui-shots/"; fi; \
 	rm -rf $$tmp 2>/dev/null; exit $$rc
@@ -199,7 +204,7 @@ ui-visual: build
 # Screenshot the RUNNING webui (UI_URL) into ui-shots/ for visual review.
 ui-shot:
 	@mkdir -p ui-shots; tmp=$$(mktemp -d); trap 'pkill -P $$srv 2>/dev/null; kill $$srv $$chr 2>/dev/null; pkill -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; sleep 0.3; pkill -9 -f -- "-[-]user-data-dir=$$tmp/chrome" 2>/dev/null; rm -rf $$tmp 2>/dev/null' EXIT INT TERM; \
-	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=9223 --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
+	$(CHROME) --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --remote-debugging-port=$(UI_CDP_PORT) --user-data-dir=$$tmp/chrome about:blank >/dev/null 2>&1 & \
 	chr=$$!; \
 	node internal/webui/uitest/shot.mjs $(or $(UI_URL),http://127.0.0.1:8787/) ui-shots; \
 	rc=$$?; kill $$chr 2>/dev/null; wait $$chr 2>/dev/null; exit $$rc

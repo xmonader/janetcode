@@ -4,7 +4,7 @@
 // Requires a chrome with --remote-debugging-port=9223 (see make ui-shot).
 const APP = process.argv[2] || 'http://127.0.0.1:18991/';
 const OUT = process.argv[3] || '/tmp/ui-shots';
-const CDP_PORT = Number(process.argv[4] || 9223);
+const CDP_PORT = Number(process.argv[4] || process.env.UI_CDP_PORT || 9223);
 import { mkdirSync, writeFileSync } from 'fs';
 mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));

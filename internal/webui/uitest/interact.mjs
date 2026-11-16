@@ -2,7 +2,7 @@
 // Assertions, not eyeballs — run: node interact.mjs <url>
 // Requires chrome with --remote-debugging-port=9223 (see make ui-test).
 import { mkdirSync, writeFileSync } from 'node:fs';
-const CDP_PORT = 9223;
+const CDP_PORT = Number(process.env.UI_CDP_PORT || 9223);
 const APP = process.argv[2] || 'http://127.0.0.1:8787/';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 

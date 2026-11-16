@@ -10,7 +10,7 @@
 //
 // run: node embed.mjs <parent-url> [expected-placeholder]
 // Requires chrome with --remote-debugging-port=9223.
-const CDP_PORT = 9223;
+const CDP_PORT = Number(process.env.UI_CDP_PORT || 9223);
 const PARENT = process.argv[2];
 const WANT_PLACEHOLDER = process.argv[3] || '';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
