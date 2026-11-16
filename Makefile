@@ -266,7 +266,7 @@ REPRO_DIR := $(or $(TMPDIR),/tmp)/janetcode-repro
 repro-check:
 	@test -z "$$(git status --porcelain)" || { echo "repro-check needs a clean tree (uncommitted changes are not in the clone)"; git status --short | head; exit 1; }
 	$(MAKE) dist VERSION=$(VERSION)
-	rm -rf $(REPRO_DIR) && git clone -q --local . $(REPRO_DIR)
+	rm -rf $(REPRO_DIR) && git clone -q --no-hardlinks . $(REPRO_DIR)
 	cd $(REPRO_DIR) && GOCACHE=$$(mktemp -d) $(MAKE) dist VERSION=$(VERSION)
 	@set -e; for f in dist/$(BIN)-*; do \
 		b=$$(basename $$f); \
