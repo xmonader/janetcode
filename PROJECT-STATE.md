@@ -21,7 +21,7 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   on master; CHANGELOG "User-expectation gaps". Test broker: ai02
   (OPENAI_BASE_URL=https://api.ai02.ourhero.ai/v1), cheap models
   deepseek/deepseek-v4.1-flash, xiaomi/mimo-v2.6-flash, qwen/qwen3.8-27b.
-- Last release tag: v0.2.0; ~1040 commits since.
+- Last release tag: v0.2.0; ~1970 commits since.
 - Earlier rounds (polish/look 09-24/25, deer-flow/trae review, Qwen/Claude
   parity 09-25): CHANGELOG sections of the same names and
   docs/notes/history.md. UI checks: `make ui-test ui-turn ui-a11y
@@ -73,18 +73,28 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   baseline, +18% wall). The lists above are what was built, not what is
   left.
 
+- t3code round 2026-11-16 (ideas from pingdotgg/t3code, on master):
+  request_secret + op:// keys, /share guest links, render_html pages,
+  notification deep links (one-time ticket) + ?prompt= drafts +
+  JANETCODE_WEB_URL, opt-in `delegates` (claude/codex CLIs). Unit + UI
+  tested; none live-tested against a real model.
+
 ## Next
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Cut v0.3.0: push, make the repo public, push the tag (release.yml does
   the rest). Needs the user's go-ahead.
 - GitHub issues #1-#3, #5-#12 are implemented on master (2026-09-30);
   closing them on GitHub is outward-facing, so it waits for the user.
+- t3code round, live checks: render_html and request_secret against a real
+  model; phone approval end to end over tailscale serve (machine needs
+  `doas tailscale up`, Tailscale 1.104.7 installed); a real `op read`; the
+  ntfy hook against a real topic; delegate to claude/codex on a real task.
 
 ## Known Gaps (verify before relying on)
 - Eval Wilson CI pools repeated runs as iid.
 - Mid-turn Jev consumer rejected twice on measurements (docs/notes/jev.md);
   revisit only with a harness-side "did the state change" check.
-- Open UI questions: shared view model for TUI/web. app.js is still ~2,000
+- Open UI questions: shared view model for TUI/web. app.js is now ~2,800
   lines: the transcript, composer, sessions rail and workspace pane share
   mutable state and were left together.
 - Left open from the deep review: seatbelt mach-lookup allowlist is
@@ -93,6 +103,10 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   config copy shares.
 - GitHub Action, `/pr` and `/pr-comments` tested against a stub `gh` and
   (action) under nektos/act, never against github.com (needs a push).
+- t3code round gaps: guest links are bearer links (any browser, 24h), not
+  bound to the first browser; delegate cost/usage not added to session
+  totals; secrets are memory-only (lost on resume) and not sent to remote
+  workspaces; op:// values cached 5 min; --bg runs get no deep link.
 - The Landlock egress rule is by port: a remote host on the proxy's port is
   reachable. Docker egress: host services on 0.0.0.0 reachable.
 
