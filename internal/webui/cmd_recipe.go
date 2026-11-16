@@ -123,6 +123,7 @@ func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.Reci
 	// ended, then ran it out of order. A run that failed drops it, as a
 	// failed turn does.
 	next, nextCtx, _ := s.end(err != nil)
+	next, nextCtx = s.applyQueuedSettings(next, nextCtx)
 	s.showResult(res, nil)
 	s.emitStatus()
 	if next != "" {

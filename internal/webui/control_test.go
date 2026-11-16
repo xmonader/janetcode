@@ -27,6 +27,7 @@ type gateProv struct {
 	gate    chan struct{}
 	started chan struct{}
 	seen    []string
+	onCall  func(text string)
 }
 
 func (g *gateProv) Name() string { return "fake" }
@@ -50,6 +51,9 @@ func (g *gateProv) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		for _, b := range req.Messages[n-1].Blocks {
 			if b.Type == llm.BlockText {
 				g.seen = append(g.seen, b.Text)
+				if g.onCall != nil {
+					g.onCall(b.Text)
+				}
 			}
 		}
 	}
@@ -557,5 +561,57 @@ func TestPageGivesTheBrowserAnIdentity(t *testing.T) {
 	res2.Body.Close()
 	if v := e.s.controlView(id); v.You != sessionproto.RoleController {
 		t.Fatalf("cookie client is not the controller: %+v", v)
+	}
+}
+
+// A setting sent during a turn waits for the turn boundary, in order with
+// the prompts around it, while a permission switch takes effect at once.
+func TestSettingsWaitForTheTurnBoundaryInQueueOrder(t *testing.T) {
+	e := newCtlEnv(t, time.Minute)
+	ag := e.s.opts.Agent
+	e.prov.hold()
+	if code, body := e.prompt("alice", "one"); code != 200 {
+		t.Fatal(code, body)
+	}
+	e.waitStarted()
+	for _, text := range []string{"/effort high", "two", "/effort low", "three"} {
+		if code, body := e.prompt("alice", text); code != 200 {
+			t.Fatalf("%q: %d %s", text, code, body)
+		}
+	}
+	if got := ag.Settings().Effort; got != "" {
+		t.Fatalf("effort changed mid-turn to %q", got)
+	}
+	// A permission switch is for stopping or loosening the turn that is running now.
+	if code, body := e.prompt("alice", "/yolo"); code != 200 || !ag.Settings().AutoApprove {
+		t.Fatalf("/yolo mid-turn: %d %s, auto-approve %v", code, body, ag.Settings().AutoApprove)
+	}
+
+	// Record the effort each turn starts under.
+	var mu sync.Mutex
+	effortAt := map[string]string{}
+	e.prov.mu.Lock()
+	e.prov.onCall = func(text string) {
+		mu.Lock()
+		effortAt[text] = ag.Settings().Effort
+		mu.Unlock()
+	}
+	e.prov.mu.Unlock()
+	e.prov.open()
+	e.waitIdle()
+	mu.Lock()
+	defer mu.Unlock()
+	if effortAt["two"] != "high" || effortAt["three"] != "low" {
+		t.Fatalf("turns ran under efforts %v, want two=high three=low", effortAt)
+	}
+	if got := ag.Settings().Effort; got != "low" {
+		t.Fatalf("final effort %q", got)
+	}
+}
+
+func TestPromptCannotImpersonateAQueuedSetting(t *testing.T) {
+	e := newCtlEnv(t, time.Minute)
+	if err := e.s.submitPlain(settingMark + "/effort high"); err == nil {
+		t.Fatal("a prompt starting with the setting mark was accepted")
 	}
 }

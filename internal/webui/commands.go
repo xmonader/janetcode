@@ -87,6 +87,7 @@ func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
 	go func() {
 		fn(ctx)
 		next, nextCtx, _ := s.end(false)
+		next, nextCtx = s.applyQueuedSettings(next, nextCtx)
 		s.emitStatus()
 		if next != "" {
 			s.runTurn(nextCtx, next)
@@ -413,6 +414,47 @@ var webDispatch = map[string]webHandler{
 	},
 }
 
+// boundarySettings are the commands that change how the next turns run
+// (the effort, the routing, the context window, config keys, the
+// directories and sandbox the tools see). Sent while a turn runs they wait
+// in the prompt queue and apply when it ends, in the order they came, so
+// no turn runs half under one setting and half under another. The
+// permission switches (/yolo, /auto, /edits, /readonly, /afk) are not here:
+// they take effect at once, because stopping or loosening a running turn
+// is what they are for.
+var boundarySettings = map[string]bool{
+	"/effort": true, "/routing": true, "/context-window": true, "/config": true,
+	"/add-dir": true, "/sandbox": true, "/dryrun": true,
+}
+
+// settingMark starts a queue entry that is a setting, not a prompt. A
+// prompt cannot start with it: submitPlain refuses one.
+const settingMark = "\x00setting:"
+
+// dispatchTable is webDispatch, set in init: the turn code that applies
+// queued settings would otherwise make an initialization cycle with the
+// commands that start turns.
+var dispatchTable func() map[string]webHandler
+
+func init() { dispatchTable = func() map[string]webHandler { return webDispatch } }
+
+// applyQueuedSettings applies the settings at the head of the queue and
+// hands back the first prompt behind them, with the context its turn runs
+// on: what end returned, minus the settings that were waiting.
+func (s *server) applyQueuedSettings(next string, nextCtx context.Context) (string, context.Context) {
+	for strings.HasPrefix(next, settingMark) {
+		text := strings.TrimPrefix(next, settingMark)
+		fields := strings.Fields(text)
+		if h, ok := dispatchTable()[fields[0]]; ok {
+			if _, err := h(s, strings.TrimSpace(strings.TrimPrefix(text, fields[0]))); err != nil {
+				s.errf("%s: %v", fields[0], err)
+			}
+		}
+		next, nextCtx, _ = s.end(false)
+	}
+	return next, nextCtx
+}
+
 func (s *server) runCommand(text string) error {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
@@ -429,6 +471,20 @@ func (s *server) runCommand(text string) error {
 		if c.Name == canon && c.Idle && running {
 			return fmt.Errorf("%s waits for the turn to finish (esc cancels it)", name)
 		}
+	}
+	if boundarySettings[canon] {
+		// Settle with the turn boundary: under the same lock submitPlain
+		// queues a prompt with, so a turn ending now cannot strand it.
+		s.mu.Lock()
+		if s.running {
+			s.queued = append(s.queued, settingMark+text)
+			n := len(s.queued)
+			s.mu.Unlock()
+			s.notice(fmt.Sprintf("queued %d · %s applies when this turn ends", n, name))
+			s.emitStatus()
+			return nil
+		}
+		s.mu.Unlock()
 	}
 	h, ok := webDispatch[name]
 	if !ok {

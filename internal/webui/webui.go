@@ -848,6 +848,9 @@ func (s *server) submit(text string) error {
 // with: no slash command or shell line is looked for. It queues behind a
 // running turn.
 func (s *server) submitPlain(text string) error {
+	if strings.HasPrefix(text, settingMark) {
+		return fmt.Errorf("a prompt cannot start with a NUL byte")
+	}
 	if !s.connected() {
 		// Nothing to send it to yet. The prompt stays in the composer
 		// (the page keeps it on an error) and the connect form opens.
@@ -992,6 +995,7 @@ func (s *server) finish(err error) {
 	// error card. Close them whatever the outcome.
 	s.closeOpen()
 	next, nextCtx, elapsed := s.end(err != nil)
+	next, nextCtx = s.applyQueuedSettings(next, nextCtx)
 	s.touchRuns()
 	switch {
 	case err == nil:
