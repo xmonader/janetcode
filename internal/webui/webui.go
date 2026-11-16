@@ -31,6 +31,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/sessionproto"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -50,6 +51,9 @@ type Options struct {
 	Version  string
 	// Addr is the listen address. Empty means 127.0.0.1:8787.
 	Addr string
+	// ControlTTL is how long a controlling client may go unheard from
+	// before another may take over (default sessionproto.DefaultTTL).
+	ControlTTL time.Duration
 	// Token is required from every request (see auth.go). Run makes one
 	// when it is empty.
 	Token string
@@ -309,6 +313,9 @@ type server struct {
 	// runs outside it, lists them.
 	mcpMu sync.Mutex
 
+	// ctl is which client controls the session (control.go).
+	ctl *sessionproto.Table
+
 	// guest is the guest link and the messages guests left (guest.go).
 	guest guestShare
 	// base is the scheme and host the owner last reached the server by,
@@ -328,6 +335,9 @@ func (s *server) setSession(v *session.Session) {
 	s.sessMu.Lock()
 	s.opts.Session = v
 	s.sessMu.Unlock()
+	// A control lease is for one session: every client's old lease is
+	// stale once the server moves to another.
+	s.ctl.Reset()
 	// A guest link follows one session: leaving it ends the link.
 	s.guestSessionChanged(v)
 }
@@ -378,6 +388,9 @@ type envelope struct {
 	// Guest is the state of guest-link sharing, sent to the owner's page
 	// only: the guest stream never carries it.
 	Guest *guestPayload `json:"guest,omitempty"`
+	// Control is who controls the session, as this stream's client sees
+	// it: on hello, and again whenever it changes (see control.go).
+	Control *sessionproto.Snapshot `json:"control,omitempty"`
 }
 
 type helloPayload struct {
@@ -476,6 +489,7 @@ func newServer(life context.Context, opts Options) *server {
 		dir:      opts.Cwd,
 		subs:     map[chan envelope]struct{}{},
 		openedAt: time.Now(),
+		ctl:      sessionproto.NewTable(controlTTL(opts), nil),
 
 		approveSlot: make(chan struct{}, 1),
 		askSlot:     make(chan struct{}, 1),
@@ -527,7 +541,7 @@ func (s *server) cronFire(id, prompt string) {
 }
 
 func (s *server) handler() http.Handler {
-	return s.guard(s.routes())
+	return s.guard(s.control(s.routes()))
 }
 
 // routes is every path the server answers, before guard.
@@ -549,6 +563,7 @@ func (s *server) routes() *http.ServeMux {
 		_, _ = w.Write(s.indexHTML)
 	})
 	mux.HandleFunc("/events", s.events)
+	mux.HandleFunc("/api/control", s.controlAPI)
 	mux.HandleFunc("/api/state", s.state)
 	mux.HandleFunc("/api/prompt", s.prompt)
 	mux.HandleFunc("/api/steer", s.steer)
@@ -656,6 +671,7 @@ func (s *server) state(w http.ResponseWriter, r *http.Request) {
 		"secret":     secretNow,
 		"status":     st,
 		"guest":      s.guestPayload(),
+		"control":    s.controlView(clientID(r)),
 	})
 }
 
@@ -665,15 +681,39 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "stream unsupported", http.StatusInternalServerError)
 		return
 	}
+	client := clientID(r)
+	// An observer follows the session and can change nothing; a stream
+	// without a role belongs to a client that may take control.
+	if r.URL.Query().Get("role") == "observer" {
+		defer s.ctl.Watch(client)()
+	}
+	// since lets a client that kept what it had seen skip the replay of it.
+	var since int
+	if v := r.URL.Query().Get("since"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			http.Error(w, "bad since", http.StatusBadRequest)
+			return
+		}
+		since = n
+	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	ch := make(chan envelope, 64)
 	s.mu.Lock()
 	s.subs[ch] = struct{}{}
-	replay := append([]envelope(nil), s.log...)
-	hello := envelope{Type: "hello", Hello: ptr(s.hello())}
+	var replay []envelope
+	for _, e := range s.log {
+		if e.Seq > since {
+			replay = append(replay, e)
+		}
+	}
+	h := s.hello()
+	busy, queued := s.running, len(s.queued)
 	s.mu.Unlock()
+	ctl := s.ctl.View(client, busy, queued)
+	hello := envelope{Type: "hello", Hello: &h, Control: &ctl}
 
 	writeSSE(w, hello)
 	fl.Flush()
@@ -694,6 +734,12 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-s.life.Done():
+			// The server is going away: say so, so a client does not
+			// mistake the hang-up for a network blip and retry into it.
+			writeSSE(w, envelope{Type: "bye", Notice: "the server is shutting down"})
+			fl.Flush()
+			return
 		case e, ok := <-ch:
 			if !ok {
 				return // fell behind; the browser reconnects and replays
@@ -701,8 +747,14 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 			writeSSE(w, e)
 			fl.Flush()
 		case <-tick.C:
+			// An open stream is the controller's heartbeat.
+			s.ctl.Touch(client)
 			st := s.statusNow()
 			writeSSE(w, envelope{Type: "status", Status: &st})
+			if now := s.controlView(client); !now.Same(ctl) {
+				ctl = now
+				writeSSE(w, envelope{Type: "control", Control: &now})
+			}
 			fl.Flush()
 		}
 	}
