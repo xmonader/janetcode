@@ -61,6 +61,19 @@ and measurements behind each round are in `docs/notes/history.md`.
   in the session record, so `--resume`, `/fork` and worktree sessions keep
   them. `@path` mentions join the read-only list in explicit mode.
 
+### Checkpoints you can trust and inspect (issue #1)
+- Every turn that changed something now ends with a line naming its
+  checkpoint, cancelled turns included.
+- `/undo turn n` refuses to overwrite files edited since the turns it
+  undoes. The preview lists them as conflicts, `/undo apply` changes
+  nothing, and `/undo apply --force` overwrites them on purpose. The
+  web's rewind-and-restore no longer forces.
+- `/checkpoints diff|export|commit`: compare checkpoints or one with the
+  work tree, write a `git apply` patch, and preview then make an opt-in
+  git commit of one turn's files with the attribution behaviour shown
+  first. The web card gets Compare, Export and Commit buttons and a
+  separate forced-apply button.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)
