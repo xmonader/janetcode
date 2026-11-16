@@ -39,7 +39,7 @@ func (a *acpMCP) start(ag *agent.Agent, root string, client map[string]mcp.Serve
 		if ag == a.r.ag {
 			m = &a.r.servers
 		} else {
-			m = &mcptool.Manager{Options: a.r.servers.Options, Registry: ag.Tools, Allowed: a.r.servers.Allowed}
+			m = &mcptool.Manager{Options: a.r.servers.Options, Registry: ag.Tools, Allowed: a.r.servers.Allowed, Policy: a.r.servers.Policy}
 			m.Options.Root = root
 			a.r.onClose(m.Close)
 		}

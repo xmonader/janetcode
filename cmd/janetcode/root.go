@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/extension"
 	"os"
 	"path/filepath"
 	"strings"
@@ -194,6 +195,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 			return nil
 		}
 	}
+	r.servers.Policy = extension.Policy{Store: extension.Store{Path: extension.StorePath(cfgDir)}, Cwd: cwd}
 	r.onClose(r.servers.Close)
 	projectServers, projectHash, err := mcp.LoadProject(cwd)
 	if err != nil {

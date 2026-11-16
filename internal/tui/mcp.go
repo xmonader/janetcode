@@ -106,6 +106,11 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 			if !ok {
 				return nil, false
 			}
+			if err := m.opts.MCP.Manager.Permit(st.Name, "", false); err != nil {
+				m.transcript.errorf("%s: %v", name, err)
+				m.refresh(false)
+				return nil, true
+			}
 			if m.waitForTurn(name) {
 				return nil, true
 			}
@@ -192,6 +197,8 @@ func (m *model) mcpCommand(args []string) tea.Cmd {
 	case len(args) > 0 && args[0] == "reconnect":
 		m.mcpReconnect(args[1:])
 		return nil
+	case len(args) > 0 && (args[0] == "enable" || args[0] == "disable" || args[0] == "tool"):
+		return m.mcpGrant(args[0], args[1:])
 	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
@@ -377,4 +384,18 @@ func (m *model) mcpReconnect(args []string) {
 		}
 		m.note("mcp " + name + ": reconnecting")
 	}
+}
+
+// mcpGrant answers /mcp enable, disable and tool: the staged-trust
+// controls. Enabling may start a server, so it runs off the UI loop.
+func (m *model) mcpGrant(verb string, args []string) tea.Cmd {
+	if len(args) == 0 {
+		m.transcript.errorf("usage: /mcp %s", mcpcmd.Usage)
+		m.refresh(false)
+		return nil
+	}
+	name, rest := args[0], args[1:]
+	return m.mcpRun("mcp "+verb+" "+name+"…", func(ctx context.Context, env mcpcmd.Env) (cmdresult.Result, error) {
+		return mcpcmd.GrantCommand(ctx, env, verb, name, rest)
+	})
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/extension"
 	"os"
 	"strings"
 
@@ -246,6 +247,7 @@ func (r *root) registerProjectRooted(cd *agent.CD) {
 		// the project's .mcp.json is re-read and re-checked for trust,
 		// but whatever is already connected stays connected.
 		r.servers.Options.Root = dir
+		r.servers.Policy = extension.Policy{Store: extension.Store{Path: extension.StorePath(r.cfgDir)}, Cwd: dir}
 		servers, hash, err := mcp.LoadProject(dir)
 		if err != nil {
 			return "", err
