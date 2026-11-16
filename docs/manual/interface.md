@@ -3256,8 +3256,29 @@ without the diffs; `/dryrun` alone turns the dry run on or off. Then:
 A fork shares the parent's dry run and preview. With `-p --dry-run` the
 preview, diffs included, is printed on stderr at the end; with
 `--output-format json` it is the `dry_run` field of the result
-(`files` with their diffs, `actions` with each recorded call). The status
-line and the web mode chip say `DRY RUN` while it is on.
+(`files` with their diffs, `actions` with each recorded call, plus `mode`,
+`sandbox`, `hosts`, `verify` and the `estimate`). The web workspace payload
+(`/api/workspace`) carries the same object as `dry_plan` while the session
+is a dry run. The status line and the web mode chip say `DRY RUN` while it
+is on.
+
+Nothing in a dry run can change the machine: hooks are commands too, so
+none of them run (each event's hooks are listed under "hooks not run"),
+and neither does the verify gate; a background job, a job's stdin or
+kill, a script's calls and an editing subagent are recorded, not made.
+Cancelling a turn or a failing provider leaves the disk as it was, the
+preview intact and unapplied. The preview is never an approval: only
+`/dryrun apply` writes anything, and the commands it recorded still go
+through the permission prompt when the model runs them.
+
+The preview's estimate says what the dry run itself used (model calls
+counted from session usage since it began, priced at the provider's
+reported cost or at list price, or "unpriced" when no rate is known), that
+applying files makes no model call, and a range for running the recorded
+commands for real: from one call (the model may batch them) to one per
+recorded call, each priced at the dry run's own average call. It is an
+order of magnitude, not a quote: later calls carry a longer history, and
+a command that fails costs more calls. The basis line says so.
 
 read_file, grep and glob see the preview: a pending edit's new text, a
 file only the preview holds, and not a file it deletes. A read-only shell

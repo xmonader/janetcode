@@ -3,6 +3,20 @@
 User-visible changes. Commit-level detail is in `git log`; the reasoning
 and measurements behind each round are in `docs/notes/history.md`.
 
+## Unreleased
+
+### Dry run (issue 9)
+- The dry-run preview now carries an estimate: the model calls and cost
+  the dry run used (measured from session usage, reported or list price,
+  or unpriced), no calls to apply files, and a one-to-N call range for
+  running the recorded commands, with its basis stated.
+- A dry run never runs hooks (recorded as "hooks not run"). Tests cover
+  hooks, the verify gate, background jobs, scripts, subagents and
+  cancellation, and a real git repo is byte-identical after a dry run.
+- The `--output-format json` `dry_run` object and the web workspace
+  payload (`dry_plan`) carry the same plan: files, calls not made, hosts,
+  mode, sandbox, verify commands, estimate.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)
