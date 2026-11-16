@@ -96,3 +96,41 @@ func contentDigest(data []byte, exists bool) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
+
+// logRequest records the model call about to be made as the model will
+// see it: digests of the system prompt, the tool schemas and the
+// messages, with the system prompt and tools in full whenever they differ
+// from what the log last carried. messages is the conversation as the
+// log holds it; sent is what the provider receives, which differs only
+// where images were bridged to text.
+func (a *Agent) logRequest(prov llm.Provider, model, system string, defs []llm.ToolDef, messages, sent []llm.Message, effort string) {
+	if a.Log == nil {
+		return
+	}
+	r := session.ModelRequest{
+		Model:       model,
+		MaxTokens:   a.maxTokens(),
+		Effort:      effort,
+		SystemSHA:   session.DigestText(system),
+		ToolsSHA:    session.DigestTools(defs),
+		MessagesSHA: session.DigestMessages(messages),
+		Messages:    len(messages),
+	}
+	if prov != nil {
+		r.Provider = prov.Name()
+	}
+	if s := session.DigestMessages(sent); s != r.MessagesSHA {
+		r.SentSHA = s
+	}
+	a.usageMu.Lock()
+	if r.SystemSHA != a.loggedSystem {
+		r.System = system
+		a.loggedSystem = r.SystemSHA
+	}
+	if r.ToolsSHA != a.loggedTools {
+		r.Tools = defs
+		a.loggedTools = r.ToolsSHA
+	}
+	a.usageMu.Unlock()
+	a.logEvent(r.Event())
+}

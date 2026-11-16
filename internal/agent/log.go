@@ -103,6 +103,7 @@ func (a *Agent) SetLog(l session.Log) {
 	a.RestoreFromLog()
 	a.usageMu.Lock()
 	a.requestSessionID = ""
+	a.loggedSystem, a.loggedTools = "", ""
 	a.usageMu.Unlock()
 	a.budgetMu.Lock()
 	if a.budget != nil && a.budget.owner == a {

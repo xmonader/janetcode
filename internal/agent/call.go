@@ -151,10 +151,12 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	effort, steered := a.callEffort(prov, emit)
 	callCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
+	sent := a.bridgeImages(ctx, a.Messages, model, emit)
+	a.logRequest(prov, model, system, defs, a.Messages, sent, effort)
 	resp, err := a.stream(callCtx, prov, llm.Request{
 		Model:     model,
 		System:    system,
-		Messages:  a.bridgeImages(ctx, a.Messages, model, emit),
+		Messages:  sent,
 		Tools:     defs,
 		MaxTokens: a.maxTokens(),
 		Effort:    effort,

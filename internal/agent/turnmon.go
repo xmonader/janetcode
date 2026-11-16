@@ -55,6 +55,9 @@ type turnMonitor struct {
 	budgetMu         sync.Mutex
 	budget           *sharedBudget
 	requestSessionID string // usageMu guards the fallback ID for unsaved sessions
+	// loggedSystem and loggedTools are the digests of the system prompt
+	// and tool list the last request event carried in full (usageMu).
+	loggedSystem, loggedTools string
 	// MaxToolCalls, when set, ends a run before a batch of tool calls
 	// that would take its total past this many (see toollimit.go).
 	MaxToolCalls int
