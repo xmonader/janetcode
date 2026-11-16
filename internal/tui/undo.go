@@ -62,6 +62,9 @@ func (m *model) changesCommand(args []string) {
 		return
 	}
 	out := agent.FormatChangeGroups(groups, m.opts.Cwd, m.opts.Agent.RestorableTurns())
+	if checks := agent.FormatTurnChecks(m.opts.Agent.TurnChecks()); checks != "" {
+		out += "\n\n" + checks
+	}
 	if line := m.opts.Agent.DebtLine(m.opts.Cwd); line != "" {
 		out += "\n" + line
 	}

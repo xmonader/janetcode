@@ -39,6 +39,9 @@ and measurements behind each round are in `docs/notes/history.md`.
   tools, and exits 1 on any divergence. No model, tool, network or provider.
 - `--audit-export <session>` writes a portable JSON bundle with API keys and
   configured secret values removed.
+- `/changes` and the web UI's per-turn file card name the tool call behind
+  each changed file and list each check result with its turn and the calls
+  it followed.
 
 ## v0.3.0 (2026-11-16)
 

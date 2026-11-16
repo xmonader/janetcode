@@ -2134,6 +2134,15 @@ as changes themselves. Turn-level `/undo`, `/undo turn n` (which
 rewinds the conversation too) and `/redo` still restore whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
+Each change line also names the tool call that wrote it (`call <id>`), and
+`/changes 4` opens with `from turn 2, tool call <id>`. After the turns,
+`/changes` lists the checks the harness ran (the verify commands and the
+`/accept` tests) as `turn 2 check go test ./... passed  (after call
+<id>, <id>)`: the check, how it ended, and the calls whose changes it
+followed. The web UI's file card under each turn shows the same: a
+`call <id>` tag on each file (hover for the turn and call) and a row per
+check with its result and the calls it followed.
+
 ### Review tour and comprehension debt: /tour
 
 `/tour` reads the last turn that changed files the way a reviewer should:

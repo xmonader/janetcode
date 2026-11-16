@@ -317,7 +317,7 @@
     if (filesMore) {
       const t = filesMore.dataset.files;
       if (openFileCards.has(t)) openFileCards.delete(t); else openFileCards.add(t);
-      if (S.lastWorkspace) paintTurnFiles(S.lastWorkspace.files);
+      if (S.lastWorkspace) paintTurnFiles(S.lastWorkspace.files, S.lastWorkspace.checks);
       return;
     }
     const fileLi = ev.target.closest(".turn-files li[data-seq]");
@@ -327,7 +327,7 @@
     }
   });
 
-  function paintTurnFiles(files) {
+  function paintTurnFiles(files, checks) {
     log.querySelectorAll(".turn-files").forEach((n) => n.remove());
     if (!files || !files.length) return;
     const byTurn = new Map();
@@ -339,7 +339,7 @@
     const users = [...log.querySelectorAll("article.turn.you")];
     for (const [turn, list] of byTurn) {
       const card = document.createElement("div");
-      card.innerHTML = fileCardHTML(turn, list);
+      card.innerHTML = fileCardHTML(turn, list, (checks || []).filter((c) => (c.turn || 0) === turn));
       const node = card.firstElementChild;
       const anchor = users[turn - 1];
       if (!anchor) { log.appendChild(node); continue; }
@@ -350,16 +350,19 @@
       after.insertAdjacentElement("afterend", node);
     }
   }
-  function fileCardHTML(turn, list) {
+  function fileCardHTML(turn, list, checks) {
     const open = openFileCards.has(String(turn));
     const shown = open ? list : list.slice(0, 3);
     let add = 0, del = 0;
     for (const f of list) { add += f.add || 0; del += f.del || 0; }
     const rows = shown.map((f) =>
-      `<li data-seq="${f.seq}"><span>${esc(f.path)}</span><span><span class="add">+${f.add || 0}</span> <span class="del">−${f.del || 0}</span></span></li>`
+      `<li data-seq="${f.seq}"${f.call ? ` data-call="${esc(f.call)}" title="turn ${turn}, tool call ${esc(f.call)}"` : ""}><span>${esc(f.path)}${f.call ? ` <span class="from-call" data-testid="file-call">call ${esc(f.call)}</span>` : ""}</span><span><span class="add">+${f.add || 0}</span> <span class="del">−${f.del || 0}</span></span></li>`
     ).join("");
     const rest = !open && list.length > 3 ? `<li class="more" data-files="${turn}">${list.length - 3} more files</li>` : "";
-    return `<div class="turn-files" data-turn-files="${turn}"><header><span>${list.length} file${list.length === 1 ? "" : "s"} changed</span><span><span class="add">+${add}</span> <span class="del">−${del}</span></span></header>${rows}${rest}</div>`;
+    const ran = (checks || []).map((c) =>
+      `<li class="check ${c.failed ? "failed" : "passed"}" data-testid="turn-check" title="${c.calls && c.calls.length ? "after call " + esc(c.calls.join(", ")) : ""}"><span>check ${esc(c.command)}${c.calls && c.calls.length ? ` <span class="from-call">after call ${esc(c.calls.join(", "))}</span>` : ""}</span><span class="${c.failed ? "del" : "add"}">${c.failed ? "failed" : "passed"}</span></li>`
+    ).join("");
+    return `<div class="turn-files" data-turn-files="${turn}"><header><span>${list.length} file${list.length === 1 ? "" : "s"} changed</span><span><span class="add">+${add}</span> <span class="del">−${del}</span></span></header>${rows}${rest}${ran}</div>`;
   }
   function paintGit(ws) {
     const el = document.getElementById("git-pill");

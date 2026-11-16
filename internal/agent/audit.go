@@ -3,6 +3,8 @@ package agent
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -133,4 +135,60 @@ func (a *Agent) logRequest(prov llm.Provider, model, system string, defs []llm.T
 	}
 	a.usageMu.Unlock()
 	a.logEvent(r.Event())
+}
+
+// TurnCheck is one verification command the harness ran at the end of a
+// turn (the project's verify commands, or the locked /accept tests), tied
+// to the turn that earned it and to the tool calls whose file changes it
+// was checking.
+type TurnCheck struct {
+	Turn    int
+	Command string
+	Failed  bool
+	// Source is the gate that ran it (session.GateVerify or GateAccept).
+	Source string
+	// Calls are the ids of the tool calls that changed files in the turn
+	// before the check ran, in order.
+	Calls []string
+}
+
+// TurnChecks reads the session's gate events back with the calls they
+// followed, so a front-end can show a check result beside the files it
+// vouches for.
+func (a *Agent) TurnChecks() []TurnCheck {
+	var out []TurnCheck
+	changed := map[int][]string{} // turn -> call ids, in order, unique
+	seen := map[string]bool{}
+	for _, e := range a.logEvents() {
+		switch e.Type {
+		case session.TypeFileChange:
+			key := fmt.Sprintf("%d/%s", e.Turn, e.CallID)
+			if e.CallID != "" && !seen[key] {
+				seen[key] = true
+				changed[e.Turn] = append(changed[e.Turn], e.CallID)
+			}
+		case session.TypeGate:
+			out = append(out, TurnCheck{Turn: e.Turn, Command: e.Name, Failed: e.IsError, Source: e.Source,
+				Calls: append([]string(nil), changed[e.Turn]...)})
+		}
+	}
+	return out
+}
+
+// FormatTurnChecks renders the checks for /changes: per turn, each
+// command, how it ended and the calls it followed.
+func FormatTurnChecks(checks []TurnCheck) string {
+	var sb strings.Builder
+	for _, c := range checks {
+		how := "passed"
+		if c.Failed {
+			how = "FAILED"
+		}
+		fmt.Fprintf(&sb, "turn %d check %s %s", c.Turn, c.Command, how)
+		if len(c.Calls) > 0 {
+			fmt.Fprintf(&sb, "  (after call %s)", strings.Join(c.Calls, ", "))
+		}
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }

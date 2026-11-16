@@ -1185,6 +1185,8 @@ pre.sheetbody {
 .turn-files header { color: var(--mute); font-size: 0.76rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .turn-files li { border-top: 0.5px solid var(--line); cursor: pointer; font-family: var(--mono); font-size: 0.76rem; }
 .turn-files li:hover { background: var(--surface-2); }
+.turn-files .from-call { color: var(--faint); margin-left: 0.5em; }
+.turn-files li.check { cursor: default; }
 .turn-files .more { color: var(--faint); cursor: pointer; }
 .turn-files .add { color: var(--ok); }
 .turn-files .del { color: var(--bad); }

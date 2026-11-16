@@ -24,6 +24,7 @@ import (
 type workspace struct {
 	Todos    []todoItem  `json:"todos"`
 	Files    []fileItem  `json:"files"`
+	Checks   []checkItem `json:"checks,omitempty"`
 	Jobs     []jobItem   `json:"jobs"`
 	Agents   []agentItem `json:"agents"`
 	Memory   []memItem   `json:"memory"`
@@ -83,6 +84,17 @@ type fileItem struct {
 	Add  int    `json:"add"`
 	Del  int    `json:"del"`
 	Turn int    `json:"turn,omitempty"`
+	// Call is the tool call that made the change.
+	Call string `json:"call,omitempty"`
+}
+
+// checkItem is one verification the harness ran at the end of a turn, with
+// the tool calls whose changes it followed.
+type checkItem struct {
+	Turn    int      `json:"turn"`
+	Command string   `json:"command"`
+	Failed  bool     `json:"failed"`
+	Calls   []string `json:"calls,omitempty"`
 }
 
 type jobItem struct {
@@ -172,7 +184,10 @@ func (s *server) workspace() workspace {
 		if s.cwd() != "" {
 			path = textfmt.RelTo(s.cwd(), path)
 		}
-		ws.Files = append(ws.Files, fileItem{Seq: c.Seq, Path: path, Tool: c.Tool, Add: add, Del: del, Turn: c.Turn})
+		ws.Files = append(ws.Files, fileItem{Seq: c.Seq, Path: path, Tool: c.Tool, Add: add, Del: del, Turn: c.Turn, Call: c.Call})
+	}
+	for _, c := range ag.TurnChecks() {
+		ws.Checks = append(ws.Checks, checkItem{Turn: c.Turn, Command: c.Command, Failed: c.Failed, Calls: c.Calls})
 	}
 	if s.opts.Jobs != nil {
 		for _, j := range s.opts.Jobs.List() {

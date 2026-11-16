@@ -26,6 +26,9 @@ func FormatChangeGroups(groups []ChangeGroup, root string, restorable []int) str
 	row := func(indent string, c Change) {
 		add, del := c.Stats()
 		fmt.Fprintf(&sb, "%s#%-3d %-10s %s  +%d -%d", indent, c.Seq, c.Tool, textfmt.RelTo(root, c.Path), add, del)
+		if c.Call != "" {
+			fmt.Fprintf(&sb, "  call %s", c.Call)
+		}
 		if c.Undone {
 			sb.WriteString("  (undone)")
 		}
@@ -83,6 +86,9 @@ func FormatChange(c Change, root string) string {
 		sb.WriteString("  (undone)")
 	}
 	sb.WriteString("\n")
+	if c.Call != "" {
+		fmt.Fprintf(&sb, "from turn %d, tool call %s\n", c.Turn, c.Call)
+	}
 	for _, h := range c.Hunks() {
 		sb.WriteString(h.String())
 	}

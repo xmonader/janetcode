@@ -106,7 +106,7 @@
         setModeChip(ws.mode, ws.dry_run);
         S.lastWorkspace = ws;
         paintGit(ws);
-        paintTurnFiles(ws.files);
+        paintTurnFiles(ws.files, ws.checks);
       } catch (_) {}
     }
 
