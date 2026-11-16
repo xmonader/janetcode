@@ -803,36 +803,7 @@ func (s *Store) rankPool(text string, min, max int) []ranked {
 		if strong && need < strongRecall {
 			need = strongRecall
 		}
-		score := 0
-		seen := map[string]bool{}
-		for _, w := range Words(e.Name + " " + e.Description) {
-			if have[w] && !seen[w] && !stop[w] {
-				seen[w] = true
-				score += 3
-			}
-		}
-		for _, w := range Words(e.Body) {
-			if have[w] && !seen[w] && !stop[w] {
-				seen[w] = true
-				score++
-			}
-		}
-		// A project entry about a path or symbol the turn names is
-		// relevant through the work itself, not only through words: two
-		// matched segments admit it, one adds to whatever words matched.
-		concerns := 0
-		for _, c := range e.Concerns {
-			for _, w := range Words(strings.ReplaceAll(c, "/", " ")) {
-				if have[w] && !stop[w] && !seen[w] {
-					seen[w] = true
-					concerns++
-				}
-			}
-		}
-		if concerns > 2 {
-			concerns = 2
-		}
-		score += 2 * concerns
+		score, _ := scoreEntry(e, have)
 		if score >= need {
 			// Relevance admits an entry; how often and how recently the
 			// work has needed it decides between the admitted ones.
