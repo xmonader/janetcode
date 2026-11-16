@@ -24,7 +24,10 @@ func voiceConfig(cfg *config.Config, getenv func(string) string) voice.Config {
 	if cfg != nil {
 		if p := cfg.Active(); p.Type == "openai" {
 			vc.Endpoint = p.BaseURL
-			if keys := p.Keys(); len(keys) > 0 {
+			// A reference that cannot be read leaves the key empty; the
+			// transcription request then fails with the endpoint's own
+			// 401, and the provider build reports the reference.
+			if keys, err := p.ResolvedKeys(); err == nil && len(keys) > 0 {
 				vc.APIKey = keys[0]
 			}
 		}

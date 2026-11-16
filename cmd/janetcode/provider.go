@@ -62,14 +62,19 @@ func (p *providerPool) For(model string) (llm.Provider, string, error) {
 
 func buildProvider(cfg *config.Config) (llm.Provider, error) {
 	p := cfg.Active()
+	// op:// references become values here, at use, and only in memory.
+	keys, err := p.ResolvedKeys()
+	if err != nil {
+		return nil, fmt.Errorf("provider %s: %w", cfg.Provider, err)
+	}
 	if config.IsOpenCode(cfg.Provider) {
 		preset, _ := config.FindPreset(cfg.Provider)
-		return opencode.New(opencode.Config{Name: preset.Name, BaseURL: p.BaseURL, APIKeys: p.Keys(), Thinking: cfg.ThinkingEnabled(), HideThinking: !cfg.ThinkingShown(), Effort: cfg.Effort, Limits: cfg.StreamLimits()})
+		return opencode.New(opencode.Config{Name: preset.Name, BaseURL: p.BaseURL, APIKeys: keys, Thinking: cfg.ThinkingEnabled(), HideThinking: !cfg.ThinkingShown(), Effort: cfg.Effort, Limits: cfg.StreamLimits()})
 	}
 	switch p.Type {
 	case "anthropic":
 		return anthropic.New(anthropic.Config{
-			APIKeys:      p.Keys(),
+			APIKeys:      keys,
 			BaseURL:      p.BaseURL,
 			Bearer:       p.Bearer(),
 			Thinking:     cfg.ThinkingEnabled(),
@@ -79,14 +84,14 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 		})
 	case config.TypeOpenAI:
 		return openai.New(openai.Config{
-			APIKeys: p.Keys(),
+			APIKeys: keys,
 			BaseURL: p.BaseURL,
 			Name:    cfg.Provider,
 			Limits:  cfg.StreamLimits(),
 		})
 	case config.TypeGemini:
 		return gemini.New(gemini.Config{
-			APIKeys:  p.Keys(),
+			APIKeys:  keys,
 			BaseURL:  p.BaseURL,
 			Name:     cfg.Provider,
 			Thoughts: cfg.ThinkingShown(),
@@ -94,7 +99,7 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 		})
 	case config.TypeResponses:
 		return responses.New(responses.Config{
-			APIKeys:  p.Keys(),
+			APIKeys:  keys,
 			BaseURL:  p.BaseURL,
 			Name:     cfg.Provider,
 			Thoughts: cfg.ThinkingShown(),

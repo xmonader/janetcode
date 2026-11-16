@@ -12,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/opref"
 	"github.com/xmonader/janetcode/internal/perm"
 )
 
@@ -82,6 +83,20 @@ func (p Provider) Keys() []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// ResolvedKeys is Keys with every 1Password reference (op://vault/item/field,
+// in api_key, api_keys or the variable key_env names) replaced by the
+// value `op read` returns. It is what a request is signed with; Keys stays
+// the reference, so the config is saved with the reference and never with
+// the value. The error names the reference that could not be read.
+func (p Provider) ResolvedKeys() ([]string, error) {
+	keys := p.Keys()
+	out, err := opref.ResolveAll(keys)
+	if err != nil {
+		return nil, fmt.Errorf("provider key: %w", err)
+	}
+	return out, nil
 }
 
 // SetKeys replaces the credentials with keys.
