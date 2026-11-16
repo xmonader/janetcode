@@ -466,6 +466,7 @@ func (b *agentBuilder) stepCore() error {
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},
 			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
+			b.renderHTML(),
 			b.expand,
 			b.task,
 			&agent.SendSubagentMessage{Task: b.task},
@@ -729,6 +730,23 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.Intent = d.cfg.IntentEnabled() && !b.off["intent"]
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow, Slim: b.slim()})
 	return nil
+}
+
+// renderHTML is the tool that attaches an HTML page to the turn. Pages are
+// stored beside the session file, so they replay on resume and go with the
+// session when it is deleted.
+func (b *agentBuilder) renderHTML() tool.Tool {
+	sess := b.sess
+	return tool.RenderHTML{Root: b.d.cwd, WS: b.ws, Save: func(title string, html []byte) (int, string, error) {
+		if err := sess.EnsureWritten(); err != nil {
+			return 0, "", err
+		}
+		p, err := session.SavePage(sess.Path(), title, html)
+		if err != nil {
+			return 0, "", err
+		}
+		return p.N, session.PagePath(sess.Path(), p.N), nil
+	}}
 }
 
 // headlessHold is how long a foreground command may hold a headless turn
