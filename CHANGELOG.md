@@ -161,6 +161,26 @@ and measurements behind each round are in `docs/notes/history.md`.
   stops the process and refuses later calls. Grants are kept in
   `extensions.json`, which the model cannot edit.
 
+### Security report and release evidence (issue #10)
+- `janetcode --doctor security` (also `--output-format json`), `/doctor
+  security` and `/inspect security` report the local binary (source commit,
+  whether the tree was modified, build flags, sha256), the sandbox (what this
+  machine can run and why not, kept apart from "off because you did not ask":
+  `enabled`, `disabled-by-choice`, `unavailable`, `requested-unavailable`),
+  the trust stores, every provider endpoint and where its key comes from, the
+  MCP configuration and the privacy settings. No credential is printed. It
+  exits non-zero when a check fails.
+- `make release-evidence` writes provenance, an SPDX SBOM, a licence inventory
+  and a covering `SHA256SUMS` from the built binaries; `make verify-dist`
+  checks them (and a gpg signature from `make release-sign`); `make
+  repro-check` rebuilds from a fresh clone and compares bytes; `make
+  release-gates` records each gate's command, commit and result.
+- `docs/manual/security.md`: threat model, known limitations (Windows safety
+  classification, remote workspace trust, provider-specific guarantees),
+  sandbox backends and fallback, telemetry and retention, every outbound
+  endpoint, and how to verify a release on a clean machine. A test fails when
+  it drifts from the code.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)

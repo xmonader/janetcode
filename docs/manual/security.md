@@ -45,7 +45,7 @@ The sandbox wraps `bash` only. The file tools (`read_file`, `edit_file`, `write_
 
 ### Windows safety classification
 
-The command classifier that decides whether a shell command is read-only, writes inside the workspace or is destructive understands POSIX shell. On Windows, `cmd.exe` and PowerShell syntax (`del /s`, `Remove-Item -Recurse`, `&` chaining, `^` escapes) are only partly recognised, so a command may be classified as safer than it is and an approval prompt may under-describe it. The Windows build is cross-compiled and exercised under Wine in tests, not on a Windows runner. There is no Windows sandbox backend. Treat approvals on Windows as the only barrier and read each command.
+The command classifier that decides whether a shell command is read-only, writes inside the workspace or is destructive understands POSIX shell. On Windows, `cmd.exe` and PowerShell syntax (`del /s`, `Remove-Item -Recurse`, `&` chaining, `^` escapes) are only partly recognised, so a command may be classified as safer than it is and an approval prompt may under-describe it. The Windows build is cross-compiled in every run and exercised under Wine locally; the CI workflow also runs the suite on a Windows runner, but a run on one is not part of the evidence unless `gates.json` says so. There is no Windows sandbox backend. Treat approvals on Windows as the only barrier and read each command.
 
 ### Remote workspace trust
 

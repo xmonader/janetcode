@@ -199,3 +199,19 @@ func TestDoctorUnknownTopicIsRejected(t *testing.T) {
 		t.Fatalf("exit code %d, want bad input", headless.ExitCode(err))
 	}
 }
+
+// A fresh machine (CI, a clean container) has no config and no keys: the
+// report still runs and says so rather than failing.
+func TestDoctorSecurityWithNoConfigAtAll(t *testing.T) {
+	_, cfgDir := extProject(t)
+	if err := os.Remove(filepath.Join(cfgDir, "config.json")); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := securityDoctorMode(context.Background(), &out, config.Overrides{}, "", false, false); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "Sandbox") || !strings.Contains(out.String(), "no security check failed") {
+		t.Fatalf("report:\n%s", out.String())
+	}
+}

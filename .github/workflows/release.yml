@@ -22,6 +22,11 @@ jobs:
         run: go test ./...
       - name: build
         run: make dist VERSION=${{ github.ref_name }}
+      # Provenance, SBOM, licence inventory and a SHA256SUMS that covers them,
+      # derived from the binaries just built; the job fails on a binary built
+      # from another commit, a copyleft licence, or a sum that does not verify.
+      - name: release evidence
+        run: make release-evidence verify-dist VERSION=${{ github.ref_name }}
       - name: publish
         env:
           GH_TOKEN: ${{ github.token }}
