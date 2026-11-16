@@ -149,3 +149,19 @@ func TestRenderHTMLImageSizeCaps(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestRenderHTMLCardIsOneLineWithTitleAndPath(t *testing.T) {
+	r, root, _ := newRender(t)
+	out, err := r.Run(context.Background(), renderInput(`He said "hi"`, "<p>x</p>"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := r.RenderResult(nil, out, RenderContext{})
+	want := `▣ He said "hi" · ` + filepath.Join(root, "page.html")
+	if len(lines) != 1 || lines[0] != want {
+		t.Errorf("card = %q, want [%q]", lines, want)
+	}
+	if got := r.RenderResult(nil, "Error: boom", RenderContext{}); got != nil {
+		t.Errorf("a non-page result should fall back to the default fold, got %q", got)
+	}
+}

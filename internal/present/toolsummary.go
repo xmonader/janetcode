@@ -63,7 +63,7 @@ func ToolSummary(name, raw string, max int, cwd string) string {
 		}
 		return Clip(sum, max)
 	}
-	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
+	for _, k := range []string{"command", "pattern", "path", "url", "description", "title"} {
 		v, ok := m[k].(string)
 		if !ok {
 			continue

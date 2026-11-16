@@ -73,3 +73,12 @@ func TestToolSummaryOfStreamingArguments(t *testing.T) {
 		}
 	}
 }
+
+// render_html's arguments are a whole HTML document; the line names the
+// page by its title instead of printing the markup.
+func TestToolSummaryNamesAPageByTitle(t *testing.T) {
+	got := ToolSummary("render_html", `{"title":"Q3 revenue","html":"<html>`+strings.Repeat("x", 500)+`</html>"}`, 80, "/w")
+	if got != "Q3 revenue" {
+		t.Errorf("summary = %q, want the title", got)
+	}
+}
