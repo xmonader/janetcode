@@ -142,6 +142,12 @@ type options struct {
 	bg                  bool
 	// addDir collects --add-dir, which is repeatable.
 	addDir stringList
+	// fileMode, admit and attach are the file admission flags: --file-mode
+	// picks workspace or explicit, --admit and --attach (repeatable) name
+	// the paths that may be edited and the read-only context.
+	fileMode string
+	admit    stringList
+	attach   stringList
 	// sets collects --set key=value, repeatable: the config keys /config
 	// sets in a session, for the run that has no session to type in.
 	sets stringList
@@ -155,7 +161,7 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "w", "add-dir", "theme", "plain", "screen-reader"}},
+	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "w", "add-dir", "file-mode", "admit", "attach", "theme", "plain", "screen-reader"}},
 	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "core-tools", "exclude-tools", "safe-mode", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version", "debug", "list-models"}},
@@ -374,6 +380,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.webAddr, "web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
 	fs.BoolVar(&o.bg, "bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>. What its permission mode asks about waits for --answer; add --yolo to allow everything")
 	fs.Var(&o.addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
+	fs.StringVar(&o.fileMode, "file-mode", "", "which files the model may edit: workspace (the default: anything under the working directory the other rules allow) or explicit (only what --admit and /admit name; reads are unchanged). A session remembers its mode and list across --resume; the flag overrides what it remembered")
+	fs.Var(&o.admit, "admit", "admit a file or directory for editing (repeatable); with --file-mode explicit, edits to any other file are refused with the command that admits it")
+	fs.Var(&o.attach, "attach", "attach a file or directory as read-only context (repeatable): the model is told it was sent, and it cannot be edited until admitted")
 	fs.Var(&o.sets, "set", "set a config key for this run, e.g. --set escalate_after=1 --set decisions.triage=true (repeatable). The keys are the ones /config takes, including the model slots and the decisions block; nothing is written to the config file. --inspect config lists them")
 	return fs, o
 }

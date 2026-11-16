@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/admit"
 	"github.com/xmonader/janetcode/internal/delegate"
 	"os"
 	"path/filepath"
@@ -212,6 +213,9 @@ type agentDeps struct {
 	running *tool.Running
 	// extraDirs are additional local roots file tools may use (--add-dir).
 	extraDirs []string
+	// fileMode, admit and attach are this run's file admission flags.
+	fileMode      string
+	admit, attach []string
 	// symbols is the grammar-backed parser the repository map reads
 	// non-Go languages with, nil in a build without the grammars. The
 	// composition root supplies it; repomap registers nothing itself.
@@ -430,6 +434,39 @@ func (b *agentBuilder) stepWorkspace() error {
 	if extras := b.ws.ExtraDirs(); len(extras) > 0 {
 		_ = b.sess.SetExtraDirs(extras)
 	}
+	return b.stepAdmission()
+}
+
+// stepAdmission restores the session's file admission policy and applies
+// this run's --file-mode, --admit and --attach on top of it. What the
+// session recorded came from a person; a path from this command line
+// that cannot be admitted (outside the roots, ignored) is an error,
+// because the user just asked for it.
+func (b *agentBuilder) stepAdmission() error {
+	pol := b.ws.Admission()
+	if st := b.sess.Meta.Admission; st != nil {
+		pol.Restore(*st)
+	}
+	if b.d.fileMode != "" {
+		m, err := admit.ParseMode(b.d.fileMode)
+		if err != nil {
+			return fmt.Errorf("--file-mode: %w", err)
+		}
+		pol.SetMode(m)
+	}
+	for _, p := range b.d.admit {
+		if _, err := b.ws.Admit(p, false); err != nil {
+			return fmt.Errorf("--admit %s: %w", p, err)
+		}
+	}
+	for _, p := range b.d.attach {
+		if _, err := b.ws.Admit(p, true); err != nil {
+			return fmt.Errorf("--attach %s: %w", p, err)
+		}
+	}
+	if st := pol.Snapshot(); !st.Zero() || b.sess.Meta.Admission != nil {
+		_ = b.sess.SetAdmission(st)
+	}
 	return nil
 }
 
@@ -526,6 +563,7 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
+	ag.Workspace = b.ws
 	// The post-green checks (spec review, edge rules, the stale-check
 	// correction, plan carry) run only on risky turns: on realrepo bug
 	// fixes they fired on 7 of 10 correct fixes, a round each.

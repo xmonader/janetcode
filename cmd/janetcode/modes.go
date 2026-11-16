@@ -257,6 +257,7 @@ func (r *root) headlessMode() error {
 	for _, a := range atts {
 		fmt.Fprintf(os.Stderr, "[attached] %s\n", a.Path)
 	}
+	agent.NoteMentions(ag.Workspace, sess, prompt.Paths(atts))
 	// A stream-json conversation is stdin; it is read a line at a time
 	// as the run goes, never slurped into the first prompt.
 	var input io.Reader

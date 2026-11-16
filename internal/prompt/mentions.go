@@ -249,3 +249,12 @@ func CompletePath(cwd, partial string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// Paths are the paths of the attachments, as typed.
+func Paths(atts []Attachment) []string {
+	out := make([]string, 0, len(atts))
+	for _, a := range atts {
+		out = append(out, a.Path)
+	}
+	return out
+}

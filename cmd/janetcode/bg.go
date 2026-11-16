@@ -193,6 +193,13 @@ func bgRunArgs(o *options) []string {
 		args = append(args, "--compact-at="+strconv.Itoa(o.compactAt))
 	}
 	str("until", o.until)
+	str("file-mode", o.fileMode)
+	for _, p := range o.admit {
+		args = append(args, "--admit="+p)
+	}
+	for _, p := range o.attach {
+		args = append(args, "--attach="+p)
+	}
 	str("append-system-prompt", o.appendSystem)
 	for _, kv := range o.sets {
 		str("set", kv)

@@ -56,6 +56,15 @@ func mcpServeMode(o *options) error {
 	if o.appendSystem != "" {
 		args = append(args, "--append-system-prompt", o.appendSystem)
 	}
+	if o.fileMode != "" {
+		args = append(args, "--file-mode", o.fileMode)
+	}
+	for _, p := range o.admit {
+		args = append(args, "--admit", p)
+	}
+	for _, p := range o.attach {
+		args = append(args, "--attach", p)
+	}
 	for _, d := range o.addDir {
 		args = append(args, "--add-dir", d)
 	}
