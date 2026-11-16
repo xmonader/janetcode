@@ -290,6 +290,7 @@ for a second press before quitting, so a stray one never closes a session.
 The full manual lives in [`docs/manual/`](docs/manual/README.md):
 
 - [The interface](docs/manual/interface.md) — keys, commands, permission rules, and every feature below
+- [Security and release evidence](docs/manual/security.md) — threat model, sandbox backends, telemetry and retention, endpoints, verifying a release, `janetcode --doctor security`
 - [Configuration](docs/manual/configuration.md) — the config file, providers, prices (config, provider listing, or LiteLLM's rate table), routes, project instructions
 - [Sessions](docs/manual/sessions.md) — resume, fork, search, compaction, snapshots
 - [Evals](docs/manual/evals.md) — the task format, runs, comparisons, ablations
