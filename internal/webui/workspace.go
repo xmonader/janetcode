@@ -450,6 +450,7 @@ func (s *server) replayHistory(msgs []llm.Message, models ...[]string) {
 	// the server's lock, not to this loop.
 	open := map[string]string{}
 	inputs := map[string]string{}
+	toolNames := map[string]string{}
 	for mi, m := range msgs {
 		model := ""
 		if mi < len(modelAt) {
@@ -477,6 +478,7 @@ func (s *server) replayHistory(msgs []llm.Message, models ...[]string) {
 				open[b.ID] = s.add(entry{Kind: "tool", Name: b.Name, CallID: b.ID, Running: true,
 					Summary: present.ToolSummary(b.Name, string(b.Input), 80, s.cwd())})
 				inputs[b.ID] = string(b.Input)
+				toolNames[b.ID] = b.Name
 			case llm.BlockToolResult:
 				id, ok := open[b.ToolUseID]
 				if !ok {
@@ -492,6 +494,9 @@ func (s *server) replayHistory(msgs []llm.Message, models ...[]string) {
 					e.Error = end.Failed
 					e.Output = textfmt.Clip(end.Output, 4000)
 				})
+				if !b.IsError && toolNames[b.ToolUseID] == "render_html" {
+					s.addPage(b.Text)
+				}
 			}
 		}
 	}

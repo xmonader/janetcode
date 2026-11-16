@@ -12,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type entry struct {
@@ -69,6 +70,28 @@ func (s *server) sheet(title, body string) {
 // a fixed-width text sheet.
 func (s *server) card(kind string, data any) {
 	s.add(entry{Kind: kind, Data: data})
+}
+
+// pageData is the payload of a "page" entry: which stored page the
+// front-end frames. The sid pins the entry to the session that owns the
+// page, so it still resolves after the page switches sessions.
+type pageData struct {
+	SID   string `json:"sid"`
+	N     int    `json:"n"`
+	Title string `json:"title"`
+}
+
+// addPage adds the card for a render_html result: the page itself, shown
+// in a sandboxed frame by the front-end.
+func (s *server) addPage(result string) {
+	n, ok := tool.PageResultN(result)
+	cur := s.sess()
+	if !ok || cur == nil {
+		return
+	}
+	s.closeOpen()
+	s.add(entry{Kind: "page", Name: tool.PageResultTitle(result), Done: true,
+		Data: pageData{SID: cur.Meta.ID, N: n, Title: tool.PageResultTitle(result)}})
 }
 
 func (s *server) notice(text string) {
@@ -157,6 +180,9 @@ func (s *server) apply(ev agent.Event) {
 			e.Output, e.Error, e.Dur = end.Output, end.Failed, end.Label
 			e.Denied = ev.Denied
 		})
+		if ev.Call != nil && ev.Call.Name == "render_html" && !ev.IsError {
+			s.addPage(ev.Output)
+		}
 		// The tool row already says it finished. Leaving the phase on the
 		// tool made the status line keep spinning that command while the
 		// model thought about the result.

@@ -562,6 +562,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/complete", s.completeAPI)
 	mux.HandleFunc("/api/suggest", s.suggestAPI)
 	mux.HandleFunc("/api/mermaid", s.mermaidAPI)
+	mux.HandleFunc("/page/", s.pageAPI)
 	return mux
 }
 
