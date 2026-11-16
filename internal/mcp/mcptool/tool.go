@@ -27,23 +27,37 @@ type Tool struct {
 	Client *mcp.Client
 	Info   mcp.ToolInfo
 	name   string
+	// gate, when set, is asked before every call (see Manager.Policy).
+	gate Gate
 }
+
+// Gate decides whether one use of a server may go ahead: server and tool
+// are the server's own names, mutating is the tool's answer to Mutating
+// (false for a resource read). A non-nil error refuses it and is the
+// reason shown to the model.
+type Gate func(server, tool string, mutating bool) error
 
 // AgentTools wraps every tool of the client, named mcp__<server>__<tool>.
 // Servers with resources also get list_resources and read_resource tools.
-func AgentTools(c *mcp.Client) []tool.Tool {
+func AgentTools(c *mcp.Client) []tool.Tool { return agentTools(c, nil) }
+
+// agentTools is AgentTools with every tool asking gate before it runs.
+func agentTools(c *mcp.Client, gate Gate) []tool.Tool {
 	var out []tool.Tool
 	for _, info := range c.Tools() {
-		out = append(out, &Tool{Client: c, Info: info, name: mcp.ToolName(c.Name, info.Name)})
+		out = append(out, &Tool{Client: c, Info: info, name: mcp.ToolName(c.Name, info.Name), gate: gate})
 	}
 	if c.Capabilities.Resources {
-		out = append(out, &resourceListTool{c}, &resourceReadTool{c})
+		out = append(out, &resourceListTool{c: c, gate: gate}, &resourceReadTool{c: c, gate: gate})
 	}
 	return out
 }
 
 // resourceListTool exposes resources/list to the model.
-type resourceListTool struct{ c *mcp.Client }
+type resourceListTool struct {
+	c    *mcp.Client
+	gate Gate
+}
 
 func (t *resourceListTool) Name() string { return mcp.ToolName(t.c.Name, "list_resources") }
 func (t *resourceListTool) Description() string {
@@ -54,6 +68,11 @@ func (t *resourceListTool) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 }
 func (t *resourceListTool) Run(ctx context.Context, _ json.RawMessage) (string, error) {
+	if t.gate != nil {
+		if err := t.gate(t.c.Name, "list_resources", false); err != nil {
+			return "", err
+		}
+	}
 	if err := t.c.Err(); err != nil {
 		return "", downError(t.c.Name, err)
 	}
@@ -86,7 +105,10 @@ func (t *resourceListTool) Run(ctx context.Context, _ json.RawMessage) (string, 
 }
 
 // resourceReadTool exposes resources/read to the model.
-type resourceReadTool struct{ c *mcp.Client }
+type resourceReadTool struct {
+	c    *mcp.Client
+	gate Gate
+}
 
 func (t *resourceReadTool) Name() string { return mcp.ToolName(t.c.Name, "read_resource") }
 func (t *resourceReadTool) Description() string {
@@ -102,6 +124,11 @@ func (t *resourceReadTool) Run(ctx context.Context, input json.RawMessage) (stri
 	}
 	if err := json.Unmarshal(input, &in); err != nil || strings.TrimSpace(in.URI) == "" {
 		return "", fmt.Errorf("uri is required")
+	}
+	if t.gate != nil {
+		if err := t.gate(t.c.Name, "read_resource", false); err != nil {
+			return "", err
+		}
 	}
 	if err := t.c.Err(); err != nil {
 		return "", downError(t.c.Name, err)
@@ -202,6 +229,11 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 }
 
 func (t *Tool) RunRich(ctx context.Context, input json.RawMessage) (tool.Result, error) {
+	if t.gate != nil {
+		if err := t.gate(t.Client.Name, t.Info.Name, t.Mutating()); err != nil {
+			return tool.Result{}, err
+		}
+	}
 	if err := t.Client.Err(); err != nil {
 		return tool.Result{}, downError(t.Client.Name, err)
 	}

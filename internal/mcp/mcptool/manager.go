@@ -29,6 +29,12 @@ type Manager struct {
 	// with the reason. The managed policy's allowed_mcp_servers is
 	// enforced here, the one place every server is started from.
 	Allowed func(name string) error
+	// Policy, when set, is the user's staged trust for each server: it
+	// is asked before a server starts (CheckConnect) and before every
+	// call (CheckCall, see Gate). Calls are checked when they run, not
+	// when the tools are registered, so disabling a server takes effect
+	// on the tool objects a turn already holds.
+	Policy Policy
 
 	// mu guards every map below and closed. Nothing reads them without
 	// it, and no client is started or closed while it is held.
@@ -58,6 +64,24 @@ type Manager struct {
 	// gen counts Stops per name; a reconnect begun before a Stop does
 	// not bring the server back after it.
 	gen map[string]int
+}
+
+// Policy is what the manager asks about a server's staged trust.
+type Policy interface {
+	// CheckConnect refuses to start the server.
+	CheckConnect(name string) error
+	// CheckCall refuses one use of it; see Gate.
+	CheckCall(server, tool string, mutating bool) error
+}
+
+// Permit asks the policy whether one use of a server may go ahead, for
+// a front end that uses a server's prompts or resources without going
+// through a tool. It allows everything when no policy is set.
+func (m *Manager) Permit(server, tool string, mutating bool) error {
+	if m.Policy == nil {
+		return nil
+	}
+	return m.Policy.CheckCall(server, tool, mutating)
 }
 
 // launchSpec is what a server was started with, for reconnecting it. It
@@ -204,6 +228,16 @@ func (m *Manager) begin(name string, gen int, onDone func(name string, c *mcp.Cl
 	if m.closed || !ok || m.starting[name] || m.clients[name] != nil || (gen >= 0 && m.gen[name] != gen) {
 		m.mu.Unlock()
 		return false
+	}
+	if m.Policy != nil {
+		if err := m.Policy.CheckConnect(name); err != nil {
+			m.errs[name] = err
+			m.mu.Unlock()
+			if onDone != nil {
+				go onDone(name, nil, err)
+			}
+			return true
+		}
 	}
 	if m.Allowed != nil {
 		if err := m.Allowed(name); err != nil {
@@ -367,7 +401,11 @@ func (m *Manager) register(c *mcp.Client) {
 	if m.Registry == nil || c == nil {
 		return
 	}
-	tools := AgentTools(c)
+	var gate Gate
+	if m.Policy != nil {
+		gate = m.Policy.CheckCall
+	}
+	tools := agentTools(c, gate)
 	deferAbove := m.DeferAbove
 	if deferAbove == 0 {
 		deferAbove = DefaultDeferAbove
