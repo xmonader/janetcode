@@ -5,6 +5,19 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased (since v0.2.0, 2026-09-10)
 
+### Secrets (2026-11-16)
+- `request_secret` tool: the model asks for a token or password in a
+  private prompt (masked in the terminal, a password field in the web UI)
+  instead of in the chat. The value is exported to the bash tool as
+  `$JANETCODE_SECRET_<NAME>` for the session, registered with the
+  credential redaction, and never enters the history, session file,
+  trajectory, event stream or logs. Declining returns a plain refusal;
+  headless, background, ACP and away runs refuse instead of hanging.
+- `op://vault/item/field` references are accepted wherever a provider API
+  key is configured. They are read with `op read` when the provider is
+  built, never written back to the config, and an unreadable reference is
+  named in the error.
+
 ### Loop fixes (2026-11-10)
 - A provider failure that arrives mid-stream (a 5xx or 429 error frame
   after the stream opened) is retried instead of ending the turn.

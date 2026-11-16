@@ -1294,6 +1294,35 @@ simply cannot connect. `JANETCODE_SANDBOX_BACKEND` and
 `JANETCODE_SANDBOX_IMAGE` pick the backend and docker image for a run,
 as `/sandbox landlock` and `/sandbox <image>` do in a session.
 
+### When the model needs a secret: `request_secret`
+
+A model that needs a token or password to run a command is told to use
+the `request_secret` tool instead of asking you to paste it into the
+chat. It gives a name, why it needs the secret and how it will use it.
+You see those words in a private prompt: in the terminal the field is
+masked, in the browser it is a password field with **Save securely** and
+**Decline** buttons. Enter or Save sends it; Esc, an empty answer or
+Decline refuses, and the model is told only "The user declined to provide
+the secret."
+
+The value never enters the conversation. The model is told that the
+secret is available as `$JANETCODE_SECRET_<NAME>` (the name upper-cased,
+anything but letters and digits turned into `_`), and the variable is set
+for every command the bash tool runs for the rest of the session, in the
+sandbox backends too. The value is not in the session file, the
+trajectory, the event stream the browser reads, the prompt history or any
+log. Output that contains it is redacted like any other credential, so a
+command that prints it shows `[redacted]` to the model. It lives in
+memory only: when you quit, or resume the session later, it is gone and
+the model has to ask again.
+
+A request is refused with a clear message, and nothing hangs, where no
+one can answer privately: headless `-p`, `--bg` runs, ACP, away mode and
+subagents. Values shorter than four characters are not accepted, since
+they cannot be redacted safely. A command running on a remote workspace
+does not receive the variable. For a credential janetcode itself needs,
+use an `op://` reference in the config instead (see Configuration).
+
 ### Untrusted content: the tainted session
 
 Every tool result is labelled by where it came from. Your prompt and

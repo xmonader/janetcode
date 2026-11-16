@@ -114,6 +114,20 @@ A generic key makes both available, with Go first during provider inference.
 An explicit `key_env` overrides these default lookups. Environment keys
 are never written to the config file.
 
+A key does not have to be written in the config at all. Anywhere a
+provider key is configured (`api_key`, `api_keys`, or the variable
+`key_env` names), a 1Password reference such as
+`op://Private/OpenRouter/credential` is accepted. janetcode runs
+`op read <reference>` when it builds the provider and uses the value for
+that run only: the config file keeps the reference, and saving the
+config (`/connect`, `/model`) never writes the value into it. The value
+is kept in memory for five minutes, so a rotated credential is picked up
+on the next provider build after that. `op` must be installed and signed
+in on the machine janetcode runs on; on a remote or headless machine
+sign it in with a service account, since a desktop approval cannot be
+answered there. If `op` is missing, locked, or the reference is wrong,
+the provider fails to start with an error that names the reference.
+
 Use `--provider opencode-go --model kimi-k3` or the equivalent
 `--model opencode-go/kimi-k3`; Zen accepts the same provider/model syntax.
 Both default to `kimi-k3` when no model is selected. The presets use
