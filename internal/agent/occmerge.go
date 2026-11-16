@@ -304,6 +304,9 @@ func (t *Task) mergeRefused(root string, paths []string) string {
 	if ps.readOnly() {
 		return "the session is read-only"
 	}
+	if why := t.mergeNotAdmitted(root, paths); why != "" {
+		return why
+	}
 	rules := p.RulesSnapshot()
 	for _, rel := range paths {
 		input, _ := json.Marshal(map[string]string{"path": filepath.Join(root, filepath.FromSlash(rel))})

@@ -41,6 +41,9 @@ func (a *Agent) toolGate(t tool.Tool, input json.RawMessage) (reason string, den
 	if s := a.Settings(); s.readOnly() {
 		return fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", t.Name(), s.modeName()), true
 	}
+	if reason := a.admitGate(t, input); reason != "" {
+		return reason, true
+	}
 	if reason := a.locks().WritingDenial(t, input); reason != "" {
 		return reason, true
 	}
@@ -57,6 +60,7 @@ func (a *Agent) modeSystem() string {
 			text += planSystem
 		}
 	}
+	text += a.admitSystem()
 	if !a.Off["accept"] {
 		text += a.accept.Load().SystemText()
 	}

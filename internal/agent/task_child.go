@@ -284,6 +284,9 @@ func (t *Task) forkChild() (*Agent, error) {
 	// the session's changes: they belong in the parent's checkpoint, or
 	// /undo cannot revert them.
 	child.UndoOwner = p
+	// A fork edits the session's own tree, so the session's file admission
+	// holds for it: its shell calls are judged like the parent's.
+	child.Workspace = p.Workspace
 	child.Ledger = p.PermLedger()
 	child.Protected = p.Protected
 	child.EgressPolicy = p.EgressPolicy

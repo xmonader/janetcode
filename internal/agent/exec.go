@@ -747,12 +747,14 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	var pend []pending
 	var tamperedBefore string
 	var shellBefore bashAuditState
+	var admitSnapBefore *admitSnap
 	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		// A locked file changed outside any tool call is put back before
 		// this call runs, so the note after it never blames this call.
 		tamperedBefore = a.acceptRestoreTampered("", emit)
 		pend = a.before(t, u.Input)
 		shellBefore = a.bashAuditBefore(ctx, u)
+		admitSnapBefore = a.admitBefore(ctx, u)
 	}
 	// A bash call that looks like `git commit` gets HEAD read before it
 	// runs, so a move can be detected after: see checkCommitAttach. The
@@ -783,6 +785,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		out += a.scopeAfter(u, intent, pend)
 	}
 	a.bashAuditAfter(ctx, u, shellBefore)
+	admitNote := a.admitAfter(ctx, admitSnapBefore)
 	if ctx.Err() != nil && err != nil {
 		// The call was interrupted before it produced a result. It was
 		// announced with EvToolRun, so it is closed here with the text
@@ -822,6 +825,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			}
 		}
 	}
+	out += admitNote
 	if checkingCommit && !isErr {
 		a.checkCommitAttach(ctx, commitPreHead, emit)
 	}
@@ -1073,11 +1077,13 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	var pend []pending
 	var tamperedBefore string
 	var shellBefore bashAuditState
+	var admitSnapBefore *admitSnap
 	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		tamperedBefore = a.acceptRestoreTampered("", emit)
 		a.snapshotBefore(ctx, t, u.Input, emit)
 		pend = a.before(t, u.Input)
 		shellBefore = a.bashAuditBefore(ctx, u)
+		admitSnapBefore = a.admitBefore(ctx, u)
 	}
 	start := time.Now()
 	if err := a.persistenceErr(); err != nil {
@@ -1085,6 +1091,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	}
 	out, _, runErr := a.runSafely(ctx, t, u.Input)
 	a.bashAuditAfter(ctx, u, shellBefore)
+	admitNote := a.admitAfter(ctx, admitSnapBefore)
 	dur := time.Since(start)
 	// What a script read enters the context through the script's own
 	// output, so it labels the session like a direct call would.
@@ -1109,6 +1116,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 			}
 		}
 	}
+	out += admitNote
 	// The post-tool hooks fire for a script's call like a direct one.
 	for _, ev := range []string{hook.PostTool, hook.PostToolFailure} {
 		if ev == hook.PostToolFailure && !isErr {

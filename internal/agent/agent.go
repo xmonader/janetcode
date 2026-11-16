@@ -432,6 +432,9 @@ type Agent struct {
 	// build time and thereafter only through SetRoot, which /cd calls
 	// while a turn may be reading it; read it back with RootDir.
 	Root string
+	// Workspace is the workspace the file tools run through. The agent reads
+	// its file admission policy (see admit.go); nil in a session with none.
+	Workspace *tool.Workspace
 	// ProofNotes gates the automatic side of internal/proof: when a bash
 	// call this session runs looks like `git commit` and HEAD actually
 	// moves, evidence for this session's part of that commit is attached
