@@ -16,10 +16,10 @@ import (
 	"github.com/xmonader/janetcode/internal/fsutil"
 )
 
-// MaxPageBytes caps one rendered page. A page is HTML the model wrote, so
-// 2 MiB is far more than a chart or a table needs and still small enough
-// that a runaway loop cannot fill the disk one turn at a time.
-const MaxPageBytes = 2 << 20
+// MaxPageBytes is the hard ceiling on one stored page. The render_html
+// tool caps the HTML the model writes at 2 MiB; this is the room left for
+// the images it embeds afterwards.
+const MaxPageBytes = 16 << 20
 
 // Page is the metadata of one HTML page attached to a session by the
 // render_html tool. The page body is <id>.page-<n>.html beside the
@@ -56,7 +56,7 @@ func SavePage(sessionPath, title string, html []byte) (Page, error) {
 		return Page{}, errors.New("html is empty")
 	}
 	if len(html) > MaxPageBytes {
-		return Page{}, fmt.Errorf("page is %d bytes; the limit is %d (2 MiB). Trim it, or load large data from a CDN", len(html), MaxPageBytes)
+		return Page{}, fmt.Errorf("page is %d bytes; the limit is %d (16 MiB)", len(html), MaxPageBytes)
 	}
 	if sessionPath == "" {
 		return Page{}, errors.New("no session to attach the page to")
