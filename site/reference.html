@@ -122,7 +122,7 @@
 <tr><td><code>/ssh</code></td><td><code>[user@host[:/path]|off]</code></td><td>run file tools and bash on a remote host over ssh; off returns here</td></tr>
 <tr><td><code>/docker</code></td><td><code>[container[:/path]|off]</code></td><td>run file tools and bash in a docker container; off returns here</td></tr>
 <tr><td><code>/readonly</code></td><td></td><td>toggle read-only mode (no edits or commands)</td></tr>
-<tr><td><code>/checkpoints</code></td><td></td><td>the restore points, what each covers and whether it is complete; enter previews restoring to before that turn</td></tr>
+<tr><td><code>/checkpoints</code></td><td><code>[diff &lt;a&gt; [&lt;b&gt;|now] | export &lt;a&gt; [&lt;b&gt;|now] [path] | commit &lt;n&gt; [message] | commit apply]</code></td><td>the restore points, what each covers and whether it is complete; enter previews restoring to before that turn. diff compares two checkpoints or one with the work tree, export writes that as a patch, commit previews a git commit of one turn's files (attribution shown first) and commit apply makes it; nothing is committed unless you ask</td></tr>
 <tr><td><code>/dryrun</code></td><td>[on|off|show|apply [n,m…]|discard]</td><td>dry run: edits go to a preview, commands that change things are recorded but not run; apply writes the files</td></tr>
 <tr><td><code>/memory</code></td><td></td><td>what janetcode remembers about this project</td></tr>
 <tr><td><code>/skills</code></td><td></td><td>skill files available to the model</td></tr>

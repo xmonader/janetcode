@@ -660,15 +660,25 @@
   // fetch reject, the promise went unhandled and the caller never learned
   // the message had gone nowhere.
   // checkpointsCardHTML draws /checkpoints: newest first, each restore
-  // point with what it covers and a button that previews restoring the
-  // tree to before that turn; Apply carries out the last preview.
+  // point with what it covers and buttons that preview restoring the tree
+  // to before that turn, compare it with the work tree, export that as a
+  // patch, or preview an opt-in git commit of the turn's files. Apply
+  // carries out the last restore preview; the forced form overwrites
+  // files edited since, and is only offered as its own labelled button.
   function checkpointsCardHTML(rows) {
+    const btn = (cmd, label, title) => `<button type="button" class="act" data-cmd="${esc(cmd)}" title="${esc(title)}">${label}</button> `;
     const items = rows.map((c) =>
-      `<li><button type="button" class="act" data-cmd="/undo turn ${c.turn}" title="Preview restoring to before turn ${c.turn}">Preview</button> ` +
+      `<li>` +
+      btn(`/undo turn ${c.turn}`, "Preview restore", `Preview restoring to before turn ${c.turn}: files and messages it would revert`) +
+      btn(`/checkpoints diff ${c.turn} now`, "Compare", `Everything changed since before turn ${c.turn}, against the work tree`) +
+      btn(`/checkpoints export ${c.turn}`, "Export", `Write turn ${c.turn}'s changes as a patch file`) +
+      btn(`/checkpoints commit ${c.turn}`, "Commit...", `Preview a git commit of turn ${c.turn}'s files; nothing is committed until you confirm`) +
       `<code>${esc(c.id)}</code> ${esc(c.what)} · <span class="dim">${esc(c.coverage)}</span>` +
       (c.complete ? "" : ` <span class="warn">incomplete: ${esc((c.gaps || []).join("; "))}</span>`) + `</li>`).join("");
     return `<div class="k">checkpoints</div><ul class="checkpoints">${items}</ul>` +
-      `<div><button type="button" class="act" data-cmd="/undo apply">Apply the last preview</button></div>`;
+      `<div>` + btn("/undo apply", "Apply the last restore preview", "Refused if files were edited since the turns it undoes") +
+      btn("/undo apply --force", "Apply, overwriting edits", "Overwrite files edited since the turns being undone") +
+      btn("/checkpoints commit apply", "Make the previewed commit", "Creates the git commit the last Commit... preview showed") + `</div>`;
   }
 
   // Guest links live in guest.js.

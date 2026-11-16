@@ -258,7 +258,13 @@ func (a *Agent) checkpointPatch(ctx context.Context, span cpSpan) (CheckpointPat
 		if end != nil {
 			return CheckpointPatch{}, fmt.Errorf("turn %d has only file copies, which can be compared with the work tree (/checkpoints diff %d now) but not with another checkpoint", from.Turn, from.Turn)
 		}
-		out.Patch, out.Note = copiesPatch(a.displayRoot(), from.Files)
+		var since []Checkpoint
+		for _, cp := range cps {
+			if cp.Turn >= from.Turn && cp.Snap == nil {
+				since = append(since, cp)
+			}
+		}
+		out.Patch, out.Note = copiesPatch(a.displayRoot(), since)
 	}
 	out.Files = patchFiles(out.Patch)
 	return out, nil
@@ -277,15 +283,29 @@ func patchFiles(patch string) []string {
 	return files
 }
 
-// copiesPatch compares the file tools' copies from before a turn with
-// the files as they are now. It sees only those files: a shell command's
-// changes outside them are exactly what a checkpoint without a snapshot
-// does not hold, and the note says so.
-func copiesPatch(root string, files []Snapshot) (patch, note string) {
+// copiesPatch compares the file tools' copies from before the turns with
+// the files as they are now. Where several turns copied one file, the
+// earliest copy is the state before all of them. It sees only those
+// files: a shell command's changes outside them are exactly what a
+// checkpoint without a snapshot does not hold, and the note says so. The
+// patch is git-apply shaped.
+func copiesPatch(root string, cps []Checkpoint) (patch, note string) {
+	var files []Snapshot
+	seen := map[string]bool{}
+	for _, cp := range cps {
+		for _, f := range cp.Files {
+			if !seen[f.Path] {
+				seen[f.Path] = true
+				files = append(files, f)
+			}
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	var sb strings.Builder
 	var skipped []string
+	noEOL := false
 	for _, f := range files {
-		rel := textfmt.RelTo(root, f.Path)
+		rel := filepath.ToSlash(textfmt.RelTo(root, f.Path))
 		if f.Failed || f.TooLarge {
 			skipped = append(skipped, rel)
 			continue
@@ -299,29 +319,51 @@ func copiesPatch(root string, files []Snapshot) (patch, note string) {
 			}
 			before = string(data)
 		}
-		now, err := os.ReadFile(f.Path)
-		switch {
-		case err != nil && !errors.Is(err, os.ErrNotExist):
+		nowB, err := os.ReadFile(f.Path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			skipped = append(skipped, rel)
 			continue
-		case err != nil && !f.Existed:
-			continue // created and gone again: no change
-		case err != nil:
-			fmt.Fprintf(&sb, "diff --git a/%s b/%s\ndeleted file mode 100644\n", rel, rel)
-			sb.WriteString(diff.Unified(rel, before, "", 3))
+		}
+		gone := err != nil
+		now := string(nowB)
+		switch {
+		case gone && !f.Existed:
+			continue // created and removed again: no change
+		case gone:
+			now = ""
+		case !f.Existed:
+			before = ""
+		}
+		for _, c := range []string{before, now} {
+			if c != "" && !strings.HasSuffix(c, "\n") {
+				noEOL = true
+			}
+		}
+		u := diff.Unified(rel, before, now, 3)
+		if u == "" {
 			continue
 		}
-		if !f.Existed {
-			fmt.Fprintf(&sb, "diff --git a/%s b/%s\nnew file mode 100644\n", rel, rel)
-			sb.WriteString(diff.Unified(rel, "", string(now), 3))
-			continue
+		// diff.Unified names the file on both header lines; git wants
+		// a/ and b/ prefixes, and /dev/null for a file that is not there.
+		_, body, _ := strings.Cut(u, "+++ "+rel+"\n")
+		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", rel, rel)
+		oldName, newName := "a/"+rel, "b/"+rel
+		switch {
+		case gone:
+			sb.WriteString("deleted file mode 100644\n")
+			newName = "/dev/null"
+			body = strings.Replace(body, " +1,0 @@", " +0,0 @@", 1)
+		case !f.Existed:
+			sb.WriteString("new file mode 100644\n")
+			oldName = "/dev/null"
+			body = strings.Replace(body, "@@ -1,0 +1,", "@@ -0,0 +1,", 1)
 		}
-		if u := diff.Unified(rel, before, string(now), 3); u != "" {
-			fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", rel, rel)
-			sb.WriteString(u)
-		}
+		fmt.Fprintf(&sb, "--- %s\n+++ %s\n%s", oldName, newName, body)
 	}
 	note = "file copies only: changes a shell command made outside the files the file tools touched are not here"
+	if noEOL {
+		note += "; a file without a final newline is shown as if it had one"
+	}
 	if len(skipped) > 0 {
 		note += "; not comparable (not captured or too large): " + strings.Join(skipped, ", ")
 	}

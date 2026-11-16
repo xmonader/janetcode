@@ -77,7 +77,7 @@ var Commands = withIdle([]Command{
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
-	{Name: "/checkpoints", Args: "", Help: "the restore points: each turn that changed something, what its checkpoint covers (whole tree or file copies), whether it is complete; enter previews restoring to before it", KeyHelp: " (esc esc opens it too)"},
+	{Name: "/checkpoints", Args: "[diff <a> [<b>|now] | export <a> [<b>|now] [path] | commit <n> [message] | commit apply]", Help: "the restore points: each turn that changed something, what its checkpoint covers (whole tree or file copies), whether it is complete; enter previews restoring to before it. diff compares two checkpoints or one with the work tree, export writes that as a patch, commit previews a git commit of one turn's files (attribution shown first) and commit apply makes it; nothing is committed unless you ask", KeyHelp: " (esc esc opens it too)"},
 	{Name: "/dryrun", Args: "[on|off|show|apply [n,m…]|discard]", Help: "dry run: the model plans and edits a preview, commands that change things are recorded but not run; show reviews it with diffs, apply writes the files (undoable), discard drops them"},
 	{Name: "/memory", Args: "[words | show <name> | about <path> | history <name> | current | why | pending | auto [on|off] [project]]", Help: "what janetcode remembers about this project"},
 	{Name: "/dream", Args: "", Help: "consolidate overlapping auto-memory entries; does not touch what you /remembered"},

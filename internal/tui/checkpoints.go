@@ -18,7 +18,14 @@ const escRewindWindow = 700 * time.Millisecond
 // session holds, what it covers and whether it is complete. Enter on one
 // previews putting the tree back to before that turn ("/undo turn n"),
 // which "/undo apply" carries out.
+//
+// With an argument it is the rest of /checkpoints, shared with the web
+// UI through the agent: diff and export compare checkpoints, commit
+// previews (and, with apply, makes) an opt-in git commit of one.
 func (m *model) cmdCheckpoints(text string, fields []string) (tea.Cmd, bool) {
+	if arg := cmdArg(text, fields); arg != "" {
+		return m.shipCommand("comparing checkpoints", m.opts.Agent.CheckpointCommand, arg), true
+	}
 	cmd := m.openCheckpoints()
 	return cmd, m.picker != nil
 }
@@ -47,7 +54,7 @@ func (m *model) openCheckpoints() tea.Cmd {
 	}
 	return m.openPicker(&picker{
 		title: "Checkpoints",
-		hint:  "enter previews restoring the tree to before that turn · /undo apply carries it out · esc closes",
+		hint:  "enter previews restoring the tree to before that turn · /undo apply carries it out (--force over edits) · /checkpoints diff|export|commit <n> · esc closes",
 		rows:  rows,
 		choose: func(r row, _ string) tea.Cmd {
 			m.closePicker()

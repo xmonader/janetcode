@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -141,6 +142,56 @@ func TestCheckpointDiffWithoutGitUsesTheFileCopies(t *testing.T) {
 		if !strings.Contains(sheet, want) {
 			t.Errorf("copies diff lacks %q:\n%s", want, sheet)
 		}
+	}
+}
+
+// The copies-only patch is a real patch: git apply takes it on the
+// tree as it was before the turn, for a modified, a created and a
+// deleted file alike.
+func TestCopiesPatchApplies(t *testing.T) {
+	root := t.TempDir()
+	gone := filepath.Join(root, "gone.txt")
+	edited := filepath.Join(root, "edited.txt")
+	made := filepath.Join(root, "made.txt")
+	if err := os.WriteFile(edited, []byte("one\ntwo\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(made, []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cps := []Checkpoint{{Turn: 1, Files: []Snapshot{
+		{Path: gone, Existed: true, Data: []byte("bye\n")},
+		{Path: edited, Existed: true, Data: []byte("one\nTWO\nthree\n")},
+		{Path: made, Existed: false},
+	}}, {Turn: 2, Files: []Snapshot{{Path: edited, Existed: true, Data: []byte("ignored: the earlier copy wins\n")}}}}
+	patch, note := copiesPatch(root, cps)
+	if !strings.Contains(note, "file copies only") {
+		t.Fatalf("note = %q", note)
+	}
+	// The state before the turns, as a clean tree.
+	clean := t.TempDir()
+	for name, body := range map[string]string{"gone.txt": "bye\n", "edited.txt": "one\nTWO\nthree\n"} {
+		if err := os.WriteFile(filepath.Join(clean, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	patchFile := filepath.Join(t.TempDir(), "p.patch")
+	if err := os.WriteFile(patchFile, []byte(patch), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "apply", patchFile)
+	cmd.Dir = clean
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git apply: %v\n%s\n--- patch:\n%s", err, out, patch)
+	}
+	if b, _ := os.ReadFile(filepath.Join(clean, "edited.txt")); string(b) != "one\ntwo\nthree\n" {
+		t.Errorf("edited.txt = %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(clean, "made.txt")); string(b) != "new\n" {
+		t.Errorf("made.txt = %q", b)
+	}
+	if _, err := os.Stat(filepath.Join(clean, "gone.txt")); err == nil {
+		t.Errorf("gone.txt survived the patch")
 	}
 }
 

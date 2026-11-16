@@ -611,7 +611,16 @@ type checkpointRow struct {
 // from, the web's counterpart of the terminal's picker. Preview runs
 // /undo turn <n>, which shows what restoring would do; Apply carries out
 // the last preview (/undo apply), as in the terminal.
+//
+// With an argument it is diff, export or commit (see agent.CheckpointCommand),
+// the same as in the terminal; the card's buttons run those.
 func (s *server) cmdCheckpoints(arg string) (bool, error) {
+	if strings.TrimSpace(arg) != "" {
+		s.runBusy("checkpoints", func(ctx context.Context) {
+			s.showResult(s.opts.Agent.CheckpointCommand(ctx, s.cwd(), arg))
+		})
+		return false, nil
+	}
 	list := s.opts.Agent.CheckpointList()
 	if len(list) == 0 {
 		s.notice("no checkpoints yet: one is taken before the first change of every turn that changes something")
