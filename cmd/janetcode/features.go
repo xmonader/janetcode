@@ -104,6 +104,8 @@ var flagWhen = map[string]string{
 	"recover":                "a background run or a scripted one died mid-turn and you want that turn carried on, not re-asked",
 	"show":                   "reading a past conversation, or one another janetcode is running, without opening it",
 	"search":                 "you remember what was said but not which session it was in",
+	"audit-replay":           "you need proof that a recorded run reproduces from its log: what the model saw, what it called, what allowed it, with no model or network",
+	"audit-export":           "you need to hand a session's audit record to someone else without leaking an API key",
 	"audit":                  "you need to show what a session did, what allowed each change, and that its record has not been altered since",
 	"init":                   "first run: a config file to edit rather than a blank one to invent",
 	"mcp-auth":               "a remote MCP server needs an OAuth login once",

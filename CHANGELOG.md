@@ -29,6 +29,17 @@ and measurements behind each round are in `docs/notes/history.md`.
 - The egress report scrubs secret-shaped values from hosts, paths and
   reasons, and the memory extractor's request is scrubbed too.
 
+### Model-visible session auditing (#12)
+- Every model call logs a `model/request` event: the model and provider,
+  and digests of the system prompt, tool schemas and messages as sent. The
+  system prompt and tools are stored in full when they change.
+- `--audit-replay <session>` rebuilds each request from the log alone,
+  joins tool calls to their authorization, result, shown text and file
+  changes, re-runs the recorded replies through the agent loop with stubbed
+  tools, and exits 1 on any divergence. No model, tool, network or provider.
+- `--audit-export <session>` writes a portable JSON bundle with API keys and
+  configured secret values removed.
+
 ## v0.3.0 (2026-11-16)
 
 ### Sandbox egress (2026-11-16)

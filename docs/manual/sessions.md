@@ -212,6 +212,48 @@ matters. A session recorded before the audit log existed gets one from its
 next event on, and the report says how many earlier events nothing vouches
 for. `--replay` prints the same verdict before it replays a recording.
 
+### What the model saw, replayed offline
+
+The audit rule is that whatever the model was shown is in the record. Each
+model call also writes a `model/request` event: the model, provider and
+reasoning tier, and the sha256 of the system prompt (with its memory, skill
+index, pins and modes), of the tool schemas and of the messages, written
+before the call is made. The system prompt and the tools are stored in full
+the first time and again only when they change. Tool results are recorded
+as the model received them, after secrets were removed from them.
+
+```
+janetcode --audit-replay <session>
+```
+
+rebuilds every request from the log alone and compares each rebuild with
+the digests written when it was sent. It joins each tool call to its
+authorization, its result (and the text the model was next shown for it)
+and the files it changed, and counts the verification gates. It then feeds
+the recorded replies back through the agent loop with read-only tools on an
+empty directory and every other tool stubbed (the same machinery as
+`--replay`) and checks that it makes the same tool calls with the same
+arguments. No model is called, no tool runs, no connection is opened, the
+workspace is not touched, and no provider or key is needed. It exits 1 when
+anything diverges: a message the model saw that no event accounts for, an
+edited system prompt or tool schema, a call whose logged arguments differ
+from what the model sent, a call with no result, a result the model was
+never shown, or a broken audit chain. A session recorded before requests
+were logged says so instead of passing.
+
+```
+janetcode --audit-export <session> > bundle.json
+```
+
+writes a portable bundle: the session record, the audit chain's head and
+verdict, the replay verdict and the events. Every string in it is passed
+through the secret scrubber, and the values of the configured providers' API
+keys, of every environment variable named like a credential and of secrets
+you typed at a prompt are removed wherever they occur. The bundle records
+how many spans were replaced; because the chain and request digests were
+computed over the unredacted record, the verdicts in the bundle are the ones
+taken at export time.
+
 A run with no one to ask — `-p` whose stdin is not a terminal — refuses
 what its mode leaves to ask by itself, and the record says so:
 `REFUSED by headless: no one to ask (deny)`, not "the user".

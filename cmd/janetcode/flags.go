@@ -106,7 +106,11 @@ type options struct {
 	// searchSess searches recorded sessions' transcripts.
 	searchSess string
 	// auditSess verifies a session's audit log.
-	auditSess    string
+	auditSess string
+	// auditReplay and auditExport replay a session offline from its log,
+	// and write its portable, redacted audit bundle.
+	auditReplay  string
+	auditExport  string
 	initProject  bool
 	initCfg      bool
 	mcpAuth      string
@@ -341,6 +345,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.fork, "fork", false, "with --resume or --continue: continue in a copy of the session, leaving the original as it was -- the way on when another janetcode has it open")
 	fs.StringVar(&o.showSess, "show", "", "print a saved session's conversation as Markdown and exit, without opening it: safe while another janetcode has it open")
+	fs.StringVar(&o.auditReplay, "audit-replay", "", "rebuild every model request of a recorded session offline from its log (system prompt, tool schemas, messages, each tool call with its authorization, result and file changes) and report any divergence from what was sent; runs no model, tool or network call and needs no credentials; exits 1 on divergence")
+	fs.StringVar(&o.auditExport, "audit-export", "", "write a session's portable audit bundle (JSON: the record, the audit chain and replay verdicts) to stdout, with API keys and configured secret values removed")
 	fs.StringVar(&o.auditSess, "audit", "", "check a session's audit log (the hash-chained record of every event: tool calls, what authorized each, the files they changed, model calls) against the session, print what it did turn by turn without running anything, then exit; exits 1 when the two do not agree")
 	fs.StringVar(&o.searchSess, "search", "", "search every saved session's conversation for these words (all of them, any case) and exit: the matching sessions, newest first, with the turn and the line that matched")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")

@@ -192,6 +192,10 @@ func offlineMode(o *options) (bool, error) {
 		return true, showSession(os.Stdout, o.showSess)
 	case o.searchSess != "":
 		return true, searchSessionsMode(os.Stdout, o.searchSess)
+	case o.auditReplay != "":
+		return true, auditReplayMode(os.Stdout, o.auditReplay)
+	case o.auditExport != "":
+		return true, auditExportMode(os.Stdout, o.auditExport)
 	case o.auditSess != "":
 		return true, auditMode(os.Stdout, o.auditSess)
 	case o.replayPath != "":

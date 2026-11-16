@@ -123,6 +123,11 @@ func secretVarName(name string) bool {
 	return false
 }
 
+// CredentialName reports whether an environment variable's name says its
+// value is a credential (OPENROUTER_API_KEY, GH_TOKEN), for callers that
+// must register every such value of the process as a secret.
+func CredentialName(name string) bool { return secretVarName(name) }
+
 // pathValue keeps SSH_AUTH_SOCK and its relatives readable: a filesystem
 // path is where a credential lives, not the credential.
 func pathValue(v string) bool {
