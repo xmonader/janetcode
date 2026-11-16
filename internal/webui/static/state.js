@@ -9,6 +9,10 @@
 //               reads:  app.js model chip/composer send/palette, switchmenu.js
 //   lastWorkspace writes: app.js refreshWorkspace
 //               reads:  app.js turn file cards, workspace pane, modemenu.js
+//   firstUserText writes: app.js event stream (user entries, reset)
+//               reads:  app.js header title, sessionsrail.js (live row label)
+//   localNote   writes: app.js status, sessionsrail.js (resume failed)
+//               reads:  app.js finishStatus
 //   lastReply   writes: app.js transcript render (assistant text)
 //               reads:  notify.js (the body of the "turn finished" popup)
 //
@@ -19,6 +23,12 @@
   "use strict";
   global.JanetState = {
     lastReply: "",
+    // the conversation's first prompt: it names the conversation until the
+    // server titles it.
+    firstUserText: "",
+    // a message the page made itself (not the server's status); the status
+    // line keeps showing it until the next server status replaces it.
+    localNote: "",
     // the last /api/workspace payload (files, git, switches), or null.
     lastWorkspace: null,
     // false on a first run with no provider key.
