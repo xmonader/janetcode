@@ -2008,3 +2008,32 @@ func TestAdmitCommands(t *testing.T) {
 		t.Fatalf("persisted admission = %+v err=%v", re.Meta.Admission, err)
 	}
 }
+
+// /dream and /flush send the memory (or the conversation) to the model;
+// each call is in /egress under its own phase label.
+func TestDreamAndFlushAreInTheEgressRecord(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi there"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "NO_REPLY"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "NONE"), StopReason: llm.StopEndTurn},
+	)
+	store := memory.Open(t.TempDir(), h.m.opts.Cwd)
+	h.m.opts.Memory = store
+	// Auto entries: /dream leaves what the user wrote alone.
+	for _, n := range []string{"alpha", "beta", "gamma"} {
+		if _, err := store.Apply([]memory.Extracted{{Type: memory.TypeProject, Scope: "project", Name: n, Description: n + " fact", Body: n + " body"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.runCmd(h.m.flushMemory())
+	h.runCmd(h.m.dreamMemory())
+	sum := h.m.opts.Agent.EgressSummary()
+	for _, want := range []string{"after turn 1: memory flush", "flush: ", "after turn 1: memory consolidation (dream)", "dream: 3 memory entries"} {
+		if !strings.Contains(sum, want) {
+			t.Errorf("/egress lacks %q:\n%s", want, sum)
+		}
+	}
+}

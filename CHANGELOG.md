@@ -34,7 +34,8 @@ and measurements behind each round are in `docs/notes/history.md`.
   (sleep)"): provider host, request size, message and entry counts, scrubbed
   like the rest. It is in `/egress` (terminal and web), the session log
   (`egress/turn`, with a `phase`) and headless JSON `egress`. With
-  `/memory auto off` no call is made and nothing is recorded.
+  `/memory auto off` no call is made and nothing is recorded. `/dream` and
+  `/flush` calls are recorded the same way.
 
 ### Model-visible session auditing (#12)
 - Every model call logs a `model/request` event: the model and provider,

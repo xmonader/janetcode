@@ -120,6 +120,7 @@ func Flush(ctx context.Context, p llm.Provider, model string, msgs []llm.Message
 		sys = flushDeltaSystem + textfmt.TruncateTo(prev, MaxObservation)
 	}
 	slim = append(slim, llm.TextMessage(llm.RoleUser, "Write the memory note now, or NO_REPLY."))
+	noteCall(ctx, fmt.Sprintf("flush: %s of the session", plural(len(slim), "message")), sys, slim)
 	resp, err := p.Stream(ctx, llm.Request{Model: model, System: sys, Messages: slim, MaxTokens: 1500, Effort: "low"}, nil)
 	if err != nil {
 		return "", FlushNothing, err

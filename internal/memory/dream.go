@@ -70,10 +70,12 @@ func DreamWith(ctx context.Context, p llm.Provider, model string, entries []Entr
 	if listing.Len() == 0 {
 		return nil, nil
 	}
+	dreamMsgs := []llm.Message{llm.TextMessage(llm.RoleUser, listing.String())}
+	noteCall(ctx, fmt.Sprintf("dream: %s, %s", plural(len(entries), "memory entry"), plural(len(inbox), "inbox note")), system, dreamMsgs)
 	resp, err := p.Stream(ctx, llm.Request{
 		Model:     model,
 		System:    system,
-		Messages:  []llm.Message{llm.TextMessage(llm.RoleUser, listing.String())},
+		Messages:  dreamMsgs,
 		MaxTokens: 1200 + 400*min(len(inbox), 4),
 		Effort:    "low",
 	}, nil)

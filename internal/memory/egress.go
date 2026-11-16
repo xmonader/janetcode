@@ -25,8 +25,11 @@ func plural(n int, noun string) string {
 	if n == 1 {
 		return fmt.Sprintf("%d %s", n, noun)
 	}
-	if noun == "existing entry" {
+	switch noun {
+	case "existing entry":
 		return fmt.Sprintf("%d existing entries", n)
+	case "memory entry":
+		return fmt.Sprintf("%d memory entries", n)
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
 }

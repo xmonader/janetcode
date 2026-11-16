@@ -1426,7 +1426,7 @@ rest). `/egress` lists the most recent ones after the turn's own report; all
 of them are in the session log as `egress/turn` events with a `phase`
 field, and in headless JSON `"egress"` (the headless run writes its result
 after extraction and the session-end consolidation, so both are included).
-`/memory auto off` means no call, so no report.
+The same holds for `/dream` ("memory consolidation (dream)") and `/flush` ("memory flush"). `/memory auto off` means no call, so no report.
 
 The `egress` config key restricts where data may go:
 

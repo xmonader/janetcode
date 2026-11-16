@@ -64,10 +64,15 @@ func (m *model) dreamMemory() tea.Cmd {
 		inbox = store.Observations()
 	}
 	m.note("consolidating memory…")
+	turn := ag.EgressTurn()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
-		ops, err := memory.DreamWith(ctx, ag.Settings().Provider, ag.Settings().Model, store.Entries(), inbox)
+		var ops []memory.DreamOp
+		err := ag.RecordMemoryCall(ctx, turn, "memory consolidation (dream)", func(ctx context.Context) (err error) {
+			ops, err = memory.DreamWith(ctx, ag.Settings().Provider, ag.Settings().Model, store.Entries(), inbox)
+			return err
+		})
 		if err != nil {
 			return memoryMsg{err: err}
 		}
@@ -114,10 +119,18 @@ func (m *model) flushMemory() tea.Cmd {
 	tainted := ag.Tainted()
 	prev, _ := store.LastObservation(id)
 	m.note("flushing the session to the memory inbox…")
+	turn := ag.EgressTurn()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
-		note, res, err := memory.Flush(ctx, ag.Settings().Provider, ag.Settings().Model, msgs, prev.Body)
+		var (
+			note string
+			res  memory.FlushResult
+		)
+		err := ag.RecordMemoryCall(ctx, turn, "memory flush", func(ctx context.Context) (err error) {
+			note, res, err = memory.Flush(ctx, ag.Settings().Provider, ag.Settings().Model, msgs, prev.Body)
+			return err
+		})
 		if err != nil {
 			return memoryMsg{err: err}
 		}
