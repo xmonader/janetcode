@@ -5,6 +5,14 @@ and measurements behind each round are in `docs/notes/history.md`.
 
 ## Unreleased
 
+### Programmatic tool calling
+- Scripts can discover tool APIs without loading deferred schemas, and use
+  `call_result` for structured file lines, search matches, and MCP data.
+  Existing string-returning imports keep working.
+- Python retries stop after permission refusals, missing tools, and call
+  limits. Output capture retains bounded head/tail diagnostics, and Docker
+  sandbox sessions select the JSON batching fallback at startup.
+
 ### Dry run (issue 9)
 - The dry-run preview now carries an estimate: the model calls and cost
   the dry run used (measured from session usage, reported or list price,

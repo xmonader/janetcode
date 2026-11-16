@@ -77,27 +77,12 @@ func (s *Script) root() string {
 func (*Script) Name() string { return "execute_code" }
 
 func (s *Script) Description() string {
-	var b strings.Builder
-	b.WriteString("Run a Python script that calls your own tools, so a chain of calls costs one turn instead of one turn each. " +
-		"Use it when you need three or more calls with logic between them: reading N files and reporting only what matches, " +
-		"looping over search results, retrying something that may fail, or making the same edit across a set of files. " +
-		"Use ordinary tool calls for a single call, or when you need to read the full result yourself.\n\n" +
-		"Import the tools you want from janetcode_tools and call them with the same arguments as the tool takes; " +
-		"each returns the tool's output as a string and raises ToolError if the call fails. Available: ")
-	names := make([]string, 0, len(s.tools()))
-	for _, t := range s.tools() {
-		if t.primary != "" {
-			names = append(names, t.name+"("+t.primary+", ...)")
-		} else {
-			names = append(names, t.name+"(...)")
-		}
-	}
-	b.WriteString(strings.Join(names, ", "))
-	b.WriteString(".\n\nOnly what the script prints comes back to you — everything the tools returned inside it stays out of your context, " +
-		"so print the conclusion, not the raw output. Also available without importing: plain(text), which strips the line-number gutter that read_file and grep put on every line — match on plain(read_file(...)), not on the raw string; shell_quote(s); and retry(fn, attempts=3). " +
-		fmt.Sprintf("Limits: %s, %d tool calls, %dKB of output. The script runs in the working directory.",
-			scriptTimeout, scriptMaxCalls, scriptMaxOutput/1000))
-	return b.String()
+	return "Run Python that calls your tools when three or more calls need filtering, loops or dependent logic. Only printed output enters your context; use ordinary calls when you need the full results. " +
+		"Import from janetcode_tools: read_file(path, ...), edit_file(path, ...), grep(pattern, ...), or call(name, **kwargs) for any tool, including deferred tools and MCP names. These return display strings; plain(text) strips line gutters. " +
+		"call_result(name, **kwargs) returns {text, data}; data contains structured results for supported tools, otherwise None. " +
+		"Discover APIs inside a script with list_tools(query='') (up to 20 matches, with total/truncated) and describe_tool(name) (description and input_schema). Discovery does not load schemas into your context. " +
+		"Use print() for concise conclusions, not raw results. Helpers: shell_quote(s), retry(fn, attempts=3); ToolError.kind distinguishes denied, unknown, limit and tool failures. " +
+		fmt.Sprintf("Limits: %s, %d tool calls, %dKB output. Runs in the working directory with normal tool approvals and guards.", scriptTimeout, scriptMaxCalls, scriptMaxOutput/1000)
 }
 
 // Mutating reports true: a script is arbitrary code on the user's machine,
@@ -136,12 +121,24 @@ func (s *Script) tools() []stubbed {
 	}
 	var out []stubbed
 	for _, n := range s.Parent.Tools.Names() {
-		if scriptSkip[n] || !pyName(n) {
+		if scriptSkip[n] || !pyName(n) || scriptHelperName(n) {
 			continue
 		}
 		out = append(out, stubbed{name: n, primary: primaryArg(s.Parent.Tools, n)})
 	}
 	return out
+}
+
+// Tool names can collide with module helpers; those remain callable by name.
+func scriptHelperName(name string) bool {
+	if strings.HasPrefix(name, "_") || pyKeyword(name) {
+		return true
+	}
+	switch name {
+	case "call", "call_result", "list_tools", "describe_tool", "ToolError", "plain", "shell_quote", "retry":
+		return true
+	}
+	return false
 }
 
 // primaryArg is a tool's first required argument, when it has one that can
@@ -170,7 +167,9 @@ func primaryArg(reg *tool.Registry, name string) string {
 	return ""
 }
 
-func usableArg(s string) bool { return s != "" && pyName(s) && !pyKeyword(s) }
+func usableArg(s string) bool {
+	return s != "" && pyName(s) && !scriptHelperName(s) && s != "kwargs"
+}
 
 // firstProperty is the first key of the schema's properties object, in the
 // order the schema declares it. Decoding into a map would lose that order,
@@ -213,7 +212,7 @@ func firstProperty(raw json.RawMessage) string {
 // pyKeyword guards against naming a parameter after a Python keyword.
 func pyKeyword(s string) bool {
 	switch s {
-	case "and", "as", "assert", "async", "await", "break", "class", "continue",
+	case "True", "False", "None", "and", "as", "assert", "async", "await", "break", "class", "continue",
 		"def", "del", "elif", "else", "except", "finally", "for", "from",
 		"global", "if", "import", "in", "is", "lambda", "none", "nonlocal",
 		"not", "or", "pass", "raise", "return", "try", "while", "with", "yield":
@@ -251,9 +250,15 @@ func (s *Script) interpreter() (string, error) {
 	return "", errors.New("execute_code needs Python 3 on the PATH and there is none; use ordinary tool calls")
 }
 
-// Available reports whether there is a Python to run scripts with. Where
-// there is not, the session offers run_code in its place.
+// Available reports whether Python and the active sandbox can run scripts.
+// Otherwise the session offers run_code in its place.
 func (s *Script) Available() bool {
+	if s.Parent != nil && s.Parent.Sandbox.Enabled() {
+		backend := s.Parent.Sandbox.Backend()
+		if backend == "" || backend == shell.BackendDocker {
+			return false
+		}
+	}
 	_, err := s.interpreter()
 	return err == nil
 }
@@ -333,7 +338,8 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 	// held the tool on the output pipe that process inherited — until it
 	// ended, or for the whole timeout.
 	shell.Supervise(cmd)
-	var stdout, stderr strings.Builder
+	stdout := scriptCapture{limit: scriptMaxOutput - 128}
+	stderr := scriptCapture{limit: 4000 - 128}
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	runErr := cmd.Run()
 	if errors.Is(runErr, exec.ErrWaitDelay) {
@@ -526,14 +532,27 @@ func (r *rpc) handle(ctx context.Context, conn net.Conn) {
 	enc := json.NewEncoder(conn)
 	for {
 		var req struct {
-			Tool  string          `json:"tool"`
-			Input json.RawMessage `json:"input"`
+			Tool      string          `json:"tool"`
+			Input     json.RawMessage `json:"input"`
+			Operation string          `json:"operation"`
+			Query     string          `json:"query"`
 		}
 		if err := dec.Decode(&req); err != nil {
 			return
 		}
-		out, errMsg := r.dispatch(ctx, req.Tool, req.Input)
-		if err := enc.Encode(map[string]string{"output": out, "error": errMsg}); err != nil {
+		var reply scriptReply
+		switch req.Operation {
+		case "":
+			reply = r.dispatch(ctx, req.Tool, req.Input)
+		case "list", "describe":
+			reply = r.discover(req.Operation, req.Query)
+			if !r.parent.Off["scrub"] {
+				reply.Data, _ = redactToolData(reply.Data)
+			}
+		default:
+			reply = scriptReply{Error: "unknown script RPC operation", Kind: "unknown"}
+		}
+		if err := enc.Encode(reply); err != nil {
 			return
 		}
 	}
@@ -542,29 +561,35 @@ func (r *rpc) handle(ctx context.Context, conn net.Conn) {
 // dispatch runs one call for the script. Everything is serialised: the
 // agent's tool state is not built for a script fanning out, and a script
 // that needs speed is saving round trips, not milliseconds.
-func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) (string, string) {
+func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) scriptReply {
 	r.mu.Lock()
 	if r.n >= r.max {
 		r.mu.Unlock()
-		return "", fmt.Sprintf("this script has used its %d tool calls; do the rest in another script", r.max)
+		return scriptReply{Error: fmt.Sprintf("this script has used its %d tool calls; do the rest in another script", r.max), Kind: "limit"}
 	}
 	r.n++
 	n := r.n
 	r.mu.Unlock()
 
 	if scriptSkip[name] {
-		return "", fmt.Sprintf("%s cannot be called from a script", name)
+		return scriptReply{Error: fmt.Sprintf("%s cannot be called from a script", name), Kind: "denied"}
 	}
 	if len(input) == 0 {
 		input = json.RawMessage("{}")
 	}
 	r.call.Lock()
 	defer r.call.Unlock()
-	out, isErr, _ := r.parent.runNested(ctx, fmt.Sprintf("script-%d", n), name, input)
+	res, isErr, denied := r.parent.runNestedResult(ctx, fmt.Sprintf("script-%d", n), name, input)
 	if isErr {
-		return "", out
+		kind := "tool"
+		if denied {
+			kind = "denied"
+		} else if _, ok := r.parent.Tools.Get(name); !ok {
+			kind = "unknown"
+		}
+		return scriptReply{Error: res.Text, Kind: kind}
 	}
-	return out, ""
+	return scriptResult(res)
 }
 
 // stub is the janetcode_tools module the script imports.
@@ -578,13 +603,14 @@ func (s *Script) stub() string {
 	}
 	fmt.Fprintf(&b, "\n_TOOLS = [%s]\n", strings.Join(names, ", "))
 	for _, t := range tools {
+		fmt.Fprintf(&b, "\nif %q not in globals() and not hasattr(_builtins, %q):\n", t.name, t.name)
 		if t.primary == "" {
-			fmt.Fprintf(&b, "\ndef %s(**kwargs):\n    return call(%q, **kwargs)\n", t.name, t.name)
+			fmt.Fprintf(&b, "    def %s(**kwargs):\n        return call(%q, **kwargs)\n", t.name, t.name)
 			continue
 		}
 		// The first argument may be given positionally or by name; the
 		// sentinel keeps an explicit None from overriding a keyword form.
-		fmt.Fprintf(&b, "\ndef %s(%s=_unset, **kwargs):\n    if %s is not _unset:\n        kwargs[%q] = %s\n    return call(%q, **kwargs)\n",
+		fmt.Fprintf(&b, "    def %s(%s=_unset, **kwargs):\n        if %s is not _unset:\n            kwargs[%q] = %s\n        return call(%q, **kwargs)\n",
 			t.name, t.primary, t.primary, t.primary, t.primary, t.name)
 	}
 	return b.String()
@@ -596,8 +622,9 @@ Every function takes the same arguments as the tool of that name and
 returns its output as a string, raising ToolError when the call fails.
 """
 import json, os, shlex, socket, threading, time
+import builtins as _builtins
 
-__all__ = ["call", "ToolError", "plain", "shell_quote", "retry"]
+__all__ = ["call", "call_result", "list_tools", "describe_tool", "ToolError", "plain", "shell_quote", "retry"]
 
 _lock = threading.Lock()
 _fh = None
@@ -611,7 +638,10 @@ _unset = _Unset()
 
 
 class ToolError(Exception):
-    """A tool call that did not succeed."""
+    """A tool failure; kind describes whether retry can help."""
+    def __init__(self, message, kind="tool"):
+        super().__init__(message)
+        self.kind = kind
 
 
 def _channel():
@@ -623,20 +653,46 @@ def _channel():
     return _fh
 
 
-def call(tool, **kwargs):
-    """Call any tool by name, including one whose name is not an identifier."""
-    payload = json.dumps({"tool": tool, "input": kwargs}) + "\n"
+def _request(payload):
+    payload = json.dumps(payload) + "\n"
     with _lock:
         fh = _channel()
         fh.write(payload.encode())
         fh.flush()
         line = fh.readline()
     if not line:
-        raise ToolError("the session closed the tool connection")
+        raise ToolError("the session closed the tool connection", "unavailable")
     reply = json.loads(line)
     if reply.get("error"):
-        raise ToolError(reply["error"])
-    return reply.get("output", "")
+        raise ToolError(reply["error"], reply.get("kind", "tool"))
+    return reply
+
+
+def call(*args, **kwargs):
+    """Call a tool by exact name; return its display text."""
+    if not args and "tool" in kwargs:
+        args = (kwargs.pop("tool"),)
+    if len(args) != 1:
+        raise TypeError("call expects one positional tool name")
+    return _request({"tool": args[0], "input": kwargs}).get("output", "")
+
+
+def call_result(*args, **kwargs):
+    """Return display text and optional machine-readable data in one execution."""
+    if len(args) != 1:
+        raise TypeError("call_result expects one positional tool name")
+    reply = _request({"tool": args[0], "input": kwargs})
+    return {"text": reply.get("output", ""), "data": reply.get("data")}
+
+
+def list_tools(query=""):
+    """Find up to 20 tool names/descriptions without activating schemas."""
+    return _request({"operation": "list", "query": query})["data"]
+
+
+def describe_tool(name):
+    """Return the tool's name, description and full input_schema."""
+    return _request({"operation": "describe", "query": name})["data"]
 
 
 def plain(text):
@@ -684,17 +740,21 @@ def __getattr__(name):
     hint = f"did you mean {near}()?" if near else "tools: " + ", ".join(_TOOLS)
 
     def missing(*args, **kwargs):
-        raise ToolError(f"janetcode_tools has no tool {name!r}; {hint}")
+        raise ToolError(f"janetcode_tools has no tool {name!r}; {hint}", "unknown")
     return missing
 
 
 def retry(fn, attempts=3, delay=1.0):
-    """Call fn, retrying on any exception with a widening pause."""
+    """Retry failures with a widening pause; never retry a refusal or limit."""
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
     last = None
     for i in range(attempts):
         try:
             return fn()
         except Exception as e:  # noqa: BLE001 - the point is to retry anything
+            if isinstance(e, ToolError) and e.kind in ("denied", "unknown", "limit", "unavailable"):
+                raise
             last = e
             if i < attempts - 1:
                 time.sleep(delay * (2 ** i))

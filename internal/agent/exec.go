@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/progress"
-	"github.com/xmonader/janetcode/internal/secret"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -920,38 +918,14 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 // means the plaintext never leaves this function. The variable names
 // and the surrounding lines survive (see secret.Redact), so the
 // model still reads the output it asked for, minus the key.
-func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, images []llm.Block, err error) {
-	out, images, err = runSafely(ctx, t, input)
-	if a.Off["scrub"] {
-		return out, images, err
-	}
-	var n int
-	out, n = secret.Redact(out)
-	if err != nil {
-		if red, m := secret.Redact(err.Error()); m > 0 {
-			err = errors.New(red)
-			n += m
-		}
-	}
-	if n > 0 {
-		egress.From(ctx).Add(egress.Entry{Kind: egress.KindRedacted, What: "in tool output", Count: n})
-	}
-	return out, images, err
+func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (string, []llm.Block, error) {
+	res, err := a.runSafelyResult(ctx, t, input)
+	return res.Text, res.Images, err
 }
 
-func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, images []llm.Block, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("tool %s panicked: %v\n%s", t.Name(), r, debug.Stack())
-			images = nil
-		}
-	}()
-	if rich, ok := t.(tool.Rich); ok {
-		res, rerr := rich.RunRich(ctx, input)
-		return res.Text, res.Images, rerr
-	}
-	out, err = t.Run(ctx, input)
-	return out, nil, err
+func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (string, []llm.Block, error) {
+	res, err := runSafelyResult(ctx, t, input)
+	return res.Text, res.Images, err
 }
 
 // unknownTool is the answer to a call naming no tool of this session. A
@@ -1030,8 +1004,13 @@ func (a *Agent) LastTurnMutated() bool { return a.mutated }
 // model — a call the harness itself refused will be refused again with
 // the same words.
 func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMessage) (string, bool, bool) {
+	res, isErr, denied := a.runNestedResult(ctx, id, name, input)
+	return res.Text, isErr, denied
+}
+
+func (a *Agent) runNestedResult(ctx context.Context, id, name string, input json.RawMessage) (tool.Result, bool, bool) {
 	if err := a.persistenceErr(); err != nil {
-		return err.Error(), true, true
+		return tool.Result{Text: err.Error()}, true, true
 	}
 	emit := a.emitter()
 	// A script sees the same tool schemas the model does, so it passes
@@ -1048,17 +1027,17 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
 	t, ok := a.Tools.Get(name)
 	if !ok {
-		return a.unknownTool(name), true, false
+		return tool.Result{Text: a.unknownTool(name)}, true, false
 	}
 	// The same mode gate as executeTool: a script is a way to save round
 	// trips, not a way around read-only, plan or accept mode.
 	if reason, denied := a.toolGate(t, input); denied {
 		a.refuseCall(&call, reason, true, emit)
-		return reason, true, true
+		return tool.Result{Text: reason}, true, true
 	}
 	u := llm.Block{ID: id, Name: name, Input: input}
 	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
-		return out, false, false
+		return tool.Result{Text: out}, false, false
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
@@ -1068,11 +1047,11 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 			where := "a script's " + name + " call"
 			a.canaryHit.Store(&where)
 		}
-		return "Error: " + err.Error(), true, false
+		return tool.Result{Text: "Error: " + err.Error()}, true, false
 	}
 	if deny != "" {
 		a.refuseCall(&call, deny, true, emit)
-		return deny, true, true
+		return tool.Result{Text: deny}, true, true
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
@@ -1090,9 +1069,10 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	}
 	start := time.Now()
 	if err := a.persistenceErr(); err != nil {
-		return err.Error(), true, true
+		return tool.Result{Text: err.Error()}, true, true
 	}
-	out, _, runErr := a.runSafely(ctx, t, u.Input)
+	res, runErr := a.runSafelyResult(ctx, t, u.Input)
+	out := res.Text
 	a.bashAuditAfter(ctx, u, shellBefore)
 	late.end(ctx, t, u)
 	admitNote := a.admitAfter(ctx, admitSnapBefore)
@@ -1149,5 +1129,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 			out = res
 		}
 	}
-	return out, isErr, false
+	res.Text = out
+	if isErr {
+		res.Data = nil
+	}
+	return res, isErr, false
 }

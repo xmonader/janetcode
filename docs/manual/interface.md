@@ -2815,19 +2815,51 @@ imports the session's own tools and calls them; only what it prints comes
 back:
 
 ```python
-from janetcode_tools import glob, read_file, plain
+from janetcode_tools import call_result
 hits = []
-for f in glob(pattern="**/*.go").splitlines():
-    if "LegacyTimeout" in plain(read_file(path=f)):
+for f in call_result("glob", pattern="**/*.go")["data"]["paths"]:
+    result = call_result("read_file", path=f)
+    if result["data"] and any("LegacyTimeout" in line for line in result["data"]["lines"]):
         hits.append(f)
 print("\n".join(hits))
 ```
 
 The file bodies that went through that loop never entered the context.
 
+Existing imports such as `read_file(path)` still return display strings.
+`call_result(name, **arguments)` runs a tool once and returns `{text, data}`:
+`text` is its usual display, and `data` is a decoded object or `None` for a
+tool without structured output. Data passes the same credential scrubber
+as text. If a credential spans structured fields, data may be withheld; a
+multiline credential in a source-line window conservatively redacts the
+whole window while retaining line positions. Supported shapes are:
+
+- `read_file`: `path`, one-based `offset`, raw `lines`, `total_lines`, and
+  `truncated` (more lines after the window). Notebook and extracted document
+  reads currently have no structured data.
+- `glob`: search `path`, relative `paths`, and `truncated` (result-count cap).
+- `grep`: search `path`, `matches` (`path`, `line`, `text`, `truncated`),
+  `truncated` (match-count cap), and `partially_searched_lines`. Match text
+  retains the tool's line-length bound; its flag marks clipped lines.
+- MCP tools: the server's `structuredContent`, even when text is also present.
+
+Scripts can call deferred tools by exact name without loading their schemas
+into the model's tool list. `list_tools(query="")` returns up to twenty
+matching names and short descriptions, with `total` and `truncated`;
+`describe_tool(name)` returns the description and full `input_schema`.
+Only metadata a script prints enters context. Use `call(name, **arguments)`
+for deferred names or names that cannot be imported as Python identifiers.
+
+`ToolError.kind` distinguishes `denied`, `unknown`, `limit`, `unavailable`,
+and ordinary `tool` failures. `retry` stops immediately for the first four;
+ordinary execution errors remain retryable. Calls stay serial and retain
+their usual approvals, guards, events, and archive entries. Script stdout
+and stderr capture use bounded memory, keeping both ends when output is
+truncated. Print the relevant evidence to avoid dropping it.
+
 `run_code` is the same idea without Python, and a session offers it only
-where `execute_code` cannot run (no Python on the PATH, or
-`JANETCODE_OFF=script`): `code` is a JSON array of
+where `execute_code` cannot run (no Python on the PATH, an enabled Docker
+sandbox, or `JANETCODE_OFF=script`): `code` is a JSON array of
 `{name, input}` steps, each dispatched through the real tool pipeline
 (approvals, guards, the event log). Nested `run_code`, `execute_code`,
 `workflow`, `task` and `ask` are refused. `workflow` is a short

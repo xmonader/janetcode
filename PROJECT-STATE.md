@@ -27,6 +27,11 @@ tables, evidence) lives in `docs/notes/history.md`; experiment write-ups in
   concurrent runs). install.sh verified against the public v0.3.0 release.
 
 ## Next
+- Programmatic tools: `call_result` returns structured read/glob/grep/MCP
+  data; `list_tools`/`describe_tool` discover APIs without schema activation.
+  Python output capture is bounded; retry stops on refusal/limit/unknown;
+  enabled Docker sandboxes select `run_code` at startup. Live token/cost
+  effects still need an A/B run (no savings inferred from unit tests).
 - Live-verify against api.anthropic.com itself (needs an sk-ant key).
 - Fix GitHub Actions billing; then ci/release.yml run again (GHCR image).
 - All GitHub issues #1-#12 closed (2026-11-16); #1-#3, #5, #8-#12 landed on
