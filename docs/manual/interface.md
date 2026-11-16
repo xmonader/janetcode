@@ -4154,8 +4154,11 @@ tailscale serve --bg 8787          # in another shell
 ```
 
 `JANETCODE_WEB_URL` does two things: links are built from it, and a server bound to
-loopback accepts that one Host name besides `localhost`, which is the Host a proxy
-normally forwards (unverified for tailscale serve, see below). Without it, links use the address the server
+loopback accepts that one Host name besides `localhost`. `tailscale serve`
+forwards the tailnet name as the Host (it keeps the incoming Host for a
+port target) and adds `X-Forwarded-Host`, so that is the name to give.
+Every request still needs the access token or the cookie, so reaching the
+port over the tailnet does not by itself sign anyone in. Without it, links use the address the server
 bound (a `0.0.0.0` bind becomes the machine's first private IPv4
 address), and `tailscale serve` is refused as an unknown Host. Binding the
 tailnet address directly (`--web-addr $(tailscale ip -4):8787`) also
@@ -4191,9 +4194,10 @@ clear: use `tailscale serve`, a tailnet bind, or a TLS proxy. A
 `JANETCODE_NOTIFY` (see Sessions) with no link, and its question is
 answered from the Dashboard of a `--web` server on the same machine.
 
-`tailscale serve --bg 8787` is the syntax of current Tailscale clients
-as documented upstream; it was not run when this section was written.
-Check `tailscale serve --help` on your version.
+The `tailscale serve` syntax and its Host forwarding were checked against
+Tailscale 1.104.7 (`tailscale serve --help`, and `ipn/ipnlocal/serve.go`,
+which sets the proxied request's Host to the incoming one). Other
+versions may differ; check `tailscale serve --help` on yours.
 
 ### The agent dashboard (web)
 
