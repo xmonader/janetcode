@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/whatif"
@@ -21,7 +23,11 @@ var errAuditBroken = errors.New("audit: the session and its audit log do not agr
 // with what authorized it and how it ended, each file it changed, and
 // what the turn demonstrated. Nothing is run: no model, no tool, no
 // network.
-func auditMode(w io.Writer, arg string) error {
+func auditMode(w io.Writer, arg, denyList string) error {
+	deny, err := perm.ParseAll(perm.SplitList(denyList))
+	if err != nil {
+		return fmt.Errorf("invalid --deny rule: %w", err)
+	}
 	path, dir, id, err := whatif.ResolveSession(arg)
 	if err != nil {
 		return err
@@ -36,13 +42,38 @@ func auditMode(w io.Writer, arg string) error {
 	}
 	fmt.Fprintf(w, "session %s  %s\n", s.Meta.ID, s.Label())
 	fmt.Fprintf(w, "directory %s · %s/%s\n\n", s.Meta.Cwd, s.Meta.Provider, s.Meta.Model)
-	printAuditTimeline(w, s.Events())
+	if len(deny) == 0 {
+		printAuditTimeline(w, s.Events())
+	} else if rep.OK() {
+		printAuditDenyPreview(w, s.Events(), rep.From, s.Meta.Cwd, perm.Rules{Deny: deny})
+	}
 	fmt.Fprintln(w)
 	fmt.Fprint(w, auditSummary(rep))
 	if !rep.OK() {
 		return errAuditBroken
 	}
 	return nil
+}
+
+// The tool call event records the effective arguments after authorization,
+// including any hook rewrite. Calls refused at the time have no such event.
+func printAuditDenyPreview(w io.Writer, events []session.Event, from int, root string, rules perm.Rules) {
+	fmt.Fprintln(w, "Deny rule preview using recorded arguments and the session’s starting directory")
+	var checked, matched int
+	for _, e := range events {
+		if e.Type != session.TypeToolCall || e.Seq < from {
+			continue
+		}
+		checked++
+		input := json.RawMessage(e.Arguments)
+		call := perm.Call{Tool: e.Name, Input: input, Root: root, Subject: perm.SubjectIn(e.Name, input, root)}
+		verdict, rule, hard := rules.DecideCall(call)
+		if verdict == perm.Denied && hard == "" {
+			matched++
+			fmt.Fprintf(w, "  turn %d · event %d · %s · %s\n", e.Turn, e.Seq, oneLineOf(e.Name), rule)
+		}
+	}
+	fmt.Fprintf(w, "%d of %d audited tool calls matched the proposed deny rules\n", matched, checked)
 }
 
 // auditSummary is the verdict on the chain, last so it is what a reader

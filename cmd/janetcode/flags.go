@@ -339,7 +339,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.BoolVar(&o.safeMode, "safe-mode", false, "start with nothing from the project or your extensions: no hooks, MCP servers, verify gates, project permission rules, project instructions, skills, rules or agent profiles, and no auto-approval")
 	fs.StringVar(&o.coreTools, "core-tools", "", "comma-separated tools the model is shown, and no others (globs allowed, e.g. 'read_file,grep,mcp__github__*')")
 	fs.StringVar(&o.excludeTools, "exclude-tools", "", "comma-separated tools the model is never shown (globs allowed); unlike --deny, they are not in the request at all")
-	fs.StringVar(&o.deny, "deny", "", "comma-separated permission rules to refuse for this run")
+	fs.StringVar(&o.deny, "deny", "", "comma-separated permission rules to refuse for this run. With --audit, preview matches against recorded tool calls")
 	fs.StringVar(&o.ask, "ask", "", "comma-separated sensitive-call rules for this run: what they match always asks, in every mode, e.g. '*(touches:**/.env)'")
 	fs.BoolVar(&o.cont, "continue", false, "resume the latest session for this directory")
 	fs.BoolVar(&o.recoverTurn, "recover", false, "with -c or --resume: carry on the turn the session died in (crash, kill, power loss) instead of sending a prompt; works with --bg")

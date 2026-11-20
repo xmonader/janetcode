@@ -225,7 +225,7 @@ func offlineMode(o *options) (bool, error) {
 	case o.auditExport != "":
 		return true, auditExportMode(os.Stdout, o.auditExport)
 	case o.auditSess != "":
-		return true, auditMode(os.Stdout, o.auditSess)
+		return true, auditMode(os.Stdout, o.auditSess, o.deny)
 	case o.replayPath != "":
 		path, _, _, err := whatif.ResolveSession(o.replayPath)
 		if err != nil {

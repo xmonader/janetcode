@@ -208,6 +208,18 @@ audit: intact — 5 events vouched for by 6 chained records
 head 3f0c…  (keep it to show later that nothing was cut off the end)
 ```
 
+Preview a deny rule against the tool calls in an intact audit log before
+adding it to your permissions.
+
+```sh
+janetcode --audit <session> --deny 'bash(git push *)'
+```
+
+The preview lists the matching turn, event, and rule. It uses the saved
+arguments and the session's starting directory. For host rules, use tools
+whose destination is in the arguments, such as `fetch_url`. Use `--what-if`
+to see how a model responds to a restriction.
+
 An event changed after it was written, one removed from the session, one
 added to it by anything but janetcode, and a record edited in the audit log
 are each named, and the command exits 1. Both files are in janetcode's data
