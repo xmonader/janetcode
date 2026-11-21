@@ -613,6 +613,10 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.
 var ErrMaxIterations = errors.New("turn exceeded maximum tool iterations")
 
+// ErrOutputLimit stops a turn whose tool arguments repeatedly arrive cut
+// off. Retrying the same oversized request cannot safely execute it.
+var ErrOutputLimit = errors.New("tool arguments repeatedly hit the output token limit; retry with smaller edits or arguments")
+
 // Run sends userText and drives the loop until the model ends its turn or
 // an error occurs. History stays consistent on every return path.
 func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) error {
@@ -733,6 +737,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.noteCut(resp)
 		a.noteEffort(replyEffortSignal(resp, a.planCutNow))
 		if a.refuseTruncatedCalls(resp, emit) {
+			gates.truncatedReplies++
+			if gates.truncatedReplies > maxCutReplies {
+				return ErrOutputLimit
+			}
 			continue
 		}
 		if resp.StopReason != llm.StopToolUse {
@@ -745,7 +753,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				continue
 			}
 			if a.finishTurn(ctx, resp, &gates, emit) {
-				return nil
+				return ctx.Err()
+			}
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 			continue
 		}
@@ -754,7 +765,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			// checks as a normal text response.
 			resp.StopReason = llm.StopEndTurn
 			if a.finishTurn(ctx, resp, &gates, emit) {
-				return nil
+				return ctx.Err()
+			}
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 			continue
 		}
@@ -776,6 +790,7 @@ type turnGates struct {
 	probes                    probeGateState
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
+	truncatedReplies          int
 	specReviewed              bool
 	edgeNoted                 bool
 	ledger                    ledgerState
@@ -1084,6 +1099,9 @@ func (a *Agent) continueCutReply(resp *llm.Response, g *turnGates, emit func(Eve
 // Any of them may send the model back for another call, which is what a
 // false result means. True means the turn is over and RunBlocks returns.
 func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates, emit func(Event)) bool {
+	if ctx.Err() != nil {
+		return false
+	}
 	// The model ended its turn instead of making tool calls: not the
 	// mechanical streak the router looks for, whatever sends it back for
 	// another call below.
@@ -1092,6 +1110,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	if a.stopHook(ctx, resp.Message.Text(), &g.stops, emit) {
+		return false
+	}
+	if ctx.Err() != nil {
 		return false
 	}
 	if a.acceptCapture(resp.Message.Text(), &g.acceptNudged, emit) {
@@ -1109,9 +1130,15 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 	if a.conflictGate(ctx, resp.Message.Text(), g, emit) {
 		return false
 	}
+	if ctx.Err() != nil {
+		return false
+	}
 	if !g.conflicted && !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
 		a.stepRoute.taint("a verification check failed and was sent back")
 		a.noteEffort(effortTrouble)
+		return false
+	}
+	if ctx.Err() != nil {
 		return false
 	}
 	if !g.conflicted && a.probeGate(ctx, &g.probes, emit) {
@@ -1119,15 +1146,27 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		a.noteEffort(effortTrouble)
 		return false
 	}
+	if ctx.Err() != nil {
+		return false
+	}
 	if !g.conflicted && a.acceptVerifyGate(ctx, &g.accept, emit) {
 		a.stepRoute.taint("an acceptance check failed and was sent back")
 		a.noteEffort(effortTrouble)
 		return false
 	}
+	if ctx.Err() != nil {
+		return false
+	}
 	if !g.conflicted && a.testLedgerGate(ctx, &g.ledger, emit) {
 		return false
 	}
+	if ctx.Err() != nil {
+		return false
+	}
 	if !g.conflicted && a.diffFuzzGate(ctx, &g.difffuzz, emit) {
+		return false
+	}
+	if ctx.Err() != nil {
 		return false
 	}
 	// What the turn actually demonstrated, decided from what the harness
@@ -1162,10 +1201,16 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	a.refreshProofNotes(ctx, emit)
+	if ctx.Err() != nil {
+		return false
+	}
 	if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
 		emit(verdictEvent(outcome))
 	}
 	a.capturePlan(resp.Message.Text(), emit)
+	if ctx.Err() != nil {
+		return false
+	}
 	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 	a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
 	emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: resp.StopReason})
