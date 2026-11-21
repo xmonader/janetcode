@@ -40,8 +40,8 @@ type turnState struct {
 	// turn runs (slash.idleOnly); this is the agent's own check.
 	running atomic.Bool
 
-	// mutated says a mutating tool ran successfully this turn, and
-	// mutations counts how many did.
+	// mutated says a mutating tool was attempted this turn, and
+	// mutations counts attempts, including failures with possible partial effects.
 	mutated   bool
 	mutations int
 	// proofCommits are the commits this turn attached a proof note to

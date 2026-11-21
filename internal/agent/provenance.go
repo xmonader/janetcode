@@ -65,8 +65,8 @@ func (a *Agent) before(t tool.Tool, input []byte) []pending {
 // from what before saw. explicitIntent is the call's own stated intent —
 // ToolCall.Intent, taken off the call's input by tool.TakeIntent when the
 // intent feature is on — and is intentFor's first choice before it falls
-// back to reading the transcript.
-func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
+// back to reading the transcript. The result says whether any change was recorded.
+func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) (changed bool) {
 	for _, p := range pend {
 		if st, err := os.Stat(p.path); err == nil && st.Size() > maxChangesBytes {
 			continue // see before
@@ -83,8 +83,10 @@ func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 			owner = a.UndoOwner
 		}
 		owner.record(Change{Turn: a.turnN, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data, Gone: !exists, Attempt: a.attemptTag})
+		changed = true
 		a.logEvent(session.Event{Type: session.TypeFileChange, CallID: u.ID, Name: p.path, Arguments: contentDigest(p.data, p.existed) + "->" + contentDigest(data, exists)})
 	}
+	return changed
 }
 
 // intentFor is why the model made a tool call, one clipped line, tried in

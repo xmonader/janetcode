@@ -149,6 +149,10 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 			}
 			out, imgs, isErr, err := a.execute(ctx, u, emit)
 			if err != nil {
+				if out != "" {
+					results[i] = llm.ToolResult(replyID(u), out, true)
+					filled[i] = true
+				}
 				fail(err)
 				return
 			}
@@ -182,6 +186,9 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		for i, u := range uses {
 			if !filled[i] {
 				results[i] = llm.ToolResult(replyID(u), msg, true)
+				call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+				emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+				a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 			}
 		}
 		return results, images, err
@@ -218,6 +225,10 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		}
 		out, imgs, isErr, err := a.execute(ctx, u, emit)
 		if err != nil {
+			if out != "" {
+				results[i] = llm.ToolResult(replyID(u), out, true)
+				filled[i] = true
+			}
 			return stop(err)
 		}
 		results[i] = llm.ToolResult(replyID(u), out, isErr)
@@ -304,10 +315,22 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		basis = "honeytoken"
 		return nil, "", err
 	}
+	wasMutating := tool.MutatingCall(t, u.Input)
 	hookNotes, hookAllowed, hookMustAsk, hookRefusal := a.preToolHook(ctx, u, call, emit)
 	if hookRefusal != "" {
 		basis = "pre-tool hook"
 		return nil, hookRefusal, nil
+	}
+	// Scheduling and in-batch dedup used the original mutation class.
+	// A hook may refine arguments, but cannot promote a parallel read
+	// into a write. The model must submit that mutation as a new call.
+	if !wasMutating && tool.MutatingCall(t, u.Input) {
+		basis = "pre-tool hook"
+		return nil, "Not run: a pre_tool hook changed a read-only call into a mutating call. Submit the mutation as a separate tool call.", nil
+	}
+	if reason, denied := a.toolGate(t, u.Input); denied {
+		basis = "session mode"
+		return nil, reason, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
 	// Allow all (--yolo, /yolo) waives the local guards: the tool's own
@@ -694,6 +717,20 @@ func (a *Agent) applyDecision(d Decision, reason string, suggested perm.Rule, na
 }
 
 func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, []llm.Block, bool, error) {
+	res, isErr, _, err := a.executeToolResult(ctx, u, emit, false)
+	return res.Text, res.Images, isErr, err
+}
+
+// executeToolResult owns the policy checks and execution lifecycle for both
+// direct and nested calls. Nested calls retain full structured output; only
+// conversation presentation and model-facing coaching differ.
+func (a *Agent) executeToolResult(ctx context.Context, u llm.Block, emit func(Event), nested bool) (tool.Result, bool, bool, error) {
+	if err := a.persistenceErr(); err != nil {
+		return tool.Result{}, true, true, err
+	}
+	if err := ctx.Err(); err != nil {
+		return tool.Result{}, true, false, err
+	}
 	// The intent is the model's own one-line reason for the call. It is
 	// taken off before anything else looks at the input, because the tools
 	// decode with unknown fields disallowed.
@@ -704,9 +741,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	accepted := tookLargeOutput(stripped)
 	u.Input = takeLargeOutput(stripped)
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
-	refuse := func(msg string, denied bool) (string, []llm.Block, bool, error) {
+	refuse := func(msg string, denied bool) (tool.Result, bool, bool, error) {
 		a.refuseCall(&call, msg, denied, emit)
-		return msg, nil, true, nil
+		return tool.Result{Text: msg}, true, denied, nil
 	}
 	if raw, bad := llm.UnparsedArguments(u.Input); bad {
 		return refuse(fmt.Sprintf("%s was not run: its arguments are not valid JSON (%.120q). Resend the call with the arguments as one JSON object.", u.Name, raw), false)
@@ -722,11 +759,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		return refuse(reason, true)
 	}
 	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
-		return out, nil, false, nil
+		return tool.Result{Text: out}, false, false, nil
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
-		return "", nil, true, err
+		return tool.Result{}, true, false, err
 	}
 	if deny != "" {
 		return refuse(deny, true)
@@ -767,69 +804,63 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	manifests := a.manifestsBefore(t, u)
 	squats := a.squatBefore(t, u)
 	if err := a.persistenceErr(); err != nil {
-		return "", nil, true, err
+		return tool.Result{}, true, false, err
 	}
-	out, images, err := a.runSafely(progress.With(ctx, func(line string) { emit(Event{Kind: EvPhase, Text: line}) }), t, u.Input)
+	res, err := a.runSafelyResult(progress.With(ctx, func(line string) { emit(Event{Kind: EvPhase, Text: line}) }), t, u.Input)
 	dur := time.Since(start)
-	if hit := a.proxyCanaryHit(emit); hit != nil {
-		return "", nil, true, hit
-	}
-	if err == nil {
-		out += a.dryShellNote(u.Name)
-		out += a.checkDeps(ctx, manifests, emit)
-		out += a.squatCheck(squats, emit)
-	}
-	if err == nil && len(pend) > 0 {
-		a.after(u, intent, pend)
-		out += a.scopeAfter(u, intent, pend)
+	out := res.Text
+	isErr := err != nil
+	if isErr {
+		out = "Error: " + err.Error()
+		if ctx.Err() != nil {
+			out = cancelledResult
+		}
 	}
 	a.bashAuditAfter(ctx, u, shellBefore)
-	late.end(ctx, t, u)
-	admitNote := a.admitAfter(ctx, admitSnapBefore)
-	if ctx.Err() != nil && err != nil {
-		// The call was interrupted before it produced a result. It was
-		// announced with EvToolRun, so it is closed here with the text
-		// executeAll puts in the history for it; without a result every
-		// front-end kept the call looking as if it were still running.
-		emit(Event{Kind: EvToolResult, Call: &call, Output: cancelledResult, IsError: true, Duration: dur})
-		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: cancelledResult, IsError: true, DurationMs: dur.Milliseconds()})
-		return "", nil, true, ctx.Err()
-	}
-	// When the tool completed (or ignored the context) but the turn was
-	// cancelled right after, its effects stand: reporting "cancelled"
-	// here told the model the call never happened — an invitation to run
-	// it again on the next turn. Fall through with the real output; the
-	// loop ends the turn on the cancelled context one step later.
-	isErr := false
-	if err != nil {
-		out = "Error: " + err.Error()
-		isErr = true
-	} else if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
+	out += a.admitAfter(ctx, admitSnapBefore)
+	// A failure, panic or cancellation does not imply that nothing changed.
+	// Finalize all attempted mutations before any error or canary return.
+	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
 		a.mutated = true
 		a.mutations++
-		if editTool(u.Name) {
-			a.locks().TrackEdit(t, u.Input)
+		if isErr {
+			out += "\nThe tool may have made partial changes before failing; inspect the current state before retrying."
 		}
-		// The content guarantee behind the lock: whatever just ran, and
-		// whatever the pre-execution checks did or did not recognise
-		// about it, a locked file that moved is restored right now, not
-		// merely reported the next time the gate happens to run.
 		for _, note := range []string{tamperedBefore, a.acceptRestoreTampered(u.Name, emit)} {
-			if note == "" {
-				continue
-			}
-			if out == "" {
-				out = note
-			} else {
+			if note != "" {
 				out += "\n\n" + note
 			}
 		}
+		// Capture the actual final files, including partial writes and any
+		// lock restoration, rather than inferring effects from the error.
+		changed := a.after(u, intent, pend)
+		if editTool(u.Name) && (!isErr || changed) {
+			a.locks().TrackEdit(t, u.Input)
+		}
+		out += a.scopeAfter(u, intent, pend)
 	}
-	out += admitNote
+	late.end(ctx, t, u)
+	if hit := a.proxyCanaryHit(emit); hit != nil {
+		res.Text, res.Images, res.Data = "Error: "+hit.Error(), nil, nil
+		emit(Event{Kind: EvToolResult, Call: &call, Output: res.Text, IsError: true, Duration: dur})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: res.Text, IsError: true, DurationMs: dur.Milliseconds()})
+		return res, true, false, hit
+	}
+	if ctx.Err() != nil && isErr {
+		res.Text, res.Images, res.Data = out, nil, nil
+		emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: true, Duration: dur})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: true, DurationMs: dur.Milliseconds()})
+		return res, true, false, ctx.Err()
+	}
+	out += a.checkDeps(ctx, manifests, emit)
+	out += a.squatCheck(squats, emit)
+	if !isErr {
+		out += a.dryShellNote(u.Name)
+	}
 	if checkingCommit && !isErr {
 		a.checkCommitAttach(ctx, commitPreHead, emit)
 	}
-	if out == "" {
+	if out == "" && !nested {
 		out = "(no output)"
 	}
 	for _, ev := range []string{hook.PostTool, hook.PostToolFailure} {
@@ -863,7 +894,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// A result that would take an unreasonable share of what is left is
 	// withheld with its price rather than truncated: truncation bills the
 	// caller for a prefix that is rarely the answer.
-	if !isErr && !a.Off["oversized"] {
+	if !nested && !isErr && !a.Off["oversized"] {
 		if msg := oversized(u.Name, subjectOf(u.Name, u.Input), out, a.EstimateTokens(), a.Settings().ContextWindow, accepted); msg != "" {
 			out, isErr = msg, true
 		}
@@ -872,12 +903,19 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// test lines are what localization starts from.
 	located := a.localizeBash(ctx, u.Name, u.Input, out, isErr, emit)
 	blamed := a.readBlame(ctx, u.Name, u.Input, out, isErr)
-	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
+	if nested {
+		// Archive a copy; the script receives the complete output.
+		if !isErr {
+			a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
+		}
+	} else {
+		out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
+	}
 	out += located + blamed
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}
-	if a.Off["coach"] {
+	if nested || a.Off["coach"] {
 		// still record edits so the syntax check runs when only coaching is off
 	} else if tool.MutatingCall(t, u.Input) { // edit coaching only touches serial (mutating) calls, so no lock is needed
 		out += a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
@@ -886,7 +924,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 		a.coachMu.Unlock()
 	}
-	if !a.Off["loops"] {
+	if !nested && !a.Off["loops"] {
 		a.loopMu.Lock()
 		note, stop := a.loops.record(u.Name, u.Input, isErr, tool.MutatingCall(t, u.Input))
 		if stop {
@@ -902,10 +940,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
 	a.noteToolEgress(ctx, u.Name, u.Input, out)
 	a.noteTaint(u.Name, u.Input, out, emit)
+	res.Text = out
 	if isErr {
-		images = nil
+		res.Images, res.Data = nil, nil
 	}
-	return out, images, isErr, nil
+	return res, isErr, false, nil
 }
 
 // runSafely is the one gate every tool result passes through, and so
@@ -983,9 +1022,8 @@ func editTool(name string) bool {
 	return name == "write_file" || name == "edit_file" || name == "notebook_edit" || name == "ast_edit"
 }
 
-// LastTurnMutated reports whether the most recent turn ran a mutating tool
-// successfully, i.e. whether it may have decided something worth
-// remembering.
+// LastTurnMutated reports whether the most recent turn attempted a mutating
+// tool. Failed tools may leave partial changes worth checking or remembering.
 func (a *Agent) LastTurnMutated() bool { return a.mutated }
 
 // runNested runs one tool call made from inside a script. It is
@@ -1009,129 +1047,31 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 }
 
 func (a *Agent) runNestedResult(ctx context.Context, id, name string, input json.RawMessage) (tool.Result, bool, bool) {
-	if err := a.persistenceErr(); err != nil {
-		return tool.Result{Text: err.Error()}, true, true
-	}
 	emit := a.emitter()
-	// A script sees the same tool schemas the model does, so it passes
-	// intent= as a keyword argument. It has to come off here too, or every
-	// such call fails on an unknown field.
-	intent, stripped := tool.TakeIntent(input)
-	input = stripped
-	// then_run is taken off exactly as execute does for a model's call, so
-	// a script's edit does not hand the tool a field it does not know.
 	var thenRun string
 	if editTool(name) && !a.Off["thenrun"] {
 		thenRun, input = tool.TakeThenRun(input)
 	}
-	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
-	t, ok := a.Tools.Get(name)
-	if !ok {
-		return tool.Result{Text: a.unknownTool(name)}, true, false
-	}
-	// The same mode gate as executeTool: a script is a way to save round
-	// trips, not a way around read-only, plan or accept mode.
-	if reason, denied := a.toolGate(t, input); denied {
-		a.refuseCall(&call, reason, true, emit)
-		return tool.Result{Text: reason}, true, true
-	}
 	u := llm.Block{ID: id, Name: name, Input: input}
-	if out, handled := a.dryIntercept(ctx, t, &u, &call, intent, emit); handled {
-		return tool.Result{Text: out}, false, false
+	start := time.Now()
+	ctx, wait := meterWaits(ctx)
+	res, isErr, denied, err := a.executeToolResult(ctx, u, emit, true)
+	a.stats.tool(name, time.Since(start)-wait.total(), isErr || err != nil)
+	if thenRun != "" && err == nil {
+		res.Text, err = a.runThenRun(ctx, u, thenRun, res.Text, isErr, emit)
 	}
-	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		if errors.Is(err, egress.ErrCanary) {
-			// The script is told; the call that ran the script ends
-			// the run when it returns (proxyCanaryHit).
+			// Even a script that catches its nested error cannot suppress
+			// the canary stop on the enclosing script call.
 			where := "a script's " + name + " call"
 			a.canaryHit.Store(&where)
 		}
-		return tool.Result{Text: "Error: " + err.Error()}, true, false
-	}
-	if deny != "" {
-		a.refuseCall(&call, deny, true, emit)
-		return tool.Result{Text: deny}, true, true
-	}
-	emit(Event{Kind: EvToolRun, Call: &call})
-	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
-	var pend []pending
-	var tamperedBefore string
-	var shellBefore bashAuditState
-	var admitSnapBefore *admitSnap
-	var late *lateCall
-	if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
-		tamperedBefore = a.acceptRestoreTampered("", emit)
-		late = a.snapshotBefore(ctx, t, u.Input, emit)
-		pend = a.before(t, u.Input)
-		shellBefore = a.bashAuditBefore(ctx, u)
-		admitSnapBefore = a.admitBefore(ctx, u)
-	}
-	start := time.Now()
-	if err := a.persistenceErr(); err != nil {
-		return tool.Result{Text: err.Error()}, true, true
-	}
-	res, runErr := a.runSafelyResult(ctx, t, u.Input)
-	out := res.Text
-	a.bashAuditAfter(ctx, u, shellBefore)
-	late.end(ctx, t, u)
-	admitNote := a.admitAfter(ctx, admitSnapBefore)
-	dur := time.Since(start)
-	// What a script read enters the context through the script's own
-	// output, so it labels the session like a direct call would.
-	a.noteTaint(name, u.Input, out, emit)
-	isErr := runErr != nil
-	if isErr {
-		out = "Error: " + runErr.Error()
-	} else if tool.MutatingCall(t, u.Input) && !a.DryRunOn() {
-		a.after(u, intent, pend)
-		a.mutated = true
-		a.mutations++
-		// Same content guarantee as executeTool: a locked file this
-		// nested call moved, by any means, is restored right now.
-		for _, note := range []string{tamperedBefore, a.acceptRestoreTampered(name, emit)} {
-			if note == "" {
-				continue
-			}
-			if out == "" {
-				out = note
-			} else {
-				out += "\n\n" + note
-			}
+		if res.Text == "" {
+			res.Text = "Error: " + err.Error()
 		}
+		res.Images, res.Data = nil, nil
+		isErr = true
 	}
-	out += admitNote
-	// The post-tool hooks fire for a script's call like a direct one.
-	for _, ev := range []string{hook.PostTool, hook.PostToolFailure} {
-		if ev == hook.PostToolFailure && !isErr {
-			continue
-		}
-		in := a.hookInput(ev)
-		in.Tool, in.Input, in.Output, in.IsError = name, u.Input, out, isErr
-		if isErr {
-			in.Error = out
-		}
-		hookNotes = append(hookNotes, a.runHook(ctx, in, emit).Notes...)
-	}
-	for _, n := range hookNotes {
-		out += "\n[hook: " + n + "]"
-	}
-	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
-	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: id, Name: name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
-	// The script gets the whole output; the archive gets a copy, so what a
-	// script read is still findable afterwards through expand_output even
-	// though it never entered the conversation.
-	if !isErr {
-		a.stash(id, name, subjectOf(name, u.Input), out)
-	}
-	if thenRun != "" {
-		if res, err := a.runThenRun(ctx, u, thenRun, out, isErr, emit); err == nil {
-			out = res
-		}
-	}
-	res.Text = out
-	if isErr {
-		res.Data = nil
-	}
-	return res, isErr, false
+	return res, isErr, denied
 }
