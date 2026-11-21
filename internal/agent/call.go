@@ -122,9 +122,8 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	start := time.Now()
 	reqTokens := a.EstimateTokens()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), reqTokens)
-	// streamedOut and streamedThink hold what the call produced, so a
-	// call cancelled mid-stream (which returns no usage) can still be
-	// counted: see cancelledUsage.
+	// Keep the generated output for usage estimates when a stream ends
+	// before its usage frame, whether cancelled or failed by the provider.
 	var streamedOut, streamedThink strings.Builder
 	// firstToken is when the provider produced anything at all. A call
 	// that never streams a token (a non-streaming provider, a failure)
@@ -153,7 +152,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	defer cancel(nil)
 	sent := a.bridgeImages(ctx, a.Messages, model, emit)
 	a.logRequest(prov, model, system, defs, a.Messages, sent, effort)
-	resp, err := a.stream(callCtx, prov, llm.Request{
+	req := llm.Request{
 		Model:     model,
 		System:    system,
 		Messages:  sent,
@@ -163,7 +162,8 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		// Off, the plan a reply reasoned out is gone by the next reply
 		// on the OpenAI-compatible path; see llm.Block.Via.
 		DropReasoning: a.Off["reasoning"],
-	}, func(e llm.Event) {
+	}
+	resp, err := a.stream(callCtx, prov, req, func(e llm.Event) {
 		if e.Type == llm.EventRetried && e.Retry != nil {
 			a.stats.retried(e.Retry.Attempts)
 		}
@@ -184,18 +184,19 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 			cancel(errBurstCap)
 		}
 	})
+	// Capture the original call's spend before a harness cut replaces its
+	// response. The synthetic reply will carry it into recordReply once.
+	u := streamedUsage(req, resp, err, !firstToken.IsZero(), streamedOut.String(), streamedThink.String())
 	if ctx.Err() == nil && planBudgetCut(callCtx, err) {
 		a.planCuts++
 		a.planCutNow = true
 		resp, err = plan.cutReply(model), nil
+		resp.Usage = u
 	}
 	if ctx.Err() == nil && err != nil && errors.Is(context.Cause(callCtx), errBurstCap) {
 		resp, err = burst.reply(model), nil
+		resp.Usage = u
 		a.burstRan, a.burstRepeat = len(resp.Message.ToolUses()), burst.repeat
-	}
-	var u llm.Usage
-	if resp != nil {
-		u = resp.Usage
 	}
 	took := time.Since(start)
 	a.lastTTFT, a.lastDecode = 0, 0
@@ -229,13 +230,10 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()
 	}
-	// A call the user cancelled after the provider began answering was
-	// billed; its estimate goes in the totals the way a subagent's spend
-	// does, past the prompt-cache ledger, which compares real figures
-	// call to call. One cancelled before any token has nothing to show it
-	// was processed, and is not billed by guesswork.
-	if err != nil && ctx.Err() != nil && !firstToken.IsZero() {
-		a.addSideUsage(model, cancelledUsage(reqTokens, streamedOut.String(), streamedThink.String()))
+	// A failed call has no assistant message to carry its spend. Real
+	// provider usage wins over estimates, including on cancellation.
+	if err != nil && u != (llm.Usage{}) {
+		a.addSideUsage(model, u)
 	}
 	if err != nil {
 		a.debugf("call failed after %s: %v", time.Since(start).Round(time.Millisecond), err)

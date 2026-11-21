@@ -96,19 +96,7 @@ func (a *Agent) stream(ctx context.Context, p llm.Provider, req llm.Request, emi
 			emit(e)
 		}
 	})
-	var usage llm.Usage
-	if resp != nil {
-		usage = resp.Usage
-	} else if err != nil && ctx.Err() != nil && produced {
-		input := estimateTokens(req.System)
-		for _, m := range req.Messages {
-			input += messageTokens(m)
-		}
-		for _, d := range req.Tools {
-			input += estimateTokens(d.Description) + estimateTokens(string(d.InputSchema))
-		}
-		usage = cancelledUsage(input, out.String(), thinking.String())
-	}
+	usage := streamedUsage(req, resp, err, produced, out.String(), thinking.String())
 	if cost, ok := usage.Cost(a.PriceOf(req.Model)); ok {
 		b.mu.Lock()
 		b.spent += cost
@@ -116,6 +104,28 @@ func (a *Agent) stream(ctx context.Context, p llm.Provider, req llm.Request, emi
 		b.mu.Unlock()
 	}
 	return resp, err
+}
+
+// streamedUsage uses provider figures when present. A failed stream that
+// generated tokens but ended before its usage frame is estimated from the
+// request and generated output. A failure before generation is not billed
+// by guesswork. Both the session and shared budget use this calculation;
+// updating the session totals must not charge the shared account again.
+func streamedUsage(req llm.Request, resp *llm.Response, err error, produced bool, out, thinking string) llm.Usage {
+	if resp != nil && resp.Usage != (llm.Usage{}) {
+		return resp.Usage
+	}
+	if err == nil || !produced {
+		return llm.Usage{}
+	}
+	input := estimateTokens(req.System)
+	for _, m := range req.Messages {
+		input += messageTokens(m)
+	}
+	for _, d := range req.Tools {
+		input += estimateTokens(d.Description) + estimateTokens(string(d.InputSchema))
+	}
+	return cancelledUsage(input, out, thinking)
 }
 
 // A ceiling that is only looked at between turns is not a ceiling. One
