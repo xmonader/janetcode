@@ -640,6 +640,8 @@ func janetEnv(cfg runConfig, home string) map[string]string {
 		"DASHSCOPE_API_KEY":  cfg.Key,
 		"JANETCODE_PROVIDER": "openai",
 		"JANETCODE_MODEL":    cfg.Model,
+		// A run ends with its answer, not with the servers it left behind.
+		"JANETCODE_NO_WAIT_BACKGROUND": "1",
 	}
 }
 

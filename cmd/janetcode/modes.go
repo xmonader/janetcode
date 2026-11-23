@@ -300,7 +300,7 @@ func (r *root) headlessMode() error {
 		Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: stdin, Input: input,
 		Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemoryHeadless(),
-		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, NoWaitBackground: o.noWaitBg, JSONSchema: schema, Recover: o.recoverTurn,
+		Format: format, MaxCostUSD: o.maxCost, MaxToolCalls: o.maxToolCalls, MaxWallTime: o.maxWallTime, NoWaitBackground: o.noWaitBg || noWaitBgEnv(), JSONSchema: schema, Recover: o.recoverTurn,
 	})
 	finish(err)
 	return err
@@ -466,3 +466,10 @@ func interactiveTerminal() error {
 	f.Close()
 	return nil
 }
+
+// noWaitBgEnv reports JANETCODE_NO_WAIT_BACKGROUND=1, the environment
+// form of --no-wait-background. Benchmarks set it rather than the flag:
+// an A/B arm may be an older binary, which ignores an unknown variable but
+// exits on an unknown flag, and a run that waits on a server the model
+// left behind would be scored as a timeout instead of on its answer.
+func noWaitBgEnv() bool { return os.Getenv("JANETCODE_NO_WAIT_BACKGROUND") == "1" }

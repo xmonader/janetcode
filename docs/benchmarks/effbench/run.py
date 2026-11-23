@@ -180,6 +180,8 @@ class JanetcodeArm(eb.CompetitorArm):
                                                      **self.settings}))
         env = eb.competitor_env(home, None, OPENAI_BASE_URL=self.base_url, **self.env_extra)
         env["OPENAI_API_KEY"] = self.key
+        # A run ends with its answer, not with the servers it left behind.
+        env["JANETCODE_NO_WAIT_BACKGROUND"] = "1"
         prompt = (run / "prompt.txt").read_text()
         return hide_prefix(ws) + [self.bin, "-p", prompt, "--yolo", "--output-format", "json",
                 "--provider", "openai", "--model", self.model] + branch_args(run), env
