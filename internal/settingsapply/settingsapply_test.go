@@ -1,6 +1,9 @@
 package settingsapply
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -178,6 +181,8 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"screen_reader":      "read via cfg.ScreenReaderOn() when the session picks its interface",
 		"conflict_exit":      "read from cfg.ConflictExit when the agent is built: it adds a system prompt line, so it takes effect at the next session and never rewrites a cached prefix mid-session",
 	}
+	noAgentField["spend.daily_usd"] = "read when the agent (Spend) is built: takes effect at the next session"
+	noAgentField["spend.monthly_usd"] = "read when the agent (Spend) is built: takes effect at the next session"
 	noAgentField["fingerprint"] = "read when the agent (FingerprintDir) is built: takes effect at the next session"
 	for _, k := range config.SettableKeys {
 		if strings.HasPrefix(k, "voice.") {
@@ -371,5 +376,32 @@ func TestApplyVoiceDoesNotWriteConfigCopies(t *testing.T) {
 	}
 	if requestCopy.Voice.Model != "before" {
 		t.Fatalf("request copy voice model = %q, want before", requestCopy.Voice.Model)
+	}
+}
+
+// A spend cap set with /config must be saved inside the "spend" block,
+// where loading reads it, not as a top-level "spend.daily_usd" key.
+func TestApplySpendSavesTheBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := &config.Config{}
+	if _, err := Apply(cfg, nil, path, "spend.daily_usd", "5"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["spend.daily_usd"]; ok {
+		t.Fatalf("saved a dotted top-level key: %s", data)
+	}
+	var sp struct {
+		DailyUSD float64 `json:"daily_usd"`
+	}
+	if err := json.Unmarshal(raw["spend"], &sp); err != nil || sp.DailyUSD != 5 {
+		t.Fatalf("spend block = %s (err %v), want daily_usd 5", raw["spend"], err)
 	}
 }

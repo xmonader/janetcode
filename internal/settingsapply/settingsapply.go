@@ -35,6 +35,13 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 			next.Voice = &voice
 		}
 		target = &next
+	case cfg != nil && strings.HasPrefix(key, "spend."):
+		next := *cfg
+		if cfg.Spend != nil {
+			sp := *cfg.Spend
+			next.Spend = &sp
+		}
+		target = &next
 	}
 	applied, err := config.ApplyKV(target, key, val)
 	if err != nil {
@@ -55,6 +62,11 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		}
 		if strings.HasPrefix(key, "voice.") {
 			fileKey, value = "voice", cfg.Voice
+		}
+		// A cap saved under its dotted name is a top-level key nothing
+		// reads back: the file holds the whole "spend" block.
+		if strings.HasPrefix(key, "spend.") {
+			fileKey, value = "spend", cfg.Spend
 		}
 		if err := config.UpdateKey(path, fileKey, value); err != nil {
 			return nil, fmt.Errorf("save config: %w", err)

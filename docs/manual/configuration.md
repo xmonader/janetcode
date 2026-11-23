@@ -990,7 +990,9 @@ call in flight when the line is crossed finishes, so the spend can
 overshoot by one call. A call is charged at the provider's reported cost,
 else at list price; a model nothing can price is not counted. A ledger that
 cannot be written is logged and never blocks a call. `/budget` shows today's
-and this month's spend.
+and this month's spend. Spend is recorded only while a cap is set, so a cap
+set mid-day counts from then. A cap changed with `/config` is saved at once
+and takes effect at the next session.
 
 ### Decisions (experimental, optional)
 
