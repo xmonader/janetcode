@@ -316,6 +316,8 @@ func (r *root) wireProject() error {
 		servers.Options.Debug = f
 	}
 
+	startSnapshotPrune(ag.Snapshots, r.sessDir, r.cfg, ag.Debug)
+
 	subjects := inspect.New()
 	registerSubjects(subjects, subjectDeps{
 		agent: ag, session: sess, cfg: cfg, cfgPath: cfgPath, cwd: cwd, version: version,

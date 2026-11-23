@@ -38,6 +38,16 @@ the cap in a headless or eval run is a failure, `ExitTurnLimit`, not a pause).
 It is a backstop, not the runaway guard: the loop detector and the cost and
 tool-call budgets stop a model that is going in circles long before the cap.
 
+Undo checkpoints anchor a git ref each under `refs/janetcode/cp/`. At every
+session start janetcode deletes, in the background and without reporting
+failures to the terminal, the refs no saved session refers to: those older
+than `snapshot_keep_days` (default 7), and all but the newest
+`snapshot_keep_count` (default 200) of the younger ones. A ref named by the
+undo record of a session used within `snapshot_session_days` (default 30) is
+kept whatever its age. Sessions do not store snapshot hashes in their
+transcripts, so "referenced" means named in the `<id>.undo.json` beside the
+session. Refs outside that prefix are never touched.
+
 `web_search` scrapes DuckDuckGo's HTML endpoint by default, which needs no
 key but can rate-limit heavy use. A search API is steadier:
 

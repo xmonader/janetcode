@@ -271,6 +271,16 @@ type Config struct {
 	// user writes with /remember is saved at once. /memory confirm
 	// on|off changes it for the session.
 	MemoryConfirm bool `json:"memory_confirm,omitempty"`
+	// SnapshotKeepDays and SnapshotKeepCount bound the git refs that undo
+	// checkpoints leave behind: at session start, refs that no saved
+	// session refers to are deleted once older than SnapshotKeepDays
+	// (default 7), and the newest SnapshotKeepCount (default 200) of the
+	// younger ones survive. Refs named by a session used in the last
+	// SnapshotSessionDays (default 30) are never deleted. Zero means the
+	// default.
+	SnapshotKeepDays    int `json:"snapshot_keep_days,omitempty"`
+	SnapshotKeepCount   int `json:"snapshot_keep_count,omitempty"`
+	SnapshotSessionDays int `json:"snapshot_session_days,omitempty"`
 	// Egress restricts which hosts a turn may send data to: fetch_url,
 	// web search, remote MCP servers and shell commands that visibly
 	// reach a host. Requests to the model provider are always allowed.
