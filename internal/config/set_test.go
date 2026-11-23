@@ -185,6 +185,9 @@ func TestApplyKVFeatureKeys(t *testing.T) {
 	if _, err := ApplyKV(cfg, "advisor_mode", "always"); err != nil || cfg.AdvisorMode != "always" {
 		t.Fatalf("advisor_mode: %v, %q", err, cfg.AdvisorMode)
 	}
+	if _, err := ApplyKV(cfg, "advisor_mode", "triggered"); err != nil || cfg.AdvisorMode != "triggered" {
+		t.Fatalf("advisor_mode triggered: %v, %q", err, cfg.AdvisorMode)
+	}
 	if _, err := ApplyKV(cfg, "advisor_mode", "sometimes"); err == nil {
 		t.Fatal("sometimes is not a mode")
 	}

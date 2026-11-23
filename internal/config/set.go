@@ -108,11 +108,11 @@ var setters = map[string]setter{
 	"advisor_max_consults": countKey("advisor_max_consults", func(c *Config) *int { return &c.AdvisorMaxConsults }),
 	"advisor_mode": func(c *Config, val string) (any, error) {
 		switch val {
-		case "", "off", "always":
+		case "", "off", "always", "triggered":
 			c.AdvisorMode = val
 			return val, nil
 		}
-		return nil, fmt.Errorf("advisor_mode wants off or always")
+		return nil, fmt.Errorf("advisor_mode wants off, always or triggered")
 	},
 	"advisor_turn_start_style": func(c *Config, val string) (any, error) {
 		switch val {

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"maps"
 	"math"
 	"sort"
 	"sync"
@@ -71,7 +72,9 @@ type turnMonitor struct {
 	lastScore float64
 	stuck     bool
 
-	loops   loopDetector
+	loops loopDetector
+	// trig is what the triggered advisor mode watches (advisortrigger.go).
+	trig    advisorTriggers
 	loopMu  sync.Mutex
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
@@ -121,6 +124,7 @@ func (m *turnMonitor) Stats() Stats {
 	m.stats.mu.Lock()
 	defer m.stats.mu.Unlock()
 	s := m.stats.s
+	s.AdvisorTriggers = maps.Clone(s.AdvisorTriggers)
 	s.Tools = make([]ToolStat, 0, len(m.stats.tools))
 	for _, t := range m.stats.tools {
 		s.Tools = append(s.Tools, *t)

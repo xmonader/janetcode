@@ -936,6 +936,9 @@ func (a *Agent) executeToolResult(ctx context.Context, u llm.Block, emit func(Ev
 		a.loopMu.Unlock()
 		out += note
 	}
+	if !nested {
+		a.trig.observe(a.advisorTriggeredEnabled(), u.Name, u.Input, out, isErr)
+	}
 	if tool.MutatingCall(t, u.Input) { // serial: safe to read the counters
 		out += a.critique(emit)
 	}

@@ -501,6 +501,16 @@ that put the panel behind a tool call were never pressed and scored
 identically to the cheap model working alone. So `always` takes the
 choice away from the model.
 
+`"advisor_mode": "triggered"` is an experimental, unmeasured middle path.
+It never consults at the start of a turn or on a gate failure; it buys the
+same consult (same `advisor_max_consults` cap, same timeout) only when the
+harness sees the executor stuck inside a turn: the same test or check
+command failing twice in a row with the same failure, a command that
+passed earlier in the turn failing again, or an edit put back to a content
+the file had earlier in the turn. Each trigger fires at most once a turn.
+The session stats count consults per trigger (`AdvisorTriggers`). Measure
+`always` first: gating can only recover part of a gain that has to exist.
+
 `advisor_max_consults` caps consults per turn (default 2). Every failure
 path is open: a spent budget, a provider error, a timeout and an empty
 reply all leave the turn exactly as it would have been with the feature

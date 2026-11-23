@@ -185,7 +185,8 @@ type Agent struct {
 	System   string
 	Model    string
 	// AdvisorMode is how the harness forces advisor consults:
-	// AdvisorOff (the default) or AdvisorAlways. See advisorforce.go.
+	// AdvisorOff (the default), AdvisorAlways, or the experimental
+	// AdvisorTriggered. See advisorforce.go and advisortrigger.go.
 	AdvisorMode string
 	// AdvisorMaxConsults caps forced consults per turn; 0 uses
 	// advisorForcedCap.
@@ -844,6 +845,7 @@ func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Even
 	// the advisor sees the same transcript the executor will.
 	a.adviseAtTurnStart(ctx, firstText(blocks), emit)
 	a.loops.reset()
+	a.trig.reset()
 	// A stop the detector called in a step that then ended on an error
 	// was never consumed; it belongs to that turn, not this one.
 	a.stuck = false
@@ -1298,6 +1300,9 @@ func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote 
 		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 		return true, ErrStuck
 	}
+	// After the results are in the history, so the guidance follows them
+	// rather than splitting a tool call from its answer.
+	a.adviseOnTriggers(ctx, emit)
 	if check := a.wrapStopCheck(uses, results, wrapWasFired); check != "" {
 		return true, a.stopForWrap(ctx, check, emit)
 	}

@@ -81,6 +81,10 @@ type Stats struct {
 	// fired: a feature that is on and never consulted is a null result
 	// about the wiring, not about the advisor.
 	AdvisorConsults int
+	// AdvisorTriggers splits the consults of advisor_mode "triggered" by
+	// the event that fired them (see advisortrigger.go), so an A/B can
+	// count which trigger paid rather than only that one did.
+	AdvisorTriggers map[string]int
 	// DecisionCalls counts calls to the optional decision provider
 	// (internal/jev) and DecisionErrors how many failed. DecisionTime is
 	// the wall time they cost, so /stats can price the feature in its
@@ -323,6 +327,16 @@ func (c *statsCounter) routed() {
 func (c *statsCounter) advisorConsult() {
 	c.mu.Lock()
 	c.s.AdvisorConsults++
+	c.mu.Unlock()
+}
+
+// advisorTrigger records which event fired a triggered consult.
+func (c *statsCounter) advisorTrigger(why string) {
+	c.mu.Lock()
+	if c.s.AdvisorTriggers == nil {
+		c.s.AdvisorTriggers = map[string]int{}
+	}
+	c.s.AdvisorTriggers[why]++
 	c.mu.Unlock()
 }
 

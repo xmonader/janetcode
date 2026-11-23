@@ -30,6 +30,9 @@ import (
 const (
 	AdvisorOff    = "off"
 	AdvisorAlways = "always"
+	// AdvisorTriggered consults only on a failure event (see
+	// advisortrigger.go). Experimental and unmeasured.
+	AdvisorTriggered = "triggered"
 )
 
 // advisorForcedCap is how many forced consults one turn may buy when
@@ -65,7 +68,16 @@ func (a *Agent) advisorForcedBudget() int {
 // cancelled turn all leave the conversation exactly as it was. why names
 // the trigger, for the session log and for counting which triggers paid.
 func (a *Agent) forceAdvice(ctx context.Context, why, question string, emit func(Event)) bool {
-	if !a.advisorForcedEnabled() || ctx.Err() != nil {
+	if !a.advisorForcedEnabled() {
+		return false
+	}
+	return a.consult(ctx, why, question, emit)
+}
+
+// consult is forceAdvice past the mode check, shared with the triggered
+// mode so both buy the same consult under the same cap and timeout.
+func (a *Agent) consult(ctx context.Context, why, question string, emit func(Event)) bool {
+	if ctx.Err() != nil {
 		return false
 	}
 	if a.advisorForcedBudget() <= 0 {

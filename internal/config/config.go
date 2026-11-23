@@ -346,7 +346,9 @@ type Config struct {
 	ComputerUse *bool `json:"computer_use,omitempty"`
 	// AdvisorMode is how the harness forces advisor consults, as opposed
 	// to offering the advisor tool and hoping the model presses it:
-	// "off" (the default) or "always". A consult returns guidance text
+	// "off" (the default), "always", or "triggered" (experimental and
+	// unmeasured: only on a repeated or green-to-red check failure, or a
+	// reverted edit). A consult returns guidance text
 	// injected into the executor's context; the advisor never acts.
 	AdvisorMode string `json:"advisor_mode,omitempty"`
 	// AdvisorMaxConsults caps forced consults per turn. 0 is two.
