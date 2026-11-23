@@ -29,7 +29,7 @@ const testGuardNote = "%s is a test file. This run leaves the repository's tests
 
 // testFileDenial is the refusal for a guarded write, or "".
 func (a *Agent) testFileDenial(u llm.Block) string {
-	if !a.TestGuard || a.Off["testguard"] || (u.Name != "write_file" && u.Name != "edit_file" && u.Name != "ast_edit") {
+	if !a.TestGuard || a.Off["testguard"] || (u.Name != "write_file" && u.Name != "edit_file" && u.Name != "ast_edit" && u.Name != "apply_patch") {
 		return ""
 	}
 	var in struct {

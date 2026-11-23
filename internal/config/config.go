@@ -76,6 +76,10 @@ type Config struct {
 	// so it is on — and the tools are deferred rather than removed, so the
 	// worst case is one tool_search call to get them back.
 	LeanTools_ *bool `json:"lean_tools,omitempty"`
+	// PatchModels are extra model-id globs (path.Match, case-insensitive)
+	// that are offered apply_patch besides the built-in families
+	// (see tool.PatchModel).
+	PatchModels []string `json:"patch_models,omitempty"`
 	// ShowThinking renders the model's reasoning. Turning it off asks the
 	// provider to omit the text while still returning the signature that
 	// keeps multi-turn reasoning valid, which lowers time to first visible

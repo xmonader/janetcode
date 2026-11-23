@@ -407,7 +407,7 @@ What is enforced, and where:
 
 | Change made by | Judged by |
 |---|---|
-| `write_file`, `edit_file`, `ast_edit`, `notebook_edit` | the tool itself, so a script, a fork or ACP cannot skip it. The refusal names the missing admission and the command, for example ``pkg/in.go is not admitted for editing ... admit it with `/admit pkg/in.go` (headless: --admit pkg/in.go)``. |
+| `write_file`, `edit_file`, `ast_edit`, `apply_patch`, `notebook_edit` | the tool itself, so a script, a fork or ACP cannot skip it. The refusal names the missing admission and the command, for example ``pkg/in.go is not admitted for editing ... admit it with `/admit pkg/in.go` (headless: --admit pkg/in.go)``. |
 | a `bash` or `monitor` command, or a `terminal` send, whose write targets show in its text (`>`, `tee`, `cp`, `mv`, `rm`, `sed -i`...) | its text, before it runs; one non-admitted target refuses the whole command. A terminal send is read from the directory earlier sends left that shell in. |
 | a `bash` or `terminal` call whose writes are not in its text (`make gen`, a script) | the work tree around the call: a non-admitted file it changed is put back from the git index (or removed, if the call created it) and the result says which. A file that already held uncommitted edits cannot be restored, and is named. Outside a git repository the snapshot janetcode takes just before the call is used instead (a file you had already edited is in it, so your edit stays); a directory too large to snapshot is not watched. Ignored files are not seen. |
 | an editing subagent's work (`task` with `edit`) | merge-back, which refuses a non-admitted file; the patch is returned instead |
@@ -1876,6 +1876,27 @@ did not hold what the model thought it held.
 When nothing matches at all, the failure shows the closest region of the
 file as a diff against what was asked for, so the next attempt is aimed
 at the text that is actually there instead of guessing again.
+
+### apply_patch, for models trained on patches
+
+Some model families (`gpt-*`, `o3*`, `o4*`, `codex*`) are trained on the
+codex-style patch envelope and write it more reliably than a JSON edit, so
+they are given an `apply_patch` tool; no other model sees it, and its
+schema costs those requests nothing. Add model-id globs for further
+models with `patch_models` in the configuration; `JANETCODE_OFF=applypatch`
+removes the tool for everyone.
+
+The patch is `*** Begin Patch` ... `*** End Patch` with `*** Add File`,
+`*** Delete File` and `*** Update File` (optionally `*** Move to`) sections;
+an update is `@@` hunks of context, `-` and `+` lines. Each hunk's old
+block is found by the `edit_file` match ladder and must match exactly once,
+searching forward from the previous hunk. Nothing is written until the
+whole patch has parsed and matched; a write that fails midway restores the
+files already written. A patch with no `*** End Patch` is refused as cut
+off by the output limit, and added lines that are placeholders such as
+`// ... existing code ...` are refused. Permissions, protected paths,
+admission, the diff in the prompt and the read-before-edit check work as
+for `edit_file`, for every file the patch names.
 
 ### Files that are not what you read
 

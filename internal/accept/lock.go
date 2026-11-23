@@ -369,7 +369,7 @@ func (m *Mode) integrityCheckLocked() []string {
 // isEditTool reports the tools that change files through the harness,
 // never the shell — the same two agent's own AutoEdits mode covers.
 func isEditTool(name string) bool {
-	return name == "write_file" || name == "edit_file" || name == "notebook_edit" || name == "ast_edit"
+	return name == "write_file" || name == "edit_file" || name == "notebook_edit" || name == "ast_edit" || name == "apply_patch"
 }
 
 // IntegrityCheck compares each locked file's current hash to the one

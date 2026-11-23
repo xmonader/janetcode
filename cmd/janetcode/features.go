@@ -157,6 +157,7 @@ var configWhen = map[string][2]string{
 	"thinking":                 {"whether to ask for reasoning at all", "a model or a task where reasoning is not worth the latency"},
 	"intent":                   {"ask the model for a one-line reason on every tool call", "you want a readable narrative and will pay ~21% more context for it"},
 	"lean_tools":               {"defer the search tools behind tool_search", "on by default; 23% less context on fan-out work"},
+	"patch_models":             {"extra model-id globs that are offered the apply_patch tool", "for a model trained on the codex patch format that the built-in gpt-*, o3*, o4*, codex* list does not name"},
 	"show_thinking":            {"render the model's reasoning in the terminal", "you want the first visible token sooner and do not read the reasoning"},
 	"auto_approve":             {"approve every tool call without asking", "a sandbox or a container"},
 	"max_iterations":           {"cap on model calls in one turn", "a turn that loops is a turn that spends"},

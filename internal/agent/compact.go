@@ -514,7 +514,7 @@ func touchedNote(head []llm.Message) string {
 			switch b.Name {
 			case "read_file":
 				read[p] = true
-			case "write_file", "edit_file", "notebook_edit", "ast_edit":
+			case "write_file", "edit_file", "notebook_edit", "ast_edit", "apply_patch":
 				changed[p] = true
 			}
 		}

@@ -592,6 +592,12 @@ func Subject(tool string, input json.RawMessage) string {
 	// and a saved file rule could not be shared with a Unix machine.
 	case "read_file", "write_file", "edit_file", "notebook_edit", "ast_edit", "list_dir":
 		return filepath.ToSlash(filepath.Clean(str("path")))
+	case "apply_patch":
+		// The first file the patch names; protected paths see them all.
+		if ps := PatchPaths(input); len(ps) > 0 {
+			return filepath.ToSlash(filepath.Clean(ps[0]))
+		}
+		return "."
 	case "glob", "grep":
 		if p := str("path"); p != "" {
 			return filepath.ToSlash(filepath.Clean(p))

@@ -771,6 +771,11 @@ func (b *agentBuilder) stepSearchTools() error {
 		// notebook editor, found through tool_search.
 		ag.Tools.AddDeferred(tool.AstEdit{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	}
+	if offerApplyPatch(b.off, d.cfg.Model, d.cfg.PatchModels) {
+		// Offered directly, and only to models trained on the patch
+		// envelope: any other model's request never carries its schema.
+		ag.Tools.Add(tool.ApplyPatch{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
+	}
 	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the
@@ -780,6 +785,12 @@ func (b *agentBuilder) stepSearchTools() error {
 	ag.Tools.Intent = d.cfg.IntentEnabled() && !b.off["intent"]
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow, Slim: b.slim()})
 	return nil
+}
+
+// offerApplyPatch reports whether apply_patch is in the tool list: the
+// applypatch switch is on and the model is one trained on the patch format.
+func offerApplyPatch(off map[string]bool, model string, extra []string) bool {
+	return !off["applypatch"] && tool.PatchModel(model, extra...)
 }
 
 // renderHTML is the tool that attaches an HTML page to the turn. Pages are
@@ -819,7 +830,7 @@ func (b *agentBuilder) slim() bool {
 }
 
 // Everything else stays loadable through tool_search.
-var headlessCore = map[string]bool{"read_file": true, "write_file": true, "edit_file": true, "bash": true, "tool_search": true}
+var headlessCore = map[string]bool{"read_file": true, "write_file": true, "edit_file": true, "apply_patch": true, "bash": true, "tool_search": true}
 
 // stepHeadlessCore defers every tool but the coding core in a headless
 // run. Every request carries the tool list, and a full one is 25 KB —

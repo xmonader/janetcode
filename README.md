@@ -182,6 +182,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `glob` | Find files by pattern (`**/*.go`) | no |
 | `grep` | Search file contents with a regex | no |
 | `edit_file` | Replace text in a file, located by exact string, line range or content anchor; several edits in one call | yes, shows a diff |
+| `apply_patch` | Multi-file patch in the codex-style `*** Begin Patch` envelope (add, delete, update, move; hunks located by the same match ladder as `edit_file`, applied atomically). Offered only to models trained on that format: `gpt-*`, `o3*`, `o4*`, `codex*`, plus any glob in the `patch_models` setting; `JANETCODE_OFF=applypatch` removes it | yes, shows a diff |
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |

@@ -1022,7 +1022,7 @@ func (a *Agent) autoAllows(u llm.Block) bool {
 // editTool reports the tools AutoEdits covers: the ones that change files
 // through the harness, never the shell.
 func editTool(name string) bool {
-	return name == "write_file" || name == "edit_file" || name == "notebook_edit" || name == "ast_edit"
+	return name == "write_file" || name == "edit_file" || name == "notebook_edit" || name == "ast_edit" || name == "apply_patch"
 }
 
 // LastTurnMutated reports whether the most recent turn attempted a mutating

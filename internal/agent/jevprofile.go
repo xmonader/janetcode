@@ -42,9 +42,10 @@ var exploreTools = map[string]bool{
 
 // editTools change the tree directly.
 var editTools = map[string]bool{
-	"write_file": true,
-	"edit_file":  true,
-	"ast_edit":   true,
+	"write_file":  true,
+	"edit_file":   true,
+	"ast_edit":    true,
+	"apply_patch": true,
 }
 
 // readingShellHeads are command heads that only look at the tree. Anything

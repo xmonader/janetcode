@@ -271,6 +271,16 @@ func writeTargets(c Call) []string {
 			return nil
 		}
 		return shell.WriteTargets(in.Text, c.Root)
+	case "apply_patch":
+		// One call names many files; every one of them is a write target.
+		var out []string
+		for _, p := range PatchPaths(c.Input) {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(c.Root, p)
+			}
+			out = append(out, filepath.Clean(p))
+		}
+		return out
 	case "write_file", "edit_file", "notebook_edit", "ast_edit":
 		var in struct {
 			Path string `json:"path"`
@@ -285,6 +295,27 @@ func writeTargets(c Call) []string {
 		return []string{filepath.Clean(abs)}
 	}
 	return nil
+}
+
+// PatchPaths are the files an apply_patch call names (added, deleted,
+// updated or moved to), in the order they appear.
+func PatchPaths(input json.RawMessage) []string {
+	var in struct {
+		Input string `json:"input"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return nil
+	}
+	var out []string
+	for _, l := range strings.Split(in.Input, "\n") {
+		l = strings.TrimSpace(l)
+		for _, p := range []string{"*** Add File:", "*** Delete File:", "*** Update File:", "*** Move to:"} {
+			if rest, ok := strings.CutPrefix(l, p); ok && strings.TrimSpace(rest) != "" {
+				out = append(out, strings.TrimSpace(rest))
+			}
+		}
+	}
+	return out
 }
 
 // HardDeny is the tier no rule reaches: a command that destroys the
