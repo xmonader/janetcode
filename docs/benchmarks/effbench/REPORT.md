@@ -22,6 +22,27 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## kimi-for-coding: edit escalation and path repair (`bob-kimi-edit`, 2026-11-23, kept, unmeasured)
+
+Binary `d6eef258`, the 8 default tasks x 3 seeds, one window; arm `off` is the
+same binary with `JANETCODE_OFF=editescalate,pathrepair`.
+
+| arm | pass | calls/run | input/run | wall/run |
+|-----|------|-----------|-----------|----------|
+| on  | 22/24 | 12.8 | 237k | 304 s |
+| off | 24/24 | 12.7 | 224k | 277 s |
+
+Neither switch fired. The whole campaign had two edit misses (one per arm,
+`a-catalog-paging`), both first misses that the existing near-miss diff already
+answered, so the closest-line hint and the second-miss escalation never ran; no
+call named a `~`, `home/...` or doubled-workspace path for path repair to fix.
+The two `on` failures are wrong logic caught by hidden tests
+(`a-build-incremental` missing-source plan, `d-cronexpr` steps and names), not
+edits or paths. So this is the same binary twice, within the 2/15 self-noise
+measured before. Kimi rarely misses an edit or a path on these tasks: the switches
+cost nothing when idle and stay on, aimed at weaker models. Measuring them needs
+a model that misses more, or tasks built to provoke misses.
+
 ## glm-4.7: janetcode against pi, Kimi Code, Qwen Code and Claude Code (`syn-glm-agents`, `syn-glm-claudecode`, 2026-11-12)
 
 Every agent ran glm-4.7 on the Z.ai coding plan: 8 synthetic tasks × 3
