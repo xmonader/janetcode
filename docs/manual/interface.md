@@ -606,6 +606,14 @@ its own prompt, rules, sandbox and hooks; approving the edit does not
 approve it. A failed edit runs nothing. `JANETCODE_OFF=thenrun` withdraws
 the field.
 
+When an edit's `old_string` is not in the file, the error says whether the
+replacement is already there (the edit may have landed), or names the
+closest line by number when one shares more than half its words. From the
+second miss in a row on the same file it tells the model to stop adjusting
+the quote and replace the whole enclosing function (with `ast_edit` when
+that is available). A landed edit clears the count, and no model call is
+involved. `JANETCODE_OFF=editescalate` restores the bare message.
+
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. `ctrl+s` instead hands what you typed to the turn that is
 running — the model reads it before its next step. The prompt names both

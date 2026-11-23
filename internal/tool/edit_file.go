@@ -30,6 +30,12 @@ type EditFile struct {
 	// NoEcho leaves the changed region out of the result: the summary
 	// line only, as pi's edit returns (JANETCODE_OFF=editecho).
 	NoEcho bool
+	// Misses, when set, counts failed edits per file and escalates the
+	// advice on a repeat (see editescalate.go). Nil leaves a miss exactly
+	// as it always read (JANETCODE_OFF=editescalate).
+	Misses *EditMisses
+	// HaveAst says ast_edit is on offer, so the escalation may name it.
+	HaveAst bool
 }
 
 func (EditFile) Name() string { return "edit_file" }
@@ -240,10 +246,11 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 		return replaceSpans(content, spans, e.New), len(spans), where + rung.note, nil
 	}
 	msg := fmt.Sprintf("%sold_string not found in %s", where, display)
-	if nm := nearMiss(content, e.Old, display); nm != "" {
+	nm := nearMiss(content, e.Old, display)
+	if nm != "" {
 		msg += ".\n" + nm
 	}
-	return "", 0, "", errors.New(msg)
+	return "", 0, "", &editMiss{msg: msg, content: content, old: e.Old, new: e.New, hadNear: nm != ""}
 }
 
 // countOverlapping counts the occurrences of sub in s, overlapping ones
@@ -363,6 +370,10 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 	for i, e := range edits {
 		updated, n, note, err := e.apply(content, in.Path, i, len(edits))
 		if err != nil {
+			var miss *editMiss
+			if errors.As(err, &miss) {
+				miss.path, miss.display = p, displayPath(rootOf(t.Root, t.WS), in.Path)
+			}
 			return nil, err
 		}
 		if note != "" {
@@ -605,7 +616,7 @@ func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	}
 	pl, err := t.plan(ctx, input)
 	if err != nil {
-		return "", err
+		return "", t.escalate(err)
 	}
 	data, err := encodeChecked(pl.after, pl.shape, "the edited "+pl.display, "a file this large has to be edited with a bash command instead")
 	if err != nil {
@@ -616,6 +627,7 @@ func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	}
 	t.Cache.Drop(pl.path)
 	t.Seen.Record(pl.path, data)
+	t.Misses.landed(pl.path)
 	added, removed := diff.Stats(pl.before, pl.after)
 	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, textfmt.Plural(pl.replacements, "replacement"), added, removed)
 	for _, r := range pl.removed {
