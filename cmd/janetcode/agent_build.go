@@ -495,9 +495,9 @@ func (b *agentBuilder) stepCore() error {
 		Provider: d.prov,
 		Log:      b.sess,
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, Slim: b.slim()},
+			tool.ReadFile{NoRepair: b.off["pathrepair"], Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, Slim: b.slim()},
 			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files, ThenRun: !b.off["thenrun"], Slim: b.slim()},
-			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"], NoEcho: b.off["editecho"], Misses: tool.NewEditMissesIf(b.off["editescalate"]), HaveAst: !b.off["astedit"], Slim: b.slim()},
+			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files, ThenRun: !b.off["thenrun"], NoEcho: b.off["editecho"], Misses: tool.NewEditMissesIf(b.off["editescalate"]), HaveAst: !b.off["astedit"], NoRepair: b.off["pathrepair"], Slim: b.slim()},
 			tool.Bash{Slim: b.slim(), Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb, NoIdleBound: b.off["idlebound"], Probe: b.emptyProbe(), Nudge: b.toolNudge(), HoldLimit: b.holdLimit(), Verified: func() string { return b.ag.VerifiedBy() }},
 			tool.JobTool{Jobs: d.jobs},
 			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},

@@ -614,6 +614,14 @@ the quote and replace the whole enclosing function (with `ast_edit` when
 that is available). A landed edit clears the count, and no model call is
 involved. `JANETCODE_OFF=editescalate` restores the bare message.
 
+Common path slips are repaired before a file tool runs: a leading `~` is
+expanded, a dropped leading slash is restored when the path is the user's
+home without it, and a repeated workspace name (`proj/x.go` inside `proj`)
+is stripped when only the stripped path exists. Confinement to the working
+directory still judges the repaired path. A `read_file` or `edit_file` on a
+missing file adds `did you mean <name>?` from the parent directory's entries.
+`JANETCODE_OFF=pathrepair` turns both off.
+
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. `ctrl+s` instead hands what you typed to the turn that is
 running — the model reads it before its next step. The prompt names both

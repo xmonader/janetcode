@@ -740,6 +740,9 @@ func (a *Agent) executeToolResult(ctx context.Context, u llm.Block, emit func(Ev
 	// that disallows unknown fields sees it.
 	accepted := tookLargeOutput(stripped)
 	u.Input = takeLargeOutput(stripped)
+	if !a.Off["pathrepair"] {
+		u.Input = tool.RepairPaths(ctx, a.Workspace, a.RootDir(), u.Input)
+	}
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
 	refuse := func(msg string, denied bool) (tool.Result, bool, bool, error) {
 		a.refuseCall(&call, msg, denied, emit)

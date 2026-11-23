@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 
@@ -34,6 +35,9 @@ type EditFile struct {
 	// advice on a repeat (see editescalate.go). Nil leaves a miss exactly
 	// as it always read (JANETCODE_OFF=editescalate).
 	Misses *EditMisses
+	// NoRepair drops the "did you mean" on a missing file
+	// (JANETCODE_OFF=pathrepair).
+	NoRepair bool
 	// HaveAst says ast_edit is on offer, so the escalation may name it.
 	HaveAst bool
 }
@@ -319,6 +323,9 @@ func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, e
 	}
 	data, err := readFileOf(ctx, t.WS, p)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			err = notFoundHint(ctx, t.WS, t.Root, in.Path, t.NoRepair, err)
+		}
 		return nil, err
 	}
 	if isBinary(data) {

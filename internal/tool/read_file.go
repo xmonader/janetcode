@@ -19,7 +19,10 @@ const NotFound = "does not exist"
 
 // ReadFile reads a file with optional line window.
 type ReadFile struct {
-	Root string
+	// NoRepair drops the "did you mean" on a missing file
+	// (JANETCODE_OFF=pathrepair).
+	NoRepair bool
+	Root     string
 	// Slim advertises only the fields a headless run uses (see slim.go).
 	Slim bool
 	// WS, when set, is the shared workspace so /ssh retargets this tool
@@ -100,7 +103,7 @@ func (t ReadFile) run(ctx context.Context, input json.RawMessage, dataOut *json.
 		var err error
 		data, err = readFileOf(ctx, t.WS, p)
 		if errors.Is(err, fs.ErrNotExist) {
-			return "", fmt.Errorf("%s %s", in.Path, NotFound)
+			return "", notFoundHint(ctx, t.WS, t.Root, in.Path, t.NoRepair, fmt.Errorf("%s %s", in.Path, NotFound))
 		}
 		if err != nil {
 			return "", err
