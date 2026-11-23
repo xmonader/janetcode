@@ -495,41 +495,6 @@ func locate(content, old string, eof bool) ([][2]int, string) {
 	return nil, ""
 }
 
-var wordRe = regexp.MustCompile(`[A-Za-z0-9_]+`)
-
-// closestLine is the file line sharing the most identifier-like tokens
-// with want (token-overlap similarity), with its 1-based number; 0 when
-// nothing overlaps enough to mean anything.
-func closestLine(content, want string) (int, string) {
-	wt := map[string]bool{}
-	for _, w := range wordRe.FindAllString(want, -1) {
-		wt[w] = true
-	}
-	if len(wt) == 0 {
-		return 0, ""
-	}
-	best, bestAt, bestLine := 0.0, 0, ""
-	for i, l := range strings.Split(content, "\n") {
-		lt := map[string]bool{}
-		for _, w := range wordRe.FindAllString(l, -1) {
-			lt[w] = true
-		}
-		common := 0
-		for w := range wt {
-			if lt[w] {
-				common++
-			}
-		}
-		if s := float64(common) / float64(len(wt)+len(lt)-common); s > best {
-			best, bestAt, bestLine = s, i+1, l
-		}
-	}
-	if best < 0.3 {
-		return 0, ""
-	}
-	return bestAt, bestLine
-}
-
 func hunkMiss(n int, display, content string, old []string, why string) error {
 	msg := fmt.Sprintf("hunk %d in %s did not match", n, display)
 	if why != "" {
@@ -545,7 +510,7 @@ func hunkMiss(n int, display, content string, old []string, why string) error {
 				break
 			}
 		}
-		if at, line := closestLine(content, first); at > 0 {
+		if at, line, ok := closestLine(content, first); ok {
 			msg += fmt.Sprintf(". The closest line in the file is %d: %q", at, strings.TrimSpace(line))
 		}
 	}
