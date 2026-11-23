@@ -18,6 +18,9 @@ func (m *model) budgetCommand(arg string) {
 	a := m.opts.Agent
 	switch {
 	case arg == "":
+		if s := a.Spend.Summary(); s != "" {
+			m.note("spend caps · " + s)
+		}
 		if a.MaxCost() <= 0 {
 			m.note("no cost budget · /budget 0.50 stops the session once it has spent that much")
 			return

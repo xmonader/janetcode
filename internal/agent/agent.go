@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/plan"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/spend"
 	"github.com/xmonader/janetcode/internal/taint"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -188,6 +189,10 @@ type Agent struct {
 	// AdvisorOff (the default), AdvisorAlways, or the experimental
 	// AdvisorTriggered. See advisorforce.go and advisortrigger.go.
 	AdvisorMode string
+	// Spend, when set, enforces the persistent daily and monthly caps on
+	// every model call this agent makes and records their cost. Nil is
+	// off. Children inherit it (see inheritBudget).
+	Spend *spend.Guard
 	// AdvisorMaxConsults caps forced consults per turn; 0 uses
 	// advisorForcedCap.
 	AdvisorMaxConsults int

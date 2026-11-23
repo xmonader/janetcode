@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -127,6 +128,8 @@ var setters = map[string]setter{
 	// The decisions block. Setting any of these on a config that has no
 	// block writes one, pinned to the default slug, because a block
 	// without a model is refused at the next load.
+	"spend.daily_usd":   spendKey("spend.daily_usd", func(s *SpendConfig) *float64 { return &s.DailyUSD }),
+	"spend.monthly_usd": spendKey("spend.monthly_usd", func(s *SpendConfig) *float64 { return &s.MonthlyUSD }),
 	"decisions.enabled": decisionsKey(func(d *DecisionsConfig, val string) (any, error) {
 		b, err := parseBool(val)
 		if err != nil {
@@ -266,6 +269,22 @@ func countKey(name string, field func(*Config) *int) setter {
 		}
 		*field(c) = n
 		return n, nil
+	}
+}
+
+// spendKey builds a setter for one spend cap, creating the block when
+// there is none.
+func spendKey(name string, field func(*SpendConfig) *float64) setter {
+	return func(c *Config, val string) (any, error) {
+		v, err := strconv.ParseFloat(val, 64)
+		if err != nil || v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil, fmt.Errorf("%s wants zero (off) or a positive amount in USD", name)
+		}
+		if c.Spend == nil {
+			c.Spend = &SpendConfig{}
+		}
+		*field(c.Spend) = v
+		return v, nil
 	}
 }
 

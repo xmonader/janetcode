@@ -14,8 +14,9 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 )
 
-// ErrBudget is returned when a run has spent its ceiling. The headless
-// runner maps it to exit 55.
+// ErrBudget is returned when a run has spent its ceiling, or when a
+// persistent daily or monthly spend cap (internal/spend) is reached. The
+// headless runner maps it to exit 55.
 var ErrBudget = errors.New("the run reached its cost budget")
 
 // All models in a budgeted delegation tree share one account. A model
@@ -60,6 +61,39 @@ func (a *Agent) stream(ctx context.Context, p llm.Provider, req llm.Request, emi
 		a.usageMu.Unlock()
 	}
 	ctx = llm.WithSessionID(ctx, id)
+	// The persistent cap is asked before any call, whichever agent makes
+	// it: this is the one place main, routed, advisor, side and subagent
+	// calls all pass. It is the same refusal --max-cost gives, so the
+	// headless runner exits 55 for it too.
+	if err := a.Spend.Check(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrBudget, err)
+	}
+	resp, err := a.streamAccounted(ctx, p, req, emit)
+	a.chargeSpend(req.Model, resp)
+	return resp, err
+}
+
+// chargeSpend adds a finished call to the persistent ledger. Only a
+// reported or priced usage is charged: a call that failed before the
+// provider billed anything costs nothing, and an unpriced model cannot be
+// measured against a cap. A ledger that cannot be written is logged and
+// never stops the call, since the cap is a guard and not a dependency.
+func (a *Agent) chargeSpend(model string, resp *llm.Response) {
+	if a.Spend == nil || resp == nil {
+		return
+	}
+	cost, ok := resp.Usage.Cost(a.PriceOf(model))
+	if !ok {
+		return
+	}
+	if err := a.Spend.Add(cost); err != nil {
+		a.debugf("spend ledger: %v", err)
+	}
+}
+
+// streamAccounted is stream's call to the provider under the run's own
+// --max-cost account.
+func (a *Agent) streamAccounted(ctx context.Context, p llm.Provider, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	b := a.sharedAccount()
 	if b == nil {
 		return p.Stream(ctx, req, emit)

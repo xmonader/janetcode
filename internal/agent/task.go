@@ -788,6 +788,7 @@ func (t *Task) bill(kid *subagent, child *Agent) {
 // billing the child's transcript later does not charge that account again.
 func (t *Task) inheritBudget(child *Agent) {
 	p := t.Parent
+	child.Spend = p.Spend
 	ceiling := p.MaxCost()
 	if ceiling <= 0 {
 		return

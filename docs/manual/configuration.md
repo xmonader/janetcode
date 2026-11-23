@@ -968,6 +968,30 @@ the file: `janetcode -p '...' --set escalate_after=1 --set
 decisions.triage=true`. A key or value the file would be refused for is
 refused there too.
 
+### Spend caps
+
+`--max-cost` bounds one run. `spend` bounds the day and the month across
+every run, so many short sessions, scripts and background jobs cannot add
+up to a surprise:
+
+```json
+{ "spend": { "daily_usd": 5, "monthly_usd": 80 } }
+```
+
+Zero (or no block) is off, and then nothing is recorded. With a cap set,
+every model call (the main model, routed and escalated steps, subagents,
+the advisor and the other side queries) adds its cost to a small JSON
+ledger, `spend.json` in the state directory (`$XDG_STATE_HOME/janetcode`,
+default `~/.local/state/janetcode`), kept per local day and month and
+shared by every janetcode process on the machine. Before each call a
+reached cap refuses it with an error naming the cap and what has been
+spent so far; with `-p` that is exit 55, the same as `--max-cost`. The
+call in flight when the line is crossed finishes, so the spend can
+overshoot by one call. A call is charged at the provider's reported cost,
+else at list price; a model nothing can price is not counted. A ledger that
+cannot be written is logged and never blocks a call. `/budget` shows today's
+and this month's spend.
+
 ### Decisions (experimental, optional)
 
 The `decisions` block configures an optional second AI service —

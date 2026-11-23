@@ -547,6 +547,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Files = b.files
 	ag.AdvisorModel = d.cfg.AdvisorModel
 	ag.AdvisorMode = d.cfg.AdvisorMode
+	ag.Spend = d.cfg.Spend.Guard(os.Getenv, nil)
 	ag.AdvisorMaxConsults = d.cfg.AdvisorMaxConsults
 	ag.TurnStartStyle = d.cfg.AdvisorTurnStartStyle
 	ag.VerifyBaseline = d.cfg.VerifyBaselineEnabled()

@@ -298,7 +298,7 @@ which its 3h44m fits.
 | 52 | the configuration file cannot be used |
 | 53 | the turn hit its model-call cap |
 | 54 | no answer matched `--json-schema` |
-| 55 | the run reached `--max-cost` |
+| 55 | the run reached `--max-cost`, or a persistent `spend.daily_usd` / `spend.monthly_usd` cap (see Spend caps in the configuration chapter) |
 | 56 | the run reached `--max-wall-time` |
 | 57 | the run reached `--max-tool-calls` |
 | 58 | the run ended on a confirmed `CONFLICT:` (`conflict_exit`): the task and a test contradict each other. Not an error: `is_error` is false and the result object's `conflict` holds the cited test, the task's words, the reason and what the harness checked |

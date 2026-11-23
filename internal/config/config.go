@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/xmonader/janetcode/internal/delegate"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -27,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/persona"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/spend"
 	"github.com/xmonader/janetcode/internal/statusline"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/weburl"
@@ -392,6 +394,9 @@ type Config struct {
 	// loop. Nil means the feature is invisible. When the block is
 	// present each consumer is still off until its own key says so.
 	Decisions *DecisionsConfig `json:"decisions,omitempty"`
+	// Spend caps what janetcode may spend across all runs on this
+	// machine, per local day and month (internal/spend). Nil is off.
+	Spend *SpendConfig `json:"spend,omitempty"`
 	// Language is the language the model answers in and the interface's
 	// own words are shown in: a code ("es", "pt-BR") or a name
 	// ("Spanish", "español"). Empty leaves the model to follow the user
@@ -428,6 +433,42 @@ type VoiceConfig struct {
 // ScreenReaderOn reports whether the config asks for the screen-reader
 // interface.
 func (c *Config) ScreenReaderOn() bool { return c != nil && c.ScreenReader != nil && *c.ScreenReader }
+
+// SpendConfig is the "spend" config block: persistent caps in USD, where
+// zero is off. Unlike --max-cost, which bounds one run, these bound the
+// day and the month across every run, so a pile of short sessions cannot
+// add up to a surprise.
+type SpendConfig struct {
+	DailyUSD   float64 `json:"daily_usd,omitempty"`
+	MonthlyUSD float64 `json:"monthly_usd,omitempty"`
+}
+
+// Validate refuses a negative or non-finite cap.
+// Guard is the agent's enforcement of the caps, or nil when none is set.
+// The ledger sits under the XDG state directory; a directory that cannot
+// be resolved leaves the caps off rather than the session unstartable.
+func (s *SpendConfig) Guard(getenv func(string) string, now func() time.Time) *spend.Guard {
+	if s == nil || (s.DailyUSD <= 0 && s.MonthlyUSD <= 0) {
+		return nil
+	}
+	path, err := spend.DefaultPath(getenv)
+	if err != nil {
+		return nil
+	}
+	return &spend.Guard{Ledger: spend.New(path, now), Caps: spend.Caps{Daily: s.DailyUSD, Monthly: s.MonthlyUSD}}
+}
+
+func (s *SpendConfig) Validate() error {
+	if s == nil {
+		return nil
+	}
+	for name, v := range map[string]float64{"spend.daily_usd": s.DailyUSD, "spend.monthly_usd": s.MonthlyUSD} {
+		if v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+			return fmt.Errorf("%s wants zero (off) or a positive amount in USD", name)
+		}
+	}
+	return nil
+}
 
 // DecisionsConfig is the "decisions" config block. Everything about it
 // is advisory: no answer it produces can permit, refuse or edit — the
@@ -1113,6 +1154,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, badf("%s: %v", path, err)
 	}
 	if err := validateSandbox(cfg.Sandbox); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	if err := cfg.Spend.Validate(); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
 	if err := cfg.Decisions.Validate(); err != nil {

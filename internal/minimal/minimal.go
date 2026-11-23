@@ -147,6 +147,7 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 		return nil, err
 	}
 	ag.Prices = cfg.PriceFor
+	ag.Spend = cfg.Spend.Guard(os.Getenv, nil)
 	ag.Windows = func(model string) int { return cfg.MetaFor(model).ContextWindow }
 	// The strong slot and the cascade: an eval arm that measures
 	// escalation needs the same wiring a session has, and both are inert

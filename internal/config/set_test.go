@@ -191,6 +191,20 @@ func TestApplyKVFeatureKeys(t *testing.T) {
 	if _, err := ApplyKV(cfg, "advisor_mode", "sometimes"); err == nil {
 		t.Fatal("sometimes is not a mode")
 	}
+	if _, err := ApplyKV(cfg, "spend.daily_usd", "5.5"); err != nil || cfg.Spend == nil || cfg.Spend.DailyUSD != 5.5 {
+		t.Fatalf("spend.daily_usd: %v, %+v", err, cfg.Spend)
+	}
+	if _, err := ApplyKV(cfg, "spend.monthly_usd", "100"); err != nil || cfg.Spend.MonthlyUSD != 100 {
+		t.Fatalf("spend.monthly_usd: %v, %+v", err, cfg.Spend)
+	}
+	for _, bad := range []string{"-1", "NaN", "Inf", "lots"} {
+		if _, err := ApplyKV(cfg, "spend.daily_usd", bad); err == nil {
+			t.Fatalf("spend.daily_usd accepted %q", bad)
+		}
+	}
+	if (&SpendConfig{DailyUSD: -1}).Validate() == nil {
+		t.Fatal("a negative cap passed validation")
+	}
 	if _, err := ApplyKV(cfg, "vision_model", "claude-opus-5"); err != nil || cfg.VisionModel != "claude-opus-5" {
 		t.Fatalf("vision_model: %v, %q", err, cfg.VisionModel)
 	}

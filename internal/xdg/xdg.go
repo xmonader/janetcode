@@ -1,6 +1,7 @@
 // Package xdg resolves janetcode's per-user directories: configuration
 // under XDG_CONFIG_HOME (default ~/.config) and data — sessions, memory,
-// archives — under XDG_DATA_HOME (default ~/.local/share), each in a
+// archives — under XDG_DATA_HOME (default ~/.local/share), and run state under
+// XDG_STATE_HOME (default ~/.local/state), each in a
 // janetcode subdirectory. The same rule applies on every platform; only
 // where the home directory comes from differs, exactly as os.UserHomeDir
 // decides it. It imports only the standard library.
@@ -25,6 +26,13 @@ func ConfigDir(getenv func(string) string) (string, error) {
 // the variable is unset or empty. getenv is normally os.Getenv.
 func DataDir(getenv func(string) string) (string, error) {
 	return dir(runtime.GOOS, getenv, "XDG_DATA_HOME", filepath.Join(".local", "share"))
+}
+
+// StateDir is $XDG_STATE_HOME/janetcode, or ~/.local/state/janetcode when
+// the variable is unset or empty: what a process records about itself
+// across runs (the spend ledger) as opposed to what the user keeps.
+func StateDir(getenv func(string) string) (string, error) {
+	return dir(runtime.GOOS, getenv, "XDG_STATE_HOME", filepath.Join(".local", "state"))
 }
 
 func dir(goos string, getenv func(string) string, env, fallback string) (string, error) {
