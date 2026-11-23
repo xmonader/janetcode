@@ -191,6 +191,11 @@ func (rs Rules) Decide(tool, subject string) (Verdict, Rule) {
 // and must be asked about whatever else would allow it); then allow
 // rules; anything unmatched asks with the zero Rule.
 func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
+	if c.Tool == "apply_patch" {
+		if ps := PatchPaths(c.Input); len(ps) > 1 {
+			return rs.decidePatch(c, ps)
+		}
+	}
 	if why := HardDeny(c); why != "" {
 		return Denied, Rule{Tool: c.Tool}, why
 	}
@@ -209,6 +214,39 @@ func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
 		return Allowed, r, ""
 	}
 	return Ask, Rule{}, ""
+}
+
+// decidePatch decides an apply_patch call that names several files. Its
+// Subject is only the first of them, so judged as one call a deny rule on
+// the second file never saw it: one patch could carry an edit the rules
+// refuse behind one they allow. Each file is decided as a call of its
+// own: any denial denies the patch, any ask asks, and the patch is
+// allowed only when every file is.
+func (rs Rules) decidePatch(c Call, paths []string) (Verdict, Rule, string) {
+	var ask *Rule
+	var allowed Rule
+	for i, p := range paths {
+		// The file as a one-file patch, so a write: clause sees it too.
+		in, _ := json.Marshal(map[string]string{"input": "*** Update File: " + p})
+		v, r, why := rs.DecideCall(Call{Tool: c.Tool, Subject: filepath.ToSlash(filepath.Clean(p)), Input: in, Root: c.Root})
+		switch v {
+		case Denied:
+			return Denied, r, why
+		case Ask:
+			if ask == nil || (ask.Tool == "" && r.Tool != "") {
+				rr := r
+				ask = &rr
+			}
+		default:
+			if i == 0 {
+				allowed = r
+			}
+		}
+	}
+	if ask != nil {
+		return Ask, *ask, ""
+	}
+	return Allowed, allowed, ""
 }
 
 // AllowedBy reports the allow rule that would cover the call if no deny

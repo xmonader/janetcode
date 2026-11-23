@@ -334,6 +334,8 @@ func writePaths(c Call, f *fields) []string {
 		return f.values("path")
 	case c.Tool == "bash":
 		return shell.WriteTargets(commandOf(c), c.Root)
+	case c.Tool == "apply_patch":
+		return PatchPaths(c.Input)
 	}
 	return nil
 }
@@ -341,7 +343,7 @@ func writePaths(c Call, f *fields) []string {
 // loosePaths are the path-looking strings of a call to any other tool —
 // an MCP server's file tool names its path however it likes.
 func loosePaths(c Call, f *fields) []string {
-	if readTools[c.Tool] || writeTools[c.Tool] || c.Tool == "bash" {
+	if readTools[c.Tool] || writeTools[c.Tool] || c.Tool == "bash" || c.Tool == "apply_patch" {
 		return nil
 	}
 	var out []string
