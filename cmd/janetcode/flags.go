@@ -23,6 +23,7 @@ type options struct {
 	maxCost      float64
 	maxToolCalls int
 	maxWallTime  time.Duration
+	noWaitBg     bool
 	coreTools    string
 	excludeTools string
 	safeMode     bool
@@ -164,7 +165,7 @@ var helpGroups = []struct {
 	names []string
 }{
 	{"Session", []string{"model", "provider", "effort", "c", "continue", "r", "resume", "sessions", "search", "show", "fork", "recover", "web", "web-addr", "worktree", "w", "add-dir", "file-mode", "admit", "attach", "theme", "plain", "screen-reader"}},
-	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "follow", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "until", "watch"}},
+	{"Headless (-p)", []string{"p", "output-format", "input-format", "json-schema", "bg", "answer", "follow", "max-turns", "max-cost", "max-tool-calls", "max-wall-time", "no-wait-background", "until", "watch"}},
 	{"Permissions", []string{"auto", "auto-edits", "readonly", "dry-run", "yolo", "allow", "deny", "ask", "core-tools", "exclude-tools", "safe-mode", "sandbox", "trust"}},
 	{"Setup and diagnostics", []string{"init", "init-project", "doctor", "fix", "backup", "restore", "mcp-auth", "plugin", "update", "uninstall", "purge", "version", "debug", "list-models"}},
 	{"Advanced", nil},
@@ -278,6 +279,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json
 	fs.StringVar(&o.inFormat, "input-format", "text", "headless input. text: one prompt from -p. stream-json: a conversation on stdin, one JSON object per line ({\"type\":\"user\",\"text\":...} or {\"type\":\"control\",\"subtype\":\"interrupt\"}), a turn per message and a result line after each, until EOF; needs --output-format stream-json, and -p becomes optional")
 	fs.StringVar(&o.jsonSchema, "json-schema", "", "with -p: answer with JSON matching this schema (inline, or @file). The model delivers it through a structured_output tool the harness validates; text format prints only the value on stdout, json and stream-json put it in structured_output. Exits 54 when no valid answer comes")
 	fs.DurationVar(&o.maxWallTime, "max-wall-time", 0, "with -p: stop the run once it has taken this long (e.g. 10m), whatever it is doing (exit 56)")
+	fs.BoolVar(&o.noWaitBg, "no-wait-background", false, "with -p: do not wait for background jobs the session started once the last turn ends; they are killed on exit. By default the run waits for them (until --max-wall-time, or Ctrl+C, which stops them)")
 	fs.IntVar(&o.maxToolCalls, "max-tool-calls", 0, "with -p: stop before the tool call that would take the run past this many (exit 57); the calls of the batch that would cross it are answered, not run")
 	fs.Float64Var(&o.maxCost, "max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
 	fs.IntVar(&o.maxTurns, "max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")

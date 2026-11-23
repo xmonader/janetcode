@@ -180,6 +180,9 @@ func bgRunArgs(o *options) []string {
 	if o.maxWallTime > 0 {
 		args = append(args, "--max-wall-time="+o.maxWallTime.String())
 	}
+	if o.noWaitBg {
+		args = append(args, "--no-wait-background")
+	}
 	if o.maxToolCalls > 0 {
 		args = append(args, "--max-tool-calls="+strconv.Itoa(o.maxToolCalls))
 	}

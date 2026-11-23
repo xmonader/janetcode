@@ -58,6 +58,7 @@ func (j *Jobs) startTerminal(id int, command string, cmd *exec.Cmd, out *os.File
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
+	j.notify(job)
 	go j.reap(job, cmd.Wait, func() {
 		// What the command printed last may still be in the terminal's
 		// buffer when it exits. Wait for the copy to drain it, but not

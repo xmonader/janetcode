@@ -17,6 +17,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--input-format text\|stream-json` | `stream-json`: a conversation on stdin, a turn per line (see [Streaming input](#streaming-input)); needs `--output-format stream-json`, and `-p` becomes optional |
 | `--json-schema <json\|@file>` | with `-p`: answer with JSON matching this schema (see [Structured output](#structured-output)); exits 54 when no valid answer comes |
 | `--max-wall-time <dur>` | with `-p`: stop the run once it has taken this long (`90s`, `10m`, `1h`), whatever it is doing, and exit 56. The result still says what was done; unlike a job runner's timeout, you get a result object instead of a killed process. With `--input-format stream-json` it bounds the whole session |
+| `--no-wait-background` | with `-p`: do not wait for background jobs (`bash` with `background: true`) the session started once the last turn ends; they are killed on exit. By default the run waits for them, names them on stderr, and stops waiting at `--max-wall-time` or on Ctrl+C (both kill them) |
 | `--max-tool-calls <n>` | with `-p`: stop before the tool call that would take the run past `n`, and exit 57. A batch of parallel calls that would cross the line is answered unrun as a whole; subagents' own calls are not counted |
 | `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Parent, children, and auxiliary model calls share one account. While a ceiling is active, model calls reserve the remaining budget one at a time, so overshoot is bounded by one call across the whole run. Tools still run in parallel. A model nothing can price is not held to the ceiling |
 | `--max-turns <n>` | cap the model calls one turn may make; the eval runner's `--eval-max-turns` with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget |
@@ -177,7 +178,7 @@ the run reports itself; it applies only to `-p` (and `--watch`).
 
 - `stream-json` prints one JSON object per line as things happen —
   `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,
-  `retry`, `discard`, `compacted`, `verdict`, `turn_done` — and ends with the same
+  `retry`, `discard`, `compacted`, `verdict`, `turn_done`, `background_job` — and ends with the same
   `result` object as its last line. Everything is newline-delimited, so it
   can be read a line at a time. A `retry` line carries `attempts`,
   `wait_ms` and the provider's reason in `text`; it is written when the
@@ -185,6 +186,12 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   A `discard` line means the model call that streamed the `text` lines
   before it was cut off mid-stream: those deltas are void, and the retry
   streams its whole answer again after it.
+  A `background_job` line is written when a background job starts
+  (`status` `running`) and when it ends (`finished`, `failed` for a
+  non-zero exit, or `killed`), with `id`, `command`, `elapsed_secs` and,
+  once ended, `exit_code`. The end lines of jobs still running at the last
+  turn come before the `result` line, which stays the last line and is
+  written once per turn as before.
   Every `tool_result` is preceded by a `tool_start` with the same `id`,
   including for a call that never ran — refused by a rule, hidden by
   `--readonly`, stopped by `--max-cost`, or naming a tool that does not

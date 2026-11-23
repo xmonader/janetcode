@@ -70,6 +70,9 @@ type Options struct {
 	// MaxWallTime ends the run once it has taken this long, whatever it
 	// is doing; zero means no limit.
 	MaxWallTime time.Duration
+	// NoWaitBackground skips the wait for background jobs after the last
+	// turn: they are killed when the run ends (--no-wait-background).
+	NoWaitBackground bool
 	// JSONSchema, when set, makes the answer a JSON value matching this
 	// schema, delivered through the structured_output tool: printed alone
 	// on stdout in text format, and as structured_output in the result
@@ -112,7 +115,10 @@ func Run(ctx context.Context, opts Options) error {
 		ctx, cancel = context.WithTimeoutCause(ctx, opts.MaxWallTime, ErrWallTime)
 		defer cancel()
 	}
+	stopObserving := observeJobs(opts, rec)
 	err := runFormat(ctx, opts, format, rec)
+	err = settleBackground(ctx, opts, err)
+	stopObserving()
 	if err != nil && errors.Is(context.Cause(ctx), ErrWallTime) && !errors.Is(err, ErrWallTime) {
 		err = fmt.Errorf("%w (%s)", ErrWallTime, opts.MaxWallTime)
 	}

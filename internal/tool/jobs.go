@@ -29,6 +29,9 @@ type Job struct {
 	Ended   time.Time
 	Exit    int
 	Done    bool
+	// Killed is set when Kill stopped the job, so an observer can tell a
+	// job that was stopped from one that failed on its own.
+	Killed  bool
 	OutPath string
 	// notified is set once Finished reported the job.
 	notified bool
@@ -71,6 +74,58 @@ type Jobs struct {
 	mu      sync.Mutex
 	jobs    []*Job
 	next    int
+	// observers hear of every job as it starts and as it ends.
+	observers map[int]func(Job)
+	nextObs   int
+}
+
+// Observe registers fn to be called with a copy of each job when it starts
+// (Done false) and when it ends (Done true), and returns the function that
+// removes it. A headless run reports jobs on its event stream this way
+// without polling the registry. fn runs on the starting or reaping
+// goroutine, outside the registry lock, so it may call back into Jobs.
+func (j *Jobs) Observe(fn func(Job)) (stop func()) {
+	if j == nil {
+		return func() {}
+	}
+	j.mu.Lock()
+	if j.observers == nil {
+		j.observers = map[int]func(Job){}
+	}
+	j.nextObs++
+	key := j.nextObs
+	j.observers[key] = fn
+	j.mu.Unlock()
+	return func() {
+		j.mu.Lock()
+		delete(j.observers, key)
+		j.mu.Unlock()
+	}
+}
+
+// notify tells the observers about job. It copies the job under the lock.
+func (j *Jobs) notify(job *Job) {
+	j.mu.Lock()
+	snap := *job
+	fns := make([]func(Job), 0, len(j.observers))
+	for _, fn := range j.observers {
+		fns = append(fns, fn)
+	}
+	j.mu.Unlock()
+	for _, fn := range fns {
+		fn(snap)
+	}
+}
+
+// Running returns the jobs that have not ended, oldest first.
+func (j *Jobs) Running() []Job {
+	var out []Job
+	for _, job := range j.List() {
+		if !job.Done {
+			out = append(out, job)
+		}
+	}
+	return out
 }
 
 // Start launches the command in its own process group with output going
@@ -153,6 +208,7 @@ func (j *Jobs) startPipe(id int, command string, cmd *exec.Cmd, out *os.File, gu
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
+	j.notify(job)
 	go j.reap(job, cmd.Wait, func() {
 		if note := guard.Restore(); note != "" {
 			fmt.Fprintf(out, "\n%s\n", note)
@@ -184,6 +240,9 @@ func (j *Jobs) reap(job *Job, wait func() error, cleanup func()) {
 			job.Exit = 1
 		}
 		j.mu.Unlock()
+		// Observers hear of the end before waiters wake, so a waiter that
+		// goes on to close its stream has seen every end line.
+		j.notify(job)
 		close(job.done)
 	}
 }
@@ -234,6 +293,7 @@ func (j *Jobs) AdoptWith(command string, cmd *exec.Cmd, out *swapBuffer, wait <-
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
+	j.notify(job)
 	go func() {
 		err := <-wait
 		f.Close()
@@ -253,6 +313,7 @@ func (j *Jobs) AdoptWith(command string, cmd *exec.Cmd, out *swapBuffer, wait <-
 			job.Exit = 1
 		}
 		j.mu.Unlock()
+		j.notify(job)
 		close(job.done)
 	}()
 	return job, nil
@@ -338,6 +399,7 @@ func (j *Jobs) Kill(id int) error {
 		_ = job.stdin.Close()
 		job.stdin = nil
 	}
+	job.Killed = true
 	if job.cmd.Cancel != nil {
 		return job.cmd.Cancel()
 	}

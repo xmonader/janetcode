@@ -175,6 +175,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 		{o.inFormat == string(headless.InputStreamJSON) && (o.web || o.acpMode), "--input-format stream-json is headless; drop --web/--acp"},
 		{o.safeMode && (o.yolo || o.autoMode || o.autoEdits), "--safe-mode does not combine with --yolo, --auto or --auto-edits: it is for a session that asks before acting"},
 		{o.maxWallTime < 0, "--max-wall-time must be 0 (no limit) or more"},
+		{o.noWaitBg && !o.headless(), "--no-wait-background needs a headless run (-p or --input-format stream-json)"},
 		{o.maxWallTime > 0 && !o.headless(), "--max-wall-time needs a headless run (-p or --input-format stream-json)"},
 		{o.maxToolCalls < 0, "--max-tool-calls must be 0 (no limit) or more"},
 		{o.maxToolCalls > 0 && !o.headless(), "--max-tool-calls needs a headless run (-p or --input-format stream-json)"},
