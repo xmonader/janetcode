@@ -520,6 +520,17 @@ func (r *Repo) seedFromIndex(ctx context.Context, dst string) bool {
 		os.Remove(dst)
 		return false
 	}
+	// Racy git: git trusts an entry whose size and mtime match the file
+	// only when the file is older than the index file; an entry at or
+	// after the index's mtime is re-hashed. The copy is newer than the
+	// original, so without this its entries all look safely older and a
+	// same-size edit made in the same timestamp granule as the original
+	// index write is skipped, snapshotting stale content. Giving the copy
+	// the original's mtime keeps git's racy check exact at no cost.
+	if fi, err := os.Stat(filepath.Join(r.gitDir, "index")); err != nil || os.Chtimes(dst, fi.ModTime(), fi.ModTime()) != nil {
+		os.Remove(dst)
+		return false
+	}
 	// An assume-unchanged (lowercase tag) or skip-worktree (S) entry
 	// would carry over, and add -A never looks at its file: an edit to it
 	// would be missing from the snapshot. Decline when any entry has one.

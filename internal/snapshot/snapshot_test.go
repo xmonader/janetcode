@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func initRepo(t *testing.T) string {
@@ -426,5 +427,50 @@ func TestTakeSeesAnAssumeUnchangedEdit(t *testing.T) {
 	out, err := show.Output()
 	if err != nil || string(out) != "edited\n" {
 		t.Fatalf("snapshot a.txt = %q, %v", out, err)
+	}
+}
+
+// A same-size edit made in the same timestamp granule as the repository
+// index's write must still be in the snapshot (racy git): the temporary
+// index copy has to keep the original index's mtime.
+func TestTakeSeesARacySameSizeEdit(t *testing.T) {
+	root := initRepo(t)
+	ctx := context.Background()
+	r, err := Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := filepath.Join(root, "a.txt")
+	// Chtimes moves ctime, which no test can pin; a coarse-clock write
+	// leaves ctime equal too, so ignore it as the race would.
+	if out, err := exec.Command("git", "-C", root, "config", "core.trustctime", "false").CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	// Old enough that the index copy's own mtime is in a later second.
+	m := time.Now().Add(-time.Minute)
+	if err := os.Chtimes(a, m, m); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", root, "update-index", "--refresh").CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	// The index was written in the same instant as the file's mtime.
+	if err := os.Chtimes(filepath.Join(root, ".git", "index"), m, m); err != nil {
+		t.Fatal(err)
+	}
+	write(t, a, "a2\n") // same size as "a1\n"
+	if err := os.Chtimes(a, m, m); err != nil {
+		t.Fatal(err)
+	}
+	s, err := r.Take(ctx, "racy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := r.Export(ctx, s, dir); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(filepath.Join(dir, "a.txt")); got != "a2\n" {
+		t.Errorf("a.txt = %q, want the edited a2", got)
 	}
 }
