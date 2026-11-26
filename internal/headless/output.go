@@ -490,6 +490,7 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 			}
 			res.CostSource = u.CostSource(r.price)
 		}
+		res.CacheMisses = ag.CacheMissSummary()
 		st := ag.Stats()
 		if st.Retries > 0 {
 			// The agent's counter survives a turn that ended early, which

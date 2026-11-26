@@ -39,6 +39,10 @@ type prefixWatch struct {
 	system uint64
 	tools  uint64
 	drifts []drift
+	// where is how the latest request diverged from the one before it
+	// ("" when it only appended); the cache ledger reads it to name the
+	// cause of a miss.
+	where string
 }
 
 // note fingerprints a request and records how it differs from the last.
@@ -48,6 +52,7 @@ func (w *prefixWatch) note(turn int, system string, msgs []llm.Message, tools []
 		cur[i] = hashMessage(m)
 	}
 	sys, tl := hashString(system), hashTools(tools)
+	w.where = ""
 	if w.msgs != nil {
 		d := drift{Turn: turn, At: -1, Was: len(w.msgs), Now: len(cur), System: sys != w.system, Tools: tl != w.tools}
 		for i := 0; i < len(cur) && i < len(w.msgs); i++ {
@@ -67,9 +72,47 @@ func (w *prefixWatch) note(turn int, system string, msgs []llm.Message, tools []
 		}
 		if d.At >= 0 || d.System || d.Tools {
 			w.drifts = append(w.drifts, d)
+			w.where = d.where(msgs)
 		}
 	}
 	w.msgs, w.system, w.tools = cur, sys, tl
+}
+
+// where names the first point at which a request diverged from its
+// predecessor, in the order the provider reads a prompt: system prompt,
+// tool definitions, then messages.
+func (d drift) where(msgs []llm.Message) string {
+	switch {
+	case d.System:
+		return "system prompt changed"
+	case d.Tools:
+		return "tool definitions changed"
+	case d.At >= 0 && d.At < len(msgs):
+		return fmt.Sprintf("message %d (%s) changed", d.At+1, messageKind(msgs[d.At]))
+	case d.At >= 0:
+		return "history shortened"
+	}
+	return ""
+}
+
+// messageKind is a short name for what a message carries.
+func messageKind(m llm.Message) string {
+	var use, res bool
+	for _, b := range m.Blocks {
+		switch b.Type {
+		case llm.BlockToolResult:
+			res = true
+		case llm.BlockToolUse:
+			use = true
+		}
+	}
+	switch {
+	case res:
+		return "tool result"
+	case use:
+		return "tool call"
+	}
+	return string(m.Role)
 }
 
 func hashMessage(m llm.Message) uint64 {

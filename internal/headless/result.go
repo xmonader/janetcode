@@ -116,6 +116,10 @@ type CLIResult struct {
 	// anything: the files it would change with their diffs, and every
 	// call it recorded rather than made. Omitted outside a dry run.
 	DryRun *CLIDryRun `json:"dry_run,omitempty"`
+	// CacheMisses is what the run paid for twice because the prompt
+	// prefix stopped matching, by cause (the cache ledger). Omitted when
+	// the run made fewer than two model calls.
+	CacheMisses *agent.CacheMisses `json:"cache_misses,omitempty"`
 }
 
 // CLIDryRun is a dry run's preview in the result object: the same content

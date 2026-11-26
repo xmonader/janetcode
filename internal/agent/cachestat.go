@@ -54,7 +54,7 @@ type cacheLedger struct {
 // record folds in one model call. rewritten says the history was edited
 // since the last call (a compaction or a prune), which legitimately
 // invalidates the prefix and is not counted as waste.
-func (l *cacheLedger) record(u llm.Usage, model string, turn int, at time.Time, rewritten bool) {
+func (l *cacheLedger) record(u llm.Usage, model string, turn int, at time.Time, rewritten bool, where string) {
 	// The whole prompt: Anthropic splits it three ways, and a miss there
 	// is the prefix written to the cache again, not billed as input.
 	prompt := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
@@ -77,6 +77,9 @@ func (l *cacheLedger) record(u llm.Usage, model string, turn int, at time.Time, 
 	}
 	idle := at.Sub(l.prevAt)
 	cause := "the prefix changed"
+	if where != "" {
+		cause = where
+	}
 	switch {
 	case !l.reported:
 		cause = "this endpoint reports no cache reads at all"
@@ -87,6 +90,29 @@ func (l *cacheLedger) record(u llm.Usage, model string, turn int, at time.Time, 
 	}
 	l.misses = append(l.misses, cacheMiss{Turn: turn, Tokens: missed, Idle: idle, Cause: cause})
 	l.total += missed
+}
+
+// CacheMisses is the ledger summary exported in headless results.
+type CacheMisses struct {
+	Tokens  int            `json:"tokens"`
+	Calls   int            `json:"calls"`
+	ByCause map[string]int `json:"by_cause"`
+}
+
+// CacheMissSummary totals what the session paid twice for. It is nil
+// before the second model call, when nothing can be compared yet.
+func (a *Agent) CacheMissSummary() *CacheMisses {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	l := &a.cache
+	if l.calls < 2 {
+		return nil
+	}
+	out := &CacheMisses{Tokens: l.total, Calls: len(l.misses), ByCause: map[string]int{}}
+	for _, m := range l.misses {
+		out.ByCause[m.Cause] += m.Tokens
+	}
+	return out
 }
 
 // CacheReport renders what the session paid twice for.

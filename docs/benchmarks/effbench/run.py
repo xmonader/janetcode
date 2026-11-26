@@ -208,7 +208,10 @@ class JanetcodeArm(eb.CompetitorArm):
                 "own_input_tokens": (u.get("input_tokens") or 0) + (u.get("cache_read_tokens") or 0)
                 + (u.get("cache_write_tokens") or 0),
                 "own_cached_tokens": u.get("cache_read_tokens"), "own_output_tokens": u.get("output_tokens"),
-                "own_served": r.get("served"), **self._infra(run)}
+                "own_served": r.get("served"),
+                # optional: older binaries do not emit the cache ledger
+                **({"own_cache_misses": r["cache_misses"]} if r.get("cache_misses") else {}),
+                **self._infra(run)}
 
     def _infra(self, run):
         # strace -f --seccomp-bpf sometimes fails on a tracee's group-stop

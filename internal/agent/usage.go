@@ -242,7 +242,7 @@ func (a *Agent) countUsage(model string, u llm.Usage) {
 	// compares each call with the one before it. A history the harness
 	// rewrote (a prune or a compaction) invalidates the prefix for a
 	// reason, so it is not counted as waste.
-	a.cache.record(u, a.Settings().Model, a.turnN, time.Now(), a.historyRewritten)
+	a.cache.record(u, a.Settings().Model, a.turnN, time.Now(), a.historyRewritten, a.prefix.where)
 	a.historyRewritten = false
 	a.usageMu.Unlock()
 }
