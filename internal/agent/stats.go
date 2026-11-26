@@ -40,6 +40,9 @@ type Stats struct {
 	// RejectedCalls counts tool calls the provider refused as malformed
 	// and the model was asked to make again.
 	RejectedCalls int
+	// UncheckedNotes counts turns sent back once for ending on edits no
+	// check had run against.
+	UncheckedNotes int
 	// WatchdogKills counts streamed calls the watchdog ended because they
 	// stopped producing, and Fallbacks counts calls that only succeeded
 	// on another model. Both are runs the harness saved rather than runs
@@ -417,6 +420,12 @@ func (c *statsCounter) rejected() {
 	c.mu.Unlock()
 }
 
+func (c *statsCounter) uncheckedNoted() {
+	c.mu.Lock()
+	c.s.UncheckedNotes++
+	c.mu.Unlock()
+}
+
 func (c *statsCounter) recovered(n int) {
 	c.mu.Lock()
 	c.s.Recoveries += n
@@ -492,7 +501,7 @@ var switches = map[string]bool{
 	"protected": true, "ladder": true, "undoabout": true, "mermaid": true,
 	"keeprevert": true, "memoryrank": true, "sleep": true, "decisions": true,
 	"escalate": true, "advisor": true, "scrub": true, "opentodos": true,
-	"orient": true, "baseline": true, "thenrun": true, "inline": true, "asyncdiag": true, "headlesscore": true, "leanprompt": true, "planbudget": true, "burstcap": true, "specreview": true, "testguard": true, "claimcheck": true, "tour": true, "testledger": true,
+	"orient": true, "baseline": true, "thenrun": true, "inline": true, "asyncdiag": true, "headlesscore": true, "leanprompt": true, "planbudget": true, "burstcap": true, "specreview": true, "testguard": true, "claimcheck": true, "tour": true, "testledger": true, "unverified": true,
 	"evidence": true,
 	"taint":    true, "honeytoken": true, "depgate": true,
 	"probes":    true,

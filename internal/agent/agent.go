@@ -320,6 +320,9 @@ type Agent struct {
 	// WrapStop, when set, ends a headless turn that is still passing
 	// wrapStopAfter calls after the wrap-up note (wrapstop.go).
 	WrapStop bool
+	// UncheckedNote, when set, sends a turn that ends on edits no check has
+	// run against back once, if the project has a check (uncheckednote.go).
+	UncheckedNote bool
 	// NoEdgeRules leaves out the edge-rules note (edgerules_note.go).
 	NoEdgeRules bool
 	// Adaptive gates the expensive end-of-turn checks to risky turns (risk.go).
@@ -816,6 +819,7 @@ type turnGates struct {
 	rejectedCalls             int
 	truncatedReplies          int
 	specReviewed              bool
+	uncheckedNoted            bool
 	edgeNoted                 bool
 	ledger                    ledgerState
 	difffuzz                  difffuzzGateState
@@ -1205,6 +1209,9 @@ func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates
 		return false
 	}
 	if a.numclaimGate(resp.Message.Text(), g, emit) {
+		return false
+	}
+	if !g.conflicted && a.uncheckedGate(outcome, &g.uncheckedNoted, emit) {
 		return false
 	}
 	if !g.conflicted && a.specReview(outcome, &g.specReviewed, emit) {
