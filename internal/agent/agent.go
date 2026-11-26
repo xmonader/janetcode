@@ -737,7 +737,17 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.stepN++
 		a.logEvent(session.Event{Type: session.TypeStepStart, Turn: a.turnN, Step: a.stepN})
 		resp, err := a.callStep(ctx, &compactAt, emit)
+		if err != nil && llm.IsToolCallRejected(err) && ctx.Err() == nil && gates.rejectedCalls < maxRejectedCalls {
+			// The provider refused a malformed call before relaying it.
+			// Resending the same request reproduces it: tell the model.
+			gates.rejectedCalls++
+			a.stats.rejected()
+			emit(Event{Kind: EvNotice, Text: "the provider rejected the model's tool call; asking the model to call it again"})
+			a.appendHarnessText(rejectedCallNote(err))
+			continue
+		}
 		if err != nil {
+			err = llm.AsToolCallRejected(err)
 			// Nothing appended: the trailing user message stays and the next
 			// Run merges into it.
 			return err
@@ -803,6 +813,7 @@ type turnGates struct {
 	probes                    probeGateState
 	acceptNudged, todoNudged  bool
 	diagRounds, cutReplies    int
+	rejectedCalls             int
 	truncatedReplies          int
 	specReviewed              bool
 	edgeNoted                 bool
@@ -1352,3 +1363,17 @@ func (a *Agent) CompactThreshold() int {
 // histories cost more and models attend worse, so compaction runs
 // earlier than the model strictly requires unless compact_at says so.
 const MaxAutoCompactAt = 200_000
+
+// maxRejectedCalls bounds how often one turn recovers from the provider
+// refusing a malformed tool call.
+const maxRejectedCalls = 3
+
+// rejectedCallNote is the harness text that tells the model its call was
+// refused, with the provider's message trimmed.
+func rejectedCallNote(err error) string {
+	msg := strings.Join(strings.Fields(llm.ClassifyText(err)), " ")
+	if r := []rune(msg); len(r) > 300 {
+		msg = string(r[:300]) + "..."
+	}
+	return "[harness] Your last tool call was rejected by the provider before it ran: " + msg + ". Call the tool again with arguments that match its schema exactly."
+}

@@ -110,6 +110,11 @@ func PermanentLimit(msg string) bool {
 // request broke it, and sending it again breaks it again — with the real
 // reason buried under the retries.
 func Retryable(err error) bool {
+	// A refused tool call comes back the same when resent; the agent tells
+	// the model instead (see ErrToolCallRejected).
+	if IsToolCallRejected(err) {
+		return false
+	}
 	var se StatusError
 	if errors.As(err, &se) {
 		// ClassifyText, not se.Error(): the display copy is cut at 300

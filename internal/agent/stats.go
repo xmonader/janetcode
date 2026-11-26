@@ -37,6 +37,9 @@ type Stats struct {
 	// (see Agent.recoverToolCalls) — turns a model would otherwise have
 	// ended having done nothing.
 	Recoveries int
+	// RejectedCalls counts tool calls the provider refused as malformed
+	// and the model was asked to make again.
+	RejectedCalls int
 	// WatchdogKills counts streamed calls the watchdog ended because they
 	// stopped producing, and Fallbacks counts calls that only succeeded
 	// on another model. Both are runs the harness saved rather than runs
@@ -167,7 +170,9 @@ func (s Stats) RouteLine(cheap string) string {
 
 // Saves is how many times the harness rescued a call that would
 // otherwise have been a wasted turn or a lost run.
-func (s Stats) Saves() int { return s.Recoveries + s.WatchdogKills + s.Fallbacks + s.Retries }
+func (s Stats) Saves() int {
+	return s.Recoveries + s.RejectedCalls + s.WatchdogKills + s.Fallbacks + s.Retries
+}
 
 // PromptLine is "asked N times · M refused" for /stats, worded once for
 // both front-ends. Empty until the first prompt has been shown.
@@ -403,6 +408,12 @@ func (c *statsCounter) waited(d time.Duration) {
 func (c *statsCounter) compacted() {
 	c.mu.Lock()
 	c.s.Compactions++
+	c.mu.Unlock()
+}
+
+func (c *statsCounter) rejected() {
+	c.mu.Lock()
+	c.s.RejectedCalls++
 	c.mu.Unlock()
 }
 

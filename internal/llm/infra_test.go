@@ -41,3 +41,40 @@ func TestInfrastructure(t *testing.T) {
 		}
 	}
 }
+
+type msgErr struct {
+	statusErr
+	msg string
+}
+
+func (m msgErr) Error() string { return m.msg }
+
+func TestToolCallRejected(t *testing.T) {
+	for _, c := range []struct {
+		msg  string
+		want bool
+	}{
+		{"openrouter stream error: Upstream error from Groq: Tool call validation failed: parameters for tool apply_patch (HTTP 500)", true},
+		{"Failed to parse tool call arguments as JSON", true},
+		{"Parsing failed. The model generated output that could not be parsed.", true},
+		{"see 'failed_generation' for more details", true},
+		{"Invalid Tool Call", true},
+		{"Upstream idle timeout exceeded", false},
+	} {
+		err := InStream(msgErr{statusErr(500), c.msg})
+		if got := IsToolCallRejected(err); got != c.want {
+			t.Errorf("%q: IsToolCallRejected = %v", c.msg, got)
+		}
+		if c.want {
+			if Retryable(err) {
+				t.Errorf("%q: must not be retried", c.msg)
+			}
+			w := AsToolCallRejected(err)
+			if !errors.Is(w, ErrToolCallRejected) || w.Error() != c.msg {
+				t.Errorf("%q: wrapped = %v", c.msg, w)
+			}
+		} else if !Retryable(err) {
+			t.Errorf("%q: mid-stream 500 should stay retryable", c.msg)
+		}
+	}
+}

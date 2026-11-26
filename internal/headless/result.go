@@ -163,6 +163,9 @@ type CLIDecisions struct {
 type CLIRecoveries struct {
 	// ProseToolCalls were written as text and read back as calls.
 	ProseToolCalls int `json:"prose_tool_calls"`
+	// RejectedToolCalls are malformed calls the provider refused and the
+	// model was asked to make again.
+	RejectedToolCalls int `json:"rejected_tool_calls"`
 	// WatchdogKills are streams that stopped producing and were ended.
 	WatchdogKills int `json:"watchdog_kills"`
 	// ModelFallbacks are calls that only succeeded on another model.

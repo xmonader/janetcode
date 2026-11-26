@@ -509,10 +509,11 @@ func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 		}
 		res.Mismatches, res.Mismatch = st.Mismatches, st.Mismatch
 		res.Recoveries = CLIRecoveries{
-			ProseToolCalls: st.Recoveries,
-			WatchdogKills:  st.WatchdogKills,
-			ModelFallbacks: st.Fallbacks,
-			Total:          st.Saves(),
+			ProseToolCalls:    st.Recoveries,
+			RejectedToolCalls: st.RejectedCalls,
+			WatchdogKills:     st.WatchdogKills,
+			ModelFallbacks:    st.Fallbacks,
+			Total:             st.Saves(),
 		}
 		if st.DecisionCalls > 0 {
 			open := false
