@@ -236,7 +236,26 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 	if !gotDone && st.finish == "" {
 		return nil, llm.Truncate(errors.New("openai: stream ended without finish_reason"))
 	}
-	return st.response()
+	out, err := st.response()
+	if err != nil {
+		return nil, err
+	}
+	// A clean "stop" that carried no text, no reasoning and no call is a
+	// proxy glitch, not an answer: ending the turn on it loses the turn.
+	// Marked truncated so the retry policy resends it, within its budget.
+	if st.finish == "stop" && out.StopReason == llm.StopEndTurn && emptyReply(out.Message) {
+		return nil, llm.Truncate(errors.New("openai: stream stopped with an empty reply"))
+	}
+	return out, nil
+}
+
+func emptyReply(m llm.Message) bool {
+	for _, b := range m.Blocks {
+		if b.Type != llm.BlockText || strings.TrimSpace(b.Text) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // streamState is what readStream has accumulated from the chunks so far.
