@@ -284,6 +284,13 @@ func gatewayDown(err error) bool {
 		switch se.HTTPStatus() {
 		case 502, 503, 504, 529:
 			return !MidStream(err)
+		case 429:
+			// A rate limit that names when to come back is a window that
+			// reopens, like an outage: a broker whose keys are all cooling
+			// says "soonest available in 30s", and two such waits once
+			// ended a quarter of a campaign's runs. An exhausted account
+			// never gets here (Retryable refuses it).
+			return se.RetryHint() > 0
 		}
 		return false
 	}

@@ -281,3 +281,26 @@ func TestRetrierBudgetedWaitAbortsOnCancel(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// A rate limit that says when to come back rides out the window on the
+// time budget, past the two counted retries; one that does not say keeps
+// the count.
+func TestRetrierWaitsOutAHintedRateLimitWindow(t *testing.T) {
+	rt := NewRetrier(2, nil, nil)
+	now := fakeClock(rt)
+	for i := 0; i < 5; i++ {
+		if err := rt.Wait(context.Background(), hinted(429, 30*time.Second)); err != nil {
+			t.Fatalf("attempt %d gave up at %v: %v", i+1, *now, err)
+		}
+	}
+	bare := NewRetrier(2, nil, nil)
+	fakeClock(bare)
+	for i := 0; i < 2; i++ {
+		if err := bare.Wait(context.Background(), status(429, "slow down")); err != nil {
+			t.Fatalf("bare attempt %d: %v", i+1, err)
+		}
+	}
+	if err := bare.Wait(context.Background(), status(429, "slow down")); err == nil {
+		t.Fatal("an unhinted 429 retried past its count")
+	}
+}
