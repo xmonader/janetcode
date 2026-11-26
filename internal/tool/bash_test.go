@@ -230,7 +230,7 @@ func TestBashAcceptsATimeoutWrittenTheOtherWay(t *testing.T) {
 		t.Fatalf("output = %q", out)
 	}
 	_, err = b.Run(context.Background(), json.RawMessage(`{"command":"echo hi","nonsense":1}`))
-	if err == nil || !strings.Contains(err.Error(), "this tool accepts: command, timeout_ms, timeout, background") {
+	if err == nil || !strings.Contains(err.Error(), "this tool accepts: command, cmd, timeout_ms, timeout, background") {
 		t.Fatalf("error = %v", err)
 	}
 }

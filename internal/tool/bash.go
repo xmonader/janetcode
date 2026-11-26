@@ -73,21 +73,24 @@ func (b Bash) Schema() json.RawMessage {
 	if b.Slim {
 		return json.RawMessage(`{"type":"object","properties":{
 "command":{"type":"string"},
+"cmd":{"type":"string","description":"Alias of command"},
 "timeout_ms":{"type":"integer","description":"Default 120000, max 600000"}},
-"required":["command"],"additionalProperties":false}`)
+"additionalProperties":false}`)
 	}
 	return json.RawMessage(`{"type":"object","properties":{
 "command":{"type":"string","description":"The command to run"},
+"cmd":{"type":"string","description":"Alias of command"},
 "timeout_ms":{"type":"integer","description":"Timeout in milliseconds (default 120000, max 600000)"},
 "background":{"type":"boolean","description":"Run detached and return immediately with a job id; output is collected and reported when the job ends"},
 "stdin":{"type":"string","description":"Standard input, then EOF; a newline after each answer"},
 "interactive":{"type":"boolean","description":"Background job on a terminal, for programs that prompt"}},
-"required":["command"],"additionalProperties":false}`)
+"additionalProperties":false}`)
 }
 
 func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Command   string `json:"command"`
+		Cmd       string `json:"cmd"` // gpt-oss's name; NormalizeArgs renames it first
 		TimeoutMS int    `json:"timeout_ms"`
 		// Timeout is the name models reach for when they mean timeout_ms,
 		// and a rejected call costs a whole round trip: a recorded
@@ -103,6 +106,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if in.TimeoutMS == 0 {
 		in.TimeoutMS = timeoutAlias(in.Timeout)
+	}
+	if in.Command == "" {
+		in.Command = in.Cmd
 	}
 	if strings.TrimSpace(in.Command) == "" {
 		return "", fmt.Errorf("command is empty")

@@ -743,7 +743,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			gates.rejectedCalls++
 			a.stats.rejected()
 			emit(Event{Kind: EvNotice, Text: "the provider rejected the model's tool call; asking the model to call it again"})
-			a.appendHarnessText(rejectedCallNote(err))
+			a.appendHarnessText(rejectedCallNote(err, a.toolNames()))
 			continue
 		}
 		if err != nil {
@@ -1370,10 +1370,16 @@ const maxRejectedCalls = 3
 
 // rejectedCallNote is the harness text that tells the model its call was
 // refused, with the provider's message trimmed.
-func rejectedCallNote(err error) string {
+func rejectedCallNote(err error, tools string) string {
 	msg := strings.Join(strings.Fields(llm.ClassifyText(err)), " ")
 	if r := []rune(msg); len(r) > 300 {
 		msg = string(r[:300]) + "..."
 	}
-	return "[harness] Your last tool call was rejected by the provider before it ran: " + msg + ". Call the tool again with arguments that match its schema exactly."
+	note := "[harness] Your last tool call was rejected by the provider before it ran: " + msg + ". Call the tool again with arguments that match its schema exactly."
+	// gpt-oss reaches for tools from its training (search, open_file) that
+	// this session does not have; naming the real ones ends the guessing.
+	if strings.Contains(strings.ToLower(msg), "not in request.tools") && tools != "" {
+		note += " The only tools available are: " + tools + "."
+	}
+	return note
 }

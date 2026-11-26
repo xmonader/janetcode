@@ -46,3 +46,14 @@ func TestRejectedToolCallsAreBounded(t *testing.T) {
 		t.Fatalf("model calls = %d, want %d", len(f.requests), 1+maxRejectedCalls)
 	}
 }
+
+func TestRejectedCallNoteNamesTheToolsForAnUnknownTool(t *testing.T) {
+	unknown := errors.New("Tool call validation failed: attempted to call tool 'search' which was not in request.tools")
+	if n := rejectedCallNote(unknown, "bash, read_file"); !strings.Contains(n, "The only tools available are: bash, read_file.") {
+		t.Fatalf("note = %q", n)
+	}
+	bad := errors.New("Failed to parse tool call arguments as JSON")
+	if n := rejectedCallNote(bad, "bash, read_file"); strings.Contains(n, "only tools available") {
+		t.Fatalf("a parse failure named the tools: %q", n)
+	}
+}

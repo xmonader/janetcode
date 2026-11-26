@@ -740,6 +740,9 @@ func (a *Agent) executeToolResult(ctx context.Context, u llm.Block, emit func(Ev
 	// that disallows unknown fields sees it.
 	accepted := tookLargeOutput(stripped)
 	u.Input = takeLargeOutput(stripped)
+	// Before anything reads the input: a permission check on "command"
+	// must see the command a model sent as "cmd".
+	u.Input = tool.NormalizeArgs(u.Name, u.Input)
 	if !a.Off["pathrepair"] {
 		u.Input = tool.RepairPaths(ctx, a.Workspace, a.RootDir(), u.Input)
 	}
