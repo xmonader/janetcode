@@ -22,6 +22,33 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## janetcode against the latest pi (`h2h-ds`, `h2h-kimi`, 2026-11-26)
+
+The setup:
+
+- **janetcode:** bin/janetcode-h2h1 (83d375cc), which no longer replays reasoning and retries gateway errors for up to 3 minutes.
+- **pi:** 1.6.1, built from pi bf3f6a222.
+- **Runs:** 8 tasks × 3 seeds per model.
+
+On Kimi, the broker's key pool ran dry for the last seed. Every request returned
+429 ("all API keys for provider kimi are unavailable"), so the six seed-3 runs of
+each arm made no progress, and the table counts live runs only. That window led
+to acd35fb8: a 429 that names its retry window now spends the 3-minute budget
+instead of two retries.
+
+| model | arm | pass | calls/run | input/run | uncached/run | output/run | cost/run | wall/run |
+|---|---|---|---|---|---|---|---|---|
+| deepseek-v4.1-flash | janetcode | 24/24 | **10.2** | **133k** | **19k** | 22.8k | **$0.017** | **142 s** |
+| | pi | 24/24 | 16.6 | 349k | 31k | 24.0k | $0.023 | 191 s |
+| kimi-for-coding | janetcode | 18/18 | **9.8** | **142k** | **17k** | 23.0k | – | 175 s |
+| | pi | 17/18 | 14.3 | 257k | 26k | 20.2k | – | 178 s |
+
+Against pi, janetcode passes as much or more, with:
+
+- 39% fewer calls on DeepSeek and 31% fewer on Kimi;
+- 62% less input on DeepSeek and 45% less on Kimi;
+- 26% lower cost on DeepSeek.
+
 ## Reasoning replay costs input and buys nothing (`rb-ds`, `rb-kimi`, 2026-11-26)
 
 Same binary (bin/janetcode-rb1, 67c80b7d), 8 tasks × 3 seeds, four arms:
