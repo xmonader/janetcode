@@ -22,6 +22,37 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## gpt-oss-20b: surviving tool calls the provider refuses (`h2h-oss`, `oss-replay`, `oss-toolfix`, `oss-toolfix2`, 2026-11-26)
+
+On ai02, gpt-oss-20b is served via OpenRouter by Groq, which checks every tool
+call against its schema and refuses the bad ones with an HTTP 500 mid-stream.
+
+- **Before:** in `h2h-oss` (bin/janetcode-h2h2), the refusals ended 11 of 24
+  runs. 9 of them were `apply_patch` called with `patch` instead of `input`.
+- **pi 1.6.1 on the same model:** 0/24, with 1.7k output tokens per run.
+- **Replay does not help this model either** (`oss-replay`): drop 4/24 at
+  108k input against replay 3/24 at 188k.
+
+Fixes:
+
+- f1634dc5: `apply_patch` takes `patch` as well as `input`.
+- cfac638e: a refused call becomes a harness note and the model tries again, at
+  most 3 times per turn.
+- e87f7107: `bash` takes `cmd` as an alias, renamed before the permission
+  checks, and the note lists the real tools when the model calls one from its
+  training (`search`, `open_file`).
+
+`oss-toolfix2`, 8 tasks × 5 seeds, same window:
+
+| arm | pass | runs ended by a refusal | refusals recovered | calls/run | input/run | cost/run |
+|---|---|---|---|---|---|---|
+| old (h2h2) | 3/40 | 9 | 0 | 14.4 | 169k | $0.0122 |
+| new (h2h4) | **8/40** | 5 | 39 | 16.9 | 191k | **$0.0112** |
+
+The pass gain is near the noise floor, but the mechanism is direct: 39 calls
+that used to end a run were recovered. The remaining run-ending refusals are
+turns that used all 3 recoveries.
+
 ## janetcode against the latest pi (`h2h-ds`, `h2h-kimi`, 2026-11-26)
 
 The setup:
