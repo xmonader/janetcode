@@ -1,0 +1,9 @@
+# effbench arm config for openai/gpt-oss-20b routed through the ai02 broker: a weak,
+# cheap, patch-format-trained model, used to make edit misses common enough to measure
+# editescalate, pathrepair and applypatch. Only `ctx` and the `serve` line are read.
+[[models]]
+alias = "gpt-oss-20b"
+tier = "fast"
+ctx = 131072
+caps = ["text", "tools"]
+serve = [{ backend = "ai02", model = "openai/gpt-oss-20b" }]
