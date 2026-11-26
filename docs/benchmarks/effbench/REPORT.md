@@ -22,6 +22,28 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## gpt-oss-20b: cache misses are the broker's, not janetcode's (`cache1`, 2026-11-26)
+
+The first campaign with the miss attribution of 8af95ba7 (`cache_misses` in the
+headless result, `own_cache_misses` in the run record): one arm, 8 tasks × 2
+seeds, on ai02. Five runs died on a broker 502 before their first call, and two
+passed. Of the 11 runs with calls, 70% of the input was read from cache.
+
+None of the 531k missed tokens was a prompt janetcode changed. 288k were
+requests that only appended to the previous one, and 243k were runs where the
+endpoint reported no cache read at all. The proxy logs show the pattern:
+
+- When the cache serves, a run reads 95–97% of each prompt (b-promo-clock 97%
+  and 95%, b-report-paging 91%), and each call misses only 1–16 tokens, which
+  is block rounding.
+- Other runs get calls with zero cache reads scattered between hits
+  (c-rs-logstore-s2: 14 of 37). That is a request landing on a replica without
+  the prefix.
+
+janetcode already sends a per-session `prompt_cache_key` (internal/llm/openai),
+and the broker does not route on it. The janetcode-vs-pi cache gap on this
+broker is therefore routing noise, and there is no prompt-side fix to make.
+
 ## gpt-oss-20b: apply_patch pays; edit escalation still unmeasured (`bob-oss-edit`, 2026-11-26)
 
 Binary `6e04eb0c`, `openai/gpt-oss-20b` routed through ai02 (a weak model, picked so
