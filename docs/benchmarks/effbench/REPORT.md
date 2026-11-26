@@ -22,6 +22,36 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Reasoning replay costs input and buys nothing (`rb-ds`, `rb-kimi`, 2026-11-26)
+
+Same binary (bin/janetcode-rb1, 67c80b7d), 8 tasks × 3 seeds, four arms:
+
+- `full`: replay all earlier reasoning (the old default).
+- `chars`: `set.reasoning_replay_chars=1500`.
+- `last`: `set.reasoning_replay_last=3`.
+- `off`: `JANETCODE_OFF=reasoning`.
+
+A broker 502 burst killed 112 runs before their first call. Those were deleted
+and rerun on the same binary. That burst led to caa56ca2, which retries
+gateway errors for up to 3 minutes.
+
+| model | arm | pass | calls | input/run | uncached/run | output/run | cost |
+|---|---|---|---|---|---|---|---|
+| deepseek-v4.1-flash | full | 24/24 | 11.8 | 334k | 62k | 30.9k | $0.69 |
+| | chars | 21/24 | 11.0 | 185k | 22k | 21.7k | $0.45 |
+| | last | 24/24 | 11.2 | 186k | 75k | 25.3k | $0.63 |
+| | off | 24/24 | 10.2 | **124k** | 23k | 29.7k | $0.56 |
+| kimi-for-coding | full | 24/24 | 8.2 | 157k | 30k | 17.5k | – |
+| | chars | 24/24 | 9.5 | 136k | 21k | 22.0k | – |
+| | last | 24/24 | 8.7 | 134k | 46k | 19.2k | – |
+| | off | 23/24 | 8.7 | **112k** | 19k | 17.7k | – |
+
+- **No replay compared with full replay:** the same passes within noise, with 63% less input on DeepSeek and 29% less on Kimi. With GLM's 448k vs 280k (`syn-glm-replay`), that makes three models. The earlier DeepSeek gap (`syn-ds-replay`, 22/24 vs 24/24) was noise.
+- **`last` breaks the cache:** each call strips one older message, so its uncached input is the highest of the four arms.
+- **`chars` is cache-safe but saves less than `off`.**
+
+**Decision:** stop replaying by default. Replay only when the provider rejects a request for missing reasoning.
+
 ## gpt-oss-20b: cache misses are the broker's, not janetcode's (`cache1`, 2026-11-26)
 
 The first campaign with the miss attribution of 8af95ba7 (`cache_misses` in the
