@@ -22,6 +22,31 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## gpt-oss-20b: apply_patch pays; edit escalation still unmeasured (`bob-oss-edit`, 2026-11-26)
+
+Binary `6e04eb0c`, `openai/gpt-oss-20b` routed through ai02 (a weak model, picked so
+edit misses are common), the 8 default tasks x 3 seeds, three arms in one window,
+$0.55 in all.
+
+| arm | switches off | pass | calls/run | input/run | cost |
+|-----|--------------|------|-----------|-----------|------|
+| on      | none                       | 9/24 | 18.3 | 261k | $0.164 |
+| noedit  | `editescalate,pathrepair`  | 2/24 | 17.9 | 251k | $0.168 |
+| nopatch | `applypatch`               | 4/24 | 21.9 | 342k | $0.218 |
+
+**apply_patch: kept.** Offered, the model edits almost only through it (232 calls
+in `on`, two `edit_file` misses); without it, 66 `edit_file` misses, 20% more calls
+and 31% more input for fewer passes. The 76 unmatched hunks in `on` are retried
+in the same call budget.
+
+**editescalate / pathrepair: not attributable.** In `on` the escalation never
+fired (one closest-line hint): with apply_patch on offer the model barely uses
+`edit_file`. In `nopatch` it fired (8 escalations, 5 closest-line hints, 3
+already-applied notes), but that arm has no control without it. No call named a
+`~` or `home/...` path. So the 9 vs 2 between `on` and `noedit` comes from switches
+that hardly ran, and at ~20% pass rates is within what two identical arms can
+differ by; `bob-oss-edit2` reruns it with a same-binary control arm.
+
 ## kimi-for-coding: edit escalation and path repair (`bob-kimi-edit`, 2026-11-23, kept, unmeasured)
 
 Binary `d6eef258`, the 8 default tasks x 3 seeds, one window; arm `off` is the
