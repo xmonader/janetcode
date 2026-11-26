@@ -45,7 +45,17 @@ fired (one closest-line hint): with apply_patch on offer the model barely uses
 already-applied notes), but that arm has no control without it. No call named a
 `~` or `home/...` path. So the 9 vs 2 between `on` and `noedit` comes from switches
 that hardly ran, and at ~20% pass rates is within what two identical arms can
-differ by; `bob-oss-edit2` reruns it with a same-binary control arm.
+differ by.
+
+**The rerun settles it (`bob-oss-edit2`, same binary, a later window):** `on` 3/24
+(15.9 calls, 220k), `on2` (the identical arm) 5/24 (15.8, 226k), `noedit` 3/24
+(15.7, 229k). Two copies of one binary differ more than `on` and `noedit`, and `on`
+itself fell from 9/24 to 3/24 between windows: on gpt-oss-20b a pass gap under
+~6 of 24 is noise, and so is the 9 vs 2 above. The escalation fired once in 72
+runs. editescalate and pathrepair stay on as idle-free guards for `edit_file`
+users; they remain unmeasured. apply_patch's pass gain (9 vs 4) is inside that
+noise too; what stands is the mechanism (66 `edit_file` misses without it, 2
+with it) and its lower calls and input.
 
 ## kimi-for-coding: edit escalation and path repair (`bob-kimi-edit`, 2026-11-23, kept, unmeasured)
 
