@@ -302,12 +302,17 @@ func writeTargets(c Call) []string {
 func PatchPaths(input json.RawMessage) []string {
 	var in struct {
 		Input string `json:"input"`
+		Patch string `json:"patch"`
 	}
 	if json.Unmarshal(input, &in) != nil {
 		return nil
 	}
+	text := in.Input
+	if strings.TrimSpace(text) == "" {
+		text = in.Patch
+	}
 	var out []string
-	for _, l := range strings.Split(in.Input, "\n") {
+	for _, l := range strings.Split(text, "\n") {
 		l = strings.TrimSpace(l)
 		for _, p := range []string{"*** Add File:", "*** Delete File:", "*** Update File:", "*** Move to:"} {
 			if rest, ok := strings.CutPrefix(l, p); ok && strings.TrimSpace(rest) != "" {

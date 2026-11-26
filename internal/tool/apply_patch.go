@@ -44,7 +44,7 @@ func (ApplyPatch) Description() string {
 }
 func (ApplyPatch) Mutating() bool { return true }
 func (ApplyPatch) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"input":{"type":"string","description":"The whole patch, from *** Begin Patch to *** End Patch"}},"required":["input"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"input":{"type":"string","description":"The whole patch, from *** Begin Patch to *** End Patch (input or patch, either works)"},"patch":{"type":"string","description":"The whole patch, from *** Begin Patch to *** End Patch (input or patch, either works)"}},"additionalProperties":false}`)
 }
 
 // PatchModel reports whether a model id belongs to a family trained on the
@@ -66,6 +66,15 @@ func PatchModel(id string, extra ...string) bool {
 
 type patchInput struct {
 	Input string `json:"input"`
+	Patch string `json:"patch"`
+}
+
+// text is the patch body: input when given, else patch (gpt-oss sends it).
+func (p patchInput) text() string {
+	if strings.TrimSpace(p.Input) != "" {
+		return p.Input
+	}
+	return p.Patch
 }
 
 type patchHunk struct {
@@ -261,7 +270,10 @@ func (t ApplyPatch) plan(ctx context.Context, input json.RawMessage) (*patchPlan
 	if err := decode(input, &in); err != nil {
 		return nil, err
 	}
-	ops, err := parsePatch(in.Input)
+	if strings.TrimSpace(in.text()) == "" {
+		return nil, errors.New("apply_patch needs the patch text in the `input` argument (`patch` also works); both are missing or empty")
+	}
+	ops, err := parsePatch(in.text())
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +620,7 @@ func patchPaths(input json.RawMessage) []string {
 		return nil
 	}
 	var out []string
-	for _, l := range strings.Split(in.Input, "\n") {
+	for _, l := range strings.Split(in.text(), "\n") {
 		l = strings.TrimSpace(l)
 		for _, p := range []string{"*** Add File:", "*** Delete File:", "*** Update File:", "*** Move to:"} {
 			if rest, ok := strings.CutPrefix(l, p); ok && strings.TrimSpace(rest) != "" {

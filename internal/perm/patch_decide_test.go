@@ -45,3 +45,11 @@ func TestApplyPatchMoveTargetJudged(t *testing.T) {
 		t.Fatalf("verdict %v, want Denied", v)
 	}
 }
+
+func TestPatchPathsReadsPatchArgument(t *testing.T) {
+	in, _ := json.Marshal(map[string]string{"patch": "*** Begin Patch\n*** Add File: a.txt\n+x\n*** Delete File: b.txt\n*** End Patch"})
+	got := PatchPaths(in)
+	if len(got) != 2 || got[0] != "a.txt" || got[1] != "b.txt" {
+		t.Fatalf("got %v", got)
+	}
+}

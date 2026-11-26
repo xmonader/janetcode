@@ -275,3 +275,23 @@ func TestPatchModel(t *testing.T) {
 		t.Error("configured glob ignored")
 	}
 }
+
+func TestApplyPatchAcceptsPatchArgument(t *testing.T) {
+	root := t.TempDir()
+	b, _ := json.Marshal(map[string]string{"patch": "*** Begin Patch\n*** Add File: p.txt\n+hi\n*** End Patch"})
+	if _, err := (ApplyPatch{Root: root, Seen: &Seen{}}).Run(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "p.txt"); got != "hi\n" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestApplyPatchNeitherArgumentErrors(t *testing.T) {
+	for _, in := range []string{`{}`, `{"input":"","patch":"  "}`} {
+		_, err := ApplyPatch{Root: t.TempDir(), Seen: &Seen{}}.Run(context.Background(), json.RawMessage(in))
+		if err == nil || !strings.Contains(err.Error(), "`input`") {
+			t.Fatalf("%s: err = %v", in, err)
+		}
+	}
+}
