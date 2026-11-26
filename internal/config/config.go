@@ -82,6 +82,14 @@ type Config struct {
 	// that are offered apply_patch besides the built-in families
 	// (see tool.PatchModel).
 	PatchModels []string `json:"patch_models,omitempty"`
+	// ReasoningReplayChars caps each reasoning block replayed to an
+	// OpenAI-compatible provider at this many characters, keeping the tail.
+	// Zero is unlimited. Cache-safe: the cut is fixed per message.
+	ReasoningReplayChars int `json:"reasoning_replay_chars,omitempty"`
+	// ReasoningReplayLast replays reasoning only on the last N assistant
+	// messages. Zero is all of them. Breaks the cache from the oldest
+	// still-replayed message onward, one message per call.
+	ReasoningReplayLast int `json:"reasoning_replay_last,omitempty"`
 	// ShowThinking renders the model's reasoning. Turning it off asks the
 	// provider to omit the text while still returning the signature that
 	// keeps multi-turn reasoning valid, which lowers time to first visible

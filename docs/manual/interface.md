@@ -1877,6 +1877,21 @@ When nothing matches at all, the failure shows the closest region of the
 file as a diff against what was asked for, so the next attempt is aimed
 at the text that is actually there instead of guessing again.
 
+### Bounding replayed reasoning
+
+On OpenAI-compatible providers the model's earlier reasoning is sent back
+with each assistant message. Two settings bound it (both default 0, no
+bound; `JANETCODE_OFF=reasoning` drops it entirely and wins over both):
+
+- `reasoning_replay_chars`: cap each replayed reasoning block at this many
+  characters, keeping the tail behind a `…` marker. The cut is fixed per
+  message, so the prompt cache is unaffected.
+- `reasoning_replay_last`: replay reasoning only on the last N assistant
+  messages. The cut moves each call, so the cache is broken from the
+  oldest still-replayed message onward (one message per call).
+
+Anthropic thinking blocks are signed and are never cut.
+
 ### apply_patch, for models trained on patches
 
 Some model families (`gpt-*`, `o3*`, `o4*`, `codex*`) are trained on the

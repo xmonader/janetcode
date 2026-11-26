@@ -161,7 +161,9 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		Effort:    effort,
 		// Off, the plan a reply reasoned out is gone by the next reply
 		// on the OpenAI-compatible path; see llm.Block.Via.
-		DropReasoning: a.Off["reasoning"],
+		DropReasoning:  a.Off["reasoning"],
+		ReasoningChars: a.ReasoningChars,
+		ReasoningLast:  a.ReasoningLast,
 	}
 	resp, err := a.stream(callCtx, prov, req, func(e llm.Event) {
 		if e.Type == llm.EventRetried && e.Retry != nil {

@@ -175,6 +175,14 @@ type Request struct {
 	// request on providers that would send it back (the OpenAI-compatible
 	// path; JANETCODE_OFF=reasoning).
 	DropReasoning bool
+	// ReasoningChars caps each replayed reasoning block at this many
+	// characters, keeping the tail. Zero is unlimited. The cut depends
+	// only on the message, so it is the same on every request and the
+	// provider's prompt cache stays valid.
+	ReasoningChars int
+	// ReasoningLast replays reasoning only on the last N assistant
+	// messages; zero is all of them. The cut point moves every call.
+	ReasoningLast int
 }
 
 // Schema names a JSON shape a reply must take.

@@ -564,6 +564,8 @@ func (b *agentBuilder) stepCore() error {
 	// compacts by that model's window, not the session's.
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
+	ag.ReasoningChars = d.cfg.ReasoningReplayChars
+	ag.ReasoningLast = d.cfg.ReasoningReplayLast
 	ag.Workspace = b.ws
 	// The post-green checks (spec review, edge rules, the stale-check
 	// correction, plan carry) run only on risky turns: on realrepo bug

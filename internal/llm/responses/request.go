@@ -194,6 +194,8 @@ func assistantItems(m llm.Message) []any {
 		case llm.BlockText:
 			text.WriteString(b.Text)
 		case llm.BlockThinking:
+			// Replays encrypted, signed items, which cannot be cut, so
+			// ReasoningChars and ReasoningLast do not apply here.
 			if !strings.HasPrefix(b.ID, reasoningPrefix) || b.Signature == "" {
 				continue // another provider's thinking, or none to replay
 			}

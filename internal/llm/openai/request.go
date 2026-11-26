@@ -37,6 +37,12 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 	if req.System != "" {
 		w.Messages = append(w.Messages, wireMessage{Role: "system", Content: req.System})
 	}
+	asstLeft := 0 // assistant messages not yet written, this one included
+	for _, m := range req.Messages {
+		if m.Role == llm.RoleAssistant {
+			asstLeft++
+		}
+	}
 	for _, m := range req.Messages {
 		switch m.Role {
 		case llm.RoleUser:
@@ -81,12 +87,19 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 			}
 		case llm.RoleAssistant:
 			am := wireMessage{Role: "assistant"}
+			// With ReasoningLast set the cut moves each call: the message
+			// that just aged out loses its reasoning, so the prompt cache
+			// is broken from the oldest still-replayed message onward.
+			// Only that one message changes between requests, which keeps
+			// the cost small.
+			dropThink := req.DropReasoning || (req.ReasoningLast > 0 && asstLeft > req.ReasoningLast)
+			asstLeft--
 			var text, think strings.Builder
 			via := ""
 			for _, b := range m.Blocks {
 				switch b.Type {
 				case llm.BlockThinking:
-					if req.DropReasoning || b.Via == "" || b.Text == "" || (via != "" && b.Via != via) {
+					if dropThink || b.Via == "" || b.Text == "" || (via != "" && b.Via != via) {
 						continue
 					}
 					via = b.Via
@@ -104,11 +117,12 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 				}
 			}
 			am.Content = text.String()
+			thought := tailChars(think.String(), req.ReasoningChars)
 			switch via {
 			case "reasoning_content":
-				am.ReasoningContent = think.String()
+				am.ReasoningContent = thought
 			case "reasoning":
-				am.Reasoning = think.String()
+				am.Reasoning = thought
 			}
 			if text.Len() == 0 && len(am.ToolCalls) == 0 {
 				// A reply that was only reasoning or nothing at all.
@@ -290,4 +304,21 @@ func stripCacheControl(w *wireRequest) {
 		}
 		w.Messages[i].Content = parts
 	}
+}
+
+// reasoningCut marks reasoning that tailChars shortened.
+const reasoningCut = "…"
+
+// tailChars keeps the last max characters of s behind a marker; max <= 0
+// keeps all of it. The result depends on s and max alone, so a message
+// renders the same on every request and the prompt cache holds.
+func tailChars(s string, max int) string {
+	if max <= 0 {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return reasoningCut + string(r[len(r)-max:])
 }
