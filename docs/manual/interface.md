@@ -1879,9 +1879,14 @@ at the text that is actually there instead of guessing again.
 
 ### Bounding replayed reasoning
 
-On OpenAI-compatible providers the model's earlier reasoning is sent back
-with each assistant message. Two settings bound it (both default 0, no
-bound; `JANETCODE_OFF=reasoning` drops it entirely and wins over both):
+On OpenAI-compatible providers the model's earlier reasoning is not sent
+back by default: in A/B runs replaying it cost 29-63% more input for the
+same passes. Set `reasoning_replay` to true to send it. A provider that
+rejects an assistant turn without its reasoning_content (a 400 naming
+"reasoning" with "missing", "required" or "must") switches replay on for
+itself and the request is resent once. When replay is on, two settings
+bound it (both default 0, no bound; `JANETCODE_OFF=reasoning` drops it
+entirely and wins over both):
 
 - `reasoning_replay_chars`: cap each replayed reasoning block at this many
   characters, keeping the tail behind a `…` marker. The cut is fixed per

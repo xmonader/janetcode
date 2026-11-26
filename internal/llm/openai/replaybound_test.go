@@ -1,7 +1,11 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -97,6 +101,69 @@ func TestReasoningCharsIsPrefixStable(t *testing.T) {
 		b, _ := json.Marshal(wl.Messages[i])
 		if string(a) != string(b) {
 			t.Fatalf("message %d changed:\n%s\n%s", i, a, b)
+		}
+	}
+}
+
+func TestDropReasoningOmitsIt(t *testing.T) {
+	req := replayReq(1)
+	if got := wireReasoning(t, req); got[0] == "" {
+		t.Fatal("replay requested but nothing sent")
+	}
+	req.DropReasoning = true
+	if got := wireReasoning(t, req); got[0] != "" {
+		t.Fatalf("dropped reasoning was sent: %q", got[0])
+	}
+}
+
+// A provider that 400s on a tool-call turn without reasoning_content gets
+// replay switched on and the request resent exactly once; later requests
+// keep replaying without another round trip.
+func TestRequiredReasoningTurnsReplayOn(t *testing.T) {
+	var bodies []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(raw))
+		if !strings.Contains(string(raw), "ENDa") {
+			w.WriteHeader(400)
+			io.WriteString(w, `{"error":{"message":"The reasoning_content in the thinking mode must be passed back to the API."}}`)
+			return
+		}
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", MaxRetries: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := replayReq(1)
+	req.MaxTokens = 50
+	req.DropReasoning = true
+	for i := 0; i < 2; i++ {
+		bodies = nil
+		resp, err := p.Stream(context.Background(), req, nil)
+		if err != nil || resp.Message.Text() != "ok" {
+			t.Fatalf("err=%v resp=%+v", err, resp)
+		}
+		want := 1
+		if i == 0 {
+			want = 2
+		}
+		if len(bodies) != want {
+			t.Fatalf("call %d: %d attempts, want %d", i, len(bodies), want)
+		}
+	}
+}
+
+func TestReasoningRequiredMatch(t *testing.T) {
+	for msg, want := range map[string]bool{
+		"missing reasoning_content in assistant message": true,
+		"reasoning is required":                          true,
+		"reasoning_effort must be low, medium or high":   false,
+		"max_tokens must be positive":                    false,
+	} {
+		if reasoningRequired(msg) != want {
+			t.Errorf("%q: want %v", msg, want)
 		}
 	}
 }

@@ -161,7 +161,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, rt 
 		Effort:    effort,
 		// Off, the plan a reply reasoned out is gone by the next reply
 		// on the OpenAI-compatible path; see llm.Block.Via.
-		DropReasoning:  a.Off["reasoning"],
+		DropReasoning:  !a.replayOpenAI(),
 		ReasoningChars: a.ReasoningChars,
 		ReasoningLast:  a.ReasoningLast,
 	}

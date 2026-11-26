@@ -300,8 +300,11 @@ type Agent struct {
 	Off map[string]bool
 	// ReasoningChars and ReasoningLast bound the reasoning replayed to
 	// OpenAI-compatible providers; see llm.Request. Zero is unbounded.
-	ReasoningChars int
-	ReasoningLast  int
+	// ReasoningReplay sends reasoning back; false drops it (see
+	// replayOpenAI).
+	ReasoningReplay bool
+	ReasoningChars  int
+	ReasoningLast   int
 	// PlanBudget, when positive, is how many characters of reasoning a
 	// reply may stream before it writes text or calls a tool; past it the
 	// call ends and the model is told to act, up to maxPlanCuts times a

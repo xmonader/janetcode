@@ -173,7 +173,8 @@ type Request struct {
 	Schema *Schema
 	// DropReasoning leaves the model's earlier reasoning out of the
 	// request on providers that would send it back (the OpenAI-compatible
-	// path; JANETCODE_OFF=reasoning).
+	// path; the default, see config reasoning_replay). A provider that
+	// rejects a turn without its reasoning overrides this for itself.
 	DropReasoning bool
 	// ReasoningChars caps each replayed reasoning block at this many
 	// characters, keeping the tail. Zero is unlimited. The cut depends

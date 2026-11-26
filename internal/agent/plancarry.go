@@ -42,7 +42,7 @@ func (a *Agent) planCarryNote(resp *llm.Response) string {
 	if a.Adaptive && len(plannedUnwritten(a.Messages)) == 0 {
 		return ""
 	}
-	if !isPlanReply(resp.Message, resp.Usage) || (planReplayed(resp.Message) && !a.Off["reasoning"]) {
+	if !isPlanReply(resp.Message, resp.Usage) || a.planReplayed(resp.Message) {
 		return ""
 	}
 	a.pl.planCarried = true
@@ -80,11 +80,19 @@ func isPlanReply(m llm.Message, u llm.Usage) bool {
 }
 
 // planReplayed reports whether m's reasoning goes back to the provider.
-func planReplayed(m llm.Message) bool {
+func (a *Agent) planReplayed(m llm.Message) bool {
 	for _, b := range m.Blocks {
-		if b.Replayed() {
+		if b.Type == llm.BlockThinking && b.Signature != "" {
+			return true
+		}
+		if b.Replayed() && a.replayOpenAI() {
 			return true
 		}
 	}
 	return false
 }
+
+// replayOpenAI is the effective setting: reasoning goes back to
+// OpenAI-compatible providers only when reasoning_replay is on and
+// JANETCODE_OFF=reasoning is not set.
+func (a *Agent) replayOpenAI() bool { return a.ReasoningReplay && !a.Off["reasoning"] }

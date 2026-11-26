@@ -64,10 +64,30 @@ func TestPlanCarryOncePerTurnAndOff(t *testing.T) {
 func TestPlanCarrySkipsReplayedReasoning(t *testing.T) {
 	resp := &llm.Response{Message: planReply(8000, "write_file", "core.py")}
 	resp.Message.Blocks[0].Via = "reasoning"
-	if (&Agent{}).planCarryNote(resp) != "" {
+	if (&Agent{ReasoningReplay: true}).planCarryNote(resp) != "" {
 		t.Fatal("note for a plan that is sent back")
 	}
-	if (&Agent{Off: map[string]bool{"reasoning": true}}).planCarryNote(resp) == "" {
+	if (&Agent{ReasoningReplay: true, Off: map[string]bool{"reasoning": true}}).planCarryNote(resp) == "" {
 		t.Fatal("no note when the reasoning is dropped")
+	}
+}
+
+func TestPlanCarryFollowsEffectiveReplay(t *testing.T) {
+	msg := planReply(8000, "write_file", "core.go")
+	msg.Blocks[0].Via = "reasoning"
+	resp := &llm.Response{Message: msg}
+	cases := []struct {
+		name string
+		a    *Agent
+		want bool
+	}{
+		{"default drops, so the plan is carried", &Agent{}, true},
+		{"replay on, plan survives, no note", &Agent{ReasoningReplay: true}, false},
+		{"replay on but switched off", &Agent{ReasoningReplay: true, Off: map[string]bool{"reasoning": true}}, true},
+	}
+	for _, c := range cases {
+		if got := c.a.planCarryNote(resp) != ""; got != c.want {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+		}
 	}
 }

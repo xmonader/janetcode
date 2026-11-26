@@ -78,6 +78,7 @@ type dialect struct {
 	noCacheControl   bool // server rejects cache_control / array content
 	noCacheKey       bool // server rejects prompt_cache_key
 	noJSONSchema     bool // server rejects response_format json_schema
+	replayReasoning  bool // server rejects an assistant turn without its reasoning
 	// maxOut is the largest output limit the server accepts, learned from a
 	// 400 that refused a larger one; 0 until then. lastMax is the limit the
 	// last request asked for, the fallback when the refusal names none.
@@ -292,14 +293,25 @@ attempts:
 			return nil, wd.Wrap(err)
 		}
 
-		w, err := buildRequest(req)
+		build := func() (wireRequest, error) {
+			r := req
+			if p.mustReplay() {
+				r.DropReasoning = false
+			}
+			w, err := buildRequest(r)
+			if err != nil {
+				return w, err
+			}
+			w.PromptCacheKey = p.cfg.CacheKey
+			if cacheableURL(p.cfg.BaseURL) {
+				applyCacheBreakpoints(&w)
+			}
+			return w, nil
+		}
+		w, err := build()
 		if err != nil {
 			wd.Stop()
 			return nil, err
-		}
-		w.PromptCacheKey = p.cfg.CacheKey
-		if cacheableURL(p.cfg.BaseURL) {
-			applyCacheBreakpoints(&w)
 		}
 		for {
 			body, err := json.Marshal(p.applyDialect(w))
@@ -335,6 +347,10 @@ attempts:
 				// resend immediately. Working out the dialect must not spend
 				// the budget meant for transient failures, and it does not:
 				// only a failure the Retrier is asked about counts.
+				if w, err = build(); err != nil {
+					wd.Stop()
+					return nil, err
+				}
 				continue
 			}
 			if f, ok := keyProblem(err); ok {
@@ -456,6 +472,12 @@ func (p *Provider) learnDialect(err error) bool {
 	case !p.dialect.noJSONSchema && (strings.Contains(msg, "response_format") || strings.Contains(msg, "json_schema")):
 		p.dialect.noJSONSchema = true
 		return true
+	case !p.dialect.replayReasoning && reasoningRequired(msg):
+		// Thinking mode refuses an assistant turn that lacks its
+		// reasoning_content. Replay it from here on; the flag makes this
+		// fire once per provider, so a second 400 is not retried.
+		p.dialect.replayReasoning = true
+		return true
 	case p.dialect.lastMax > 1024 && outputLimitRefusal(msg):
 		// The output limit asked for is more than this model serves. The
 		// largest number the refusal names below what was asked is taken
@@ -473,6 +495,23 @@ func (p *Provider) learnDialect(err error) bool {
 		return true
 	}
 	return false
+}
+
+// mustReplay reports whether the server demanded replayed reasoning.
+func (p *Provider) mustReplay() bool {
+	p.dialect.mu.Lock()
+	defer p.dialect.mu.Unlock()
+	return p.dialect.replayReasoning
+}
+
+// reasoningRequired reports whether a lowercased 400 message says the
+// request lacks reasoning_content: it names "reasoning" together with
+// "missing", "required" or "must".
+func reasoningRequired(msg string) bool {
+	if !strings.Contains(msg, "reasoning") || strings.Contains(msg, "reasoning_effort") {
+		return false
+	}
+	return strings.Contains(msg, "missing") || strings.Contains(msg, "required") || strings.Contains(msg, "must")
 }
 
 var numberRe = regexp.MustCompile(`\d{4,7}`)

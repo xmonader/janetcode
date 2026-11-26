@@ -82,6 +82,11 @@ type Config struct {
 	// that are offered apply_patch besides the built-in families
 	// (see tool.PatchModel).
 	PatchModels []string `json:"patch_models,omitempty"`
+	// ReasoningReplay sends the model's earlier reasoning back on
+	// OpenAI-compatible providers. Off by default: it cost 29-63% more input
+	// for the same passes. A provider that rejects a tool-call turn without
+	// its reasoning switches it on for itself.
+	ReasoningReplay bool `json:"reasoning_replay,omitempty"`
 	// ReasoningReplayChars caps each reasoning block replayed to an
 	// OpenAI-compatible provider at this many characters, keeping the tail.
 	// Zero is unlimited. Cache-safe: the cut is fixed per message.
