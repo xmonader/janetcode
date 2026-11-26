@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+// TestOverflowKimiAndLookalikes: Moonshot's wording is recognised, and
+// words that merely resemble a pattern inside identifiers or rate-limit
+// text are not.
+func TestOverflowKimiAndLookalikes(t *testing.T) {
+	cases := []struct {
+		msg  string
+		want bool
+	}{
+		{"exceeded model token limit", true},
+		{"Invalid request: Your request exceeded model token limit: 262144 (requested: 270000)", true},
+		{`400 {"error":{"message":"Invalid request: Your request exceeded model token limit","type":"invalid_request_error"}}`, true},
+		{"context_length_exceeded", true},
+		{"This model's maximum context length is 262144 tokens", true},
+		{"rate limit: tokens per minute", false},
+		{"429 rate limit reached: token limit per minute, exceeded model token limit", false},
+		{"tool token_limit_check failed: exit 1", false},
+		{"tool exceeded_model_token_limit_probe not found", false},
+		{"unknown tool: context_length_exceeded_handler", false},
+		{"token limit", false},
+	}
+	for _, c := range cases {
+		if got := isContextOverflow(errors.New(c.msg)); got != c.want {
+			t.Errorf("isContextOverflow(%q) = %v, want %v", c.msg, got, c.want)
+		}
+	}
+}
+
 // TestOverflowNotConfusedWithThrottling: a rate limit is not a context
 // overflow, and compacting in response to one throws away history to fix a
 // problem that would have cleared on a retry.

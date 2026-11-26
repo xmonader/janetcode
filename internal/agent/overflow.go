@@ -61,11 +61,32 @@ func isContextOverflow(err error) bool {
 		}
 	}
 	for _, needle := range overflowPatterns {
-		if strings.Contains(msg, needle) {
+		if containsWord(msg, needle) {
 			return true
 		}
 	}
 	return false
+}
+
+// containsWord reports whether needle occurs in msg not glued to an
+// identifier character on either side, so a phrase inside a tool or
+// field name ("context_length_exceeded_handler") is not an overflow.
+func containsWord(msg, needle string) bool {
+	isIdent := func(b byte) bool {
+		return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z'
+	}
+	for from := 0; ; {
+		i := strings.Index(msg[from:], needle)
+		if i < 0 {
+			return false
+		}
+		i += from
+		end := i + len(needle)
+		if (i == 0 || !isIdent(msg[i-1])) && (end == len(msg) || !isIdent(msg[end])) {
+			return true
+		}
+		from = i + 1
+	}
 }
 
 var windowRe = regexp.MustCompile(`(?i)(?:>\s*|maximum context length is |context length of |limit of |window of )(\d{4,7})(?:\s*(?:tokens|maximum|max))?`)
