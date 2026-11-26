@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"math/rand"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -205,10 +209,30 @@ func (r *Retrier) ResetWatchdog(wd *Watchdog) { r.wd = wd }
 // RetryBase is the first backoff; it doubles with every attempt.
 const RetryBase = 500 * time.Millisecond
 
+// A gateway outage lasts tens of seconds to minutes, not the 1.5s that
+// three quick attempts cover: a broker hiccup of about five minutes once
+// killed half of a benchmark's runs within two seconds. So a transient
+// gateway failure keeps retrying, with each wait capped at MaxBackoff and
+// the waits together capped at RetryBudget. The cap keeps a long outage
+// polled often enough to notice its end; the budget is how long a user
+// would sit staring at a status line before wanting the error instead. It
+// sits well inside the default stream lifetime cap (DefaultStreamMax), so
+// that cap never cuts it short.
+const (
+	MaxBackoff  = 30 * time.Second
+	RetryBudget = 3 * time.Minute
+)
+
 // Retrier carries one call's retry budget: how many attempts are left,
 // what the user has been told, and what the call had to survive. A
 // provider makes one per streamed call, asks Wait about every failure,
 // and calls Landed when one finally answers.
+//
+// Two budgets apply. Failures that say the gateway is down (502, 503, 504,
+// 529 and a connection that never opened) spend a time budget, RetryBudget,
+// and are retried as often as it allows. Every other retryable failure
+// (a 429, a stalled or cut stream, an error frame) spends a count, max. A
+// max of zero turns retrying off altogether.
 //
 // An attempt only counts when Wait is asked about it, so a provider that
 // resends for a reason of its own — a parameter the server rejects, a key
@@ -219,8 +243,14 @@ type Retrier struct {
 	emit func(Event)
 	wd   *Watchdog
 
-	spent int
-	sum   Retry
+	budget time.Duration
+	sleep  func(context.Context, time.Duration) error
+	jitter func() float64 // in [0,1)
+
+	spent  int           // attempts of the counted kind
+	tries  int           // all attempts, the backoff exponent
+	waited time.Duration // waits of the budgeted kind
+	sum    Retry
 }
 
 // NewRetrier makes a Retrier for one call. emit may be nil; wd may be nil.
@@ -231,7 +261,57 @@ func NewRetrier(max int, emit func(Event), wd *Watchdog) *Retrier {
 	if max < 0 {
 		max = 0
 	}
-	return &Retrier{max: max, emit: emit, wd: wd}
+	return &Retrier{max: max, emit: emit, wd: wd, budget: RetryBudget, sleep: sleepCtx, jitter: rand.Float64}
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+	}
+	return nil
+}
+
+// gatewayDown reports whether err says the path to the model is down, as
+// opposed to the model or the account refusing this request. Cut streams,
+// stalls and error frames are excluded: they may be this request's own.
+func gatewayDown(err error) bool {
+	var se StatusError
+	if errors.As(err, &se) {
+		switch se.HTTPStatus() {
+		case 502, 503, 504, 529:
+			return !MidStream(err)
+		}
+		return false
+	}
+	if errors.Is(err, ErrStreamWatchdog) || Truncated(err) {
+		return false
+	}
+	return Retryable(err) && transientNetwork(err)
+}
+
+// transientNetwork reports whether a transport error is the network or
+// the far end failing, not this request being refused by our own policy
+// (a redirect off the endpoint's origin, a malformed URL), which no wait
+// will cure.
+func transientNetwork(err error) bool {
+	var op *net.OpError
+	var dns *net.DNSError
+	var ne net.Error
+	switch {
+	case errors.As(err, &op), errors.As(err, &dns):
+		return true
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF),
+		errors.Is(err, syscall.ECONNREFUSED), errors.Is(err, syscall.ECONNRESET),
+		errors.Is(err, syscall.ECONNABORTED), errors.Is(err, syscall.EPIPE):
+		return true
+	case errors.As(err, &ne):
+		return ne.Timeout()
+	}
+	return false
 }
 
 // Wait decides what to do about a failed attempt. It returns nil when the
@@ -240,29 +320,45 @@ func NewRetrier(max int, emit func(Event), wd *Watchdog) *Retrier {
 // server's own Retry-After where it gave one, and tells the watchdog to
 // expect it so a deliberate pause does not read as a stalled stream.
 func (r *Retrier) Wait(ctx context.Context, err error) error {
-	if r.spent >= r.max || !Retryable(err) || ctx.Err() != nil {
+	if r.max <= 0 || !Retryable(err) || ctx.Err() != nil {
 		return err
 	}
-	wait := RetryBase << r.spent
+	timed := gatewayDown(err)
+	if !timed && r.spent >= r.max {
+		return err
+	}
+	// Capped exponential backoff with jitter, so a fleet of runs that
+	// failed together does not come back together.
+	wait := MaxBackoff
+	if r.tries < 7 {
+		wait = min(RetryBase<<r.tries, MaxBackoff)
+	}
+	wait = wait/2 + time.Duration(r.jitter()*float64(wait/2))
 	// The server's own Retry-After wins where it gave one: it knows when
 	// its window resets, and the backoff is only a guess.
 	var se StatusError
 	if errors.As(err, &se) && se.RetryHint() > 0 {
 		wait = se.RetryHint()
 	}
-	r.spent++
-	reason := RetryReason(err)
-	r.sum.Attempts, r.sum.Reason, r.sum.Wait = r.spent, reason, r.sum.Wait+wait
-	r.emit(Event{Type: EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", r.spent, r.max, reason, wait.Round(time.Second/10))})
-	r.wd.Expect(wait)
-	t := time.NewTimer(wait)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
+	var lead, tail string
+	if timed {
+		left := r.budget - r.waited
+		if left <= 0 {
+			return err
+		}
+		wait = min(wait, left)
+		r.waited += wait
+		lead, tail = "retrying", fmt.Sprintf(" · %s of %s", r.waited.Round(time.Second), r.budget)
+	} else {
+		r.spent++
+		lead = fmt.Sprintf("retrying %d/%d", r.spent, r.max)
 	}
-	return nil
+	r.tries++
+	reason := RetryReason(err)
+	r.sum.Attempts, r.sum.Reason, r.sum.Wait = r.tries, reason, r.sum.Wait+wait
+	r.emit(Event{Type: EventStatus, Text: fmt.Sprintf("%s · %s · in %s%s", lead, reason, wait.Round(time.Second/10), tail)})
+	r.wd.Expect(wait)
+	return r.sleep(ctx, wait)
 }
 
 // Landed reports a call that failed, was retried and then succeeded. A

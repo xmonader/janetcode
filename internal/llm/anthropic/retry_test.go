@@ -111,13 +111,14 @@ func TestInternalErrorIsNotRetried(t *testing.T) {
 	}
 }
 
-// The budget is the one the caller configured, and it is spent once.
+// The count budget (rate limits, as gateway outages spend a time budget
+// instead) is the one the caller configured, and it is spent once.
 func TestRetriesStopAtTheBudget(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		w.WriteHeader(529)
-		io.WriteString(w, `{"type":"error","error":{"type":"overloaded_error","message":"overloaded"}}`)
+		w.WriteHeader(429)
+		io.WriteString(w, `{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}`)
 	}))
 	defer srv.Close()
 	p, err := New(Config{APIKey: "k", BaseURL: srv.URL, MaxRetries: 2})

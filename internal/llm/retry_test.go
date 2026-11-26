@@ -178,3 +178,106 @@ func TestExpectKeepsTheIdleBoundFromFiringDuringABackoff(t *testing.T) {
 		t.Fatalf("watchdog error = %v, want the idle bound", err)
 	}
 }
+
+// fakeClock makes a Retrier that "sleeps" by advancing a counter.
+func fakeClock(rt *Retrier) *time.Duration {
+	var now time.Duration
+	rt.jitter = func() float64 { return 0.5 }
+	rt.sleep = func(ctx context.Context, d time.Duration) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		now += d
+		return nil
+	}
+	return &now
+}
+
+func TestRetrierRidesOutAGatewayOutage(t *testing.T) {
+	rt := NewRetrier(2, nil, nil)
+	now := fakeClock(rt)
+	attempts := 0
+	for *now < 60*time.Second {
+		attempts++
+		if err := rt.Wait(context.Background(), status(502, "Bad Gateway")); err != nil {
+			t.Fatalf("gave up at %v after %d attempts: %v", *now, attempts, err)
+		}
+	}
+	if attempts <= 3 {
+		t.Fatalf("only %d attempts across 60s", attempts)
+	}
+}
+
+func TestRetrierGivesUpWhenTheBudgetIsSpent(t *testing.T) {
+	rt := NewRetrier(2, nil, nil)
+	now := fakeClock(rt)
+	var err error
+	for i := 0; i < 1000 && err == nil; i++ {
+		err = rt.Wait(context.Background(), status(503, "down"))
+	}
+	if err == nil {
+		t.Fatal("never gave up")
+	}
+	if *now != RetryBudget {
+		t.Fatalf("waited %v, want exactly the %v budget", *now, RetryBudget)
+	}
+}
+
+func TestRetrierFailsAtOnceOnANonRetryableError(t *testing.T) {
+	rt := NewRetrier(2, nil, nil)
+	now := fakeClock(rt)
+	if err := rt.Wait(context.Background(), status(400, "bad")); err == nil || *now != 0 {
+		t.Fatalf("err=%v waited=%v", err, *now)
+	}
+}
+
+func TestRetrierZeroMaxMeansNoRetries(t *testing.T) {
+	rt := NewRetrier(0, nil, nil)
+	fakeClock(rt)
+	if err := rt.Wait(context.Background(), status(502, "x")); err == nil {
+		t.Fatal("retried with max 0")
+	}
+}
+
+func TestRetrierCountsOtherFailuresByMax(t *testing.T) {
+	rt := NewRetrier(2, nil, nil)
+	fakeClock(rt)
+	for i := 0; i < 2; i++ {
+		if err := rt.Wait(context.Background(), status(429, "slow")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := rt.Wait(context.Background(), status(429, "slow")); err == nil {
+		t.Fatal("third 429 retried")
+	}
+}
+
+func TestRetrierBackoffIsCapped(t *testing.T) {
+	rt := NewRetrier(2, nil, nil)
+	now := fakeClock(rt)
+	var last time.Duration
+	for i := 0; i < 12; i++ {
+		before := *now
+		_ = rt.Wait(context.Background(), errors.New("connection refused"))
+		last = *now - before
+	}
+	if last > MaxBackoff {
+		t.Fatalf("wait %v exceeds cap", last)
+	}
+}
+
+func TestRetrierBudgetedWaitAbortsOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	rt := NewRetrier(2, nil, nil)
+	fakeClock(rt)
+	cancel()
+	if err := rt.Wait(ctx, status(502, "x")); err == nil {
+		t.Fatal("waited on a cancelled ctx")
+	}
+	// Cancelled during the wait itself.
+	rt2 := NewRetrier(2, nil, nil)
+	rt2.sleep = func(context.Context, time.Duration) error { return context.Canceled }
+	if err := rt2.Wait(context.Background(), status(502, "x")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+}
