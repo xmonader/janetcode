@@ -10,7 +10,7 @@ import (
 // replayed reasoning cost 29-74% more input for the same passes, so replay
 // is off by default. Inkling is the exception: without its reasoning it
 // re-derives its plan on the next call, so ink-replay measured 13.1 calls
-// and 24k output per run with replay against 17.7 and 36k without.
+// and 24k output per run with replay against 19.6 and 42k without.
 var replayFamilies = []string{"inkling*"}
 
 // ReplayModel reports whether a model id belongs to a family that replays

@@ -22,6 +22,42 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## Inkling 2: reasoning replay per model; the unverified-edits note dropped (2026-11-27)
+
+**janetcode against pi 1.6.1** (`h2h-ink-small`, `h2h-ink-mini`, bin/janetcode-h2h4, 8 tasks × 3 seeds,
+via Together and PrimeIntellect):
+
+| model | arm | pass | calls/run | input/run | output/run | cost/run |
+|---|---|---|---|---|---|---|
+| inkling-2-small | janetcode | 23/24 | 15.4 | 281k | 35.0k | $0.052 |
+| | pi | 23/24 | 15.0 | 266k | 18.2k | $0.026 |
+| inkling-2-mini | janetcode | 21/24 | 19.1 | 331k | 77.6k | $0.040 |
+| | pi | 22/24 | 18.3 | 440k | 27.1k | $0.018 |
+
+This is the first model on which pi is cheaper. Without its earlier reasoning,
+inkling re-derives its plan on the next call: janetcode's first two calls
+reasoned for about 10k tokens each, against about 10 for pi's. All three
+janetcode losses on mini were d-cronexpr hitting the 1200 s timeout.
+
+**Replay on inkling-2-small** (`ink-replay`, bin/janetcode-h2h5):
+
+| arm | pass | calls/run | input/run | output/run | cost/run |
+|---|---|---|---|---|---|
+| drop | 24/24 | 19.6 | 402k | 41.7k | $0.064 |
+| replay | 24/24 | **13.1** | **335k** | **24.3k** | **$0.044** |
+
+Replay cut calls by 33%, output by 42% and cost by 31%. 86aa7b07 makes replay
+the default for `inkling*` models, and the `replay_models` setting adds more
+globs; every other model still drops reasoning. pi stays cheaper on inkling
+($0.026), so a gap remains.
+
+**The unverified-edits note** (3ce604ca, reverted in cd958f22): one note when a
+headless turn ended on edits with no check after them.
+
+- `unv-oss` (gpt-oss, 8 × 5): on 5/40 at 314k input/run, off 6/40 at 240k. It
+  fired in 16 of 40 runs and turned none of them into a pass.
+- `unv-kimi`: it never fired (24/24 and 23/24).
+
 ## gpt-oss-20b: surviving tool calls the provider refuses (`h2h-oss`, `oss-replay`, `oss-toolfix`, `oss-toolfix2`, 2026-11-26)
 
 On ai02, gpt-oss-20b is served via OpenRouter by Groq, which checks every tool
