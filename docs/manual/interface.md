@@ -4607,3 +4607,12 @@ Drop a prompt template at `.janetcode/commands/<name>.md` in the project (or
 `~/.config/janetcode/commands/<name>.md` for every project) and `/<name> args`
 submits it with `$ARGUMENTS` replaced. The first line is the help text shown
 in tab completion.
+
+### Opt-in checks: spec review and plan check
+
+Two checks are off by default because A/B runs showed they cost model
+steps without adding passes (see the effbench report, `an-ds`/`an-ink`):
+`spec_review` sends a headless turn that changed files back once to
+re-read the task before it ends, and `plan_check` notes names in a plan
+that the repository neither defines nor uses. Set either to true to turn
+it back on; `JANETCODE_OFF=specreview` or `plan` still turns it off.

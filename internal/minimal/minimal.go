@@ -165,7 +165,9 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 	ag.Off = off
 	ag.Archive = archive
 	ag.System = prompt.SystemWith(root, override)
-	ag.PlanCheck = repo.CheckPlan
+	if cfg.PlanCheck {
+		ag.PlanCheck = repo.CheckPlan
+	}
 	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	if !off["repomap"] {
 		ag.Prepare = repomap.TurnPrep(repo, 0)

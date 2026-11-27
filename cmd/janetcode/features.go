@@ -160,6 +160,8 @@ var configWhen = map[string][2]string{
 	"patch_models":             {"extra model-id globs that are offered the apply_patch tool", "for a model trained on the codex patch format that the built-in gpt-*, o3*, o4*, codex* list does not name"},
 	"replay_models":            {"model-id globs that replay reasoning by default, besides Inkling", "for models that re-derive their plan on every call without their reasoning"},
 	"reasoning_replay":         {"send the model's earlier reasoning back on OpenAI-compatible providers", "the model loses its plan without it; costs 29-63% more input, and providers that require it turn it on themselves"},
+	"spec_review":              {"send a headless turn that changed files back once to re-read the task", "a model that stops before meeting every requirement; it cost 13-17% of model steps for no passes in A/B runs"},
+	"plan_check":               {"note names in a plan that the repo neither defines nor uses", "a model that plans around symbols that do not exist; it mostly flags names the plan is about to create"},
 	"reasoning_replay_chars":   {"cap each replayed reasoning block at this many characters, keeping the tail (0 = unlimited)", "replaying full reasoning costs too much input on a model, but dropping it entirely loses the plan"},
 	"reasoning_replay_last":    {"replay reasoning only on the last N assistant messages (0 = all)", "older reasoning is dead weight; moves the cache cut by one message per call"},
 	"show_thinking":            {"render the model's reasoning in the terminal", "you want the first visible token sooner and do not read the reasoning"},

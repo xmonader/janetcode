@@ -22,6 +22,42 @@ cheating, and metered by the same code that measured herox and pi.
 - **pi:** effbench's own build of the latest pi
   (`~/.cache/effbench/pi-eb326d265`), with `-nc -ns` and pi's defaults.
 
+## What the sessions show; the spec review and plan check go opt-in (`an-ds`, `an-kimi`, `an-ink`, 2026-11-27)
+
+A read of 368 default-arm sessions (gpt-oss, Inkling, Kimi, DeepSeek)
+for machinery that fires without changing anything:
+
+- **Spec review** ("Before you finish: read the task…") fired in ~55% of
+  runs and took 13–17% of all model steps; the turn it sent back led to an
+  edit in 14–20% of firings on DeepSeek and Kimi, 42% on Inkling.
+- **Plan check** fired ~120 times in passing runs, nearly always about a
+  name the plan was about to create.
+- Working as meant: attached files are almost never re-read (9 of 550
+  reads; the rest follow a change), identical repeated calls are rare (23
+  of 5,272), the claim check leads to real fixes, the refused-call
+  recovery fired in 36 gpt-oss runs.
+- Not janetcode's: pyright never starts under effbench's throwaway HOME
+  (one note per session); 88% of file/change events are build output
+  (log size only, no tokens).
+- gpt-oss loops on a failing apply_patch in 15 runs, none passing; the
+  repeat warnings fire but do not break it. Left alone: a weak model.
+- gpt-oss sent bash commands as an argv list 7 times; fixed (`f914d60b`).
+
+Ablation, 8 tasks × 3 seeds, binary at `b0aa4ea6`:
+
+| Arm | DeepSeek flash | Kimi | Inkling 2 small |
+|---|---|---|---|
+| on | 24/24, 12.1 calls, 177k in | 22/24, 10.4 calls, 148k | 24/24, 13.0 calls, 335k, $0.048 |
+| `JANETCODE_OFF=plan` | 23/24, 11.0, 140k | 24/24, 8.8, 115k | — |
+| `JANETCODE_OFF=specreview` | 22/24, 10.3, 134k | 24/24, 7.9, 95k | — |
+| both off | 23/24, 8.7, 104k | (Kimi weekly quota ran out) | 23/24, 12.8, 295k, $0.040 |
+
+Failures are scattered (one each on different tasks; `on` itself failed
+a-catalog-paging on Kimi, the task the spec review was made for, which
+passed 5/6 with it off). Both off cuts DeepSeek input 41% and calls 28%,
+Inkling input 12% and cost 15%, for no pass difference beyond noise. Both
+are now off by default: `spec_review` and `plan_check` turn them back on.
+
 ## Inkling 2: reasoning replay per model; the unverified-edits note dropped (2026-11-27)
 
 **janetcode against pi 1.6.1** (`h2h-ink-small`, `h2h-ink-mini`, bin/janetcode-h2h4, 8 tasks × 3 seeds,

@@ -584,10 +584,10 @@ func (b *agentBuilder) stepCore() error {
 		// syn-kimi-final, 8 tasks x 3 seeds) a run without them and
 		// without the spec review passed as often as master, 19/24, at
 		// 11.5 against 16.6 calls and 147k against 256k input. The spec
-		// review stays: without it a-catalog-paging, the task it was made
-		// for, passed 0/3.
+		// review is opt-in (spec_review): a-catalog-paging, the task it
+		// was made for, now passes without it (an-ds/an-kimi 5/6).
 		ag.NoEdgeRules = true
-		ag.SpecReview = true
+		ag.SpecReview = d.cfg.SpecReview
 		ag.WrapUp = true
 		ag.WrapStop = true
 		ag.TestGuard = true
@@ -862,7 +862,9 @@ func (b *agentBuilder) stepHeadlessCore() error {
 // stderr, not a session that refuses to start.
 func (b *agentBuilder) stepTurnHooks() error {
 	ag := b.ag
-	ag.PlanCheck = b.repo.CheckPlan
+	if b.d.cfg.PlanCheck {
+		ag.PlanCheck = b.repo.CheckPlan
+	}
 	// ag.Verify is not wired up yet at this point (wireProject sets it
 	// once it knows whether the project's verify config is trusted), so
 	// the checks are read at call time rather than captured now.

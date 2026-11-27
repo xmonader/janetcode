@@ -87,6 +87,15 @@ type Config struct {
 	// for the same passes. A provider that rejects a tool-call turn without
 	// its reasoning switches it on for itself.
 	ReasoningReplay bool `json:"reasoning_replay,omitempty"`
+	// SpecReview sends a headless turn that changed files back once with
+	// "read the task again before you finish". Off by default: in effbench
+	// an-ds/an-kimi/an-ink it took 13-17% of model steps and switching it
+	// off cost no passes (DeepSeek 22/24 vs 24/24, Kimi 24/24 vs 22/24).
+	SpecReview bool `json:"spec_review,omitempty"`
+	// PlanCheck notes names a plan mentions that the repo neither defines
+	// nor uses. Off by default: it mostly flagged names the plan was about
+	// to create, and off it saved ~21% input for the same passes.
+	PlanCheck bool `json:"plan_check,omitempty"`
 	// ReplayModels are extra model-id globs (path.Match, case-insensitive)
 	// that replay reasoning by default besides the built-in families
 	// (see agent.ReplayModel).

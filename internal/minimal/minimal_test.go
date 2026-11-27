@@ -46,8 +46,11 @@ func TestNewDefault(t *testing.T) {
 	if ag.MaxIterations != 7 || ag.MaxTokens != 1234 || ag.CompactAt != 999 || ag.Model != "claude-sonnet-4-5" {
 		t.Fatalf("limits not taken from config: %+v", ag)
 	}
-	if ag.Prepare == nil || ag.PlanCheck == nil || ag.Archive == nil || ag.Log == nil {
-		t.Fatal("repo map turn prep, plan check, archive and log must all be wired")
+	if ag.Prepare == nil || ag.Archive == nil || ag.Log == nil {
+		t.Fatal("repo map turn prep, archive and log must all be wired")
+	}
+	if ag.PlanCheck != nil {
+		t.Fatal("plan check is opt-in (plan_check) and must be off by default")
 	}
 	names := ag.Tools.Names()
 	for _, want := range []string{"read_file", "write_file", "edit_file", "bash", "list_dir", "glob", "grep", "expand_output", "todo", codeTool(t)} {
