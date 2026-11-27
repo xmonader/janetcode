@@ -51,6 +51,28 @@ the default for `inkling*` models, and the `replay_models` setting adds more
 globs; every other model still drops reasoning. pi stays cheaper on inkling
 ($0.026), so a gap remains.
 
+**Closing the rest of the gap, two things tried** (`ink-inline`, `ink-cap`, bin/janetcode-h2h6, which replays by default for inkling):
+
+| campaign | arm | pass | calls/run | input/run | output/run | cost/run |
+|---|---|---|---|---|---|---|
+| ink-inline | janetcode | 24/24 | 14.1 | 372k | 24.7k | $0.049 |
+| | no attached repo (`JANETCODE_OFF=inline`) | 24/24 | 20.8 | 456k | 25.7k | $0.054 |
+| | pi | 24/24 | 16.3 | 291k | 18.0k | $0.033 |
+| ink-cap | full replay | 24/24 | 15.1 | 413k | 24.4k | $0.047 |
+| | `reasoning_replay_chars=2000` | 24/24 | 16.0 | 329k | 31.1k | $0.048 |
+| | `reasoning_replay_chars=6000` | 24/24 | 15.5 | 340k | 29.1k | $0.048 |
+
+- **The attached repository stays on.** Without it, the first call reasons for
+  about 5 tokens instead of 8–14k, but the run makes 48% more calls and costs
+  more.
+- **Capping replayed reasoning does not pay.** It trades input for output at
+  the same cost. Full replay stays.
+- **What remains is structural.** janetcode's prompt averages 26k tokens against
+  pi's 18k, since the attached repository (about 5.5k tokens) rides on every
+  call. inkling also writes more output under janetcode. On this model
+  janetcode costs about 45% more than pi for the same passes, and it is the
+  only model measured where that is true.
+
 **The unverified-edits note** (3ce604ca, reverted in cd958f22): one note when a
 headless turn ended on edits with no check after them.
 
