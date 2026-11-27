@@ -76,13 +76,12 @@ func (g *gateProv) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 }
 
 type ctlEnv struct {
-	t     *testing.T
-	s     *server
-	ts    *httptest.Server
-	prov  *gateProv
-	sess  *session.Session
-	kill  context.CancelFunc
-	roots string
+	t    *testing.T
+	s    *server
+	ts   *httptest.Server
+	prov *gateProv
+	sess *session.Session
+	kill context.CancelFunc
 }
 
 func newCtlEnv(t *testing.T, ttl time.Duration) *ctlEnv {

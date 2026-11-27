@@ -864,15 +864,6 @@ func (t *Task) runBackground(kid *subagent, childID, kind, desc, prompt string, 
 	}()
 }
 
-// forkReport is what the parent is told when a background fork ends. A
-// fork edits the parent's own workspace and its work used to reach the
-// parent only if someone ran /agents: a recorded session spawned two
-// forks, replied, and the session log ended — the files they wrote
-// appear nowhere in the transcript.
-func forkReport(id, desc string, took time.Duration, child *Agent, err error) string {
-	return bgReport("fork", id, desc, took, child, err)
-}
-
 func bgReport(label, id, desc string, took time.Duration, child *Agent, err error) string {
 	head := fmt.Sprintf("%s %q id=%s finished after %s", label, desc, id, took.Round(time.Second))
 	switch {

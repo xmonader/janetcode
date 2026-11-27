@@ -367,6 +367,7 @@ func Admit(ws *tool.Workspace, sess *session.Session, arg string) (string, error
 		return "admission lists cleared\n" + pol.Describe(ws.Root()), nil
 	case "remove", "rm":
 		if len(words) < 2 {
+			//lint:ignore ST1005 the trailing ... is the usage notation for "one or more paths", not sentence punctuation
 			return "", fmt.Errorf("usage: /admit remove <path>...")
 		}
 		var gone []string

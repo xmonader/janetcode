@@ -971,11 +971,6 @@ func (a *Agent) runSafely(ctx context.Context, t tool.Tool, input json.RawMessag
 	return res.Text, res.Images, err
 }
 
-func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (string, []llm.Block, error) {
-	res, err := runSafelyResult(ctx, t, input)
-	return res.Text, res.Images, err
-}
-
 // unknownTool is the answer to a call naming no tool of this session. A
 // name typed from memory is usually a near miss — "Bash", "readfile",
 // "read-file" — so the closest real name comes first, on one line, ahead

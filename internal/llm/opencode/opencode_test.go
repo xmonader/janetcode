@@ -18,7 +18,7 @@ import (
 
 func reply(w http.ResponseWriter, path string) {
 	w.Header().Set("Content-Type", "text/event-stream")
-	frames := []string{}
+	var frames []string
 	switch {
 	case strings.HasSuffix(path, "/messages"):
 		frames = []string{

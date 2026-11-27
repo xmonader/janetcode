@@ -62,13 +62,11 @@ func readMeter(path string) ([]Record, error) {
 }
 
 type agg struct {
-	arm        string
-	n, pass    int
-	wall       float64
-	tot        Totals
-	runs       []Run
-	skipped    string
-	asked, got []string
+	arm     string
+	n, pass int
+	wall    float64
+	tot     Totals
+	skipped string
 }
 
 // WriteReport renders the markdown table, one section per model. refTPS > 0

@@ -20,7 +20,6 @@ import (
 // fork and then waits for the fork's file to appear before finishing, so
 // the fork's write lands inside the parent's turn deterministically.
 type forkInTurn struct {
-	mu     sync.Mutex
 	target string
 }
 

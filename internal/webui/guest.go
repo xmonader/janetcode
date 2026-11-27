@@ -269,7 +269,7 @@ func (s *server) dismissGuestRequest(id string) error {
 // prompt.ExpandMentions finds no path in text a guest wrote. The model
 // still reads "@file" as typed.
 func neutralizeMentions(text string) string {
-	return strings.ReplaceAll(text, "@", "@​")
+	return strings.ReplaceAll(text, "@", "@\u200b")
 }
 
 // guestAPI is /api/guest, the owner's side of sharing. The guard has

@@ -368,26 +368,6 @@ func isDocFile(path string) bool {
 // every use of the word "done".
 var claimRe = regexp.MustCompile(`(?i)\b(tests? (now )?(pass|passes|passing|are green|succeed)|all tests? pass|build (succeeds|passes|is green|works)|verified|I (ran|have run) the tests?|checks? pass)\b`)
 
-// checkTarget is what a check command is aimed at: the last argument of
-// its check segment that is not a flag, a flag's value, a redirection or
-// a shell operator — the test file, the package pattern, the directory.
-// Two commands with the same target are two ways of running the same
-// check. Only the check's own segment counts: the whole command's last
-// word made `go test ./pkg/ | head` aim at "head" and `go test ./pkg/ -run
-// TestX | sed -n 1,80p` at "1,80p", so the green `go test ./pkg/ | tail
-// -3` after them never retired them and a finished turn was sent back
-// (realrepo caddy-fmt).
-func checkTarget(cmd string) string {
-	t, sel := checkAim(cmd)
-	if t == "" || shell.IsTestRun(t) {
-		// `go test -run TestX`: the selection is all that names it.
-		if sel != "" {
-			return sel
-		}
-	}
-	return t
-}
-
 // checkAim is checkTarget's two parts: the target, and the selection a
 // flag such as -run or -k narrowed it to ("" for the whole target).
 func checkAim(cmd string) (target, selection string) {

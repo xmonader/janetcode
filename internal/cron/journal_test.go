@@ -59,10 +59,10 @@ func TestRestoreCatchesUpOnce(t *testing.T) {
 	}
 	_ = catchups
 	infos := c.List()
-	if got := infos[0].Next.Sub(time.Now()); got > 3*time.Second {
+	if got := time.Until(infos[0].Next); got > 3*time.Second {
 		t.Errorf("loop-1 should be due for catch-up soon, next in %v", got)
 	}
-	if got := infos[1].Next.Sub(time.Now()); got < 50*time.Minute {
+	if got := time.Until(infos[1].Next); got < 50*time.Minute {
 		t.Errorf("stale loop-3 must keep its normal schedule, next in %v", got)
 	}
 	for _, o := range j.Recent(50, "loop-3") {
