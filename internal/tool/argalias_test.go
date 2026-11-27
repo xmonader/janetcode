@@ -28,3 +28,20 @@ func TestNormalizeArgsRenamesBashCmd(t *testing.T) {
 		t.Fatal("non-object changed")
 	}
 }
+
+func TestNormalizeArgsTakesAnArgvCommand(t *testing.T) {
+	cases := map[string]string{
+		`{"command":["bash","-lc","pytest -q && echo ok"]}`: "pytest -q && echo ok",
+		`{"cmd":["sh","-c","ls"]}`:                          "ls",
+		`{"command":["python3","-c","print('hi there')"]}`:  `python3 -c 'print('\''hi there'\'')'`,
+	}
+	for in, want := range cases {
+		var m map[string]any
+		if err := json.Unmarshal(NormalizeArgs("bash", json.RawMessage(in)), &m); err != nil {
+			t.Fatal(err)
+		}
+		if m["command"] != want {
+			t.Errorf("%s: command = %q, want %q", in, m["command"], want)
+		}
+	}
+}
