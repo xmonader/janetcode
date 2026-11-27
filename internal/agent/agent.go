@@ -303,8 +303,11 @@ type Agent struct {
 	// ReasoningReplay sends reasoning back; false drops it (see
 	// replayOpenAI).
 	ReasoningReplay bool
-	ReasoningChars  int
-	ReasoningLast   int
+	// ReplayModels are extra model-id globs that replay reasoning by
+	// default (see ReplayModel), from the replay_models setting.
+	ReplayModels   []string
+	ReasoningChars int
+	ReasoningLast  int
 	// PlanBudget, when positive, is how many characters of reasoning a
 	// reply may stream before it writes text or calls a tool; past it the
 	// call ends and the model is told to act, up to maxPlanCuts times a

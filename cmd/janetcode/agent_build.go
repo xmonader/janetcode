@@ -565,6 +565,7 @@ func (b *agentBuilder) stepCore() error {
 	ag.Windows = func(model string) int { return d.cfg.MetaFor(model).ContextWindow }
 	ag.Off = b.off
 	ag.ReasoningReplay = d.cfg.ReasoningReplay
+	ag.ReplayModels = d.cfg.ReplayModels
 	ag.ReasoningChars = d.cfg.ReasoningReplayChars
 	ag.ReasoningLast = d.cfg.ReasoningReplayLast
 	ag.Workspace = b.ws

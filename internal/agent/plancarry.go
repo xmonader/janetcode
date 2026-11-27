@@ -95,4 +95,9 @@ func (a *Agent) planReplayed(m llm.Message) bool {
 // replayOpenAI is the effective setting: reasoning goes back to
 // OpenAI-compatible providers only when reasoning_replay is on and
 // JANETCODE_OFF=reasoning is not set.
-func (a *Agent) replayOpenAI() bool { return a.ReasoningReplay && !a.Off["reasoning"] }
+func (a *Agent) replayOpenAI() bool {
+	if a.Off["reasoning"] {
+		return false
+	}
+	return a.ReasoningReplay || ReplayModel(a.Settings().Model, a.ReplayModels...)
+}

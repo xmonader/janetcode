@@ -1,0 +1,7 @@
+# effbench arm config for thinkingmachines/inkling-2-mini on the ai02 broker (routed). Only `ctx` and `serve` are read.
+[[models]]
+alias = "inkling-2-mini"
+tier = "fast"
+ctx = 262144
+caps = ["text", "tools"]
+serve = [{ backend = "ai02", model = "thinkingmachines/inkling-2-mini" }]

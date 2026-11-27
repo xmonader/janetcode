@@ -1881,7 +1881,11 @@ at the text that is actually there instead of guessing again.
 
 On OpenAI-compatible providers the model's earlier reasoning is not sent
 back by default: in A/B runs replaying it cost 29-63% more input for the
-same passes. Set `reasoning_replay` to true to send it. A provider that
+same passes. The exception is models that re-derive their plan without it:
+Inkling models replay by default (with replay, 13 calls and 24k output per
+run against 18 and 36k without), and `replay_models` adds more model-id
+globs, such as `["glm-*"]`. Set `reasoning_replay` to true to send it for
+every model. A provider that
 rejects an assistant turn without its reasoning_content (a 400 naming
 "reasoning" with "missing", "required" or "must") switches replay on for
 itself and the request is resent once. When replay is on, two settings

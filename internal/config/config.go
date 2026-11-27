@@ -87,6 +87,10 @@ type Config struct {
 	// for the same passes. A provider that rejects a tool-call turn without
 	// its reasoning switches it on for itself.
 	ReasoningReplay bool `json:"reasoning_replay,omitempty"`
+	// ReplayModels are extra model-id globs (path.Match, case-insensitive)
+	// that replay reasoning by default besides the built-in families
+	// (see agent.ReplayModel).
+	ReplayModels []string `json:"replay_models,omitempty"`
 	// ReasoningReplayChars caps each reasoning block replayed to an
 	// OpenAI-compatible provider at this many characters, keeping the tail.
 	// Zero is unlimited. Cache-safe: the cut is fixed per message.
