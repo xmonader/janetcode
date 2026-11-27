@@ -121,7 +121,8 @@ The setup:
 
 On Kimi, the broker's key pool ran dry for the last seed. Every request returned
 429 ("all API keys for provider kimi are unavailable"), so the six seed-3 runs of
-each arm made no progress, and the table counts live runs only. That window led
+each arm made no progress. Those 12 runs were deleted and rerun on the same
+binaries on 2026-11-27, and the Kimi row counts all 24. That window led
 to acd35fb8: a 429 that names its retry window now spends the 3-minute budget
 instead of two retries.
 
@@ -129,13 +130,13 @@ instead of two retries.
 |---|---|---|---|---|---|---|---|---|
 | deepseek-v4.1-flash | janetcode | 24/24 | **10.2** | **133k** | **19k** | 22.8k | **$0.017** | **142 s** |
 | | pi | 24/24 | 16.6 | 349k | 31k | 24.0k | $0.023 | 191 s |
-| kimi-for-coding | janetcode | 18/18 | **9.8** | **142k** | **17k** | 23.0k | – | 175 s |
-| | pi | 17/18 | 14.3 | 257k | 26k | 20.2k | – | 178 s |
+| kimi-for-coding | janetcode | 24/24 | **9.5** | **131k** | – | 22.1k | – | 171 s |
+| | pi | 23/24 | 14.4 | 262k | – | 20.1k | – | 185 s |
 
 Against pi, janetcode passes as much or more, with:
 
-- 39% fewer calls on DeepSeek and 31% fewer on Kimi;
-- 62% less input on DeepSeek and 45% less on Kimi;
+- 39% fewer calls on DeepSeek and 34% fewer on Kimi;
+- 62% less input on DeepSeek and 50% less on Kimi;
 - 26% lower cost on DeepSeek.
 
 ## Reasoning replay costs input and buys nothing (`rb-ds`, `rb-kimi`, 2026-11-26)
